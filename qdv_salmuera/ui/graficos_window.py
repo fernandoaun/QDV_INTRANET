@@ -76,6 +76,38 @@ class DashboardGraficosWindow(tk.Toplevel):
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True)
 
+    def _plot_big_dual_y(self, parent, x, series_left: dict, series_right: dict,
+                         title: str, ylabel_left: str, ylabel_right: str):
+        """Gráfico con eje Y izquierdo (series_left) y eje Y derecho (series_right)."""
+        fig = Figure(figsize=(11, 5), dpi=100)
+        ax = fig.add_subplot(111)
+
+        for label, y in series_left.items():
+            ax.plot(x, y, label=label)
+
+        ax.set_ylabel(ylabel_left, color="C0")
+        ax.tick_params(axis="y", labelcolor="C0")
+        ax.grid(True)
+
+        ax2 = ax.twinx()
+        for label, y in series_right.items():
+            ax2.plot(x, y, label=label, color="C2")
+
+        ax2.set_ylabel(ylabel_right, color="C2")
+        ax2.tick_params(axis="y", labelcolor="C2")
+
+        # leyenda unificada
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, loc="best")
+
+        ax.set_title(title)
+        fig.autofmt_xdate()
+
+        canvas = FigureCanvasTkAgg(fig, master=parent)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True)
+
 
     def render(self):
         import traceback
@@ -232,17 +264,15 @@ class DashboardGraficosWindow(tk.Toplevel):
                 for w in tab.winfo_children():
                     w.destroy()
 
-            # ELÉCTRICO
-            self._plot_big(
+            # ELÉCTRICO (eje izquierdo: V; eje derecho: A)
+            self._plot_big_dual_y(
                 self.tab_elec,
                 xs,
-                {
-                    "Voltaje total": series["Voltaje total"],
-                    "Voltaje celda (prom)": series["Voltaje celda (prom)"],
-                    "Amperaje": series["Amperaje"],
-                },
+                {"Voltaje total": series["Voltaje total"]},
+                {"Amperaje": series["Amperaje"]},
                 "Variables eléctricas",
-                "V / A"
+                "V",
+                "A"
             )
 
             # CAUDALES
@@ -257,34 +287,33 @@ class DashboardGraficosWindow(tk.Toplevel):
                 "L/h"
             )
 
-            # PROCESO
-            self._plot_big(
+            # PROCESO (eje izquierdo: Hipoclorito y Soda; eje derecho: Exceso soda)
+            self._plot_big_dual_y(
                 self.tab_proc,
                 xs,
                 {
                     "Hipoclorito": series["Hipoclorito - Concentración"],
-                    "Exceso soda": series["Hipoclorito - Exceso Soda"],
                     "Soda": series["Soda - Concentración"],
                 },
+                {"Exceso soda": series["Hipoclorito - Exceso Soda"]},
                 "Proceso químico",
-                "g/L"
+                "g/L",
+                "g/L (exceso soda)"
             )
 
-            # CALIDAD
-            self._plot_big(
+            # CALIDAD (eje izquierdo: ambos pH; eje derecho: temperatura)
+            self._plot_big_dual_y(
                 self.tab_cal,
                 xs,
                 {
                     "pH salmuera": series["Salmuera - pH"],
                     "pH declorinación": series["Declorinación - pH"],
-                    "Temperatura": series["Salmuera - Temperatura"],
                 },
+                {"Temperatura": series["Salmuera - Temperatura"]},
                 "Calidad",
-                "pH / °C"
+                "pH",
+                "°C"
             )
-
-
-            messagebox.showinfo("OK", f"Gráficos generados: {len(xs)} puntos.")
 
         except Exception as e:
             messagebox.showerror("Error en gráficos", f"{e}\n\n{traceback.format_exc()}")

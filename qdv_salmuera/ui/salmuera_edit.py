@@ -527,5 +527,4 @@ class EditRegistroDialog(tk.Toplevel):
             messagebox.showerror("Error", f"No se pudieron guardar los cambios.\n\nDetalle: {e}")
             return
 
-        messagebox.showinfo("OK", "Cambios guardados.")
         self.destroy()
