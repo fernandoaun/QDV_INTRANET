@@ -1,0 +1,31 @@
+from __future__ import annotations
+import os
+
+APP_TITLE = "Química del Valle - Panel Principal"
+
+# Seguridad (borrado)
+SECURITY_DELETE_CODE = "8956"
+
+# Voltajes (circuito de salmuera)
+VOLTAGE_MIN = 2.0
+VOLTAGE_MAX = 4.5
+
+# Cronómetro (2 horas)
+ANALYSIS_INTERVAL_SECONDS = 2 * 60 * 60
+
+# Operadores seed
+DEFAULT_OPERATORS = ["Operador 1", "Operador 2", "Operador 3"]
+
+def project_root() -> str:
+    # .../qdv_salmuera/config/settings.py -> .../qdv_salmuera
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+def assets_dir() -> str:
+    return os.path.join(project_root(), "assets")
+
+def db_path() -> str:
+    # DB en la raíz del proyecto (más fácil de ubicar)
+    return os.path.join(project_root(), "salmuera.db")
+
+def logo_path() -> str:
+    return os.path.join(assets_dir(), "logo_qdv.png")

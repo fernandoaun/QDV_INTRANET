@@ -1,0 +1,12 @@
+@echo on
+echo ===== INICIANDO QDV SALMUERA =====
+echo Carpeta actual:
+cd
+
+echo.
+echo Ejecutando Python...
+python -m qdv_salmuera.run
+
+echo.
+echo ===== FIN DEL SCRIPT =====
+pause
