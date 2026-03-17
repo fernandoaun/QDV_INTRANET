@@ -91,6 +91,8 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         self.voltage_vars: List[tk.StringVar] = []
         self.voltage_container = None
+        self.voltage_block = None
+        self.var_voltaje_total = tk.StringVar(value="")
 
         self.vcmd_float = (self.register(validate_float), "%P")
         self.vcmd_int = (self.register(validate_int), "%P")
@@ -306,210 +308,137 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         ttk.Label(header, text="Circuito de Salmuera", font=("Segoe UI", 18, "bold")).pack(side="left")
         ttk.Label(header, text=f"Día: {self.fixed_date_ddmmyyyy}", font=("Segoe UI", 11)).pack(side="right")
 
-        pw = ttk.Panedwindow(outer, orient="vertical")
-        pw.pack(fill="both", expand=True)
-
-        top_frame = ttk.Frame(pw)
-        bottom_frame = ttk.Frame(pw)
-        pw.add(top_frame, weight=1)
-        pw.add(bottom_frame, weight=1)
-
-        form_box = ttk.LabelFrame(top_frame, text="Registro", padding=10)
-        form_box.pack(fill="both", expand=True)
-
-        sc = ScrollableFrame(form_box)
-        sc.pack(fill="both", expand=True)
-        body = sc.inner
-
-        reg = ttk.Frame(body)
-        reg.pack(fill="x", pady=(0, 10))
-        ttk.Label(reg, text="Fecha:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(reg, textvariable=self.var_fecha, width=14, state="readonly").grid(row=0, column=1, sticky="w", padx=(0, 18), pady=4)
-        ttk.Label(reg, text="Hora:").grid(row=0, column=2, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(reg, textvariable=self.var_hora, width=10, state="readonly").grid(row=0, column=3, sticky="w", pady=4)
-
-        # =========================
-        # CRONÓMETRO DE ANÁLISIS (2 HORAS)
-        # =========================
-        timer_box = ttk.LabelFrame(body, text="Cronómetro de análisis (cada 2 horas)", padding=10)
-        timer_box.pack(fill="x", pady=(0, 10))
-
+        # Cronómetro de análisis (compacto)
+        timer_box = ttk.LabelFrame(outer, text="Cronómetro de análisis (cada 2 h)", padding=6)
+        timer_box.pack(fill="x", pady=(0, 8))
         trow = ttk.Frame(timer_box)
         trow.pack(fill="x")
-
         ttk.Label(trow, text="Tiempo restante:").pack(side="left")
-        self.lbl_timer = ttk.Label(
-            trow,
-            textvariable=self.var_timer,
-            font=("Segoe UI", 16, "bold")
-        )
-
-        self.lbl_timer.pack(side="left", padx=(10, 0))
-
-        ttk.Label(
-            timer_box,
-            text="Si el tiempo venció, debe indicar el motivo del atraso para poder guardar.",
-            font=("Segoe UI", 9)
-        ).pack(anchor="w", pady=(6, 0))
-
-        mot = ttk.Frame(timer_box)
-        mot.pack(fill="x", pady=(6, 0))
-
-        ttk.Label(mot, text="Motivo atraso (obligatorio si venció):").pack(side="left")
-
-        self.ent_motivo_atraso = ttk.Entry(
-            mot,
-            textvariable=self.var_motivo_atraso,
-            width=80
-        )
-        self.ent_motivo_atraso.pack(side="left", padx=(10, 0), fill="x", expand=True)
+        self.lbl_timer = ttk.Label(trow, textvariable=self.var_timer, font=("Segoe UI", 14, "bold"))
+        self.lbl_timer.pack(side="left", padx=(8, 16))
+        ttk.Label(trow, text="Motivo atraso (si venció):").pack(side="left", padx=(8, 0))
+        self.ent_motivo_atraso = ttk.Entry(trow, textvariable=self.var_motivo_atraso, width=50)
+        self.ent_motivo_atraso.pack(side="left", padx=(6, 0), fill="x", expand=True)
         self.ent_motivo_atraso.configure(state="disabled")
 
+        # Planilla horizontal: una sola línea de carga (orden según imagen)
+        planilla_box = ttk.LabelFrame(outer, text="PLANILLA DE OPERACIÓN DIARIA", padding=10)
+        planilla_box.pack(fill="x", pady=(0, 8))
 
-        gen = ttk.LabelFrame(body, text="Información general", padding=10)
-        gen.pack(fill="x", pady=(0, 10))
-        gg = ttk.Frame(gen)
-        gg.pack(fill="x")
-        gg.columnconfigure(1, weight=1)
-        gg.columnconfigure(3, weight=1)
+        # Contenedor con scroll horizontal para la fila de datos
+        planilla_canvas = tk.Canvas(planilla_box, highlightthickness=0)
+        hsb = ttk.Scrollbar(planilla_box, orient="horizontal", command=planilla_canvas.xview)
+        planilla_canvas.configure(xscrollcommand=hsb.set)
+        hsb.pack(side="bottom", fill="x")
+        planilla_canvas.pack(fill="x")
 
-        ttk.Label(gg, text="Electrolizador (N°):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(gg, textvariable=self.var_electrolizador, validate="key", validatecommand=self.vcmd_int, width=20)\
-            .grid(row=0, column=1, sticky="w", pady=4)
+        self.planilla_inner = ttk.Frame(planilla_canvas)
+        self.planilla_inner_id = planilla_canvas.create_window((0, 0), window=self.planilla_inner, anchor="nw")
+        self.planilla_inner.bind("<Configure>", lambda e: planilla_canvas.configure(scrollregion=planilla_canvas.bbox("all")))
+        planilla_canvas.bind("<Configure>", lambda e: planilla_canvas.itemconfig(self.planilla_inner_id, width=max(e.width, self.planilla_inner.winfo_reqwidth())))
 
-        ttk.Label(gg, text="Cantidad de celdas:").grid(row=0, column=2, sticky="w", padx=(18, 8), pady=4)
-        ttk.Entry(gg, textvariable=self.var_celdas, validate="key", validatecommand=self.vcmd_int, width=20)\
-            .grid(row=0, column=3, sticky="w", pady=4)
+        pf = self.planilla_inner
+        pad = 4
+        w_s = 8
+        w_m = 10
+        col = 0
 
-        ttk.Label(gg, text="Turno:").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Combobox(gg, textvariable=self.var_turno, values=["M", "T", "N"], width=18, state="readonly")\
-            .grid(row=1, column=1, sticky="w", pady=4)
+        # Fila 0: títulos de agrupación (centrados sobre cada grupo; vacío donde no hay grupo)
+        for _ in range(5):
+            ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=2); col += 1
+        lbl_volt = ttk.Label(pf, text="Voltaje Celdas")
+        lbl_volt.grid(row=0, column=col, columnspan=21, padx=pad, pady=2, sticky="ew"); col += 21
+        ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=2); col += 1
+        lbl_caud = ttk.Label(pf, text="Caudales (lts/h)")
+        lbl_caud.grid(row=0, column=col, columnspan=2, padx=pad, pady=2, sticky="ew"); col += 2
+        lbl_hipo = ttk.Label(pf, text="Hipoclorito")
+        lbl_hipo.grid(row=0, column=col, columnspan=2, padx=pad, pady=2, sticky="ew"); col += 2
+        lbl_sal = ttk.Label(pf, text="Salmuera Salida Celdas")
+        lbl_sal.grid(row=0, column=col, columnspan=3, padx=pad, pady=2, sticky="ew"); col += 3
+        lbl_soda = ttk.Label(pf, text="Soda Salida Celdas")
+        lbl_soda.grid(row=0, column=col, columnspan=1, padx=pad, pady=2, sticky="ew"); col += 1
+        lbl_decl = ttk.Label(pf, text="Declorinacion")
+        lbl_decl.grid(row=0, column=col, columnspan=1, padx=pad, pady=2, sticky="ew"); col += 1
+        ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=2); col += 1
 
-        volt = ttk.LabelFrame(body, text="Voltaje de celdas", padding=10)
-        volt.pack(fill="x", pady=(0, 10))
+        # Fila 1: encabezados (labels 1..N y Total se rellenan en _rebuild_voltage_fields)
+        col = 0
+        ttk.Label(pf, text="Fecha").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Electrolizador").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Turno").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Hora").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Celdas").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        self.voltage_block = ttk.Frame(pf)
+        self.voltage_block.grid(row=1, column=col, rowspan=2, columnspan=20, sticky="nw", padx=pad, pady=2)
+        self.voltage_container = self.voltage_block
+        col += 20
+        ttk.Label(pf, text="Total").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Amp").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Agua").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Salmuer").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Concentracion Cloro").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Exceso Soda").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Temp").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Concentración").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Ph").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Concentración").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Ph").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Operador").grid(row=1, column=col, padx=pad, pady=2); col += 1
 
-        self.warn_voltajes = ttk.Label(
-            volt,
-            text=f"ADVERTENCIA: Cada voltaje de celda debe estar entre {VOLTAGE_MIN} y {VOLTAGE_MAX}.",
-            font=("Segoe UI", 12, "bold"),
-            foreground="red"
-        )
-        self.warn_voltajes.pack(anchor="w", pady=(0, 8))
-
-        self.voltage_container = ttk.Frame(volt)
-        self.voltage_container.pack(fill="x")
-
-        proc = ttk.LabelFrame(body, text="Proceso", padding=10)
-        proc.pack(fill="x", pady=(0, 10))
-        pg = ttk.Frame(proc)
-        pg.pack(fill="x")
-        pg.columnconfigure(1, weight=1)
-        pg.columnconfigure(3, weight=1)
-
-        ttk.Label(pg, text="Amperaje:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(pg, textvariable=self.var_amperaje, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=1, sticky="w", pady=4)
-
-        ttk.Label(pg, text="Caudal agua (L/h):").grid(row=0, column=2, sticky="w", padx=(18, 8), pady=4)
-        ttk.Entry(pg, textvariable=self.var_caudal_agua, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=3, sticky="w", pady=4)
-
-        ttk.Label(pg, text="Caudal salmuera (L/h):").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(pg, textvariable=self.var_caudal_salmuera, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=1, column=1, sticky="w", pady=4)
-
-        self.warn_caudad = ttk.Label(
-            proc,
-            text="ADVERTENCIA: Caudal de salmuera DEBE ser mayor al caudal de agua.",
-            font=("Segoe UI", 12, "bold"),
-            foreground="red"
-        )
-        self.warn_caudad.pack(anchor="w", pady=(8, 0))
-
-        hipo = ttk.LabelFrame(body, text="Hipoclorito", padding=10)
-        hipo.pack(fill="x", pady=(0, 10))
-        hg = ttk.Frame(hipo)
-        hg.pack(fill="x")
-        hg.columnconfigure(1, weight=1)
-        hg.columnconfigure(3, weight=1)
-
-        ttk.Label(hg, text="Concentración:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(hg, textvariable=self.var_hipo_conc, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=1, sticky="w", pady=4)
-
-        ttk.Label(hg, text="Exceso de soda:").grid(row=0, column=2, sticky="w", padx=(18, 8), pady=4)
-        ttk.Entry(hg, textvariable=self.var_hipo_exceso_soda, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=3, sticky="w", pady=4)
-
-        sal = ttk.LabelFrame(body, text="Salmuera a la salida de la celda", padding=10)
-        sal.pack(fill="x", pady=(0, 10))
-        sg = ttk.Frame(sal)
-        sg.pack(fill="x")
-        sg.columnconfigure(1, weight=1)
-        sg.columnconfigure(3, weight=1)
-
-        ttk.Label(sg, text="Temperatura:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(sg, textvariable=self.var_sal_temp, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=1, sticky="w", pady=4)
-
-        ttk.Label(sg, text="Concentración:").grid(row=0, column=2, sticky="w", padx=(18, 8), pady=4)
-        ttk.Entry(sg, textvariable=self.var_sal_conc, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=3, sticky="w", pady=4)
-
-        ttk.Label(sg, text="pH:").grid(row=1, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(sg, textvariable=self.var_sal_ph, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=1, column=1, sticky="w", pady=4)
-
-        soda = ttk.LabelFrame(body, text="Soda a la salida de la celda", padding=10)
-        soda.pack(fill="x", pady=(0, 10))
-        sodag = ttk.Frame(soda)
-        sodag.pack(fill="x")
-        ttk.Label(sodag, text="Concentración:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(sodag, textvariable=self.var_soda_conc, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=1, sticky="w", pady=4)
-
-        decl = ttk.LabelFrame(body, text="Declorinación", padding=10)
-        decl.pack(fill="x", pady=(0, 10))
-        dg = ttk.Frame(decl)
-        dg.pack(fill="x")
-        ttk.Label(dg, text="pH:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-        ttk.Entry(dg, textvariable=self.var_declor_ph, validate="key", validatecommand=self.vcmd_float, width=20)\
-            .grid(row=0, column=1, sticky="w", pady=4)
-
-        end = ttk.LabelFrame(body, text="Cierre", padding=10)
-        end.pack(fill="x", pady=(0, 10))
-        eg = ttk.Frame(end)
-        eg.pack(fill="x")
-        eg.columnconfigure(1, weight=1)
-
-        ttk.Label(eg, text="Operador:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=4)
-
-        op_frame = ttk.Frame(eg)
-        op_frame.grid(row=0, column=1, sticky="w", pady=4)
-
-        self.cbo_operador = ttk.Combobox(op_frame, textvariable=self.var_operador, values=self.operadores,
-                                         width=35, state="readonly")
+        # Fila 2: una sola línea de datos (Total y resto alineados con sus labels)
+        col = 0
+        ttk.Entry(pf, textvariable=self.var_fecha, width=w_m, state="readonly").grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_electrolizador, width=w_s, validate="key", validatecommand=self.vcmd_int).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Combobox(pf, textvariable=self.var_turno, values=["M", "T", "N"], width=6, state="readonly").grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_hora, width=6, state="readonly").grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_celdas, width=6, validate="key", validatecommand=self.vcmd_int).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        # columnas 5-24: contenido del voltage_block (labels + entries se crean en _rebuild_voltage_fields)
+        col = 25
+        self.ent_voltaje_total = ttk.Entry(pf, textvariable=self.var_voltaje_total, width=w_s, state="readonly")
+        self.ent_voltaje_total.grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_amperaje, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_caudal_agua, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_caudal_salmuera, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_hipo_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_hipo_exceso_soda, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_sal_temp, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_sal_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_sal_ph, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_soda_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_declor_ph, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        op_f = ttk.Frame(pf)
+        op_f.grid(row=2, column=col, sticky="w", padx=pad, pady=2)
+        self.cbo_operador = ttk.Combobox(op_f, textvariable=self.var_operador, values=self.operadores, width=18, state="readonly")
         self.cbo_operador.pack(side="left")
-        ttk.Button(op_frame, text="+", width=3, command=self._add_operador).pack(side="left", padx=(8, 0))
+        ttk.Button(op_f, text="+", width=2, command=self._add_operador).pack(side="left", padx=(4, 0))
 
-        ttk.Label(end, text="Observaciones (opcional):").pack(anchor="w", pady=(8, 4))
-        self.txt_obs = tk.Text(end, height=4, wrap="word")
+        # Advertencias (debajo de la planilla, sin bloquear)
+        self.warn_voltajes = ttk.Label(outer, text=f"Voltajes por celda entre {VOLTAGE_MIN} y {VOLTAGE_MAX}. Caudal salmuera > caudal agua.", font=("Segoe UI", 9), foreground="#666")
+        self.warn_voltajes.pack(anchor="w", pady=(2, 4))
+        self.warn_caudad = None
+
+        # Observaciones (debajo de la línea de datos)
+        obs_frame = ttk.LabelFrame(outer, text="Observaciones", padding=6)
+        obs_frame.pack(fill="x", pady=(0, 8))
+        self.txt_obs = tk.Text(obs_frame, height=2, wrap="word")
         self.txt_obs.pack(fill="x")
 
-        act = ttk.Frame(body)
-        act.pack(fill="x", pady=(4, 0))
-
+        # Botones: Guardar, Cerrar, Historial (debajo de observaciones)
+        act = ttk.Frame(outer)
+        act.pack(fill="x", pady=(0, 8))
         self.lbl_status = ttk.Label(act, text="", font=("Segoe UI", 10))
         self.lbl_status.pack(side="left", fill="x", expand=True)
-
-        self.btn_historial = ttk.Button(act, text="Historial (Excel)", command=self.on_historial)
-        self.btn_historial.pack(side="right")
-
         self.btn_guardar = ttk.Button(act, text="Guardar", command=self.on_save)
-        self.btn_guardar.pack(side="right", padx=(8, 8))
-
+        self.btn_guardar.pack(side="right", padx=(8, 0))
+        self.btn_historial = ttk.Button(act, text="Historial", command=self.on_historial)
+        self.btn_historial.pack(side="right", padx=(8, 0))
         ttk.Button(act, text="Cerrar", command=self.destroy).pack(side="right")
 
+        # Tabla de registros del día
+        pw = ttk.Panedwindow(outer, orient="vertical")
+        pw.pack(fill="both", expand=True)
+        bottom_frame = ttk.Frame(pw)
+        pw.add(bottom_frame, weight=1)
         bottom_box = ttk.LabelFrame(bottom_frame, text="Registros del día (solo hoy) - Doble clic para editar", padding=10)
         bottom_box.pack(fill="both", expand=True)
 
@@ -569,9 +498,13 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self._load_day_table()
 
     def _clear_voltage_fields(self):
-        for w in self.voltage_container.winfo_children():
-            w.destroy()
+        block = getattr(self, "voltage_block", None) or getattr(self, "voltage_container", None)
+        if block is not None:
+            for w in block.winfo_children():
+                w.destroy()
         self.voltage_vars = []
+        if getattr(self, "var_voltaje_total", None) is not None:
+            self.var_voltaje_total.set("")
 
     def _validate_voltages_rule(self, n: int) -> Tuple[bool, str]:
         voltajes = []
@@ -594,6 +527,17 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         return True, "OK"
 
 
+    def _update_voltaje_total(self):
+        total = 0.0
+        for var in self.voltage_vars:
+            s = var.get().strip()
+            if s:
+                try:
+                    total += float(s)
+                except ValueError:
+                    pass
+        self.var_voltaje_total.set(fmt_num(total) if total else "")
+
     def _rebuild_voltage_fields(self):
         raw = self.var_celdas.get().strip()
         if raw == "" or (not raw.isdigit()):
@@ -602,7 +546,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             return
 
         n = int(raw)
-        if n <= 0 or n > 200:
+        if n <= 0 or n > 20:
             self._clear_voltage_fields()
             self._refresh_save_state()
             return
@@ -612,21 +556,23 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             return
 
         self._clear_voltage_fields()
-        per_row = 8
-
+        block = getattr(self, "voltage_block", None) or getattr(self, "voltage_container", None)
+        if block is None:
+            self._refresh_save_state()
+            return
+        pad_c = 2
+        w_cel = 6
         for i in range(n):
             var = tk.StringVar()
             var.trace_add("write", lambda *_: self._refresh_save_state())
+            var.trace_add("write", lambda *_: self._update_voltaje_total())
             self.voltage_vars.append(var)
-
-            r = i // per_row
-            c = (i % per_row) * 2
-            label_txt = "Voltaje total:" if n == 1 else f"V{i+1}:"
-            ttk.Label(self.voltage_container, text=label_txt).grid(row=r, column=c, sticky="e", padx=(0, 6), pady=3)
-
-            ttk.Entry(self.voltage_container, textvariable=var, width=9, validate="key", validatecommand=self.vcmd_float)\
-                .grid(row=r, column=c + 1, sticky="w", padx=(0, 14), pady=3)
-
+            lbl = ttk.Label(block, text=str(i + 1), anchor="center", width=w_cel)
+            lbl.grid(row=0, column=i, padx=pad_c, pady=2, sticky="ew")
+            ent = ttk.Entry(block, textvariable=var, width=w_cel, validate="key", validatecommand=self.vcmd_float)
+            ent.grid(row=1, column=i, padx=pad_c, pady=2, sticky="ew")
+        block.columnconfigure(tuple(range(n)), weight=0, uniform="v")
+        self._update_voltaje_total()
         self._refresh_save_state()
 
     def _wire_validation(self):
@@ -665,6 +611,8 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         n = int(self.var_celdas.get().strip())
         if n <= 0:
             return False, "Cantidad de celdas debe ser mayor que 0."
+        if n > 20:
+            return False, "Cantidad de celdas no puede ser mayor que 20."
         if len(self.voltage_vars) != n:
             return False, "Complete los voltajes según la cantidad de celdas."
 
@@ -916,9 +864,6 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
             # Refrescar tabla
             self._load_day_table()
-
-            # Confirmar
-            messagebox.showinfo("OK", "Registro guardado correctamente.")
 
             # Recalcular deadline desde momento real de guardado
             created = datetime.fromisoformat(data["created_at_iso"])
