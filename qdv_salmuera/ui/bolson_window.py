@@ -4,7 +4,7 @@ from tkinter import ttk
 from qdv_salmuera.data.db import DB
 from qdv_salmuera.utils.dates import iso_to_ddmmyyyy
 
-
+#Demostracion de funcionamiento GIT
 # PEGAR AQUÍ: class BolsonRegistroWindow (V4 1037–1097)
 # =========================
 # Ventana: Registro Bolsón (histórico)
