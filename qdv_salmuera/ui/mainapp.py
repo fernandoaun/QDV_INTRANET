@@ -4,11 +4,13 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 from qdv_salmuera.config.settings import APP_TITLE, db_path, logo_path
 from qdv_salmuera.data.db import DB
 
 from qdv_salmuera.ui.produccion_window import ProduccionWindow
-from qdv_salmuera.ui.graficos_window import DashboardGraficosWindow
+from qdv_salmuera.ui.graficos_window import DashboardGraficosWindow, build_fig_proceso_quimico_ultimas_24h
 
 # Pillow para logo (opcional)
 try:
@@ -97,14 +99,28 @@ class QDVApp(tk.Tk):
 
         ttk.Button(left, text="Salir", command=self.destroy, width=24).pack(anchor="w", pady=4)
 
-        # Panel derecho (info)
-        card = ttk.LabelFrame(right, text="Estado", padding=12)
+        # Panel derecho: gráfico Proceso químico últimas 24 h
+        card = ttk.LabelFrame(right, text="Estado - Proceso químico (últimas 24 h)", padding=8)
         card.pack(fill="both", expand=True)
 
-        ttk.Label(card, text="DB:", font=("Segoe UI", 10, "bold")).grid(row=0, column=0, sticky="w")
-        ttk.Label(card, text=db_path()).grid(row=0, column=1, sticky="w")
+        self._chart_frame = ttk.Frame(card)
+        self._chart_frame.pack(fill="both", expand=True)
+        card.columnconfigure(0, weight=1)
+        card.rowconfigure(0, weight=1)
 
-        card.grid_columnconfigure(1, weight=1)
+        self._embed_proceso_chart()
+
+    def _embed_proceso_chart(self) -> None:
+        """Dibuja el gráfico de Proceso químico (últimas 24 h) en el panel Estado."""
+        for w in self._chart_frame.winfo_children():
+            w.destroy()
+        try:
+            fig = build_fig_proceso_quimico_ultimas_24h(self.db)
+            canvas = FigureCanvasTkAgg(fig, master=self._chart_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill="both", expand=True)
+        except Exception:
+            ttk.Label(self._chart_frame, text="No se pudo cargar el gráfico.", foreground="gray").pack(expand=True)
 
     def _try_load_logo(self, parent) -> None:
         if not PIL_OK:

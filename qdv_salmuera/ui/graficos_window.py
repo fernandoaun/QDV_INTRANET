@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -327,4 +327,88 @@ class DashboardGraficosWindow(tk.Toplevel):
             return float(x)
         except Exception:
             return None
+
+
+def build_fig_proceso_quimico_ultimas_24h(db) -> Figure:
+    """Construye la figura del gráfico Proceso químico para las últimas 24 h (para embeber en panel principal)."""
+    def _parse_dt(r):
+        cat = (r.get("created_at_iso") or "").strip()
+        if cat:
+            try:
+                return datetime.fromisoformat(cat)
+            except Exception:
+                pass
+        f = (r.get("fecha_iso") or "").strip()
+        h = (r.get("hora_hm") or "").strip()
+        if len(h) == 5:
+            hhmmss = h + ":00"
+        elif len(h) == 8:
+            hhmmss = h
+        else:
+            hhmmss = h
+        try:
+            return datetime.fromisoformat(f"{f}T{hhmmss}")
+        except Exception:
+            return None
+
+    def _to_float(x):
+        try:
+            return float(x) if x is not None else None
+        except Exception:
+            return None
+
+    ahora = datetime.now()
+    hace_24 = ahora - timedelta(hours=24)
+    desde = hace_24.strftime("%Y-%m-%d")
+    hasta = ahora.strftime("%Y-%m-%d")
+
+    try:
+        registros = db.fetch_salmuera_range(desde, hasta)
+    except Exception:
+        registros = []
+
+    xs = []
+    hipo = []
+    exceso_soda = []
+    soda = []
+
+    for r in registros:
+        dt = _parse_dt(r)
+        if dt is None or dt < hace_24:
+            continue
+        xs.append(dt)
+        hipo.append(_to_float(r.get("hipo_conc")))
+        exceso_soda.append(_to_float(r.get("hipo_exceso_soda")))
+        soda.append(_to_float(r.get("soda_conc")))
+
+    fig = Figure(figsize=(8, 3.5), dpi=100)
+    ax = fig.add_subplot(111)
+
+    if not xs:
+        ax.text(0.5, 0.5, "Sin datos (últimas 24 h)", ha="center", va="center", fontsize=12, transform=ax.transAxes)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis("off")
+        return fig
+
+    ax.plot(xs, hipo, label="Hipoclorito", color="C0")
+    ax.plot(xs, soda, label="Soda", color="C1")
+    ax.set_ylabel("g/L", color="C0")
+    ax.tick_params(axis="y", labelcolor="C0")
+    ax.grid(True)
+
+    ax2 = ax.twinx()
+    ax2.plot(xs, exceso_soda, label="Exceso soda", color="C2")
+    ax2.set_ylabel("g/L (exceso soda)", color="C2")
+    ax2.tick_params(axis="y", labelcolor="C2")
+
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, loc="best", fontsize=8)
+    ax.set_title("Proceso químico - Últimas 24 h", fontsize=10)
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    return fig
+
+
 GraficosWindow = DashboardGraficosWindow
