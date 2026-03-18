@@ -330,7 +330,7 @@ class DashboardGraficosWindow(tk.Toplevel):
 
 
 def build_fig_proceso_quimico_ultimas_24h(db) -> Figure:
-    """Construye la figura del gráfico Proceso químico para las últimas 24 h (para embeber en panel principal)."""
+    """Construye la figura del gráfico Proceso químico para las últimas 24 h (electrolizadores 2 y 3)."""
     def _parse_dt(r):
         cat = (r.get("created_at_iso") or "").strip()
         if cat:
@@ -367,45 +367,67 @@ def build_fig_proceso_quimico_ultimas_24h(db) -> Figure:
     except Exception:
         registros = []
 
-    xs = []
-    hipo = []
-    exceso_soda = []
-    soda = []
+    # Solo electrolizador 2 y 3
+    registros_e2 = [r for r in registros if int(r.get("electrolizador", 0)) == 2]
+    registros_e3 = [r for r in registros if int(r.get("electrolizador", 0)) == 3]
 
-    for r in registros:
-        dt = _parse_dt(r)
-        if dt is None or dt < hace_24:
-            continue
-        xs.append(dt)
-        hipo.append(_to_float(r.get("hipo_conc")))
-        exceso_soda.append(_to_float(r.get("hipo_exceso_soda")))
-        soda.append(_to_float(r.get("soda_conc")))
+    def _build_series(registros_list):
+        xs, hipo, exceso_soda, soda = [], [], [], []
+        for r in registros_list:
+            dt = _parse_dt(r)
+            if dt is None or dt < hace_24:
+                continue
+            xs.append(dt)
+            hipo.append(_to_float(r.get("hipo_conc")))
+            exceso_soda.append(_to_float(r.get("hipo_exceso_soda")))
+            soda.append(_to_float(r.get("soda_conc")))
+        return xs, hipo, exceso_soda, soda
 
-    fig = Figure(figsize=(8, 3.5), dpi=100)
+    xs_e2, hipo_e2, exceso_e2, soda_e2 = _build_series(registros_e2)
+    xs_e3, hipo_e3, exceso_e3, soda_e3 = _build_series(registros_e3)
+
+    fig = Figure(figsize=(8, 3.8), dpi=100)
     ax = fig.add_subplot(111)
 
-    if not xs:
-        ax.text(0.5, 0.5, "Sin datos (últimas 24 h)", ha="center", va="center", fontsize=12, transform=ax.transAxes)
+    if not xs_e2 and not xs_e3:
+        ax.text(0.5, 0.5, "Sin datos (últimas 24 h) - Electrolizadores 2 y 3", ha="center", va="center", fontsize=12, transform=ax.transAxes)
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.axis("off")
         return fig
 
-    ax.plot(xs, hipo, label="Hipoclorito", color="C0")
-    ax.plot(xs, soda, label="Soda", color="C1")
-    ax.set_ylabel("g/L", color="C0")
-    ax.tick_params(axis="y", labelcolor="C0")
-    ax.grid(True)
+    # Colores: Electrolizador 2 = azul; Electrolizador 3 = naranja/verde
+    color_e2 = "#1f77b4"
+    color_e3 = "#ff7f0e"
+    color_e2_exceso = "#4a90d9"
+    color_e3_exceso = "#f4a261"
 
     ax2 = ax.twinx()
-    ax2.plot(xs, exceso_soda, label="Exceso soda", color="C2")
-    ax2.set_ylabel("g/L (exceso soda)", color="C2")
-    ax2.tick_params(axis="y", labelcolor="C2")
 
+    # Electrolizador 2 (azul)
+    if xs_e2:
+        ax.plot(xs_e2, hipo_e2, label="E2 - Hipoclorito", color=color_e2, linestyle="-", linewidth=1.8)
+        ax.plot(xs_e2, soda_e2, label="E2 - Soda", color=color_e2, linestyle="--", linewidth=1.5)
+        ax2.plot(xs_e2, exceso_e2, label="E2 - Exceso soda", color=color_e2_exceso, linestyle=":", linewidth=1.5)
+
+    # Electrolizador 3 (naranja)
+    if xs_e3:
+        ax.plot(xs_e3, hipo_e3, label="E3 - Hipoclorito", color=color_e3, linestyle="-", linewidth=1.8)
+        ax.plot(xs_e3, soda_e3, label="E3 - Soda", color=color_e3, linestyle="--", linewidth=1.5)
+        ax2.plot(xs_e3, exceso_e3, label="E3 - Exceso soda", color=color_e3_exceso, linestyle=":", linewidth=1.5)
+
+    ax.set_ylabel("g/L (Hipoclorito / Soda)", color="#333")
+    ax.tick_params(axis="y", labelcolor="#333")
+    ax2.set_ylabel("g/L (exceso soda)", color="#666")
+    ax2.tick_params(axis="y", labelcolor="#666")
+    ax.grid(True, alpha=0.4)
+
+    # Cuadro de referencias (leyenda unificada)
     lines1, labels1 = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()
-    ax.legend(lines1 + lines2, labels1 + labels2, loc="best", fontsize=8)
-    ax.set_title("Proceso químico - Últimas 24 h", fontsize=10)
+    ax.legend(lines1 + lines2, labels1 + labels2, loc="upper left", fontsize=8, framealpha=0.95)
+
+    ax.set_title("Proceso químico - Últimas 24 h (Electrolizadores 2 y 3)", fontsize=10)
     fig.autofmt_xdate()
     fig.tight_layout()
     return fig
