@@ -15,8 +15,6 @@ except ImportError:
 
 from qdv_salmuera.data.db import DB
 
-from .dialogs import MotivoAtrasoDialog
-
 from qdv_salmuera.config.settings import (
     DEFAULT_OPERATORS,
     SECURITY_DELETE_CODE,
@@ -114,8 +112,6 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.var_motivo_atraso = tk.StringVar()
         self.ent_motivo_atraso = None
         self._timer_job = None
-        self._overdue_prompt_shown = False
-
 
         # Advertencias rojas grandes
         self.warn_caudad = None
@@ -128,13 +124,6 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self._refresh_save_state()
         self._load_day_table()
 
-
-        if self.timer_overdue and (not self._overdue_prompt_shown):
-            self._overdue_prompt_shown = True
-            self.after(50, self._prompt_motivo_atraso)
-        
-        
-    
     def _format_hhmmss(self, seconds: int) -> str:
         seconds = max(0, int(seconds))
         h = seconds // 3600
@@ -193,12 +182,6 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         # actualizar overdue
         self._set_timer_overdue_ui(self.timer_seconds_left <= 0)
-
-        # si recién se venció, pedir motivo una sola vez
-        if (not prev_overdue) and self.timer_overdue and (not getattr(self, "_overdue_prompt_shown", False)):
-            self._overdue_prompt_shown = True
-            self.after(10, self._prompt_motivo_atraso)
-
 
     def _start_timer(self):
         # Cancela el timer anterior si existe
@@ -669,25 +652,8 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         if op not in self.operadores:
             return False, "Operador inválido. Seleccione uno del desplegable o agregue uno nuevo con +."
 
-        # Si el cronómetro venció, motivo es obligatorio
-        if self.timer_overdue:
-            if not self.var_motivo_atraso.get().strip():
-                return False, "ADVERTENCIA: Análisis vencido. Debe indicar el motivo del atraso para poder guardar."
-
         return True, "OK"
-    
-    def _prompt_motivo_atraso(self):
-            dlg = MotivoAtrasoDialog(self)
-            self.wait_window(dlg)
-            if dlg.result:
-                self.var_motivo_atraso.set(dlg.result)
-                # Si tenés entry en pantalla, le podés dar foco a Guardar
-                try:
-                    self._refresh_save_state()
-                except Exception:
-                    pass
 
-    
     def _count_consecutive_single_cell(self, electrolizador: int) -> int:
         """
         Cuenta cuántos registros consecutivos más recientes tienen cantidad_celdas = 1
