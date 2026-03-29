@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Panel · QDV{% endblock %}
+{% block content %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <h1 class="h4 mb-2">Panel</h1>
+    <p class="text-secondary mb-3">
+      Sesión: <strong>{{ nav_user.username }}</strong>
+      {% if nav_user.is_admin %}<span class="badge text-bg-secondary">admin</span>{% endif %}
+    </p>
+    {% if user_can('produccion') %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('produccion.hub') }}">Ir a Producción</a>
+    {% else %}
+    <p class="text-warning mb-0">Tu usuario no tiene permiso de <strong>Producción</strong>. Pedile a un administrador que active ese permiso en <em>Usuarios → Editar</em>.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

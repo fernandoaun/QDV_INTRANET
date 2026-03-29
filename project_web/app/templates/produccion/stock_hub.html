@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Stock · QDV{% endblock %}
+{% block content %}
+<h1 class="h4 mb-4">Stock y consumos</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.hub') }}">← Producción</a>
+<div class="list-group">
+  {% if user_can('bolson_registro') %}
+  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_ingreso') }}">Ingreso de stock</a>
+  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_ver', categoria='materia_prima') }}">Ver stock materia prima</a>
+  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_ver', categoria='laboratorio') }}">Ver stock laboratorio</a>
+  {% endif %}
+  {% if user_can('bolson_carga') %}
+  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_consumo', categoria='materia_prima') }}">Realizar consumo</a>
+  {% endif %}
+</div>
+{% endblock %}

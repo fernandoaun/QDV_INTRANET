@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}{{ module_title }} · QDV{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ module_title }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+</div>
+<form method="get" class="row g-2 align-items-end mb-4">
+  <div class="col-auto">
+    <label class="form-label small mb-0">Fecha</label>
+    <input type="date" name="fecha" class="form-control" value="{{ fecha }}">
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Ver día</button>
+  </div>
+</form>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Nuevo registro</div>
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="action" value="guardar">
+      <div class="row g-2">
+        <div class="col-md-2">
+          <label class="form-label">Celdas (N)</label>
+          <input class="form-control" name="cantidad_celdas" type="number" min="1" max="32" value="6" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Voltajes (N valores separados por coma)</label>
+          <input class="form-control" name="voltajes" placeholder="2.1, 2.2, 2.1, ..." required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Electrolizador</label>
+          <input class="form-control" name="electrolizador" type="number" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Turno</label>
+          <input class="form-control" name="turno" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Lote (sugerido)</label>
+          <input class="form-control" name="lote" value="{{ lote_sugerido }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Amperaje</label>
+          <input class="form-control" name="amperaje" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Caudal agua L/h</label>
+          <input class="form-control" name="caudal_agua_l_h" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Caudal salm. L/h</label>
+          <input class="form-control" name="caudal_salmuera_l_h" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Hipo conc</label>
+          <input class="form-control" name="hipo_conc" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Hipo exceso soda</label>
+          <input class="form-control" name="hipo_exceso_soda" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Sal temp</label>
+          <input class="form-control" name="sal_temp" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Sal conc</label>
+          <input class="form-control" name="sal_conc" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Sal pH</label>
+          <input class="form-control" name="sal_ph" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Soda conc</label>
+          <input class="form-control" name="soda_conc" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Declor pH</label>
+          <input class="form-control" name="declor_ph" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Operador</label>
+          <select class="form-select" name="operador" required>
+            {% for o in operadores %}
+            <option value="{{ o.nombre }}" {% if o.nombre == username %}selected{% endif %}>{{ o.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Observaciones</label>
+          <input class="form-control" name="observaciones">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Motivo atraso (si aplica)</label>
+          <input class="form-control" name="atraso_motivo">
+        </div>
+        <div class="col-12">
+          <button type="submit" class="btn btn-success">Guardar registro</button>
+        </div>
+      </div>
+    </form>
+    <hr>
+    <form method="post" action="{{ url_for('produccion.operador_agregar') }}" class="row g-2 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label">Nuevo operador</label>
+        <input class="form-control" name="nombre" placeholder="Nombre">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Agregar operador</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-header">Registros del día {{ fecha }}</div>
+  <div class="card-body p-0 table-responsive">
+    <table class="table table-sm table-striped mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th><th>Hora</th><th>El.</th><th>Celdas</th><th>Turno</th><th>V total</th><th>Operador</th><th>Lote</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in registros %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.hora_hm }}</td>
+          <td>{{ r.electrolizador }}</td>
+          <td>{{ r.cantidad_celdas }}</td>
+          <td>{{ r.turno }}</td>
+          <td>{{ r.voltaje_total | round(2) }}</td>
+          <td>{{ r.operador }}</td>
+          <td>{{ r.lote }}</td>
+          <td>
+            <form method="post" class="d-flex gap-1" onsubmit="return confirm('¿Eliminar registro {{ r.id }}?');">
+              <input type="hidden" name="fecha" value="{{ fecha }}">
+              <input type="hidden" name="action" value="borrar">
+              <input type="hidden" name="reg_id" value="{{ r.id }}">
+              <input type="text" name="codigo_seguridad" class="form-control form-control-sm" placeholder="Código" style="max-width:90px">
+              <button class="btn btn-sm btn-outline-danger">Borrar</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-3">Sin registros este día.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="small text-muted mt-2">Código de borrado: el mismo que en escritorio (por defecto 8956), configurable en constantes del servidor.</p>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}{{ module_title }} · QDV{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ module_title }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto"><input type="date" name="fecha" class="form-control" value="{{ fecha }}"></div>
+  <div class="col-auto"><button class="btn btn-primary">Ver</button></div>
+</form>
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Nuevo análisis</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <div class="col-md-2"><label class="form-label">Turno</label><input class="form-control" name="turno" required></div>
+      <div class="col-md-3"><label class="form-label">Operador</label>
+        <select class="form-select" name="operador" required>{% for o in operadores %}<option value="{{ o.nombre }}">{{ o.nombre }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label">Columna 1-3</label>
+        <select class="form-select" name="numero_columna"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
+      <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="temperatura" required></div>
+      <div class="col-md-2"><label class="form-label">Dureza</label><input class="form-control" name="dureza" required></div>
+      <div class="col-12"><label class="form-label">Obs.</label><input class="form-control" name="observaciones"></div>
+      <div class="col-12"><button class="btn btn-success">Guardar</button></div>
+    </form>
+  </div>
+</div>
+<div class="table-responsive"><table class="table table-sm">
+  <thead><tr><th>ID</th><th>Hora</th><th>Turno</th><th>Lote</th><th>Col</th><th>Dureza</th></tr></thead>
+  <tbody>{% for r in registros %}<tr><td>{{ r.id }}</td><td>{{ r.hora_hm }}</td><td>{{ r.turno }}</td><td>{{ r.lote }}</td><td>{{ r.numero_columna }}</td><td>{{ r.dureza }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">Vacío</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

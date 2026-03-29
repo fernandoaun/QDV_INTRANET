@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Inicio · QDV{% endblock %}
+{% block content %}
+
+{% if not nav_user %}
+<div class="card border-primary mb-4">
+  <div class="card-header bg-primary text-white py-3">
+    <strong class="fs-5">Cómo entrar (leé esto primero)</strong>
+  </div>
+  <div class="card-body">
+    <p class="lead mb-3">
+      Acá <strong>no hay clave guardada</strong>. Tenés que crearla vos en la carpeta del programa.
+      Abrí el archivo de texto <strong>COMO_ENTRAR.txt</strong> en la misma carpeta que <code>run.py</code>.
+    </p>
+    <ol class="fs-6 lh-lg">
+      <li class="mb-2">
+        <strong>Doble clic</strong> en <code class="bg-light px-1">CREAR_USUARIO_ADMIN.bat</code><br>
+        <span class="text-secondary">Te pide la contraseña <strong>dos veces</strong> (no se ve al escribir, es normal).</span>
+      </li>
+      <li class="mb-2">
+        Si dice que <code>admin</code> ya existe: <strong>doble clic</strong> en <code class="bg-light px-1">CAMBIAR_CLAVE.bat</code>
+      </li>
+      <li class="mb-2">
+        <strong>Doble clic</strong> en <code class="bg-light px-1">iniciar_local.bat</code> y <strong>no cierres</strong> esa ventana negra.
+      </li>
+      <li class="mb-2">
+        En el navegador entrá a: <a href="http://127.0.0.1:5000/login"><strong>http://127.0.0.1:5000/login</strong></a>
+      </li>
+      <li class="mb-0">
+        Usuario: <code class="bg-light px-1">admin</code> — Contraseña: <strong>la que escribiste</strong> en el paso 1.
+      </li>
+    </ol>
+  </div>
+</div>
+{% endif %}
+
+{% if not setup_db_ok %}
+<div class="alert alert-warning">
+  <strong>Falta preparar la base de datos.</strong> Doble clic en <code>iniciar_local.bat</code> o en consola:
+  <code>python -m alembic upgrade head</code>
+</div>
+{% elif not hay_usuarios_web and not nav_user %}
+<div class="alert alert-info">
+  Todavía no hay ningún usuario en la base. Usá <strong>CREAR_USUARIO_ADMIN.bat</strong> (arriba).
+</div>
+{% endif %}
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h1 class="h4 mb-3">Química del Valle — Web</h1>
+    {% if nav_user %}
+    <a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Ir al panel</a>
+    {% if user_can('produccion') %}
+    <a class="btn btn-outline-primary ms-2" href="{{ url_for('produccion.hub') }}">Producción</a>
+    {% endif %}
+    {% else %}
+    <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">Ingresar</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

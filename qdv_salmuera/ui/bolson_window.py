@@ -18,7 +18,7 @@ class BolsonRegistroWindow(tk.Toplevel):
         self.geometry("1200x800")
         self.minsize(820, 520)
 
-        outer = ttk.Frame(self, padding=12)
+        outer = ttk.Frame(self, padding=16)
         outer.pack(fill="both", expand=True)
 
         header = ttk.Frame(outer)
@@ -32,7 +32,12 @@ class BolsonRegistroWindow(tk.Toplevel):
         wrap = ttk.Frame(box)
         wrap.pack(fill="both", expand=True)
 
-        self.tree = ttk.Treeview(wrap, columns=("id", "fecha", "hora", "creado"), show="headings")
+        self.tree = ttk.Treeview(
+            wrap,
+            columns=("id", "fecha", "hora", "creado"),
+            show="headings",
+            style="Treeview",
+        )
         vsb = ttk.Scrollbar(wrap, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
 

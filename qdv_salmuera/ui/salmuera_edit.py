@@ -15,6 +15,7 @@ from qdv_salmuera.config.settings import (
 
 from qdv_salmuera.ui.widgets import ScrollableFrame
 from qdv_salmuera.ui.dialogs import AddOperadorDialog
+from qdv_salmuera.ui.theme import QDV_COLORS
 
 from qdv_salmuera.utils.validators import (
     validate_float,
@@ -115,7 +116,7 @@ class EditRegistroDialog(tk.Toplevel):
         self.var_operador.set(dlg.result)
 
     def _build_ui(self):
-        outer = ttk.Frame(self, padding=12)
+        outer = ttk.Frame(self, padding=16)
         outer.pack(fill="both", expand=True)
 
         ttk.Label(outer, text=f"Editar registro (Salmuera) ID {self.registro_id}",
@@ -264,6 +265,13 @@ class EditRegistroDialog(tk.Toplevel):
 
         ttk.Label(end, text="Observaciones (opcional):").pack(anchor="w", pady=(8, 4))
         self.txt_obs = tk.Text(end, height=4, wrap="word")
+        self.txt_obs.configure(
+            bg=QDV_COLORS.get("input_inset", QDV_COLORS["input_bg"]),
+            fg=QDV_COLORS["fg"],
+            insertbackground=QDV_COLORS["accent"],
+            relief="flat",
+            highlightthickness=0,
+        )
         self.txt_obs.pack(fill="x")
         self.txt_obs.insert("1.0", self.original.get("observaciones", ""))
 

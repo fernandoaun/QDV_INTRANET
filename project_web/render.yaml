@@ -1,0 +1,5 @@
+# Render Blueprint: el archivo que Render detecta debe estar en la RAÍZ del repo.
+# Usá el de:  ../render.yaml  (un nivel arriba de project_web).
+#
+# Si tu repositorio es solo la carpeta project_web (sin monorepo), copiá el contenido
+# de render.yaml de la raíz aquí y quitá la clave rootDir del servicio web.

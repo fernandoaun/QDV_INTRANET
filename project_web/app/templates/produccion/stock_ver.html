@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Stock · QDV{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Existencias: {{ categoria }}</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.stock_hub') }}">← Stock</a>
+<div class="mb-3">
+  <a class="btn btn-sm btn-outline-primary {% if categoria=='materia_prima' %}active{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='materia_prima') }}">Materia prima</a>
+  <a class="btn btn-sm btn-outline-primary {% if categoria=='laboratorio' %}active{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='laboratorio') }}">Laboratorio</a>
+</div>
+<table class="table table-sm table-striped"><thead><tr><th>Producto</th><th>Stock</th></tr></thead>
+<tbody>{% for it in items %}<tr><td>{{ it.producto }}</td><td>{{ it.stock | round(2) }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Sin datos</td></tr>{% endfor %}</tbody>
+</table>
+{% endblock %}

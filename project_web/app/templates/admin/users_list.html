@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Usuarios · Admin{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Usuarios</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('main.dashboard') }}">← Panel</a>
+<div class="table-responsive card shadow-sm">
+  <table class="table table-sm mb-0">
+    <thead class="table-light"><tr><th>ID</th><th>Usuario</th><th>Admin</th><th>Activo</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.id }}</td>
+        <td>{{ u.username }}</td>
+        <td>{% if u.is_admin %}Sí{% else %}No{% endif %}</td>
+        <td>{% if u.activo %}Sí{% else %}No{% endif %}</td>
+        <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_users.edit_user', uid=u.id) }}">Editar</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

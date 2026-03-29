@@ -1,0 +1,60 @@
+================================================================================
+                    QDV WEB — CÓMO ENTRAR (muy fácil)
+================================================================================
+
+Esta página NO tiene usuario ni clave guardados de fábrica.
+Vos tenés que elegir usuario y clave UNA vez en la computadora.
+
+Necesitás 2 cosas abiertas al mismo tiempo:
+  A) El servidor (para que el navegador funcione)
+  B) Una ventana negra donde creás la clave
+
+
+--------------------------------------------------------------------------------
+  OPCIÓN MÁS FÁCIL (recomendada)
+--------------------------------------------------------------------------------
+
+1) Hacé doble clic en el archivo:
+
+     CREAR_USUARIO_ADMIN.bat
+
+   (Está en la misma carpeta que este texto.)
+
+2) Te va a pedir la CONTRASEÑA dos veces. Escribí la misma las dos veces.
+   (No se ve lo que escribís, es normal.)
+
+3) Si dice que el usuario "admin" ya existe, hacé doble clic en:
+
+     CAMBIAR_CLAVE.bat
+
+   Escribí: admin  y después la NUEVA clave dos veces.
+
+4) Hacé doble clic en:
+
+     iniciar_local.bat
+
+   DEJÁ ESA VENTANA ABIERTA.
+
+5) Abrí el navegador (Chrome o Edge) y escribí en la barra de direcciones:
+
+     http://127.0.0.1:5000
+
+6) Tocá "Ingresar".
+
+   Usuario:  admin
+   Contraseña: la que elegiste en el paso 2 o 3
+
+
+--------------------------------------------------------------------------------
+  Si algo no funciona
+--------------------------------------------------------------------------------
+
+- Si la página no carga: el paso 4 tiene que estar abierto (iniciar_local.bat
+  o una ventana donde corra "python run.py").
+
+- Usuario siempre en MINÚSCULAS en la base: si creaste "admin", escribí admin.
+
+- La clave de la app de ESCRITORIO no sirve acá: es otra base de datos.
+
+
+================================================================================

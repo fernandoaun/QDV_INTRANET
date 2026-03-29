@@ -40,6 +40,9 @@ from qdv_salmuera.utils.dates import (
 from qdv_salmuera.ui.widgets import ScrollableFrame
 from qdv_salmuera.ui.dialogs import HistorialDialog, CodigoSeguridadDialog, AddOperadorDialog
 from qdv_salmuera.ui.salmuera_edit import EditRegistroDialog
+from qdv_salmuera.ui.theme import QDV_COLORS
+from qdv_salmuera.ui.module_labels import module_label
+from qdv_salmuera.utils.module_defaults import build_daily_lot, get_current_username
 
 # PEGAR AQUÍ: class CircuitoSalmueraWindow (V4 1594–2575)
 # =========================
@@ -52,7 +55,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         self.db = db
 
-        self.title("Química del Valle - Producción - Circuito de Salmuera")
+        self.title(f"Química del Valle - Producción - {module_label('salmuera')}")
         self.geometry("1280x860")
         self.minsize(980, 680)
 
@@ -84,6 +87,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.operadores = self.db.fetch_operadores()
         self.var_operador = tk.StringVar()
         self.cbo_operador = None
+        self.var_lote = tk.StringVar()
 
         self.txt_obs = None
 
@@ -118,6 +122,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.warn_voltajes = None
 
         self._build_ui()
+        self._set_default_operador_lote()
         self._compute_timer_from_last_record_today()
         self._start_timer()
         self._wire_validation()
@@ -134,7 +139,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
     def _set_timer_overdue_ui(self, overdue: bool):
         self.timer_overdue = overdue
         if getattr(self, "lbl_timer", None) is not None:
-            self.lbl_timer.config(foreground=("red" if overdue else "black"))
+            self.lbl_timer.config(foreground=(QDV_COLORS["danger"] if overdue else QDV_COLORS["fg"]))
 
         if getattr(self, "ent_motivo_atraso", None) is not None:
             if overdue:
@@ -282,37 +287,61 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.var_operador.set(dlg.result)
         self._refresh_save_state()
 
-    def _build_ui(self):
-        outer = ttk.Frame(self, padding=12)
-        outer.pack(fill="both", expand=True)
+    def _set_default_operador_lote(self):
+        username = get_current_username(self).strip()
+        if username:
+            if username not in self.operadores:
+                try:
+                    self.db.add_operador(username)
+                except sqlite3.IntegrityError:
+                    pass
+                self.operadores = self.db.fetch_operadores()
+                if self.cbo_operador is not None:
+                    self.cbo_operador["values"] = self.operadores
+            self.var_operador.set(username)
+        next_correlative = self.db.get_daily_sample_count("salmuera", self.fixed_date_iso) + 1
+        self.var_lote.set(build_daily_lot(next_correlative, self.fixed_date_iso))
 
+    def _build_ui(self):
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        # Padding lateral razonable, menos margen vertical para ganar altura a la tabla
+        outer = ttk.Frame(self, padding=(12, 6))
+        outer.grid(row=0, column=0, sticky="nsew")
+
+        # Solo la fila de la tabla crece: ~todo el slack vertical va al Treeview
+        _r = 0
         header = ttk.Frame(outer)
-        header.pack(fill="x", pady=(0, 8))
-        ttk.Label(header, text="Circuito de Salmuera", font=("Segoe UI", 18, "bold")).pack(side="left")
+        header.grid(row=_r, column=0, sticky="ew", pady=(0, 4))
+        _r += 1
+        ttk.Label(header, text=module_label("salmuera"), font=("Segoe UI", 16, "bold")).pack(side="left")
         ttk.Label(header, text=f"Día: {self.fixed_date_ddmmyyyy}", font=("Segoe UI", 11)).pack(side="right")
 
         # Cronómetro de análisis (compacto)
-        timer_box = ttk.LabelFrame(outer, text="Cronómetro de análisis (cada 2 h)", padding=6)
-        timer_box.pack(fill="x", pady=(0, 8))
+        timer_box = ttk.LabelFrame(outer, text="Cronómetro de análisis (cada 2 h)", padding=4)
+        timer_box.grid(row=_r, column=0, sticky="ew", pady=(0, 4))
+        _r += 1
         trow = ttk.Frame(timer_box)
         trow.pack(fill="x")
         ttk.Label(trow, text="Tiempo restante:").pack(side="left")
-        self.lbl_timer = ttk.Label(trow, textvariable=self.var_timer, font=("Segoe UI", 14, "bold"))
-        self.lbl_timer.pack(side="left", padx=(8, 16))
-        ttk.Label(trow, text="Motivo atraso (si venció):").pack(side="left", padx=(8, 0))
+        self.lbl_timer = ttk.Label(trow, textvariable=self.var_timer, font=("Segoe UI", 12, "bold"))
+        self.lbl_timer.pack(side="left", padx=(6, 10))
+        ttk.Label(trow, text="Motivo atraso (si venció):").pack(side="left", padx=(4, 0))
         self.ent_motivo_atraso = ttk.Entry(trow, textvariable=self.var_motivo_atraso, width=50)
-        self.ent_motivo_atraso.pack(side="left", padx=(6, 0), fill="x", expand=True)
+        self.ent_motivo_atraso.pack(side="left", padx=(4, 0), fill="x", expand=True)
         self.ent_motivo_atraso.configure(state="disabled")
 
         # Planilla horizontal: una sola línea de carga (orden según imagen)
-        planilla_box = ttk.LabelFrame(outer, text="PLANILLA DE OPERACIÓN DIARIA", padding=10)
-        planilla_box.pack(fill="x", pady=(0, 8))
+        planilla_box = ttk.LabelFrame(outer, text=f"PLANILLA - {module_label('salmuera')}", padding=4)
+        planilla_box.grid(row=_r, column=0, sticky="ew", pady=(0, 4))
+        _r += 1
 
         # Contenedor con scroll horizontal para la fila de datos
         planilla_canvas = tk.Canvas(planilla_box, highlightthickness=0)
-        hsb = ttk.Scrollbar(planilla_box, orient="horizontal", command=planilla_canvas.xview)
-        planilla_canvas.configure(xscrollcommand=hsb.set)
-        hsb.pack(side="bottom", fill="x")
+        hsb_planilla = ttk.Scrollbar(planilla_box, orient="horizontal", command=planilla_canvas.xview)
+        planilla_canvas.configure(xscrollcommand=hsb_planilla.set)
+        hsb_planilla.pack(side="bottom", fill="x")
         planilla_canvas.pack(fill="x")
 
         self.planilla_inner = ttk.Frame(planilla_canvas)
@@ -321,94 +350,113 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         planilla_canvas.bind("<Configure>", lambda e: planilla_canvas.itemconfig(self.planilla_inner_id, width=max(e.width, self.planilla_inner.winfo_reqwidth())))
 
         pf = self.planilla_inner
-        pad = 4
+        pad = 2
         w_s = 8
         w_m = 10
         col = 0
 
+        _py = 1
         # Fila 0: títulos de agrupación (centrados sobre cada grupo; vacío donde no hay grupo)
         for _ in range(5):
-            ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=2); col += 1
+            ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=_py); col += 1
         lbl_volt = ttk.Label(pf, text="Voltaje Celdas")
-        lbl_volt.grid(row=0, column=col, columnspan=21, padx=pad, pady=2, sticky="ew"); col += 21
-        ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=2); col += 1
+        lbl_volt.grid(row=0, column=col, columnspan=21, padx=pad, pady=_py, sticky="ew"); col += 21
+        ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=_py); col += 1
         lbl_caud = ttk.Label(pf, text="Caudales (lts/h)")
-        lbl_caud.grid(row=0, column=col, columnspan=2, padx=pad, pady=2, sticky="ew"); col += 2
+        lbl_caud.grid(row=0, column=col, columnspan=2, padx=pad, pady=_py, sticky="ew"); col += 2
         lbl_hipo = ttk.Label(pf, text="Hipoclorito")
-        lbl_hipo.grid(row=0, column=col, columnspan=2, padx=pad, pady=2, sticky="ew"); col += 2
+        lbl_hipo.grid(row=0, column=col, columnspan=2, padx=pad, pady=_py, sticky="ew"); col += 2
         lbl_sal = ttk.Label(pf, text="Salmuera Salida Celdas")
-        lbl_sal.grid(row=0, column=col, columnspan=3, padx=pad, pady=2, sticky="ew"); col += 3
+        lbl_sal.grid(row=0, column=col, columnspan=3, padx=pad, pady=_py, sticky="ew"); col += 3
         lbl_soda = ttk.Label(pf, text="Soda Salida Celdas")
-        lbl_soda.grid(row=0, column=col, columnspan=1, padx=pad, pady=2, sticky="ew"); col += 1
+        lbl_soda.grid(row=0, column=col, columnspan=1, padx=pad, pady=_py, sticky="ew"); col += 1
         lbl_decl = ttk.Label(pf, text="Declorinacion")
-        lbl_decl.grid(row=0, column=col, columnspan=1, padx=pad, pady=2, sticky="ew"); col += 1
-        ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=2); col += 1
+        lbl_decl.grid(row=0, column=col, columnspan=1, padx=pad, pady=_py, sticky="ew"); col += 1
+        ttk.Label(pf, text="").grid(row=0, column=col, padx=pad, pady=_py); col += 1
 
         # Fila 1: encabezados (labels 1..N y Total se rellenan en _rebuild_voltage_fields)
         col = 0
-        ttk.Label(pf, text="Fecha").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Electrolizador").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Turno").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Hora").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Celdas").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Fecha").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Electrolizador").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Turno").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Hora").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Celdas").grid(row=1, column=col, padx=pad, pady=_py); col += 1
         self.voltage_block = ttk.Frame(pf)
-        self.voltage_block.grid(row=1, column=col, rowspan=2, columnspan=20, sticky="nw", padx=pad, pady=2)
+        self.voltage_block.grid(row=1, column=col, rowspan=2, columnspan=20, sticky="nw", padx=pad, pady=_py)
         self.voltage_container = self.voltage_block
         col += 20
-        ttk.Label(pf, text="Total").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Amp").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Agua").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Salmuer").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Concentracion Cloro").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Exceso Soda").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Temp").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Concentración").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Ph").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Concentración").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Ph").grid(row=1, column=col, padx=pad, pady=2); col += 1
-        ttk.Label(pf, text="Operador").grid(row=1, column=col, padx=pad, pady=2); col += 1
+        ttk.Label(pf, text="Total").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Amp").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Agua").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Salmuer").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Concentracion Cloro").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Exceso Soda").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Temp").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Concentración").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Ph").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Concentración").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Ph").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Operador").grid(row=1, column=col, padx=pad, pady=_py); col += 1
+        ttk.Label(pf, text="Lote").grid(row=1, column=col, padx=pad, pady=_py); col += 1
 
         # Fila 2: una sola línea de datos (Total y resto alineados con sus labels)
         col = 0
-        ttk.Entry(pf, textvariable=self.var_fecha, width=w_m, state="readonly").grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_electrolizador, width=w_s, validate="key", validatecommand=self.vcmd_int).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Combobox(pf, textvariable=self.var_turno, values=["M", "T", "N"], width=6, state="readonly").grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_hora, width=6, state="readonly").grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_celdas, width=6, validate="key", validatecommand=self.vcmd_int).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        ttk.Entry(pf, textvariable=self.var_fecha, width=w_m, state="readonly").grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_electrolizador, width=w_s, validate="key", validatecommand=self.vcmd_int).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Combobox(pf, textvariable=self.var_turno, values=["M", "T", "N"], width=6, state="readonly").grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_hora, width=6, state="readonly").grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_celdas, width=6, validate="key", validatecommand=self.vcmd_int).grid(row=2, column=col, padx=pad, pady=_py); col += 1
         # columnas 5-24: contenido del voltage_block (labels + entries se crean en _rebuild_voltage_fields)
         col = 25
         self.ent_voltaje_total = ttk.Entry(pf, textvariable=self.var_voltaje_total, width=w_s, state="readonly")
-        self.ent_voltaje_total.grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_amperaje, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_caudal_agua, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_caudal_salmuera, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_hipo_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_hipo_exceso_soda, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_sal_temp, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_sal_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_sal_ph, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_soda_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
-        ttk.Entry(pf, textvariable=self.var_declor_ph, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=2); col += 1
+        self.ent_voltaje_total.grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_amperaje, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_caudal_agua, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_caudal_salmuera, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_hipo_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_hipo_exceso_soda, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_sal_temp, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_sal_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_sal_ph, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_soda_conc, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
+        ttk.Entry(pf, textvariable=self.var_declor_ph, width=w_s, validate="key", validatecommand=self.vcmd_float).grid(row=2, column=col, padx=pad, pady=_py); col += 1
         op_f = ttk.Frame(pf)
-        op_f.grid(row=2, column=col, sticky="w", padx=pad, pady=2)
+        op_f.grid(row=2, column=col, sticky="w", padx=pad, pady=_py)
         self.cbo_operador = ttk.Combobox(op_f, textvariable=self.var_operador, values=self.operadores, width=18, state="readonly")
         self.cbo_operador.pack(side="left")
         ttk.Button(op_f, text="+", width=2, command=self._add_operador).pack(side="left", padx=(4, 0))
+        col += 1
+        ttk.Entry(pf, textvariable=self.var_lote, width=w_m, state="readonly").grid(row=2, column=col, padx=pad, pady=_py)
 
         # Advertencias (debajo de la planilla, sin bloquear)
-        self.warn_voltajes = ttk.Label(outer, text=f"Voltajes por celda entre {VOLTAGE_MIN} y {VOLTAGE_MAX}. Caudal salmuera > caudal agua.", font=("Segoe UI", 9), foreground="#666")
-        self.warn_voltajes.pack(anchor="w", pady=(2, 4))
+        self.warn_voltajes = ttk.Label(
+            outer,
+            text=f"Voltajes por celda entre {VOLTAGE_MIN} y {VOLTAGE_MAX}. Caudal salmuera > caudal agua.",
+            font=("Segoe UI", 8),
+            foreground=QDV_COLORS["muted"],
+        )
+        self.warn_voltajes.grid(row=_r, column=0, sticky="w", pady=(0, 2))
+        _r += 1
         self.warn_caudad = None
 
-        # Observaciones (debajo de la línea de datos)
-        obs_frame = ttk.LabelFrame(outer, text="Observaciones", padding=6)
-        obs_frame.pack(fill="x", pady=(0, 8))
+        # Observaciones (compacto; misma funcionalidad)
+        obs_frame = ttk.LabelFrame(outer, text="Observaciones", padding=4)
+        obs_frame.grid(row=_r, column=0, sticky="ew", pady=(0, 4))
+        _r += 1
         self.txt_obs = tk.Text(obs_frame, height=2, wrap="word")
+        self.txt_obs.configure(
+            bg=QDV_COLORS.get("input_inset", QDV_COLORS["input_bg"]),
+            fg=QDV_COLORS["fg"],
+            insertbackground=QDV_COLORS["accent"],
+            relief="flat",
+            highlightthickness=0,
+        )
         self.txt_obs.pack(fill="x")
 
-        # Botones: Guardar, Cerrar, Historial (debajo de observaciones)
+        # Botones: Guardar, Cerrar, Historial
         act = ttk.Frame(outer)
-        act.pack(fill="x", pady=(0, 8))
+        act.grid(row=_r, column=0, sticky="ew", pady=(0, 4))
+        _r += 1
         self.lbl_status = ttk.Label(act, text="", font=("Segoe UI", 10))
         self.lbl_status.pack(side="left", fill="x", expand=True)
         self.btn_guardar = ttk.Button(act, text="Guardar", command=self.on_save)
@@ -417,33 +465,36 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.btn_historial.pack(side="right", padx=(8, 0))
         ttk.Button(act, text="Cerrar", command=self.destroy).pack(side="right")
 
-        # Tabla de registros del día
-        pw = ttk.Panedwindow(outer, orient="vertical")
-        pw.pack(fill="both", expand=True)
-        bottom_frame = ttk.Frame(pw)
-        pw.add(bottom_frame, weight=1)
-        bottom_box = ttk.LabelFrame(bottom_frame, text="Registros del día (solo hoy) - Doble clic para editar", padding=10)
-        bottom_box.pack(fill="both", expand=True)
+        # Tabla de registros del día: ocupa todo el espacio vertical restante (prioridad operativa)
+        bottom_box = ttk.LabelFrame(outer, text="Registros del día (solo hoy) - Doble clic para editar", padding=4)
+        bottom_box.grid(row=_r, column=0, sticky="nsew")
+        outer.rowconfigure(_r, weight=1)
+        outer.columnconfigure(0, weight=1)
+
+        bottom_box.rowconfigure(1, weight=1)
+        bottom_box.columnconfigure(0, weight=1)
 
         toolbar = ttk.Frame(bottom_box)
-        toolbar.pack(fill="x", pady=(0, 8))
+        toolbar.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 4))
 
-        ttk.Label(toolbar, text="Tip: doble clic sobre una fila para editar cualquier parámetro.", font=("Segoe UI", 9))\
+        ttk.Label(toolbar, text="Tip: doble clic sobre una fila para editar cualquier parámetro.", font=("Segoe UI", 8))\
             .pack(side="left")
         self.btn_borrar = ttk.Button(toolbar, text="Borrar seleccionado", command=self.on_delete_selected)
         self.btn_borrar.pack(side="right")
 
         tv_wrap = ttk.Frame(bottom_box)
-        tv_wrap.pack(fill="both", expand=True)
+        tv_wrap.grid(row=1, column=0, columnspan=2, sticky="nsew")
+        tv_wrap.rowconfigure(0, weight=1)
+        tv_wrap.columnconfigure(0, weight=1)
 
-        self.tree = ttk.Treeview(tv_wrap, columns=(), show="headings")
+        self.tree = ttk.Treeview(tv_wrap, columns=(), show="headings", style="Treeview")
         vsb = ttk.Scrollbar(tv_wrap, orient="vertical", command=self.tree.yview)
-        hsb = ttk.Scrollbar(bottom_box, orient="horizontal", command=self.tree.xview)
-        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        hsb_tree = ttk.Scrollbar(tv_wrap, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb_tree.set)
 
-        self.tree.pack(side="left", fill="both", expand=True)
-        vsb.pack(side="right", fill="y")
-        hsb.pack(side="bottom", fill="x")
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb_tree.grid(row=1, column=0, sticky="ew")
 
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Double-1>", self._on_tree_double_click)
@@ -543,7 +594,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         if block is None:
             self._refresh_save_state()
             return
-        pad_c = 2
+        pad_c = 1
         w_cel = 6
         for i in range(n):
             var = tk.StringVar()
@@ -551,9 +602,9 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             var.trace_add("write", lambda *_: self._update_voltaje_total())
             self.voltage_vars.append(var)
             lbl = ttk.Label(block, text=str(i + 1), anchor="center", width=w_cel)
-            lbl.grid(row=0, column=i, padx=pad_c, pady=2, sticky="ew")
+            lbl.grid(row=0, column=i, padx=pad_c, pady=1, sticky="ew")
             ent = ttk.Entry(block, textvariable=var, width=w_cel, validate="key", validatecommand=self.vcmd_float)
-            ent.grid(row=1, column=i, padx=pad_c, pady=2, sticky="ew")
+            ent.grid(row=1, column=i, padx=pad_c, pady=1, sticky="ew")
         block.columnconfigure(tuple(range(n)), weight=0, uniform="v")
         self._update_voltaje_total()
         self._refresh_save_state()
@@ -565,7 +616,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             self.var_hipo_conc, self.var_hipo_exceso_soda,
             self.var_sal_temp, self.var_sal_conc, self.var_sal_ph,
             self.var_soda_conc, self.var_declor_ph,
-            self.var_operador
+            self.var_operador, self.var_lote
         ]
         for v in vars_to_trace:
             v.trace_add("write", lambda *_: self._refresh_save_state())
@@ -651,6 +702,9 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             return False, "Operador es obligatorio."
         if op not in self.operadores:
             return False, "Operador inválido. Seleccione uno del desplegable o agregue uno nuevo con +."
+        lote = self.var_lote.get().strip()
+        if not lote:
+            return False, "Lote es obligatorio."
 
         return True, "OK"
 
@@ -722,6 +776,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             ("sodac", "Soda Conc", 95),
             ("dph", "Declor pH", 85),
             ("oper", "Operador", 140),
+            ("lote", "Lote", 100),
             ("obs", "Observaciones", 260),
             ("creado", "Creado", 160),
         ]
@@ -770,6 +825,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
                 fmt_num(r["soda_conc"]),
                 fmt_num(r["declor_ph"]),
                 r["operador"],
+                r.get("lote", ""),
                 (r.get("observaciones", "") or ""),
                 r["created_at_iso"],
             ]
@@ -819,6 +875,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
                 "declor_ph": float(self.var_declor_ph.get().strip()),
 
                 "operador": self.var_operador.get().strip(),
+                "lote": self.var_lote.get().strip(),
                 "observaciones": self.txt_obs.get("1.0", "end").strip(),
                 "atraso_motivo": self.var_motivo_atraso.get().strip(),
 
@@ -830,6 +887,9 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
             # Refrescar tabla
             self._load_day_table()
+            self._clear_form()
+            self._set_default_operador_lote()
+            self._refresh_save_state()
 
             # Recalcular deadline desde momento real de guardado
             created = datetime.fromisoformat(data["created_at_iso"])
@@ -864,8 +924,8 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         self.var_soda_conc.set("")
         self.var_declor_ph.set("")
-
         self.var_operador.set("")
+        self.var_lote.set("")
         self.txt_obs.delete("1.0", "end")
 
         self._refresh_save_state()
@@ -966,7 +1026,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             "Hipoclorito - Concentración", "Hipoclorito - Exceso Soda",
             "Salmuera Salida - Temperatura", "Salmuera Salida - Concentración", "Salmuera Salida - pH",
             "Soda Salida - Concentración", "Declorinación - pH",
-            "Operador", "Observaciones", "Creado (ISO)"
+            "Operador", "Lote", "Observaciones", "Creado (ISO)"
         ]
         ws.append(headers)
 
@@ -996,6 +1056,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
                 r["soda_conc"],
                 r["declor_ph"],
                 r["operador"],
+                r.get("lote", ""),
                 r.get("observaciones", ""),
                 r["created_at_iso"]
             ]

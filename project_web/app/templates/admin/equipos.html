@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Equipos · Admin{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Equipos</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('admin_users.list_users') }}">← Usuarios</a>
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Nuevo equipo</div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin_users.equipo_nuevo') }}" class="row g-2">
+      <div class="col-md-4"><input class="form-control" name="nombre_equipo" placeholder="Nombre" required></div>
+      <div class="col-md-5"><input class="form-control" name="descripcion" placeholder="Descripción"></div>
+      <div class="col-auto"><button class="btn btn-primary">Crear</button></div>
+    </form>
+  </div>
+</div>
+<table class="table table-sm"><thead><tr><th>ID</th><th>Nombre</th><th>Activo</th><th></th></tr></thead>
+<tbody>
+  {% for e in equipos %}
+  <tr>
+    <td>{{ e.id }}</td>
+    <td>{{ e.nombre_equipo }}</td>
+    <td>{% if e.activo %}Sí{% else %}No{% endif %}</td>
+    <td>
+      <form method="post" action="{{ url_for('admin_users.equipo_toggle', eid=e.id) }}" class="d-inline">
+        <button class="btn btn-sm btn-outline-secondary">Activar/Desactivar</button>
+      </form>
+    </td>
+  </tr>
+  {% else %}
+  <tr><td colspan="4" class="text-muted">Sin equipos.</td></tr>
+  {% endfor %}
+</tbody></table>
+{% endblock %}

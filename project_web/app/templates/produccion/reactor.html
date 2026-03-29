@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ module_title }} · QDV{% endblock %}
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+  <h1 class="h4 mb-0">{{ module_title }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+</div>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto"><input type="date" name="fecha" class="form-control" value="{{ fecha }}"></div>
+  <div class="col-auto"><button class="btn btn-primary">Ver</button></div>
+</form>
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Nuevo registro (lote automático)</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <div class="col-md-3"><label class="form-label">Operador</label>
+        <select class="form-select" name="operador" required>{% for o in operadores %}<option value="{{ o.nombre }}">{{ o.nombre }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label">pH</label><input class="form-control" name="ph" required></div>
+      <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="temperatura" required></div>
+      <div class="col-md-2"><label class="form-label">Densidad</label><input class="form-control" name="densidad" required></div>
+      <div class="col-md-2"><label class="form-label">Conc. tabla</label><input class="form-control" name="concentracion_tabla" required></div>
+      <div class="col-md-2"><label class="form-label">Exceso NaOH</label><input class="form-control" name="exceso_naoh" required></div>
+      <div class="col-md-2"><label class="form-label">Exceso Na2CO3</label><input class="form-control" name="exceso_na2co3" required></div>
+      <div class="col-12"><label class="form-label">Obs.</label><input class="form-control" name="observaciones"></div>
+      <div class="col-12"><button class="btn btn-success">Guardar</button></div>
+    </form>
+  </div>
+</div>
+<div class="table-responsive"><table class="table table-sm table-striped">
+  <thead class="table-light"><tr><th>ID</th><th>Hora</th><th>Lote</th><th>pH</th><th>Operador</th></tr></thead>
+  <tbody>{% for r in registros %}<tr><td>{{ r.id }}</td><td>{{ r.hora_hm }}</td><td>{{ r.lote }}</td><td>{{ r.ph }}</td><td>{{ r.operador }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">Vacío</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

@@ -1,0 +1,39 @@
+# Blueprint de Render: debe estar en la RAÍZ del repositorio (Render solo lo detecta ahí).
+# Aplicar: Dashboard → New → Blueprint → conectar este repo.
+#
+# Antes del primer deploy: en el servicio web, definí SECRET_KEY (valor largo aleatorio).
+# DATABASE_URL se inyecta desde la base declarada abajo.
+#
+# https://render.com/docs/blueprint-spec
+
+databases:
+  - name: qdv-postgres
+    databaseName: qdv_salmuera
+    user: qdv
+    # Ajustá el plan según tu cuenta (Postgres suele ser de pago en Render).
+    plan: basic
+
+services:
+  - type: web
+    name: qdv-salmuera-web
+    runtime: python
+    plan: starter
+    region: oregon
+    rootDir: project_web
+    buildCommand: pip install -r requirements.txt
+    preDeployCommand: python -m alembic upgrade head
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT wsgi:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: qdv-postgres
+          property: connectionString
+      # Definí este valor en el dashboard (Environment) la primera vez; no lo pongas en Git.
+      - key: SECRET_KEY
+        sync: false

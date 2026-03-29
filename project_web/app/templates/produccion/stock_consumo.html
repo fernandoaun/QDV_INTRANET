@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Consumo stock · QDV{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Realizar consumo</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.stock_hub') }}">← Stock</a>
+<form method="get" class="row g-2 mb-4">
+  <input type="hidden" name="categoria" value="{{ categoria }}">
+  <div class="col-auto"><label class="form-label">Categoría</label>
+    <select class="form-select" name="categoria" onchange="this.form.submit()">
+      <option value="materia_prima" {% if categoria=='materia_prima' %}selected{% endif %}>Materia prima</option>
+      <option value="laboratorio" {% if categoria=='laboratorio' %}selected{% endif %}>Laboratorio</option>
+    </select></div>
+  <div class="col-md-4"><label class="form-label">Producto</label>
+    <select class="form-select" name="producto" onchange="this.form.submit()">
+      <option value="">— Elegir —</option>
+      {% for p in productos %}<option value="{{ p }}" {% if p==producto_sel %}selected{% endif %}>{{ p }}</option>{% endfor %}
+    </select></div>
+</form>
+{% if producto_sel %}
+<form method="post" class="card card-body shadow-sm row g-2">
+  <input type="hidden" name="categoria" value="{{ categoria }}">
+  <input type="hidden" name="producto" value="{{ producto_sel }}">
+  <div class="col-md-4"><label class="form-label">Marca</label>
+    <select class="form-select" name="marca" required>{% for m in marcas %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select></div>
+  <div class="col-md-2"><label class="form-label">Cantidad</label><input class="form-control" name="cantidad" type="number" step="any" required></div>
+  <div class="col-md-4"><label class="form-label">Operador</label>
+    <select class="form-select" name="operador">{% for o in operadores %}<option value="{{ o.nombre }}" {% if o.nombre == username %}selected{% endif %}>{{ o.nombre }}</option>{% endfor %}</select></div>
+  {% if is_filter %}
+  <div class="col-md-4"><label class="form-label">Equipo (filtro)</label>
+    <select class="form-select" name="equipo_id" required>
+      {% for e in equipos %}<option value="{{ e.id }}">{{ e.nombre_equipo }}</option>{% endfor %}
+    </select></div>
+  {% endif %}
+  <div class="col-12"><label class="form-label">Observaciones</label><input class="form-control" name="observaciones"></div>
+  <div class="col-12"><button class="btn btn-warning">Registrar consumo</button></div>
+</form>
+{% if not marcas and producto_sel %}<p class="text-warning">No hay marcas con stock para este producto.</p>{% endif %}
+{% endif %}
+{% endblock %}

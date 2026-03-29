@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Editar {{ edit_user.username }}{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Usuario: {{ edit_user.username }}</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('admin_users.list_users') }}">← Lista</a>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Datos y permisos</div>
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="action" value="core">
+      <div class="mb-2"><label class="form-label">Nombre de usuario</label>
+        <input class="form-control" name="username" value="{{ edit_user.username }}" required></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_admin" value="1" id="adm" {% if edit_user.is_admin %}checked{% endif %}>
+        <label class="form-check-label" for="adm">Administrador (tiene todos los permisos)</label></div>
+      <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="activo" value="1" id="act" {% if edit_user.activo %}checked{% endif %}>
+        <label class="form-check-label" for="act">Activo</label></div>
+      {% if not edit_user.is_admin %}
+      <p class="small text-muted">Permisos (solo si no es admin):</p>
+      <div class="row">
+        {% for k in permission_keys %}
+        <div class="col-md-6"><div class="form-check">
+          <input class="form-check-input" type="checkbox" name="perm_{{ k }}" value="1" id="p{{ loop.index }}" {% if k in perms_set %}checked{% endif %}>
+          <label class="form-check-label" for="p{{ loop.index }}">{{ permission_labels.get(k, k) }}</label>
+        </div></div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary mt-3">Guardar</button>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+  <div class="card-header">Cambiar contraseña</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="action" value="password">
+      <div class="col-md-4"><input type="password" class="form-control" name="password" placeholder="Nueva clave" required></div>
+      <div class="col-md-4"><input type="password" class="form-control" name="password2" placeholder="Repetir" required></div>
+      <div class="col-12"><button class="btn btn-warning">Actualizar contraseña</button></div>
+    </form>
+  </div>
+</div>
+
+{% if edit_user.id != nav_user.id %}
+<form method="post" action="{{ url_for('admin_users.delete_user', uid=edit_user.id) }}" onsubmit="return confirm('¿Eliminar usuario?');">
+  <button class="btn btn-outline-danger">Eliminar usuario</button>
+</form>
+{% endif %}
+{% endblock %}

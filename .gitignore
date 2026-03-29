@@ -21,3 +21,7 @@ Thumbs.db
 # Logs y temporales
 *.log
 *.tmp
+
+# App web (secretos y SQLite local; nunca subir)
+project_web/.env
+project_web/instance/

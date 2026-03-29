@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Gráficos · QDV{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Resumen registros salmuera</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.hub') }}">← Producción</a>
+<form method="get" class="mb-3"><label>Desde fecha</label> <input type="date" name="desde" value="{{ desde }}"> <button class="btn btn-primary btn-sm">Actualizar</button></form>
+<table class="table table-sm"><thead><tr><th>Fecha</th><th>Cantidad registros</th></tr></thead>
+<tbody>{% for s in serie %}<tr><td>{{ s.fecha }}</td><td>{{ s.n }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Sin datos</td></tr>{% endfor %}</tbody></table>
+{% endblock %}

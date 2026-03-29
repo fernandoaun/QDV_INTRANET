@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Ingreso stock · QDV{% endblock %}
+{% block content %}
+<h1 class="h4 mb-3">Ingreso de stock</h1>
+<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.stock_hub') }}">← Stock</a>
+<form method="post" class="card card-body shadow-sm row g-2">
+  <div class="col-md-3"><label class="form-label">Categoría</label>
+    <select class="form-select" name="categoria"><option value="materia_prima">Materia prima</option><option value="laboratorio">Laboratorio</option></select></div>
+  <div class="col-md-3"><label class="form-label">Producto</label><input class="form-control" name="producto" required></div>
+  <div class="col-md-3"><label class="form-label">Marca</label><input class="form-control" name="marca" required></div>
+  <div class="col-md-3"><label class="form-label">Vencimiento</label><input class="form-control" name="vencimiento" required></div>
+  <div class="col-md-3"><label class="form-label">Lote</label><input class="form-control" name="lote" required></div>
+  <div class="col-md-2"><label class="form-label">Cantidad</label><input class="form-control" name="cantidad" type="number" step="any" required></div>
+  <div class="col-md-4"><label class="form-label">Operador</label>
+    <select class="form-select" name="operador">{% for o in operadores %}<option value="{{ o.nombre }}" {% if o.nombre == username %}selected{% endif %}>{{ o.nombre }}</option>{% endfor %}</select></div>
+  <div class="col-12"><button class="btn btn-success">Guardar ingreso</button></div>
+</form>
+{% endblock %}

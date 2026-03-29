@@ -24,8 +24,11 @@ def assets_dir() -> str:
     return os.path.join(project_root(), "assets")
 
 def db_path() -> str:
-    # DB en la raíz del proyecto (más fácil de ubicar)
-    return os.path.join(project_root(), "salmuera.db")
+    # Compatibilidad: la DB ahora vive fuera de la carpeta del programa.
+    # Usamos una ruta estable por usuario (AppData/Roaming por defecto).
+    from qdv_salmuera.utils.app_paths import get_database_path
+
+    return get_database_path(prefer_roaming=True)
 
 def logo_path() -> str:
     return os.path.join(assets_dir(), "logo_qdv.png")

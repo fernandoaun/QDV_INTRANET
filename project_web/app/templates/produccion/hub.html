@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Producción · QDV{% endblock %}
+{% block content %}
+<h1 class="h4 mb-4">Producción</h1>
+<p class="text-secondary mb-4">Módulos equivalentes a la app de escritorio. Los permisos los ajusta un administrador en <strong>Usuarios</strong>.</p>
+<div class="row g-3">
+  {% if user_can('salmuera') %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm border-primary" href="{{ url_for('produccion.salmuera') }}">
+      <div class="card-body">
+        <h2 class="h6 text-primary">{{ module_labels.salmuera }}</h2>
+        <p class="small text-muted mb-0">Registros diarios, voltajes, caudales.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if user_can('bolson_registro') %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{{ url_for('produccion.bolson') }}">
+      <div class="card-body">
+        <h2 class="h6">Bolson / registro horario</h2>
+        <p class="small text-muted mb-0">Marcar carga.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if user_can('reactor') %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{{ url_for('produccion.reactor') }}">
+      <div class="card-body">
+        <h2 class="h6">{{ module_labels.reactor }}</h2>
+        <p class="small text-muted mb-0">pH, densidad, excesos.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if user_can('agua') %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{{ url_for('produccion.agua') }}">
+      <div class="card-body">
+        <h2 class="h6">{{ module_labels.agua }}</h2>
+        <p class="small text-muted mb-0">Turno, columna, dureza.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{{ url_for('produccion.columnas') }}">
+      <div class="card-body">
+        <h2 class="h6">Columnas intercambio iónico</h2>
+        <p class="small text-muted mb-0">Estado y regeneración.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if user_can('bolson_registro') or user_can('bolson_carga') %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{{ url_for('produccion.stock_hub') }}">
+      <div class="card-body">
+        <h2 class="h6">Stock y consumos</h2>
+        <p class="small text-muted mb-0">Ingreso, consumo, existencias.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if user_can('graficos') %}
+  <div class="col-md-6 col-lg-4">
+    <a class="card h-100 text-decoration-none shadow-sm" href="{{ url_for('produccion.graficos') }}">
+      <div class="card-body">
+        <h2 class="h6">Gráficos / resumen</h2>
+        <p class="small text-muted mb-0">Cantidad de registros por día.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
