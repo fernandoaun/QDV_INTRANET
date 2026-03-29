@@ -10,8 +10,9 @@ databases:
   - name: qdv-postgres
     databaseName: qdv_salmuera
     user: qdv
-    # Ajustá el plan según tu cuenta (Postgres suele ser de pago en Render).
-    plan: basic
+    # Plan Postgres válido en Blueprint (no usar solo "basic"). Ver: render.com/docs/blueprint-spec
+    # Omitir "plan" también funciona: Render usa basic-256mb por defecto.
+    plan: basic-256mb
 
 services:
   - type: web
