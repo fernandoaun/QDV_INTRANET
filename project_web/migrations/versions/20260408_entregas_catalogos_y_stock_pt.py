@@ -164,7 +164,7 @@ def upgrade() -> None:
         bind.execute(
             text(
                 "INSERT INTO productos_terminados_entrega (nombre, stock_producto, activo, created_at_iso, updated_at_iso) "
-                "VALUES (:n, :sp, 1, :ts, :ts)"
+                "VALUES (:n, :sp, true, :ts, :ts)"
             ),
             {"n": _PT_NOMBRE, "sp": _HIPO_STOCK, "ts": now},
         )
@@ -241,7 +241,7 @@ def upgrade() -> None:
             text(
                 "INSERT INTO productos_catalogo (categoria, nombre_producto, tipo_producto, requiere_equipo, "
                 "is_stockable, stock_minimo_alerta, activo, created_at_iso) "
-                "VALUES (:pt, :h, 'Normal', 0, 1, NULL, 1, :ts)"
+                "VALUES (:pt, :h, 'Normal', false, true, NULL, true, :ts)"
             ),
             {"pt": _PT_CAT, "h": _HIPO_STOCK, "ts": now},
         )
