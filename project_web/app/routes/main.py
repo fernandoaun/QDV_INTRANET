@@ -1,18 +1,5 @@
-from __future__ import annotations
+"""Compatibilidad: implementación en app.web.modules.panel.routes (Blueprint `main`)."""
 
-from flask import Blueprint, render_template
+from app.web.modules.panel.routes import bp
 
-from app.auth_utils import login_required
-
-bp = Blueprint("main", __name__)
-
-
-@bp.get("/")
-def index():
-    return render_template("index.html")
-
-
-@bp.get("/dashboard")
-@login_required
-def dashboard():
-    return render_template("dashboard.html")
+__all__ = ["bp"]

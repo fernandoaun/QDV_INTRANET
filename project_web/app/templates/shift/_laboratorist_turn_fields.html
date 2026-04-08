@@ -1,0 +1,44 @@
+{# Campos: with_laboratorist (no|si), laboratorist_user_id. Opcional: shift_session para precargar. #}
+{% set sess = shift_session if shift_session is defined else none %}
+<div class="mb-3">
+  <label class="form-label d-block">¿Trabajás con laboratorista en planta?</label>
+  <div class="form-check">
+    <input class="form-check-input" type="radio" name="with_laboratorist" id="wlNo" value="no" required
+           {% if not sess or not sess.laboratorist_user_id %}checked{% endif %}>
+    <label class="form-check-label" for="wlNo">No</label>
+  </div>
+  <div class="form-check">
+    <input class="form-check-input" type="radio" name="with_laboratorist" id="wlSi" value="si"
+           {% if sess and sess.laboratorist_user_id %}checked{% endif %}>
+    <label class="form-check-label" for="wlSi">Sí</label>
+  </div>
+</div>
+<div class="mb-3" id="labSelectWrap" style="display:none;">
+  <label class="form-label" for="labUid">Laboratorista</label>
+  <select class="form-select" name="laboratorist_user_id" id="labUid">
+    <option value="">— Elegir —</option>
+    {% for lu in laboratoristas %}
+    <option value="{{ lu.id }}" {% if sess and sess.laboratorist_user_id == lu.id %}selected{% endif %}>{{ (lu.nombre_completo or lu.username)|e }}</option>
+    {% endfor %}
+  </select>
+  <p class="form-text small mb-0">Solo usuarios activos con perfil laboratorista. El operador de turno sigue siendo el responsable formal del registro.</p>
+</div>
+<script>
+(function () {
+  var no = document.getElementById('wlNo');
+  var si = document.getElementById('wlSi');
+  var wrap = document.getElementById('labSelectWrap');
+  var sel = document.getElementById('labUid');
+  function sync() {
+    var on = si && si.checked;
+    if (wrap) wrap.style.display = on ? 'block' : 'none';
+    if (sel) {
+      sel.required = !!on;
+      if (!on) sel.removeAttribute('required');
+    }
+  }
+  if (no) no.addEventListener('change', sync);
+  if (si) si.addEventListener('change', sync);
+  sync();
+})();
+</script>

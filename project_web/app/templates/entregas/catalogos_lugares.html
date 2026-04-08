@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Lugares de entrega · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Lugares de entrega</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.catalogos_hub') }}">← Catálogos</a>
+  </div>
+</div>
+<div class="app-card mb-4">
+  <div class="app-card-header">Nuevo lugar</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+    {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="nuevo">
+      <div class="col-md-4"><input class="form-control" name="nombre" placeholder="Nombre del lugar" required></div>
+      <div class="col-md-4">
+        <label class="form-label small mb-0">Cliente</label>
+        <select class="form-select" name="cliente_id" required>
+          <option value="">— Elegir —</option>
+          {% for c in clientes %}<option value="{{ c.id }}">{{ c.nombre }}{% if not c.activo %} (inactivo){% endif %}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-auto"><button type="submit" class="btn btn-primary">Crear</button></div>
+    </form>
+  </div>
+</div>
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>ID</th><th>Lugar</th><th>Cliente ID</th><th>Activo</th><th></th></tr></thead>
+      <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.id }}</td>
+        <td>{{ it.nombre }}</td>
+        <td>{{ it.cliente_id }}</td>
+        <td>{% if it.activo %}Sí{% else %}No{% endif %}</td>
+        <td>
+          <form method="post" class="d-inline">
+          {% include "_csrf.html" %}
+            <input type="hidden" name="action" value="toggle">
+            <input type="hidden" name="id" value="{{ it.id }}">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Activar/Desactivar</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-muted text-center py-3">Sin registros.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

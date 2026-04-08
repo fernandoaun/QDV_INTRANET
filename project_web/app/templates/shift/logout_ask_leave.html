@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Cerrar sesión · Turno · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Cerrar sesión</h1>
+</div>
+<div class="app-card" style="max-width: 560px;">
+  <div class="app-card-header">Turno de planta activo</div>
+  <div class="app-card-body">
+    <p class="mb-3">¿Vas a <strong>dejar el turno</strong> antes de salir? Si entregás el turno, se abrirá el parte de entrega (consumos, avisos, stock de hipoclorito) y luego se cerrará la sesión.</p>
+    <form method="post" class="d-grid gap-2">
+    {% include "_csrf.html" %}
+      <button type="submit" name="choice" value="si" class="btn btn-primary">Sí, entregar turno y salir</button>
+      <button type="submit" name="choice" value="no" class="btn btn-outline-secondary">No, volver al panel</button>
+    </form>
+    <p class="note-muted mt-3 mb-0"><strong>Criterio de planta:</strong> si elegís «No», la sesión <em>no</em> se cierra: seguís conectado con el turno a tu nombre hasta que lo entregues.</p>
+  </div>
+</div>
+{% endblock %}

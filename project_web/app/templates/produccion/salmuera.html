@@ -1,45 +1,83 @@
 {% extends "base.html" %}
+{% from "produccion/_macros_salmuera.html" import render_voltajes_celdas %}
+{% from "produccion/_analysis_ref_flask.html" import analysis_ref_flask_button, analysis_ref_pdf_modal %}
 {% block title %}{{ module_title }} · QDV{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-  <h1 class="h4 mb-0">{{ module_title }}</h1>
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
-</div>
-<form method="get" class="row g-2 align-items-end mb-4">
-  <div class="col-auto">
-    <label class="form-label small mb-0">Fecha</label>
-    <input type="date" name="fecha" class="form-control" value="{{ fecha }}">
+<div class="app-page-head">
+  <h1 class="app-page-title">{{ module_title }}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('produccion.salmuera_historial') }}">Ver historial</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
   </div>
-  <div class="col-auto">
+</div>
+<form method="get" class="app-toolbar">
+  <div>
+    <label class="form-label" for="salmueraFecha">Fecha</label>
+    <input type="date" id="salmueraFecha" name="fecha" class="form-control" value="{{ fecha }}">
+  </div>
+  <div class="pb-1">
     <button type="submit" class="btn btn-primary">Ver día</button>
   </div>
 </form>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Nuevo registro</div>
-  <div class="card-body">
+<div class="app-card mb-4">
+  <div class="app-card-header app-card-header--split">
+    <div>
+      <strong>Cronómetro</strong> <span class="app-text-secondary">· próximo análisis</span>
+    </div>
+    <div class="small app-text-secondary">
+      Intervalo: {{ (analysis_interval_seconds // 3600) }}h
+    </div>
+  </div>
+  <div class="app-card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <div class="app-timer-display mb-0" id="timerText">--:--:--</div>
+      <div class="small app-text-secondary" id="timerSub">Calculando…</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="badge text-bg-secondary app-badge-soft" id="timerState">Estado</span>
+    </div>
+  </div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-header">Nuevo registro</div>
+  <div class="app-card-body">
     <form method="post">
+    {% include "_csrf.html" %}
       <input type="hidden" name="action" value="guardar">
+      <input type="hidden" name="voltajes" id="voltajesSerialized" value="">
       <div class="row g-2">
         <div class="col-md-2">
           <label class="form-label">Celdas (N)</label>
-          <input class="form-control" name="cantidad_celdas" type="number" min="1" max="32" value="6" required>
+          <input class="form-control" name="cantidad_celdas" id="cantidadCeldas" type="number" min="1" max="20" value="6" required>
         </div>
-        <div class="col-md-4">
-          <label class="form-label">Voltajes (N valores separados por coma)</label>
-          <input class="form-control" name="voltajes" placeholder="2.1, 2.2, 2.1, ..." required>
+        <div class="col-md-10">
+          <label class="form-label">Voltajes (uno por celda)</label>
+          <div class="row g-2" id="voltajesGrid"></div>
+          <div class="form-text">Podés usar punto o coma para decimales. Si cambiás la cantidad de celdas, se conservan los valores ya cargados.</div>
+          <noscript>
+            <div class="alert alert-warning mt-2 mb-0">
+              Tu navegador tiene JavaScript deshabilitado. Para poder guardar, cargá los voltajes en un solo campo (separados por coma).
+              <div class="mt-2">
+                <input class="form-control" name="voltajes" placeholder="2.1, 2.2, 2.1, ..." required>
+              </div>
+            </div>
+          </noscript>
         </div>
         <div class="col-md-2">
           <label class="form-label">Electrolizador</label>
-          <input class="form-control" name="electrolizador" type="number" required>
+          <input class="form-control" name="electrolizador" type="number" min="1" step="1" required>
         </div>
         <div class="col-md-2">
           <label class="form-label">Turno</label>
-          <input class="form-control" name="turno" required>
+          <input class="form-control" value="{{ turno_sugerido }}" readonly aria-readonly="true">
+          <input type="hidden" name="turno" value="{{ turno_sugerido }}">
         </div>
         <div class="col-md-2">
           <label class="form-label">Lote (sugerido)</label>
-          <input class="form-control" name="lote" value="{{ lote_sugerido }}">
+          <input class="form-control" value="{{ lote_sugerido }}" readonly aria-readonly="true">
+          <input type="hidden" name="lote" value="{{ lote_sugerido }}">
         </div>
         <div class="col-md-2">
           <label class="form-label">Amperaje</label>
@@ -54,11 +92,19 @@
           <input class="form-control" name="caudal_salmuera_l_h" required>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Hipo conc</label>
+          {% set ar_hipo_conc = analysis_ref_map_salmuera['salmuera_hipo_conc_pdf'] %}
+          <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+            <span>Hipo conc</span>
+            {{ analysis_ref_flask_button(ar_hipo_conc.doc_key, ar_hipo_conc.pdf_present, ar_hipo_conc.modal_id, ar_hipo_conc.label) }}
+          </label>
           <input class="form-control" name="hipo_conc" required>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Hipo exceso soda</label>
+          {% set ar_hipo_exsoda = analysis_ref_map_salmuera['salmuera_hipo_exceso_soda_pdf'] %}
+          <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+            <span>Hipo exceso soda</span>
+            {{ analysis_ref_flask_button(ar_hipo_exsoda.doc_key, ar_hipo_exsoda.pdf_present, ar_hipo_exsoda.modal_id, ar_hipo_exsoda.label) }}
+          </label>
           <input class="form-control" name="hipo_exceso_soda" required>
         </div>
         <div class="col-md-2">
@@ -74,7 +120,11 @@
           <input class="form-control" name="sal_ph" required>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Soda conc</label>
+          {% set ar_soda_conc = analysis_ref_map_salmuera['salmuera_soda_conc_pdf'] %}
+          <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+            <span>Soda conc</span>
+            {{ analysis_ref_flask_button(ar_soda_conc.doc_key, ar_soda_conc.pdf_present, ar_soda_conc.modal_id, ar_soda_conc.label) }}
+          </label>
           <input class="form-control" name="soda_conc" required>
         </div>
         <div class="col-md-2">
@@ -83,11 +133,8 @@
         </div>
         <div class="col-md-3">
           <label class="form-label">Operador</label>
-          <select class="form-select" name="operador" required>
-            {% for o in operadores %}
-            <option value="{{ o.nombre }}" {% if o.nombre == username %}selected{% endif %}>{{ o.nombre }}</option>
-            {% endfor %}
-          </select>
+          <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
+          <input type="hidden" name="operador" value="{{ operador_sugerido or username }}">
         </div>
         <div class="col-md-6">
           <label class="form-label">Observaciones</label>
@@ -98,59 +145,339 @@
           <input class="form-control" name="atraso_motivo">
         </div>
         <div class="col-12">
-          <button type="submit" class="btn btn-success">Guardar registro</button>
+          <div class="note-muted">
+            Avisos operativos (no bloquean guardado): exceso de soda &gt; 9; salmuera de salida de celda &lt; 260 g/L; pH de salmuera de salida de celda &gt; 5; pH de declorinación &gt; 1.9. Los avisos activos se repiten al guardar al final de observaciones.
+          </div>
+          <div id="hipocloritoOpWarningsPanel" class="mt-2 mb-1" hidden>
+            <div class="small fw-semibold app-text-secondary mb-1">Avisos operativos detectados</div>
+            <div id="hipocloritoOpWarningsList" class="d-flex flex-wrap gap-1 align-items-start"></div>
+          </div>
         </div>
-      </div>
-    </form>
-    <hr>
-    <form method="post" action="{{ url_for('produccion.operador_agregar') }}" class="row g-2 align-items-end">
-      <div class="col-md-6">
-        <label class="form-label">Nuevo operador</label>
-        <input class="form-control" name="nombre" placeholder="Nombre">
-      </div>
-      <div class="col-auto">
-        <button type="submit" class="btn btn-outline-primary">Agregar operador</button>
+        <div class="col-12">
+          <button type="submit" class="btn btn-primary">Guardar registro</button>
+        </div>
       </div>
     </form>
   </div>
 </div>
 
-<div class="card shadow-sm">
-  <div class="card-header">Registros del día {{ fecha }}</div>
-  <div class="card-body p-0 table-responsive">
-    <table class="table table-sm table-striped mb-0">
-      <thead class="table-light">
+<div class="app-card">
+  <div class="app-card-header">Registros del día {{ fecha }}</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
         <tr>
-          <th>ID</th><th>Hora</th><th>El.</th><th>Celdas</th><th>Turno</th><th>V total</th><th>Operador</th><th>Lote</th><th></th>
+          <th>ID</th>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Turno</th>
+          <th>Operador</th>
+          <th>Lote</th>
+          <th>Electrolizador</th>
+          <th>Celdas</th>
+          <th scope="col" class="app-th-voltajes-celdas" title="Valores por celda: V1, V2, … hasta Vn según cantidad de celdas">Voltajes (V1…Vn)</th>
+          <th scope="col" class="app-th-voltaje-total">V total</th>
+          <th>Amperaje</th>
+          <th>Caudal agua</th>
+          <th>Caudal salmuera</th>
+          <th>Hipo conc</th>
+          <th>Hipo exceso soda</th>
+          <th>Sal temp</th>
+          <th>Sal conc</th>
+          <th>Sal pH</th>
+          <th>Soda conc</th>
+          <th>Declor pH</th>
+          <th>Avisos</th>
+          <th>Obs.</th>
+          <th>Motivo atraso</th>
+          <th>Creado</th>
         </tr>
       </thead>
       <tbody>
         {% for r in registros %}
         <tr>
           <td>{{ r.id }}</td>
+          <td>{{ fecha }}</td>
           <td>{{ r.hora_hm }}</td>
-          <td>{{ r.electrolizador }}</td>
-          <td>{{ r.cantidad_celdas }}</td>
           <td>{{ r.turno }}</td>
-          <td>{{ r.voltaje_total | round(2) }}</td>
           <td>{{ r.operador }}</td>
           <td>{{ r.lote }}</td>
+          <td>{{ r.electrolizador }}</td>
+          <td>{{ r.cantidad_celdas }}</td>
+          <td class="app-table-voltajes-td">{{ render_voltajes_celdas(r.voltajes_celdas) }}</td>
+          <td class="app-table-voltaje-total-td"><span class="voltaje-total-value">{{ r.voltaje_total | round(2) }}</span></td>
+          <td>{{ r.amperaje }}</td>
+          <td>{{ r.caudal_agua_l_h }}</td>
+          <td>{{ r.caudal_salmuera_l_h }}</td>
+          <td>{{ r.hipo_conc }}</td>
+          <td>{{ r.hipo_exceso_soda }}</td>
+          <td>{{ r.sal_temp }}</td>
+          <td>{{ r.sal_conc }}</td>
+          <td>{{ r.sal_ph }}</td>
+          <td>{{ r.soda_conc }}</td>
+          <td>{{ r.declor_ph }}</td>
           <td>
-            <form method="post" class="d-flex gap-1" onsubmit="return confirm('¿Eliminar registro {{ r.id }}?');">
-              <input type="hidden" name="fecha" value="{{ fecha }}">
-              <input type="hidden" name="action" value="borrar">
-              <input type="hidden" name="reg_id" value="{{ r.id }}">
-              <input type="text" name="codigo_seguridad" class="form-control form-control-sm" placeholder="Código" style="max-width:90px">
-              <button class="btn btn-sm btn-outline-danger">Borrar</button>
-            </form>
+            {% if r.warnings %}
+              {% for w in r.warnings %}
+                <span class="pill-warn" title="{{ w }}">{{ w }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endif %}
           </td>
+          <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+          <td title="{{ r.atraso_motivo }}"><div class="cell-ellipsis">{{ r.atraso_motivo }}</div></td>
+          <td>{{ r.created_at_iso }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-center text-muted py-3">Sin registros este día.</td></tr>
+        <tr><td colspan="24" class="text-center text-muted py-3">Sin registros este día.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
-<p class="small text-muted mt-2">Código de borrado: el mismo que en escritorio (por defecto 8956), configurable en constantes del servidor.</p>
+
+{% for ar in analysis_ref_rows_salmuera %}
+{{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
+{% endfor %}
+
+<script>
+(() => {
+  // ---------------------------
+  // Voltajes: inputs dinámicos
+  // Se serializan a un hidden (voltajesSerialized) para mantener compatibilidad backend.
+  // ---------------------------
+  const nInput = document.getElementById("cantidadCeldas");
+  const grid = document.getElementById("voltajesGrid");
+  const serialized = document.getElementById("voltajesSerialized");
+  const values = [];
+
+  function readCurrentValues() {
+    if (!grid) return;
+    const inputs = grid.querySelectorAll("input[data-idx]");
+    inputs.forEach((inp) => {
+      const idx = parseInt(inp.getAttribute("data-idx") || "0", 10);
+      values[idx] = inp.value || "";
+    });
+  }
+
+  function writeSerialized(n) {
+    if (!serialized) return;
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      parts.push((values[i] || "").trim());
+    }
+    serialized.value = parts.join(", ");
+  }
+
+  function rebuildVoltages() {
+    if (!nInput || !grid) return;
+    readCurrentValues();
+    let n = parseInt(nInput.value || "0", 10);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    if (n > 32) n = 32;
+
+    grid.innerHTML = "";
+    for (let i = 0; i < n; i++) {
+      const col = document.createElement("div");
+      col.className = "col-6 col-md-3 col-lg-2";
+      col.innerHTML = `
+        <label class="form-label small mb-1">Voltaje ${i + 1}</label>
+        <input class="form-control" name="voltaje_${i + 1}" data-idx="${i}" inputmode="decimal" placeholder="2.5 a 4.5" required>
+      `;
+      grid.appendChild(col);
+      const inp = col.querySelector("input");
+      inp.value = values[i] || "";
+      inp.addEventListener("input", () => {
+        values[i] = inp.value || "";
+        writeSerialized(n);
+      });
+    }
+    writeSerialized(n);
+  }
+
+  if (nInput) {
+    nInput.addEventListener("input", rebuildVoltages);
+  }
+  rebuildVoltages();
+
+  // ---------------------------
+  // Validaciones de ayuda en cliente (el servidor también valida)
+  // ---------------------------
+  const form = document.querySelector("form[method='post']");
+  const caudalAgua = form ? form.querySelector("input[name='caudal_agua_l_h']") : null;
+  const caudalSal = form ? form.querySelector("input[name='caudal_salmuera_l_h']") : null;
+  const voltajesGrid = document.getElementById("voltajesGrid");
+
+  const HIPO_RULES = {{ hipoclorito_warning_rules | tojson }};
+  const hipocloritoWarnPanel = document.getElementById("hipocloritoOpWarningsPanel");
+  const hipocloritoWarnList = document.getElementById("hipocloritoOpWarningsList");
+
+  function parseHipoWarnField(name) {
+    if (!form) return null;
+    const el = form.querySelector(`input[name="${name}"]`);
+    const n = parseFloat(String(el && el.value != null ? el.value : "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function evalHipocloritoWarningsClient() {
+    const msgs = [];
+    for (let i = 0; i < HIPO_RULES.length; i++) {
+      const rule = HIPO_RULES[i];
+      const v = parseHipoWarnField(rule.key);
+      if (v === null) continue;
+      if (rule.op === "gt" && v > rule.limit) msgs.push(rule.msg);
+      if (rule.op === "lt" && v < rule.limit) msgs.push(rule.msg);
+    }
+    return msgs;
+  }
+
+  function renderHipocloritoWarnings() {
+    if (!hipocloritoWarnPanel || !hipocloritoWarnList) return;
+    const msgs = evalHipocloritoWarningsClient();
+    hipocloritoWarnList.innerHTML = "";
+    if (msgs.length === 0) {
+      hipocloritoWarnPanel.hidden = true;
+      return;
+    }
+    hipocloritoWarnPanel.hidden = false;
+    msgs.forEach((m) => {
+      const sp = document.createElement("span");
+      sp.className = "pill-warn";
+      sp.textContent = m;
+      sp.setAttribute("title", m);
+      hipocloritoWarnList.appendChild(sp);
+    });
+  }
+
+  if (form) {
+    ["hipo_exceso_soda", "sal_conc", "sal_ph", "declor_ph"].forEach((name) => {
+      const el = form.querySelector(`input[name="${name}"]`);
+      if (el) el.addEventListener("input", renderHipocloritoWarnings);
+    });
+    renderHipocloritoWarnings();
+  }
+
+  function toFloatFlexible(v) {
+    const n = parseFloat(String(v || "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function validateClientSide() {
+    if (!form) return true;
+    let n = parseInt((nInput && nInput.value) ? nInput.value : "0", 10);
+    if (!Number.isFinite(n) || n < 1) n = 1;
+    if (n > 20) {
+      alert("La cantidad de celdas no puede superar 20.");
+      if (nInput) nInput.focus();
+      return false;
+    }
+    const electInput = document.querySelector("input[name='electrolizador']");
+    const elect = toFloatFlexible(electInput ? electInput.value : "");
+    if (elect === null || elect <= 0 || !Number.isInteger(elect)) {
+      alert("El electrolizador debe ser un número entero mayor a 0.");
+      if (electInput) electInput.focus();
+      return false;
+    }
+    const inputs = voltajesGrid ? voltajesGrid.querySelectorAll("input[data-idx]") : [];
+    if (n === 1) {
+      const v = inputs.length ? toFloatFlexible(inputs[0].value) : null;
+      if (v === null || v <= 0) {
+        alert("Con 1 celda, el voltaje debe ser un número mayor a 0.");
+        if (inputs.length) inputs[0].focus();
+        return false;
+      }
+    } else {
+      for (let i = 0; i < inputs.length; i++) {
+        const v = toFloatFlexible(inputs[i].value);
+        if (v === null || v < 2.5 || v > 4.5) {
+          alert(`Voltaje ${i + 1} inválido. Con más de 1 celda, debe estar entre 2.5 y 4.5.`);
+          inputs[i].focus();
+          return false;
+        }
+      }
+    }
+    const qAgua = toFloatFlexible(caudalAgua ? caudalAgua.value : "");
+    const qSal = toFloatFlexible(caudalSal ? caudalSal.value : "");
+    if (qAgua === null || qSal === null) return true;
+    if (qAgua >= qSal) {
+      alert("El caudal de agua debe ser menor que el caudal de salmuera.");
+      if (caudalAgua) caudalAgua.focus();
+      return false;
+    }
+    return true;
+  }
+
+  if (form) {
+    form.addEventListener("submit", (ev) => {
+      writeSerialized(parseInt((nInput && nInput.value) ? nInput.value : "1", 10) || 1);
+      if (!validateClientSide()) {
+        ev.preventDefault();
+      }
+    });
+  }
+
+  // ---------------------------
+  // Cronómetro: countdown desde último registro del día (created_at_iso) + interval
+  // ---------------------------
+  const timerText = document.getElementById("timerText");
+  const timerSub = document.getElementById("timerSub");
+  const timerState = document.getElementById("timerState");
+
+  const serverNowIso = {{ (server_now_iso | tojson) }};
+  const lastCreatedIso = {{ (last_created_at_iso | tojson) }};
+  const intervalSec = {{ analysis_interval_seconds | int }};
+
+  function parseIsoLocal(iso) {
+    // created_at_iso se guarda sin tz (naive). Interpretamos como hora local del servidor.
+    // En Render el servidor suele estar en UTC; para el cronómetro operativo solo importa delta.
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) return d;
+    // fallback: "YYYY-MM-DDTHH:MM:SS"
+    return new Date((iso || "").replace(" ", "T"));
+  }
+
+  function fmtHhmmss(totalSeconds) {
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const h = String(Math.floor(s / 3600)).padStart(2, "0");
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${h}:${m}:${ss}`;
+  }
+
+  // Intento de alinear reloj con server usando offset simple.
+  const clientNow = new Date();
+  const serverNow = parseIsoLocal(serverNowIso);
+  const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
+
+  function tick() {
+    if (!timerText || !timerSub || !timerState) return;
+    if (!lastCreatedIso) {
+      timerText.textContent = fmtHhmmss(intervalSec);
+      timerSub.textContent = "Sin registros hoy: contando desde ahora.";
+      timerState.className = "badge text-bg-secondary app-badge-soft";
+      timerState.textContent = "En tiempo";
+      return;
+    }
+    const last = parseIsoLocal(lastCreatedIso);
+    const due = new Date(last.getTime() + intervalSec * 1000);
+    const now = new Date(Date.now() + clockOffsetMs);
+    const diffSec = (due.getTime() - now.getTime()) / 1000;
+    if (diffSec >= 0) {
+      timerText.textContent = fmtHhmmss(diffSec);
+      timerSub.textContent = `Último registro: ${lastCreatedIso}`;
+      timerState.className = "badge text-bg-success app-badge-soft";
+      timerState.textContent = "En tiempo";
+    } else {
+      timerText.textContent = fmtHhmmss(-diffSec);
+      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0,19).replace("T"," ")}`;
+      timerState.className = "badge text-bg-danger app-badge-soft";
+      timerState.textContent = "Atrasado";
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
 {% endblock %}

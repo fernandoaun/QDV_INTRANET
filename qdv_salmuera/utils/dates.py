@@ -23,3 +23,12 @@ def iso_to_ddmmyyyy(s: str) -> str:
         return dt.strftime("%d/%m/%Y")
     except Exception:
         return s
+
+
+def format_hhmmss(seconds: int) -> str:
+    """Formatea segundos como HH:MM:SS (p. ej. temporizadores de análisis)."""
+    seconds = max(0, int(seconds))
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"

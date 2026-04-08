@@ -104,6 +104,9 @@ class ProductoCatalogo(db.Model):
     categoria = db.Column(db.String(32), nullable=False)
     nombre_producto = db.Column(db.String(256), nullable=False)
     tipo_producto = db.Column(db.String(32), nullable=False, default="Normal")
+    requiere_equipo = db.Column(db.Boolean, nullable=False, default=False)
+    is_stockable = db.Column(db.Boolean, nullable=False, default=True)
+    stock_minimo_alerta = db.Column(db.Float)
     activo = db.Column(db.Boolean, nullable=False, default=True)
     created_at_iso = db.Column(db.String(32), nullable=False)
 
@@ -159,3 +162,59 @@ class ProductoColor(db.Model):
     nombre_display = db.Column(db.String(256), nullable=False)
     color_hex = db.Column(db.String(16), nullable=False)
     created_at_iso = db.Column(db.String(32), nullable=False)
+
+
+class Entrega(db.Model):
+    __tablename__ = "entregas"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    cliente = db.Column(db.String(256), nullable=False)
+    lugar_entrega = db.Column(db.String(512), nullable=False)
+    producto = db.Column(db.String(256), nullable=False)
+
+    cliente_id = db.Column(db.Integer, db.ForeignKey("clientes_entrega.id"), nullable=True, index=True)
+    lugar_entrega_id = db.Column(db.Integer, db.ForeignKey("lugares_entrega.id"), nullable=True, index=True)
+    producto_terminado_id = db.Column(db.Integer, db.ForeignKey("productos_terminados_entrega.id"), nullable=True, index=True)
+    chofer_entrega_id = db.Column(db.Integer, db.ForeignKey("choferes_entrega.id"), nullable=True, index=True)
+    cantidad = db.Column(db.Float, nullable=False)
+    unidad = db.Column(db.String(64), nullable=True)
+    fecha_prevista = db.Column(db.String(16), nullable=False, index=True)
+    observaciones = db.Column(db.Text)
+    chofer_previsto = db.Column(db.String(256), nullable=True)
+
+    estado = db.Column(db.String(32), nullable=False, default="programada", index=True)
+
+    created_at_iso = db.Column(db.String(32), nullable=False)
+    updated_at_iso = db.Column(db.String(32), nullable=False)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+
+    cargada_at_iso = db.Column(db.String(32), nullable=True)
+    cargada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    consumo_stock_id = db.Column(db.Integer, db.ForeignKey("consumos_stock.id"), nullable=True, unique=True)
+
+    stock_categoria = db.Column(db.String(32), nullable=True)
+    stock_marca = db.Column(db.String(256), nullable=True)
+    stock_equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"), nullable=True)
+
+    entregada_at_iso = db.Column(db.String(32), nullable=True)
+    entregada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    entregada_chofer_nombre = db.Column(db.String(256), nullable=True)
+    entregada_lugar = db.Column(db.String(512), nullable=True)
+    entregada_dia_semana = db.Column(db.String(32), nullable=True)
+
+    producto_terminado = db.relationship("ProductoTerminado", foreign_keys=[producto_terminado_id])
+    cliente_row = db.relationship("ClienteEntrega", foreign_keys=[cliente_id])
+    lugar_row = db.relationship("LugarEntrega", foreign_keys=[lugar_entrega_id])
+    chofer_row = db.relationship("ChoferEntrega", foreign_keys=[chofer_entrega_id])
+
+
+class EntregaEvento(db.Model):
+    __tablename__ = "entrega_eventos"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entrega_id = db.Column(db.Integer, db.ForeignKey("entregas.id", ondelete="CASCADE"), nullable=False, index=True)
+    tipo = db.Column(db.String(32), nullable=False, index=True)
+    at_iso = db.Column(db.String(32), nullable=False)
+    actor_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    actor_display = db.Column(db.String(256), nullable=False, default="")
+    detalle = db.Column(db.Text)

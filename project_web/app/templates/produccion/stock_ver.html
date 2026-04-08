@@ -1,13 +1,57 @@
 {% extends "base.html" %}
 {% block title %}Stock · QDV{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Existencias: {{ categoria }}</h1>
-<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.stock_hub') }}">← Stock</a>
-<div class="mb-3">
-  <a class="btn btn-sm btn-outline-primary {% if categoria=='materia_prima' %}active{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='materia_prima') }}">Materia prima</a>
-  <a class="btn btn-sm btn-outline-primary {% if categoria=='laboratorio' %}active{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='laboratorio') }}">Laboratorio</a>
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Existencias</h1>
+      <p class="app-intro mb-0">
+        {% if categoria == 'materia_prima' %}
+        <strong>Materia prima</strong> — cantidades consolidadas por producto.
+        {% elif categoria == 'laboratorio' %}
+        <strong>Laboratorio</strong> — cantidades consolidadas por producto.
+        {% elif categoria == 'producto_terminado' %}
+        <strong>Producto terminado</strong> — cantidades consolidadas por producto.
+        {% else %}
+        <strong>Todas las categorías</strong> — consolidado de materias primas, producto terminado y laboratorio.
+        {% endif %}
+      </p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>
+    </div>
+  </div>
+
+  <div class="app-card">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Categoría</h2>
+      <p class="app-card-desc">Cambiá la vista sin salir del listado.</p>
+    </div>
+    <div class="app-card-body">
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn {% if categoria=='todas' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='todas') }}">Todas</a>
+        <a class="btn {% if categoria=='materia_prima' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='materia_prima') }}">Materia prima</a>
+        <a class="btn {% if categoria=='laboratorio' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='laboratorio') }}">Laboratorio</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-card">
+    <div class="app-card-header app-card-header--split">
+      <span class="app-card-header-title mb-0">Productos en stock</span>
+      <span class="app-card-desc mb-0">{{ items|length }} ítem(es)</span>
+    </div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        {% if categoria == 'todas' %}
+        <thead><tr><th>Categoría</th><th>Producto</th><th>Modalidad</th><th>Stock</th></tr></thead>
+        <tbody>{% for it in items %}<tr><td>{% if it.categoria == 'materia_prima' %}Materia prima{% elif it.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td><td>{{ it.producto }}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}<span class="badge text-bg-secondary">No estoqueable</span>{% else %}<span class="badge text-bg-primary">Estoqueable</span>{% endif %}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}—{% else %}{{ it.stock | round(2) }}{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted text-center py-4">Sin datos para esta categoría.</td></tr>{% endfor %}</tbody>
+        {% else %}
+        <thead><tr><th>Producto</th><th>Modalidad</th><th>Stock</th></tr></thead>
+        <tbody>{% for it in items %}<tr><td>{{ it.producto }}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}<span class="badge text-bg-secondary">No estoqueable</span>{% else %}<span class="badge text-bg-primary">Estoqueable</span>{% endif %}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}—{% else %}{{ it.stock | round(2) }}{% endif %}</td></tr>{% else %}<tr><td colspan="3" class="text-muted text-center py-4">Sin datos para esta categoría.</td></tr>{% endfor %}</tbody>
+        {% endif %}
+      </table>
+    </div>
+  </div>
 </div>
-<table class="table table-sm table-striped"><thead><tr><th>Producto</th><th>Stock</th></tr></thead>
-<tbody>{% for it in items %}<tr><td>{{ it.producto }}</td><td>{{ it.stock | round(2) }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Sin datos</td></tr>{% endfor %}</tbody>
-</table>
 {% endblock %}

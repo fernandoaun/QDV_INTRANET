@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-import sqlite3
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import List, Tuple
@@ -14,7 +13,7 @@ from qdv_salmuera.config.settings import (
 )
 
 from qdv_salmuera.ui.widgets import ScrollableFrame
-from qdv_salmuera.ui.dialogs import AddOperadorDialog
+from qdv_salmuera.ui.produccion_ui_helpers import add_operador_via_dialog
 from qdv_salmuera.ui.theme import QDV_COLORS
 
 from qdv_salmuera.utils.validators import (
@@ -31,10 +30,6 @@ from qdv_salmuera.utils.dates import (
 )
 
 
-# PEGAR AQUÍ: class EditRegistroDialog (V4 1098–1593)
-# =========================
-# EDIT DIALOG (Salmuera) - doble clic
-# =========================
 class EditRegistroDialog(tk.Toplevel):
     def __init__(self, master, db: DB, registro_id: int):
         super().__init__(master)
@@ -99,21 +94,12 @@ class EditRegistroDialog(tk.Toplevel):
         self.grab_set()
 
     def _add_operador(self):
-        dlg = AddOperadorDialog(self)
-        self.wait_window(dlg)
-        if not dlg.result:
+        name = add_operador_via_dialog(self, self.db)
+        if name is None:
             return
-        try:
-            self.db.add_operador(dlg.result)
-        except sqlite3.IntegrityError:
-            messagebox.showwarning("Atención", "Ese operador ya existe.")
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo agregar el operador.\n\nDetalle: {e}")
-            return
-
         self.operadores = self.db.fetch_operadores()
         self.cbo_operador["values"] = self.operadores
-        self.var_operador.set(dlg.result)
+        self.var_operador.set(name)
 
     def _build_ui(self):
         outer = ttk.Frame(self, padding=16)

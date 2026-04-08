@@ -6,6 +6,8 @@ from typing import Callable, Optional
 
 import tkinter as tk
 
+from qdv_salmuera.utils.dates import format_hhmmss
+
 
 @dataclass(frozen=True)
 class TimerConfig:
@@ -38,13 +40,6 @@ class PersistentModuleTimer:
         self.next_due_dt: Optional[datetime] = None
         self._job = None
         self._overdue = False
-
-    def _format_hhmmss(self, seconds: int) -> str:
-        seconds = max(0, int(seconds))
-        h = seconds // 3600
-        m = (seconds % 3600) // 60
-        s = seconds % 60
-        return f"{h:02d}:{m:02d}:{s:02d}"
 
     def _set_overdue(self, overdue: bool) -> None:
         overdue = bool(overdue)
@@ -79,7 +74,7 @@ class PersistentModuleTimer:
 
         remaining = int((self.next_due_dt - now).total_seconds())
         remaining = max(0, remaining)
-        self.out_var.set(self._format_hhmmss(remaining))
+        self.out_var.set(format_hhmmss(remaining))
         self._set_overdue(remaining <= 0)
 
     def reset_from_created_at_iso(self, created_at_iso: str) -> None:
@@ -124,7 +119,7 @@ class PersistentModuleTimer:
 
             remaining = int((self.next_due_dt - now).total_seconds())
             remaining = max(0, remaining)
-            self.out_var.set(self._format_hhmmss(remaining))
+            self.out_var.set(format_hhmmss(remaining))
             self._set_overdue(remaining <= 0)
         except Exception as e:
             try:

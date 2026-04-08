@@ -1,9 +1,288 @@
 {% extends "base.html" %}
 {% block title %}Gráficos · QDV{% endblock %}
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Resumen registros salmuera</h1>
-<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.hub') }}">← Producción</a>
-<form method="get" class="mb-3"><label>Desde fecha</label> <input type="date" name="desde" value="{{ desde }}"> <button class="btn btn-primary btn-sm">Actualizar</button></form>
-<table class="table table-sm"><thead><tr><th>Fecha</th><th>Cantidad registros</th></tr></thead>
-<tbody>{% for s in serie %}<tr><td>{{ s.fecha }}</td><td>{{ s.n }}</td></tr>{% else %}<tr><td colspan="2" class="text-muted">Sin datos</td></tr>{% endfor %}</tbody></table>
+<div class="app-page-head">
+  <h1 class="app-page-title">Gráficos y resumen</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
+</div>
+
+<div class="graficos-grid-2x2">
+  <div class="app-card graficos-grid-cell">
+    <div class="app-card-header app-card-header--split">
+      <span>Calendario de consumos</span>
+      <span class="small app-text-secondary">Últimos 30 días</span>
+    </div>
+    <div class="app-card-body consumo-cal-panel">
+      <div class="consumo-cal-weekdays mb-2">
+        <div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div><div>Dom</div>
+      </div>
+      <div class="consumo-cal-grid">
+        {% for c in calendario_celdas %}
+        {% if c.blank %}
+        <div class="consumo-cal-day consumo-cal-day--blank"></div>
+        {% else %}
+        <a
+          class="consumo-cal-day {% if c.is_today %}consumo-cal-day--today{% endif %} {% if c.is_selected %}consumo-cal-day--selected{% endif %}"
+          href="{{ url_for('produccion.graficos', desde=desde, dia=c.fecha_iso, hipo_vars_csv=hipo_csv, salmuera_vars_csv=salmuera_csv, agua_vars_csv=agua_csv) }}"
+          title="{{ c.fecha_iso }} · {{ c.n_consumos }} consumo(s)"
+        >
+          <div class="consumo-cal-day-num">{{ c.dia_num }}</div>
+          <div class="consumo-cal-dots">
+            {% for color in c.dots %}
+            <span class="consumo-dot" style="background-color: {{ color }};" aria-hidden="true"></span>
+            {% endfor %}
+            {% if c.extra > 0 %}
+            <span class="consumo-dot-more">+{{ c.extra }}</span>
+            {% endif %}
+          </div>
+        </a>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="app-card graficos-grid-cell">
+    <div class="app-card-header app-card-header--split">
+      <span>Control de Hipoclorito</span>
+      <span class="small app-text-secondary">Eje X fijo: últimas 24h</span>
+    </div>
+    <div class="app-card-body">
+      <form method="get" class="graficos-var-form" data-max-vars="4">
+        <input type="hidden" name="desde" value="{{ desde }}">
+        <input type="hidden" name="dia" value="{{ calendario_dia_sel }}">
+        <input type="hidden" name="salmuera_vars_csv" value="{{ salmuera_csv }}">
+        <input type="hidden" name="agua_vars_csv" value="{{ agua_csv }}">
+        <div class="graficos-var-chooser">
+          {% for opt in hipo_options %}
+          <label><input type="checkbox" name="hipo_vars" value="{{ opt.key }}" {% if opt.key in hipo_selected %}checked{% endif %}> {{ opt.label }}</label>
+          {% endfor %}
+        </div>
+        <div class="d-flex align-items-center justify-content-between mt-2">
+          <span class="small app-text-secondary">Máximo 4 variables</span>
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+        </div>
+      </form>
+      <div class="app-mini-chart-wrap mt-2">
+        <canvas id="chartHipo" class="app-mini-chart"></canvas>
+      </div>
+      <p id="chartHipoStatus" class="small app-text-secondary mt-2 mb-0 d-none"></p>
+      {% if not hipo_chart.datasets %}
+      <p class="small app-text-secondary mt-2 mb-0">Sin datos para graficar.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="app-card graficos-grid-cell">
+    <div class="app-card-header app-card-header--split">
+      <span>Circuito de Salmuera</span>
+      <span class="small app-text-secondary">Eje X fijo: últimas 24h</span>
+    </div>
+    <div class="app-card-body">
+      <form method="get" class="graficos-var-form" data-max-vars="4">
+        <input type="hidden" name="desde" value="{{ desde }}">
+        <input type="hidden" name="dia" value="{{ calendario_dia_sel }}">
+        <input type="hidden" name="hipo_vars_csv" value="{{ hipo_csv }}">
+        <input type="hidden" name="agua_vars_csv" value="{{ agua_csv }}">
+        <div class="graficos-var-chooser">
+          {% for opt in salmuera_options %}
+          <label><input type="checkbox" name="salmuera_vars" value="{{ opt.key }}" {% if opt.key in salmuera_selected %}checked{% endif %}> {{ opt.label }}</label>
+          {% endfor %}
+        </div>
+        <div class="d-flex align-items-center justify-content-between mt-2">
+          <span class="small app-text-secondary">Máximo 4 variables</span>
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+        </div>
+      </form>
+      <div class="app-mini-chart-wrap mt-2">
+        <canvas id="chartSalmuera" class="app-mini-chart"></canvas>
+      </div>
+      <p id="chartSalmueraStatus" class="small app-text-secondary mt-2 mb-0 d-none"></p>
+      {% if not salmuera_chart.datasets %}
+      <p class="small app-text-secondary mt-2 mb-0">Sin datos para graficar.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="app-card graficos-grid-cell">
+    <div class="app-card-header app-card-header--split">
+      <span>Circuito de Agua</span>
+      <span class="small app-text-secondary">Eje X fijo: últimas 24h</span>
+    </div>
+    <div class="app-card-body">
+      <form method="get" class="graficos-var-form" data-max-vars="4">
+        <input type="hidden" name="desde" value="{{ desde }}">
+        <input type="hidden" name="dia" value="{{ calendario_dia_sel }}">
+        <input type="hidden" name="hipo_vars_csv" value="{{ hipo_csv }}">
+        <input type="hidden" name="salmuera_vars_csv" value="{{ salmuera_csv }}">
+        <div class="graficos-var-chooser">
+          {% for opt in agua_options %}
+          <label><input type="checkbox" name="agua_vars" value="{{ opt.key }}" {% if opt.key in agua_selected %}checked{% endif %}> {{ opt.label }}</label>
+          {% endfor %}
+        </div>
+        <div class="d-flex align-items-center justify-content-between mt-2">
+          <span class="small app-text-secondary">Máximo 4 variables</span>
+          <button type="submit" class="btn btn-primary btn-sm">Aplicar</button>
+        </div>
+      </form>
+      <div class="app-mini-chart-wrap mt-2">
+        <canvas id="chartAgua" class="app-mini-chart"></canvas>
+      </div>
+      <p id="chartAguaStatus" class="small app-text-secondary mt-2 mb-0 d-none"></p>
+      {% if not agua_chart.datasets %}
+      <p class="small app-text-secondary mt-2 mb-0">Sin datos para graficar.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="app-card mt-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Detalle de consumos del día</span>
+    <span class="small app-text-secondary">{{ calendario_dia_sel }}</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Hora</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
+          <th>Unidad</th>
+          <th>Equipo</th>
+          <th>Operador</th>
+          <th>Obs.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in detalle_dia %}
+        <tr>
+          <td>{{ r.hora }}</td>
+          <td>
+            <span class="consumo-dot me-1" style="background-color: {{ r.color }};" aria-hidden="true"></span>
+            {{ r.producto }}
+          </td>
+          <td>{{ r.cantidad }}</td>
+          <td>{{ r.unidad or '-' }}</td>
+          <td>{{ r.equipo or '-' }}</td>
+          <td>{{ r.operador or '-' }}</td>
+          <td>{{ r.observaciones or '-' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted text-center py-3">Sin consumos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+(function () {
+  var charts = {};
+
+  function enforceMaxSelections() {
+    document.querySelectorAll(".graficos-var-form").forEach(function (form) {
+      var max = parseInt(form.getAttribute("data-max-vars") || "4", 10);
+      var checks = Array.from(form.querySelectorAll("input[type='checkbox']"));
+      form.addEventListener("submit", function (ev) {
+        var n = checks.filter(function (c) { return c.checked; }).length;
+        if (n < 1) {
+          ev.preventDefault();
+          alert("Seleccioná al menos una variable.");
+        }
+      });
+      checks.forEach(function (chk) {
+        chk.addEventListener("change", function () {
+          var n = checks.filter(function (c) { return c.checked; }).length;
+          if (n > max) {
+            chk.checked = false;
+            alert("Podés seleccionar hasta " + max + " variables por gráfico.");
+          }
+        });
+      });
+    });
+  }
+
+  function setChartStatus(canvasId, message) {
+    var st = document.getElementById(canvasId + "Status");
+    if (!st) return;
+    if (!message) {
+      st.textContent = "";
+      st.classList.add("d-none");
+      return;
+    }
+    st.textContent = message;
+    st.classList.remove("d-none");
+  }
+
+  function buildLineChart(canvasId, payload) {
+    var el = document.getElementById(canvasId);
+    if (!el) return;
+    if (!window.Chart) {
+      setChartStatus(canvasId, "Error al cargar la librería de gráficos.");
+      return;
+    }
+    if (!payload || !Array.isArray(payload.datasets) || payload.datasets.length === 0) {
+      setChartStatus(canvasId, "No se encontraron datos para las variables seleccionadas.");
+      return;
+    }
+    setChartStatus(canvasId, "");
+    if (charts[canvasId]) {
+      try { charts[canvasId].destroy(); } catch (e) {}
+      charts[canvasId] = null;
+    }
+    var scales = { x: { ticks: { maxTicksLimit: 7, autoSkip: true, maxRotation: 0, font: { size: 10 } } } };
+    (payload.axes || []).forEach(function (a) {
+      scales[a.id] = {
+        type: "linear",
+        position: a.position || "left",
+        grid: { drawOnChartArea: !!a.displayGrid },
+        ticks: { font: { size: 10 } }
+      };
+    });
+    try {
+      charts[canvasId] = new Chart(el, {
+        type: "line",
+        data: {
+          labels: payload.labels || [],
+          datasets: (payload.datasets || []).map(function (d) {
+            return {
+              label: d.label,
+              data: d.data,
+              borderColor: d.borderColor,
+              backgroundColor: d.borderColor + "33",
+              borderWidth: 2,
+              pointRadius: 1.6,
+              pointHoverRadius: 2.8,
+              tension: 0.2,
+              fill: false,
+              yAxisID: d.yAxisID
+            };
+          })
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: "line", font: { size: 10 } }
+            }
+          },
+          scales: scales
+        }
+      });
+    } catch (e) {
+      setChartStatus(canvasId, "Error al renderizar el gráfico.");
+    }
+  }
+  enforceMaxSelections();
+  buildLineChart("chartHipo", {{ hipo_chart|tojson }});
+  buildLineChart("chartSalmuera", {{ salmuera_chart|tojson }});
+  buildLineChart("chartAgua", {{ agua_chart|tojson }});
+})();
+</script>
 {% endblock %}

@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 from datetime import datetime
+from typing import Any, Optional
 
 def validate_float(text: str) -> bool:
     """Permite vacío, o float con punto. Bloquea coma."""
@@ -79,4 +81,14 @@ def fmt_num(value, decimals: int = 2) -> str:
         return fmt.format(num)
     except Exception:
         return ""
+
+
+def to_float_or_none(x: Any) -> Optional[float]:
+    """Conversión segura a float para gráficos y series (None si no es convertible)."""
+    try:
+        if x is None:
+            return None
+        return float(x)
+    except (TypeError, ValueError):
+        return None
 

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Recepción de turno · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Recepción de turno</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Parte dejado por {{ detail.outgoing_operator_display or detail.outgoing_name or detail.outgoing_username }}</div>
+  <div class="app-card-body small">
+    <p class="mb-1"><strong>Cierre:</strong> {{ detail.handed_over_at_iso }}</p>
+    <p class="mb-1"><strong>Stock hipoclorito informado:</strong> {{ detail.hypochlorite_stock_liters }} L</p>
+    {% if detail.closing_notes %}
+    <p class="mb-1"><strong>Observaciones de cierre:</strong> {{ detail.closing_notes }}</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Consumos del turno entregado</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Fecha / hora reg.</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
+          <th>Equipo</th>
+          <th>Operador</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in detail.consumos %}
+        <tr>
+          <td>{{ c.created_at_iso }}</td>
+          <td>{{ c.producto }}</td>
+          <td>{{ c.cantidad }}</td>
+          <td>{{ c.equipo }}</td>
+          <td>{{ c.operador }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted text-center py-2">Sin consumos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Avisos y acciones del saliente</div>
+  <div class="app-card-body">
+    {% if detail.warning_actions %}
+    {% for wa in detail.warning_actions %}
+    <div class="mb-2 pb-2 border-bottom">
+      <div class="d-flex flex-wrap gap-2 align-items-baseline mb-1">
+        {% if wa.origin_display %}<span class="badge text-bg-light border">{{ wa.origin_display }}</span>{% endif %}
+        <span class="small text-muted">{% if wa.record_created_at_iso %}Aviso (registro) {{ wa.record_created_at_iso }}{% else %}Registro #{{ wa.source_record_id }}{% endif %}</span>
+      </div>
+      <div class="fw-semibold">{{ wa.warning_message }}</div>
+      <div class="small text-muted">{{ wa.source_type }} · id {{ wa.source_record_id }}</div>
+      <div class="mt-1"><strong>Acción del saliente:</strong> {{ wa.action_taken }}</div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted mb-0">Sin avisos en el turno.</p>
+    {% endif %}
+  </div>
+</div>
+
+<form method="post" class="app-card">
+{% include "_csrf.html" %}
+  <div class="app-card-header">Recepción</div>
+  <div class="app-card-body">
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" value="1" name="confirm_read" id="confirmRead" required>
+      <label class="form-check-label" for="confirmRead">Confirmo que leí el parte completo (consumos, avisos y acciones).</label>
+    </div>
+    <div class="mb-3">
+      <label class="form-label d-block">Cómo recepcionás el turno</label>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="reception_mode" id="rmOk" value="accepted">
+        <label class="form-check-label" for="rmOk">Leí y acepto</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="reception_mode" id="rmObs" value="accepted_with_observations">
+        <label class="form-check-label" for="rmObs">Leí con observaciones</label>
+      </div>
+    </div>
+    <div class="mb-2">
+      <label class="form-label" for="recvNotes">Observaciones del receptor (obligatorias si elegís «con observaciones»)</label>
+      <textarea class="form-control" id="recvNotes" name="reception_notes" rows="3"></textarea>
+    </div>
+    <hr class="my-3">
+    <p class="small fw-semibold mb-2">Tu turno al recepcionar</p>
+    <p class="small app-text-secondary mb-3">Indicá si vas a trabajar con laboratorista en esta jornada (podés actualizarlo después desde el menú de usuario).</p>
+    {% include "shift/_laboratorist_turn_fields.html" %}
+    <button type="submit" class="btn btn-primary mt-2">Confirmar recepción y tomar turno</button>
+  </div>
+</form>
+{% endblock %}

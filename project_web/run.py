@@ -20,6 +20,7 @@ if __name__ == "__main__":
     print()
     print("=" * 60)
     print("  QDV WEB — Dejá esta ventana ABIERTA mientras usás el navegador.")
+    print(f"  Carpeta del servidor (editá archivos solo acá): {ROOT}")
     print(f"  Abrí en el navegador: {url}")
     print()
     print("  NO hay usuario ni contraseña por defecto.")

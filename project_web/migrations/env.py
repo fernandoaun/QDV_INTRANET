@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from logging.config import fileConfig
 from pathlib import Path
@@ -24,6 +25,7 @@ logger = logging.getLogger("alembic.env")
 
 
 def _get_app():
+    os.environ["SKIP_SEED_DATA"] = "1"
     return create_app()
 
 

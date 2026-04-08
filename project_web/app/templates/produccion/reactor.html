@@ -1,33 +1,195 @@
 {% extends "base.html" %}
+{% from "produccion/_analysis_ref_flask.html" import analysis_ref_flask_button, analysis_ref_pdf_modal %}
 {% block title %}{{ module_title }} · QDV{% endblock %}
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
-  <h1 class="h4 mb-0">{{ module_title }}</h1>
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+<div class="app-page-head">
+  <h1 class="app-page-title">{{ module_title }}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('produccion.reactor_historial') }}">Ver historial</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
 </div>
-<form method="get" class="row g-2 mb-3">
-  <div class="col-auto"><input type="date" name="fecha" class="form-control" value="{{ fecha }}"></div>
-  <div class="col-auto"><button class="btn btn-primary">Ver</button></div>
+<form method="get" class="app-toolbar">
+  <div>
+    <label class="form-label" for="reactorFecha">Fecha</label>
+    <input type="date" id="reactorFecha" name="fecha" class="form-control" value="{{ fecha }}">
+  </div>
+  <div class="pb-1">
+    <button type="submit" class="btn btn-primary">Ver</button>
+  </div>
 </form>
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Nuevo registro (lote automático)</div>
-  <div class="card-body">
+<div class="app-card mb-4">
+  <div class="app-card-header app-card-header--split">
+    <div>
+      <strong>Cronómetro</strong> <span class="app-text-secondary">· próximo análisis</span>
+    </div>
+    <div class="small app-text-secondary">
+      Intervalo: {{ (analysis_interval_seconds // 3600) }}h
+    </div>
+  </div>
+  <div class="app-card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div>
+      <div class="app-timer-display mb-0" id="timerText">--:--:--</div>
+      <div class="small app-text-secondary" id="timerSub">Calculando…</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="badge text-bg-secondary app-badge-soft" id="timerState">Estado</span>
+    </div>
+  </div>
+</div>
+<div class="app-card mb-4">
+  <div class="app-card-header">Nuevo registro (lote automático)</div>
+  <div class="app-card-body">
     <form method="post" class="row g-2">
+    {% include "_csrf.html" %}
       <div class="col-md-3"><label class="form-label">Operador</label>
-        <select class="form-select" name="operador" required>{% for o in operadores %}<option value="{{ o.nombre }}">{{ o.nombre }}</option>{% endfor %}</select></div>
+        <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
+        <input type="hidden" name="operador" value="{{ operador_sugerido or username }}">
+      </div>
       <div class="col-md-2"><label class="form-label">pH</label><input class="form-control" name="ph" required></div>
       <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="temperatura" required></div>
       <div class="col-md-2"><label class="form-label">Densidad</label><input class="form-control" name="densidad" required></div>
       <div class="col-md-2"><label class="form-label">Conc. tabla</label><input class="form-control" name="concentracion_tabla" required></div>
-      <div class="col-md-2"><label class="form-label">Exceso NaOH</label><input class="form-control" name="exceso_naoh" required></div>
-      <div class="col-md-2"><label class="form-label">Exceso Na2CO3</label><input class="form-control" name="exceso_na2co3" required></div>
+      <div class="col-md-2">
+        {% set ar_naoh = analysis_ref_map_reactor['reactor_exceso_naoh_pdf'] %}
+        <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+          <span>Exceso NaOH</span>
+          {{ analysis_ref_flask_button(ar_naoh.doc_key, ar_naoh.pdf_present, ar_naoh.modal_id, ar_naoh.label) }}
+        </label>
+        <input class="form-control" name="exceso_naoh" required>
+      </div>
+      <div class="col-md-2">
+        {% set ar_na2 = analysis_ref_map_reactor['reactor_exceso_na2co3_pdf'] %}
+        <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+          <span>Exceso Na2CO3</span>
+          {{ analysis_ref_flask_button(ar_na2.doc_key, ar_na2.pdf_present, ar_na2.modal_id, ar_na2.label) }}
+        </label>
+        <input class="form-control" name="exceso_na2co3" required>
+      </div>
       <div class="col-12"><label class="form-label">Obs.</label><input class="form-control" name="observaciones"></div>
-      <div class="col-12"><button class="btn btn-success">Guardar</button></div>
+      <div class="col-12">
+        <div class="note-muted">
+          Avisos informativos (no bloquean guardado): exceso de soda > 0.16 gr/lts, exceso de carbonato de sodio > 0.45 gr/lts, concentración de salmuera < 200 gr/lts.
+        </div>
+      </div>
+      <div class="col-12"><button type="submit" class="btn btn-primary">Guardar</button></div>
     </form>
   </div>
 </div>
-<div class="table-responsive"><table class="table table-sm table-striped">
-  <thead class="table-light"><tr><th>ID</th><th>Hora</th><th>Lote</th><th>pH</th><th>Operador</th></tr></thead>
-  <tbody>{% for r in registros %}<tr><td>{{ r.id }}</td><td>{{ r.hora_hm }}</td><td>{{ r.lote }}</td><td>{{ r.ph }}</td><td>{{ r.operador }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">Vacío</td></tr>{% endfor %}</tbody>
-</table></div>
+<div class="app-card">
+  <div class="app-card-header">Registros del día {{ fecha }}</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Operador</th>
+          <th>Lote</th>
+          <th>pH</th>
+          <th>Temp</th>
+          <th>Densidad</th>
+          <th>Conc. salmuera</th>
+          <th>Exceso soda</th>
+          <th>Exceso carbonato</th>
+          <th>Avisos</th>
+          <th>Obs.</th>
+          <th>Creado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in registros %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.fecha_iso }}</td>
+          <td>{{ r.hora_hm }}</td>
+          <td>{{ r.operador }}</td>
+          <td>{{ r.lote }}</td>
+          <td>{{ r.ph }}</td>
+          <td>{{ r.temperatura }}</td>
+          <td>{{ r.densidad }}</td>
+          <td>{{ r.concentracion_tabla }}</td>
+          <td>{{ r.exceso_naoh }}</td>
+          <td>{{ r.exceso_na2co3 }}</td>
+          <td>
+            {% if r.warnings %}
+              {% for w in r.warnings %}
+                <span class="pill-warn" title="{{ w }}">{{ w }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endif %}
+          </td>
+          <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+          <td>{{ r.created_at_iso }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="14" class="text-muted text-center py-3">Sin registros este día.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% for ar in analysis_ref_rows_reactor %}
+{{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
+{% endfor %}
+<script>
+(() => {
+  const timerText = document.getElementById("timerText");
+  const timerSub = document.getElementById("timerSub");
+  const timerState = document.getElementById("timerState");
+
+  const serverNowIso = {{ (server_now_iso | tojson) }};
+  const lastCreatedIso = {{ (last_created_at_iso | tojson) }};
+  const intervalSec = {{ analysis_interval_seconds | int }};
+
+  function parseIsoLocal(iso) {
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) return d;
+    return new Date((iso || "").replace(" ", "T"));
+  }
+
+  function fmtHhmmss(totalSeconds) {
+    const s = Math.max(0, Math.floor(totalSeconds));
+    const h = String(Math.floor(s / 3600)).padStart(2, "0");
+    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${h}:${m}:${ss}`;
+  }
+
+  const clientNow = new Date();
+  const serverNow = parseIsoLocal(serverNowIso);
+  const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
+
+  function tick() {
+    if (!timerText || !timerSub || !timerState) return;
+    if (!lastCreatedIso) {
+      timerText.textContent = fmtHhmmss(intervalSec);
+      timerSub.textContent = "Sin registros hoy: contando desde ahora.";
+      timerState.className = "badge text-bg-secondary app-badge-soft";
+      timerState.textContent = "En tiempo";
+      return;
+    }
+    const last = parseIsoLocal(lastCreatedIso);
+    const due = new Date(last.getTime() + intervalSec * 1000);
+    const now = new Date(Date.now() + clockOffsetMs);
+    const diffSec = (due.getTime() - now.getTime()) / 1000;
+    if (diffSec >= 0) {
+      timerText.textContent = fmtHhmmss(diffSec);
+      timerSub.textContent = `Último registro: ${lastCreatedIso}`;
+      timerState.className = "badge text-bg-success app-badge-soft";
+      timerState.textContent = "En tiempo";
+    } else {
+      timerText.textContent = fmtHhmmss(-diffSec);
+      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0,19).replace("T"," ")}`;
+      timerState.className = "badge text-bg-danger app-badge-soft";
+      timerState.textContent = "Atrasado";
+    }
+  }
+
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
 {% endblock %}

@@ -1,23 +1,29 @@
 {% extends "base.html" %}
 {% block title %}Bolson · QDV{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4 mb-0">Registro bolson</h1>
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+<div class="app-page-head">
+  <h1 class="app-page-title">Registro bolson</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
 </div>
 <form method="post" class="mb-4">
+{% include "_csrf.html" %}
   <button type="submit" class="btn btn-primary">Registrar ahora (fecha/hora actual)</button>
 </form>
-<div class="table-responsive card shadow-sm">
-  <table class="table table-sm mb-0">
-    <thead class="table-light"><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Creado</th></tr></thead>
-    <tbody>
+<div class="app-card">
+  <div class="app-card-header">Últimos registros</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Creado</th></tr></thead>
+      <tbody>
       {% for r in registros %}
       <tr><td>{{ r.id }}</td><td>{{ r.fecha_iso }}</td><td>{{ r.hora_hm }}</td><td>{{ r.created_at_iso }}</td></tr>
       {% else %}
-      <tr><td colspan="4" class="text-center text-muted">Sin registros.</td></tr>
+      <tr><td colspan="4" class="text-center text-muted py-3">Sin registros.</td></tr>
       {% endfor %}
-    </tbody>
-  </table>
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

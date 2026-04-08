@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% from "produccion/_macros_salmuera.html" import render_voltajes_celdas %}
+{% block title %}Historial {{ module_title }} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Historial · {{ module_title }}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.salmuera') }}">← Volver a Control</a>
+  </div>
+</div>
+
+<form method="get" class="app-toolbar">
+  <div>
+    <label class="form-label" for="histDesde">Fecha desde</label>
+    <input type="date" id="histDesde" name="desde" class="form-control" value="{{ desde }}">
+  </div>
+  <div>
+    <label class="form-label" for="histHasta">Fecha hasta</label>
+    <input type="date" id="histHasta" name="hasta" class="form-control" value="{{ hasta }}">
+  </div>
+  <div class="d-flex flex-wrap gap-2 pb-1">
+    <button type="submit" class="btn btn-primary">Aplicar filtro</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('produccion.salmuera_historial') }}">Limpiar</a>
+  </div>
+</form>
+
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Registros</span>
+    <span class="small app-text-secondary">{{ registros|length }} resultado(s)</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Turno</th>
+          <th>Operador</th>
+          <th>Lote</th>
+          <th>Electrolizador</th>
+          <th>Celdas</th>
+          <th scope="col" class="app-th-voltajes-celdas" title="Valores por celda: V1, V2, … hasta Vn según cantidad de celdas">Voltajes (V1…Vn)</th>
+          <th scope="col" class="app-th-voltaje-total">V total</th>
+          <th>Amperaje</th>
+          <th>Caudal agua</th>
+          <th>Caudal salmuera</th>
+          <th>Hipo conc</th>
+          <th>Hipo exceso soda</th>
+          <th>Sal temp</th>
+          <th>Sal conc</th>
+          <th>Sal pH</th>
+          <th>Soda conc</th>
+          <th>Declor pH</th>
+          <th>Avisos</th>
+          <th>Obs.</th>
+          <th>Motivo atraso</th>
+          <th>Creado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in registros %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.fecha_iso }}</td>
+          <td>{{ r.hora_hm }}</td>
+          <td>{{ r.turno }}</td>
+          <td>{{ r.operador }}</td>
+          <td>{{ r.lote }}</td>
+          <td>{{ r.electrolizador }}</td>
+          <td>{{ r.cantidad_celdas }}</td>
+          <td class="app-table-voltajes-td">{{ render_voltajes_celdas(r.voltajes_celdas) }}</td>
+          <td class="app-table-voltaje-total-td"><span class="voltaje-total-value">{{ r.voltaje_total | round(2) }}</span></td>
+          <td>{{ r.amperaje }}</td>
+          <td>{{ r.caudal_agua_l_h }}</td>
+          <td>{{ r.caudal_salmuera_l_h }}</td>
+          <td>{{ r.hipo_conc }}</td>
+          <td>{{ r.hipo_exceso_soda }}</td>
+          <td>{{ r.sal_temp }}</td>
+          <td>{{ r.sal_conc }}</td>
+          <td>{{ r.sal_ph }}</td>
+          <td>{{ r.soda_conc }}</td>
+          <td>{{ r.declor_ph }}</td>
+          <td>
+            {% if r.warnings %}
+              {% for w in r.warnings %}
+                <span class="pill-warn" title="{{ w }}">{{ w }}</span>
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">-</span>
+            {% endif %}
+          </td>
+          <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+          <td title="{{ r.atraso_motivo }}"><div class="cell-ellipsis">{{ r.atraso_motivo }}</div></td>
+          <td>{{ r.created_at_iso }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="24" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

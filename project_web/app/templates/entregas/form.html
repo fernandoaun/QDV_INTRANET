@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+{% block title %}{% if entrega %}Editar entrega{% else %}Nueva entrega{% endif %} · QDV{% endblock %}
+{% block content %}
+{% set st = entrega.estado if entrega else 'nueva' %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">{% if entrega %}Editar entrega #{{ entrega.id }}{% else %}Programar entrega{% endif %}</h1>
+    <p class="app-intro mb-0">
+      {% if st == 'entregada' %}Solo podés agregar texto en observaciones.{% elif st == 'cargada' %}Podés ajustar datos logísticos; volumen y producto no se modifican porque ya impactaron en stock.{% elif entrega %}Estado: <strong>{{ st }}</strong>.{% else %}Volúmenes siempre en <strong>litros (L)</strong>. Elegí cliente y luego el lugar de entrega asociado a ese cliente.{% endif %}
+    </p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.gestion') }}">← Listado</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body">
+    {% if st != 'entregada' %}
+    <div class="alert alert-secondary small mb-3" role="status">
+      {% if operational_indicators.ok %}
+      <div><strong>Stock instantáneo (hipoclorito)</strong> — mismo criterio que el <strong>Panel</strong>: {{ operational_indicators.instant_display }}.</div>
+      <div class="mt-1">Comprometido en entregas <em>programadas</em>: {{ hipo_ops_reserved_programada_display }}.
+        Cupo disponible para programar (sin superar el instantáneo): <strong>{{ hipo_ops_avail_programar_display }}</strong>.</div>
+      <p class="mb-0 mt-2 text-muted">La marca de producto terminado es siempre <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> (trazabilidad comercial/almacén). No define otro stock ni cambia el tope del Panel. Si el producto lo requiere, el <strong>equipo</strong> también es dato de trazabilidad del movimiento.</p>
+      {% else %}
+      <p class="mb-0">No hay stock operativo de hipoclorito informado en un cambio de turno recepcionado (el Panel muestra «N/D»). No se puede validar programaciones de hipoclorito hasta entonces.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if st == 'entregada' %}
+    <form method="post" class="row g-3">
+    {% include "_csrf.html" %}
+      <div class="col-12">
+        <label class="form-label">Agregar observación (se anexa al registro)</label>
+        <textarea class="form-control" name="observaciones" rows="3" required></textarea>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Guardar nota</button>
+        <a class="btn btn-outline-secondary ms-1" href="{{ url_for('entregas.gestion') }}">Volver</a>
+      </div>
+    </form>
+    {% else %}
+    <form method="post" class="row g-3" id="entregaMainForm" data-entrega-lugares-api-prefix="{{ entrega_lugares_api_prefix|default('', true) }}" data-entrega-marcas-api-prefix="{{ entrega_marcas_api_prefix|default('', true) }}">
+    {% include "_csrf.html" %}
+      <div class="col-md-6">
+        <label class="form-label">Cliente <span class="text-danger">*</span></label>
+        <select class="form-select" name="cliente_id" id="entregaClienteSel" required autocomplete="off">
+          <option value="">— Elegir cliente —</option>
+          {% for c in clientes_entrega %}
+          <option value="{{ c.id }}" {% if entrega and entrega.cliente_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Lugar de entrega <span class="text-danger">*</span></label>
+        <select class="form-select" name="lugar_entrega_id" id="entregaLugarSel" required autocomplete="off">
+          <option value="">— Elegir lugar —</option>
+          {% for l in lugares_entrega %}
+          <option value="{{ l.id }}" data-cliente-id="{{ l.cliente_id }}" {% if entrega and entrega.lugar_entrega_id == l.id %}selected{% endif %}>{{ l.nombre }}</option>
+          {% endfor %}
+        </select>
+        <div id="entregaLugarFeedback" class="small mt-1" role="status" aria-live="polite"></div>
+        <div class="form-text">Solo se listan lugares activos del cliente elegido. Si no aparece ninguno, cargá el lugar en <strong>Entregas → Catálogos → Lugares de entrega</strong> (administrador).</div>
+      </div>
+
+      {% if not entrega or st == 'programada' %}
+      <div class="col-md-6">
+        <label class="form-label">Producto terminado <span class="text-danger">*</span></label>
+        <select class="form-select" name="producto_terminado_id" id="entregaProductoTerminadoSel" required>
+          <option value="">— Elegir —</option>
+          {% for p in productos_terminados %}
+          <option value="{{ p.id }}" data-stock="{{ p.stock_producto|e }}" {% if entrega and entrega.producto_terminado_id == p.id %}selected{% elif not entrega and selected_producto_terminado_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">El impacto operativo de hipoclorito sigue el mismo stock instantáneo que el Panel. El producto terminado comercial y el nombre en cambio de turno pueden diferir; operativamente cuentan como el mismo producto y el consumo en almacén se registra como «{{ hipoclorito_nombre_catalogo }}».</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Volumen (litros) <span class="text-danger">*</span></label>
+        <input class="form-control" name="cantidad" type="number" step="any" min="0" value="{{ entrega.cantidad if entrega else '' }}" required>
+        <div class="form-text">Siempre en litros (L).</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Unidad</label>
+        <input class="form-control" value="L (litros)" readonly tabindex="-1" aria-readonly="true">
+      </div>
+      {% else %}
+      <div class="col-md-4">
+        <label class="form-label">Producto terminado</label>
+        <input class="form-control" value="{{ entrega.producto_terminado.nombre if entrega.producto_terminado else entrega.producto }}" readonly tabindex="-1">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Volumen (L)</label>
+        <input class="form-control" value="{{ entrega.cantidad }}" readonly tabindex="-1">
+      </div>
+      {% endif %}
+
+      <div class="col-md-4">
+        <label class="form-label">Fecha prevista <span class="text-danger">*</span></label>
+        <input class="form-control" name="fecha_prevista" type="date" value="{{ entrega.fecha_prevista if entrega else '' }}" required>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Chofer previsto</label>
+        <select class="form-select" name="chofer_entrega_id" id="entregaChoferSel">
+          <option value="">— Sin asignar —</option>
+          {% for ch in choferes_entrega %}
+          <option value="{{ ch.id }}" {% if entrega and entrega.chofer_entrega_id == ch.id %}selected{% endif %}>{{ ch.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if not entrega or st == 'programada' %}
+      <div class="col-12 {% if not stock_traza_hipo_server_visible %}d-none{% endif %}" id="entregaStockHipoWrap">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Categoría stock (entrega)</label>
+            <input class="form-control" value="Producto terminado" readonly tabindex="-1" aria-readonly="true">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Marca (trazabilidad)</label>
+            <input class="form-control" value="{{ entrega_marca_pt_traza|default('QDV', true) }}" readonly tabindex="-1" aria-readonly="true">
+            <input type="hidden" name="stock_marca" id="entregaStockMarcaHidden" value="{{ entrega_marca_pt_traza|default('QDV', true) }}">
+            <div class="form-text">Fija <strong>QDV</strong>; el consumo en almacén usa el mismo producto operativo que el Panel («{{ hipoclorito_nombre_catalogo }}»), no otra fuente de stock.</div>
+          </div>
+          <div class="col-md-4 {% if not producto_requiere_equipo %}d-none{% endif %}" id="entregaEquipoWrap">
+            <label class="form-label">Equipo {% if producto_requiere_equipo %}<span class="text-danger">*</span>{% endif %}</label>
+            <select class="form-select" name="stock_equipo_id" id="entregaEquipoSel">
+              <option value="">— Elegir —</option>
+              {% for eq in equipos %}
+              <option value="{{ eq.id }}" {% if entrega and entrega.stock_equipo_id == eq.id %}selected{% endif %}>{{ eq.nombre_equipo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="col-12">
+        <label class="form-label">Observaciones / logística</label>
+        <textarea class="form-control" name="observaciones" rows="3">{{ entrega.observaciones if entrega else '' }}</textarea>
+      </div>
+
+      {% if entrega and creador_display %}
+      <div class="col-12"><p class="small app-text-secondary mb-0">Alta por: {{ creador_display }} · {{ entrega.created_at_iso }}</p></div>
+      {% endif %}
+
+      <div class="col-12">
+        {% if not page_can_edit_current %}
+        <p class="small text-warning mb-2">Modo solo lectura: activá el turno de planta o los permisos de edición para guardar cambios.</p>
+        {% endif %}
+        <button type="submit" class="btn btn-primary" id="entregaSubmitBtn" {% if not page_can_edit_current %}disabled title="No podés guardar en modo solo lectura"{% endif %}>Guardar</button>
+        <a class="btn btn-outline-secondary ms-1" href="{{ url_for('entregas.gestion') }}">Cancelar</a>
+        {% if entrega %}
+        <a class="btn btn-outline-secondary ms-1" href="{{ url_for('entregas.historial', eid=entrega.id) }}">Historial</a>
+        {% endif %}
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if st != 'entregada' %}
+<script>
+(() => {
+  try {
+  const form = document.getElementById("entregaMainForm");
+  if (!form) return;
+
+  const DBG =
+    (typeof URLSearchParams !== "undefined" && new URLSearchParams(window.location.search || "").get("dbg_entregas") === "1") ||
+    (typeof localStorage !== "undefined" && localStorage.getItem("qdv_dbg_entregas") === "1");
+  function log() {
+    if (!DBG) return;
+    var a = ["[entregas-lugares]"].concat(Array.prototype.slice.call(arguments));
+    console.info.apply(console, a);
+  }
+
+  const LUGARES_CATALOGO = {{ lugares_entrega_catalogo | default([]) | tojson }};
+  const hipAliasesLower = {{ (hipoclorito_entrega_aliases_lower or [])|tojson }};
+  const marcaTrzaFija = {{ (entrega_marca_pt_traza or 'QDV')|tojson }};
+  const clienteSel = document.getElementById("entregaClienteSel");
+  const lugarSel = document.getElementById("entregaLugarSel");
+  const lugarFb = document.getElementById("entregaLugarFeedback");
+  const ptSel = document.getElementById("entregaProductoTerminadoSel");
+  const stockWrap = document.getElementById("entregaStockHipoWrap");
+  const marcaHidden = document.getElementById("entregaStockMarcaHidden");
+  const equipoWrap = document.getElementById("entregaEquipoWrap");
+  const equipoSel = document.getElementById("entregaEquipoSel");
+
+  let lugaresFetchGen = 0;
+
+  function setLugarFeedback(html, kind) {
+    if (!lugarFb) return;
+    lugarFb.className = "small mt-1" + (kind === "warn" ? " text-warning" : kind === "danger" ? " text-danger" : kind === "muted" ? " app-text-secondary" : "");
+    lugarFb.innerHTML = html || "";
+  }
+
+  function lugaresFromCatalogo(cidNum) {
+    const list = Array.isArray(LUGARES_CATALOGO) ? LUGARES_CATALOGO : [];
+    return list.filter(function (x) {
+      if (!x || x.cliente_id == null) return false;
+      return Number(x.cliente_id) === cidNum;
+    });
+  }
+
+  async function lugaresFromApi(cidNum) {
+    var prefix = (form.getAttribute("data-entrega-lugares-api-prefix") || "").trim();
+    if (!prefix) {
+      var pth = window.location.pathname;
+      var ix = pth.indexOf("/entregas/");
+      prefix =
+        ix !== -1
+          ? pth.slice(0, ix + "/entregas".length) + "/api/lugares-por-cliente/"
+          : "/entregas/api/lugares-por-cliente/";
+      log("prefijo API vacío en data-*, usando fallback:", prefix);
+    }
+    var url = prefix + encodeURIComponent(cidNum);
+    if (DBG) url += (url.indexOf("?") === -1 ? "?" : "&") + "dbg_entregas=1";
+    log("GET lugares", url);
+    const r = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } });
+    log("resp status", r.status, r.ok);
+    if (!r.ok) {
+      log("fetch falló, body omitido");
+      return [];
+    }
+    try {
+      const data = await r.json();
+      var list = Array.isArray(data.lugares) ? data.lugares : [];
+      log("lugares recibidos", list.length, list);
+      return list;
+    } catch (e) {
+      log("JSON error", e);
+      return [];
+    }
+  }
+
+  function mergeLugaresRows(catRows, apiRows) {
+    const map = new Map();
+    function add(x) {
+      if (!x || x.id == null) return;
+      const id = Number(x.id);
+      if (!Number.isFinite(id)) return;
+      map.set(id, { id: id, nombre: String(x.nombre != null ? x.nombre : "").trim() || "(sin nombre)" });
+    }
+    (catRows || []).forEach(add);
+    (apiRows || []).forEach(add);
+    return Array.from(map.values()).sort(function (a, b) {
+      return a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
+    });
+  }
+
+  function fillLugarSelect(rows, selectedId) {
+    if (!lugarSel) return;
+    lugarSel.innerHTML = '<option value="">— Elegir lugar —</option>';
+    (rows || []).forEach(function (x) {
+      const o = document.createElement("option");
+      o.value = x.id;
+      o.textContent = x.nombre || "";
+      if (selectedId != null && String(x.id) === String(selectedId)) o.selected = true;
+      lugarSel.appendChild(o);
+    });
+  }
+
+  async function refreshLugares(clienteRaw, opts) {
+    if (!lugarSel) return;
+    const preserve = !!(opts && opts.preserveSelection);
+    const prevLugarId = preserve ? String(lugarSel.value || "").trim() : "";
+    const cidStr = String(clienteRaw || "").trim();
+    const cidNum = cidStr ? parseInt(cidStr, 10) : NaN;
+    log("refreshLugares clienteRaw=", clienteRaw, "cidNum=", cidNum, "preserve=", preserve, "prevLugar=", prevLugarId);
+    log("lugarSel.disabled antes=", lugarSel.disabled);
+
+    if (!cidStr || !Number.isFinite(cidNum) || cidNum < 1) {
+      lugarSel.innerHTML = '<option value="">— Elegir lugar —</option>';
+      lugarSel.disabled = true;
+      lugarSel.setAttribute("disabled", "disabled");
+      lugarSel.setCustomValidity("");
+      setLugarFeedback("Elegí un cliente para ver los lugares de entrega.", "muted");
+      return;
+    }
+
+    const gen = ++lugaresFetchGen;
+    lugarSel.innerHTML = '<option value="">— Elegir lugar —</option>';
+    lugarSel.disabled = false;
+    lugarSel.removeAttribute("disabled");
+
+    const catRows = lugaresFromCatalogo(cidNum);
+    let sel = prevLugarId;
+    if (preserve && sel) {
+      const okCat = catRows.some(function (r) { return String(r.id) === String(sel); });
+      if (!okCat) sel = "";
+    } else {
+      sel = "";
+    }
+    /* Catálogo en página: relleno inmediato (sin esperar red). Evita combo “muerto” si el fetch tarda o falla. */
+    var rowsSync = mergeLugaresRows(catRows, []);
+    fillLugarSelect(rowsSync, sel || null);
+    log("catálogo sync lugares count=", rowsSync.length);
+
+    setLugarFeedback(rowsSync.length ? "Sincronizando con el servidor…" : "Cargando lugares…", "muted");
+
+    const apiRows = await lugaresFromApi(cidNum);
+    let rows = mergeLugaresRows(catRows, apiRows);
+    if (gen !== lugaresFetchGen) return;
+
+    if (preserve && sel) {
+      const ok = rows.some(function (r) { return String(r.id) === String(sel); });
+      if (!ok) sel = "";
+    } else {
+      sel = "";
+    }
+
+    fillLugarSelect(rows, sel || null);
+    log("opciones lugar count=", lugarSel.options.length, "value=", lugarSel.value);
+
+    lugarSel.disabled = false;
+    lugarSel.removeAttribute("disabled");
+    log("lugarSel.disabled después=", lugarSel.disabled);
+
+    if (rows.length === 0) {
+      setLugarFeedback(
+        "Este cliente <strong>no tiene lugares de entrega activos</strong>. Cargá al menos uno en <strong>Entregas → Catálogos → Lugares de entrega</strong> (asociado a este cliente). Podés abrir el desplegable: cuando existan lugares, aparecerán aquí.",
+        "danger"
+      );
+      return;
+    }
+    if (rows.length === 1) {
+      setLugarFeedback("Hay un solo lugar para este cliente; seleccionarlo para continuar.", "muted");
+    } else {
+      setLugarFeedback(rows.length + " lugares disponibles.", "muted");
+    }
+  }
+
+  function stockProductLower() {
+    if (!ptSel) return "";
+    const opt = ptSel.options[ptSel.selectedIndex];
+    const raw = opt ? (opt.getAttribute("data-stock") || "") : "";
+    return String(raw).trim().toLowerCase();
+  }
+
+  function isHipocloritoStock() {
+    const p = stockProductLower();
+    if (!p) return false;
+    var list = Array.isArray(hipAliasesLower) ? hipAliasesLower : [];
+    return list.indexOf(p) !== -1;
+  }
+
+  function setEquipoRequired(on) {
+    if (!equipoSel) return;
+    equipoSel.required = !!on;
+  }
+
+  function fillMarcasFromApi(_marcas, requiereEquipo) {
+    if (!stockWrap) return;
+    const hipo = isHipocloritoStock();
+    if (marcaHidden && marcaTrzaFija) marcaHidden.value = marcaTrzaFija;
+    stockWrap.classList.toggle("d-none", !hipo);
+    if (equipoWrap) {
+      const showEq = !!requiereEquipo && hipo;
+      equipoWrap.classList.toggle("d-none", !showEq);
+      setEquipoRequired(showEq);
+    }
+  }
+
+  function marcasApiUrl(ptId) {
+    var prefix = (form.getAttribute("data-entrega-marcas-api-prefix") || "").trim();
+    if (!prefix) {
+      var pth = window.location.pathname;
+      var ix = pth.indexOf("/entregas/");
+      prefix =
+        ix !== -1
+          ? pth.slice(0, ix + "/entregas".length) + "/api/marcas-producto-terminado/"
+          : "/entregas/api/marcas-producto-terminado/";
+    }
+    return prefix + encodeURIComponent(ptId);
+  }
+
+  async function refreshMarcas() {
+    if (!ptSel || !ptSel.value) {
+      if (stockWrap) stockWrap.classList.add("d-none");
+      if (equipoWrap) { equipoWrap.classList.add("d-none"); setEquipoRequired(false); }
+      return;
+    }
+    var mUrl = marcasApiUrl(ptSel.value);
+    if (DBG) mUrl += (mUrl.indexOf("?") === -1 ? "?" : "&") + "dbg_entregas=1";
+    log("GET marcas", mUrl);
+    const r = await fetch(mUrl, { credentials: "same-origin", headers: { Accept: "application/json" } });
+    if (!r.ok) return;
+    const data = await r.json();
+    fillMarcasFromApi(data.marcas || [], !!data.requiere_equipo);
+  }
+
+  function syncLugaresAlCliente(preserveSelection) {
+    if (!clienteSel) return;
+    refreshLugares(clienteSel.value, { preserveSelection: !!preserveSelection });
+  }
+
+  if (clienteSel) {
+    /* Solo `change`: `input`/`blur` pueden dispararse en el mismo tick que `change` mientras
+       refreshLugares es async y el <select> lugar aún tiene el valor del cliente anterior;
+       preserveSelection=true reintroduciría un lugar inválido. */
+    clienteSel.addEventListener("change", function () {
+      log("event change cliente value=", clienteSel.value);
+      syncLugaresAlCliente(false);
+    });
+  }
+  /* NO escuchar focus/mousedown en lugar: refreshLugares hace innerHTML en el <select> y rompe
+     la apertura del desplegable (opciones vacías / estado raro / “gris”). El lugar se actualiza con change/input/blur de cliente y al cargar. */
+  if (ptSel) {
+    ptSel.addEventListener("change", () => refreshMarcas());
+  }
+
+  log("init entregas lugar wiring OK; api prefix attr=", form.getAttribute("data-entrega-lugares-api-prefix"));
+  syncLugaresAlCliente(true);
+  window.addEventListener("load", function () {
+    syncLugaresAlCliente(true);
+    setTimeout(function () { syncLugaresAlCliente(true); }, 100);
+    setTimeout(function () { syncLugaresAlCliente(true); }, 500);
+  });
+  if (ptSel && ptSel.value) {
+    refreshMarcas();
+  } else if (stockWrap && isHipocloritoStock()) {
+    if (marcaHidden && marcaTrzaFija) marcaHidden.value = marcaTrzaFija;
+    stockWrap.classList.remove("d-none");
+  }
+  } catch (err) {
+    console.error("[entregas-lugares] error en script del formulario:", err);
+  }
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Entregas · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Entregas</h1>
+    <p class="app-intro mb-0">Programación, carga en camión y registro de entrega al cliente. Los accesos dependen de tus permisos.</p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+  </div>
+</div>
+<div class="app-module-grid">
+  <a class="app-module-card app-module-card--featured" href="{{ url_for('entregas.gestion') }}">
+    <h2>Gestión de entregas</h2>
+    <p>Listado, acciones Cargar / Entregado e historial.</p>
+  </a>
+  {% if user_can_entregas_programar_view() %}
+  <a class="app-module-card" href="{{ url_for('entregas.nueva') }}">
+    <h2>Programar entrega</h2>
+    <p>Cliente, lugar, producto terminado, volumen en litros y fecha prevista.</p>
+  </a>
+  {% endif %}
+  {% if nav_user and nav_user.is_admin %}
+  <a class="app-module-card" href="{{ url_for('entregas.catalogos_hub') }}">
+    <h2>Catálogos de entregas</h2>
+    <p>Productos terminados, clientes, lugares y choferes.</p>
+  </a>
+  {% endif %}
+</div>
+{% endblock %}

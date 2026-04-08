@@ -3,6 +3,9 @@ import os
 
 APP_TITLE = "Química del Valle - Panel Principal"
 
+# Datos: SQLite local de esta app; no es la misma base que QDV Web (intranet).
+# En planta con varios usuarios o acceso en red, la fuente de verdad operativa es project_web.
+
 # Seguridad (borrado)
 SECURITY_DELETE_CODE = "8956"
 

@@ -1,0 +1,15 @@
+{# Voltajes por celda: una fila por Vn (columna aparte del total; sin solapamiento) #}
+{% macro render_voltajes_celdas(v) -%}
+{%- set items = v | voltajes_display_items -%}
+{%- if items | length > 0 -%}
+<div class="voltajes-cell-stack">
+{%- for idx, val in items -%}
+  <div class="voltajes-cell-row" title="Voltaje {{ idx }} (V{{ idx }})">
+    <span class="voltajes-cell-n">V{{ idx }}</span><span class="voltajes-cell-sep">:</span><span class="voltajes-cell-v">{{ val }}</span>
+  </div>
+{%- endfor -%}
+</div>
+{%- else -%}
+<span class="text-muted voltajes-cell-empty">—</span>
+{%- endif -%}
+{%- endmacro %}

@@ -1,18 +1,295 @@
 {% extends "base.html" %}
 {% block title %}Panel · QDV{% endblock %}
 {% block content %}
-<div class="card shadow-sm mb-3">
-  <div class="card-body">
-    <h1 class="h4 mb-2">Panel</h1>
-    <p class="text-secondary mb-3">
+<div class="app-card">
+  <div class="app-card-body">
+    <h1 class="app-page-title mb-2">Panel</h1>
+    <p class="app-text-secondary mb-3">
       Sesión: <strong>{{ nav_user.username }}</strong>
-      {% if nav_user.is_admin %}<span class="badge text-bg-secondary">admin</span>{% endif %}
+      {% if nav_user.is_admin %}<span class="badge rounded-pill text-bg-secondary">{{ role_labels.get('administrador', 'Administrador') }}</span>{% else %}<span class="badge rounded-pill text-bg-secondary">{{ user_role_label(nav_user) }}</span>{% endif %}
     </p>
-    {% if user_can('produccion') %}
-    <a class="btn btn-primary btn-lg" href="{{ url_for('produccion.hub') }}">Ir a Producción</a>
-    {% else %}
-    <p class="text-warning mb-0">Tu usuario no tiene permiso de <strong>Producción</strong>. Pedile a un administrador que active ese permiso en <em>Usuarios → Editar</em>.</p>
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="app-card app-panel-kpi h-100 mb-0" title="Cierre último turno menos cierre anterior, más cargas de camión de hipoclorito en la ventana de ese turno. Fuente: cambio de turno recepcionado.">
+          <div class="app-card-header app-card-header--split">
+            <span class="text-uppercase fw-semibold small">Producción último turno</span>
+            <span class="small app-text-secondary">Hipoclorito</span>
+          </div>
+          <div class="app-card-body">
+            <div class="app-panel-kpi-value">{{ operational_indicators.production_display }}</div>
+            <p class="app-text-secondary small mb-0">Litros en el último turno cerrado</p>
+            {% if operational_indicators.production_panel_subnote %}
+            <p class="small text-muted mb-0 mt-2">{{ operational_indicators.production_panel_subnote }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="app-card app-panel-kpi h-100 mb-0" title="Stock declarado en el último cambio de turno recepcionado, menos cargas de camión de hipoclorito desde ese cierre.">
+          <div class="app-card-header app-card-header--split">
+            <span class="text-uppercase fw-semibold small">Stock instantáneo</span>
+            <span class="small app-text-secondary">Hipoclorito</span>
+          </div>
+          <div class="app-card-body">
+            <div class="app-panel-kpi-value">{{ operational_indicators.instant_display }}</div>
+            <p class="app-text-secondary small mb-0">Litros al momento (desde último cierre recepcionado)</p>
+            {% if operational_indicators.stock_panel_subnote %}
+            <p class="small text-muted mb-0 mt-2">{{ operational_indicators.stock_panel_subnote }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="app-text-secondary small mb-2">Indicadores en litros según stock declarado en <strong>cambio de turno</strong> recepcionado (no stock teórico de otros módulos).</p>
+    {% if user_can_production_hub or user_can_entregas_hub %}
+    <p class="mb-0 small">
+      {% if user_can_production_hub %}
+      <a href="{{ url_for('produccion.hub') }}">Ir a Producción</a>
+      {% endif %}
+      {% if user_can_production_hub and user_can_entregas_hub %}<span class="app-text-secondary mx-1">·</span>{% endif %}
+      {% if user_can_entregas_hub %}
+      <a href="{{ url_for('entregas.hub') }}">Ir a Entregas</a>
+      {% endif %}
+    </p>
     {% endif %}
+    {% if not user_can_production_hub or not user_can_entregas_hub %}
+    <p class="text-warning mb-0 small mt-3">
+      {% if not user_can_production_hub %}Sin acceso a <strong>Producción</strong>. {% endif %}
+      {% if not user_can_entregas_hub %}Sin acceso a <strong>Entregas</strong>. {% endif %}
+      Un administrador puede habilitar permisos en <em>Usuarios → Editar</em>.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% if alertas_stock %}
+<div class="app-card mt-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Alertas de bajo stock</span>
+    <span class="small app-text-secondary">{{ alertas_stock|length }} alerta(s)</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Categoría</th><th>Producto</th><th>Actual</th><th>Mínimo</th><th>Faltante</th></tr></thead>
+      <tbody>
+        {% for a in alertas_stock %}
+        <tr>
+          <td>{% if a.categoria == 'materia_prima' %}Materia prima{% elif a.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
+          <td>{{ a.producto }}</td>
+          <td><span class="pill-warn">{{ a.stock_actual | round(2) }}</span></td>
+          <td>{{ a.stock_minimo_alerta | round(2) }}</td>
+          <td>{{ a.faltante | round(2) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+<div class="app-card mt-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Últimos registros</span>
+    <span class="small app-text-secondary">Resumen operativo</span>
+  </div>
+  <div class="app-card-body">
+    <div class="row g-3">
+      <div class="col-12">
+        <div class="app-card">
+          <div class="app-card-header app-card-header--split">
+            <span>Hipoclorito por rectificador</span>
+            <span class="small app-text-secondary">{{ ultimos_hipoclorito|length }} rectificador(es)</span>
+          </div>
+          {% if ultimos_hipoclorito %}
+          <div class="app-card-body--flush table-responsive app-table-scroll">
+            <table class="table table-app table-compact mb-0">
+              <thead>
+                <tr>
+                  <th>Rectif.</th>
+                  <th>Fecha/Hora</th>
+                  <th>Turno</th>
+                  <th>Operador</th>
+                  <th>Lote</th>
+                  <th>Celdas</th>
+                  <th>V total</th>
+                  <th>A</th>
+                  <th>Q Agua</th>
+                  <th>Q Salmuera</th>
+                  <th>Hipo conc</th>
+                  <th>Ex. soda</th>
+                  <th>Sal T</th>
+                  <th>Sal conc</th>
+                  <th>Sal pH</th>
+                  <th>Soda conc</th>
+                  <th>Declor pH</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in ultimos_hipoclorito %}
+                <tr>
+                  <td><strong>#{{ r.rectificador }}</strong></td>
+                  <td>{{ r.fecha_hora }}</td>
+                  <td>{{ r.turno or '-' }}</td>
+                  <td>{{ r.operador or '-' }}</td>
+                  <td>{{ r.lote or '—' }}</td>
+                  <td>{{ r.cantidad_celdas }}</td>
+                  <td>{{ r.voltaje_total | round(2) }}</td>
+                  <td>{{ r.amperaje | round(2) }}</td>
+                  <td>{{ r.caudal_agua_l_h | round(2) }}</td>
+                  <td>{{ r.caudal_salmuera_l_h | round(2) }}</td>
+                  <td>{{ r.hipo_conc | round(2) }}</td>
+                  <td>{{ r.hipo_exceso_soda | round(3) }}</td>
+                  <td>{{ r.sal_temp | round(2) }}</td>
+                  <td>{{ r.sal_conc | round(2) }}</td>
+                  <td>{{ r.sal_ph | round(2) }}</td>
+                  <td>{{ r.soda_conc | round(2) }}</td>
+                  <td>{{ r.declor_ph | round(2) }}</td>
+                  <td title="{{ r.observaciones|e }}"><div class="cell-ellipsis">{{ r.observaciones or '—' }}</div></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="app-card-body">
+            <p class="app-text-secondary mb-0">Sin registros aún.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="app-card">
+          <div class="app-card-header app-card-header--split">
+            <span>Última Salmuera</span>
+            <span class="small app-text-secondary">{{ 1 if ultimo_salmuera else 0 }} registro</span>
+          </div>
+          {% if ultimo_salmuera %}
+          <div class="app-card-body--flush table-responsive app-table-scroll">
+            <table class="table table-app table-compact mb-0">
+              <thead>
+                <tr>
+                  <th>Fecha/Hora</th>
+                  <th>Operador</th>
+                  <th>Lote</th>
+                  <th>Conc. salmuera</th>
+                  <th>Exceso soda</th>
+                  <th>Exceso carbonato</th>
+                  <th>pH</th>
+                  <th>Temp</th>
+                  <th>Densidad</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{{ ultimo_salmuera.fecha_hora }}</td>
+                  <td>{{ ultimo_salmuera.operador or '-' }}</td>
+                  <td>{{ ultimo_salmuera.lote or '-' }}</td>
+                  <td>{{ ultimo_salmuera.concentracion_salmuera | round(2) }}</td>
+                  <td>{{ ultimo_salmuera.exceso_soda | round(3) }}</td>
+                  <td>{{ ultimo_salmuera.exceso_carbonato_sodio | round(3) }}</td>
+                  <td>{{ ultimo_salmuera.ph | round(2) }}</td>
+                  <td>{{ ultimo_salmuera.temperatura | round(2) }}</td>
+                  <td>{{ ultimo_salmuera.densidad | round(3) }}</td>
+                  <td>{{ ultimo_salmuera.observaciones or '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="app-card-body">
+            <p class="app-text-secondary mb-0">Sin registros aún.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="app-card">
+          <div class="app-card-header app-card-header--split">
+            <span>Última Agua</span>
+            <span class="small app-text-secondary">{{ 1 if ultimo_agua else 0 }} registro</span>
+          </div>
+          {% if ultimo_agua %}
+          <div class="app-card-body--flush table-responsive app-table-scroll">
+            <table class="table table-app table-compact mb-0">
+              <thead>
+                <tr>
+                  <th>Fecha/Hora</th>
+                  <th>Turno</th>
+                  <th>Operador</th>
+                  <th>Columna</th>
+                  <th>Dureza</th>
+                  <th>Temp</th>
+                  <th>Estado columnas</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{{ ultimo_agua.fecha_hora }}</td>
+                  <td>{{ ultimo_agua.turno or '-' }}</td>
+                  <td>{{ ultimo_agua.operador or '-' }}</td>
+                  <td>{{ ultimo_agua.numero_columna }}</td>
+                  <td>{{ ultimo_agua.dureza | round(3) }}</td>
+                  <td>{{ ultimo_agua.temperatura | round(2) }}</td>
+                  <td>{{ ultimo_agua.estado_columnas or '-' }}</td>
+                  <td>{{ ultimo_agua.observaciones or '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="app-card-body">
+            <p class="app-text-secondary mb-0">Sin registros aún.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="app-card">
+          <div class="app-card-header app-card-header--split">
+            <span>Últimos consumos por materia prima</span>
+            <span class="small app-text-secondary">{{ ultimos_consumos_mp|length }} producto(s)</span>
+          </div>
+          {% if ultimos_consumos_mp %}
+          <div class="app-card-body--flush table-responsive app-table-scroll">
+            <table class="table table-app table-compact mb-0">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Fecha/Hora</th>
+                  <th>Cantidad</th>
+                  <th>Unidad</th>
+                  <th>Equipo</th>
+                  <th>Operador</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in ultimos_consumos_mp %}
+                <tr>
+                  <td>{{ c.producto }}</td>
+                  <td>{{ c.fecha_hora }}</td>
+                  <td>{{ c.cantidad | round(3) }}</td>
+                  <td>{{ c.unidad or '-' }}</td>
+                  <td>{{ c.equipo or '-' }}</td>
+                  <td>{{ c.operador or '-' }}</td>
+                  <td>{{ c.observaciones or '-' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="app-card-body">
+            <p class="app-text-secondary mb-0">Sin registros aún.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}

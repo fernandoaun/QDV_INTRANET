@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Cambio de turno · Historial · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Cambio de turno</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
+</div>
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Historial</span>
+    <span class="small app-text-secondary">{{ rows|length }} registro(s)</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Entrega</th>
+          <th>Recepción</th>
+          <th>Saliente</th>
+          <th>Entrante</th>
+          <th>Estado</th>
+          <th>Hipoclorito (L)</th>
+          <th>Recepción</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.handed_over_at_iso }}</td>
+          <td>{{ r.received_at_iso or '—' }}</td>
+          <td>{{ r.outgoing }}</td>
+          <td>{{ r.incoming }}</td>
+          <td>{{ r.status }}</td>
+          <td>{{ r.hypochlorite_stock_liters }}</td>
+          <td>{{ r.reception_status or '—' }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('shift.historial_detalle', hid=r.id) }}">Detalle</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-3">Sin registros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

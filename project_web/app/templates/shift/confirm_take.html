@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Laboratorista del turno · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Tomar turno operativo</h1>
+  <p class="app-intro mb-0">Indicá si en esta jornada trabajás acompañado por un laboratorista. Podés cambiarlo después desde el menú de usuario.</p>
+</div>
+<div class="app-card" style="max-width: 560px;">
+  <div class="app-card-header">Trazabilidad de planta</div>
+  <div class="app-card-body">
+    <form method="post">
+    {% include "_csrf.html" %}
+      <input type="hidden" name="next" value="{{ next_q }}">
+      {% include "shift/_laboratorist_turn_fields.html" %}
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <button type="submit" class="btn btn-primary">Confirmar y tomar turno</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('main.dashboard') }}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

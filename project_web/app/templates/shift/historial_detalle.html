@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Cambio de turno #{{ ho.id }} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Detalle cambio de turno #{{ ho.id }}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('shift.historial') }}">← Historial</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-body small row g-2">
+    <div class="col-md-6"><strong>Saliente:</strong> {{ detail.outgoing_operator_display or detail.outgoing_name or detail.outgoing_username }}</div>
+    <div class="col-md-6"><strong>Entrante:</strong> {{ detail.incoming_name or detail.incoming_username or '—' }}</div>
+    <div class="col-md-6"><strong>Inicio turno (sesión):</strong> {{ detail.shift_started_at_iso }}</div>
+    <div class="col-md-6"><strong>Entrega:</strong> {{ detail.handed_over_at_iso }}</div>
+    <div class="col-md-6"><strong>Recepción:</strong> {{ detail.received_at_iso or '—' }}</div>
+    <div class="col-md-6"><strong>Estado:</strong> {{ detail.status }}</div>
+    <div class="col-md-6"><strong>Hipoclorito informado (L):</strong> {{ detail.hypochlorite_stock_liters }}</div>
+    <div class="col-md-6"><strong>Tipo recepción:</strong> {{ detail.reception_status or '—' }}</div>
+    {% if detail.closing_notes %}
+    <div class="col-12"><strong>Obs. cierre:</strong> {{ detail.closing_notes }}</div>
+    {% endif %}
+    {% if detail.reception_notes %}
+    <div class="col-12"><strong>Obs. receptor:</strong> {{ detail.reception_notes }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Consumos</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Fecha / hora</th>
+          <th>Producto</th>
+          <th>Cantidad</th>
+          <th>Equipo</th>
+          <th>Operador</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in detail.consumos %}
+        <tr>
+          <td>{{ c.created_at_iso }}</td>
+          <td>{{ c.producto }}</td>
+          <td>{{ c.cantidad }}</td>
+          <td>{{ c.equipo }}</td>
+          <td>{{ c.operador }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted text-center py-2">Sin consumos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Avisos y acciones</div>
+  <div class="app-card-body">
+    {% for wa in detail.warning_actions %}
+    <div class="mb-2 pb-2 border-bottom">
+      <div class="d-flex flex-wrap gap-2 align-items-baseline mb-1">
+        {% if wa.origin_display %}<span class="badge text-bg-light border">{{ wa.origin_display }}</span>{% endif %}
+        <span class="small text-muted">{% if wa.record_created_at_iso %}{{ wa.record_created_at_iso }}{% else %}#{{ wa.source_record_id }}{% endif %}</span>
+      </div>
+      <div class="fw-semibold">{{ wa.warning_message }}</div>
+      <div class="small text-muted">{{ wa.source_type }} · registro #{{ wa.source_record_id }}</div>
+      <div>{{ wa.action_taken }}</div>
+    </div>
+    {% else %}
+    <p class="text-muted mb-0">Sin avisos.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

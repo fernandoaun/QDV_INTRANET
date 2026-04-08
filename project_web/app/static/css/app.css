@@ -1,0 +1,1379 @@
+/* QDV Salmuera — dashboard UI (SaaS-style shell, tables, forms) */
+
+:root {
+  --app-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --app-sidebar-bg: #1e2d3d;
+  --app-sidebar-border: rgba(255, 255, 255, 0.06);
+  --app-sidebar-hover: rgba(255, 255, 255, 0.08);
+  --app-sidebar-active: rgba(94, 189, 232, 0.18);
+  --app-sidebar-fg: rgba(255, 255, 255, 0.88);
+  --app-sidebar-muted: rgba(255, 255, 255, 0.45);
+  --app-page-bg: #f4f6f9;
+  --app-surface: #ffffff;
+  --app-border: #e8ecf1;
+  --app-text: #2c3540;
+  --app-text-muted: #6b7785;
+  --app-table-header: #1a5f9e;
+  --app-table-header-fg: #f8fafc;
+  --app-primary: #42b4e8;
+  --app-primary-hover: #2fa8df;
+  --app-primary-active: #2596c9;
+  --app-radius: 10px;
+  --app-radius-sm: 8px;
+  --app-radius-pill: 999px;
+  --app-sidebar-w: 4.25rem;
+  --app-topbar-h: 3.5rem;
+  --bs-primary: #42b4e8;
+  --bs-primary-rgb: 66, 180, 232;
+  --bs-body-font-family: var(--app-font);
+  --bs-body-color: var(--app-text);
+  --bs-border-radius: var(--app-radius-sm);
+  --bs-link-color: #2086b8;
+  --bs-link-hover-color: #176f99;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body.app-body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--app-font);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: var(--app-text);
+  background: var(--app-page-bg);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: visible;
+}
+
+/* ——— Authenticated shell ——— */
+.app-shell {
+  display: flex;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+.app-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--app-sidebar-w);
+  z-index: 1040;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--app-sidebar-bg);
+  border-right: 1px solid var(--app-sidebar-border);
+  padding: 0.65rem 0 0.75rem;
+}
+
+.app-sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  margin-bottom: 0.75rem;
+  border-radius: var(--app-radius-sm);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--app-sidebar-fg);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.app-sidebar-brand:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.app-sidebar-nav {
+  flex: 1;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0.35rem;
+}
+
+.app-sidebar-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.app-sidebar-nav li {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.app-sidenav-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--app-radius-sm);
+  color: var(--app-sidebar-muted);
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+  font-size: 1.15rem;
+}
+
+.app-sidenav-link:hover {
+  color: var(--app-sidebar-fg);
+  background: var(--app-sidebar-hover);
+}
+
+.app-sidenav-link.is-active {
+  color: #7dd8fc;
+  background: var(--app-sidebar-active);
+  box-shadow: inset 0 0 0 1px rgba(125, 216, 252, 0.25);
+}
+
+.app-sidebar-footer {
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--app-sidebar-border);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.app-sidenav-link--muted {
+  font-size: 1rem;
+  opacity: 0.85;
+}
+
+.app-wrap {
+  flex: 1;
+  margin-left: var(--app-sidebar-w);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: visible;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+  gap: 1rem;
+  min-height: var(--app-topbar-h);
+  padding: 0.5rem 1.25rem 0.5rem 1rem;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+  overflow: visible;
+}
+
+.app-topbar-menu {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.app-topbar-menu:hover {
+  background: var(--app-page-bg);
+}
+
+.app-topbar-search-wrap {
+  flex: 1;
+  min-width: 0;
+  max-width: 28rem;
+}
+
+.app-topbar-search {
+  width: 100%;
+  padding: 0.5rem 0.9rem 0.5rem 2.35rem;
+  font-size: 0.875rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-pill);
+  background: var(--app-page-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236b7785' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E") no-repeat 0.85rem 50%;
+  background-size: 0.95rem;
+  color: var(--app-text);
+}
+
+.app-topbar-search::placeholder {
+  color: var(--app-text-muted);
+}
+
+.app-topbar-search:focus {
+  outline: none;
+  border-color: rgba(66, 180, 232, 0.55);
+  box-shadow: 0 0 0 3px rgba(66, 180, 232, 0.15);
+  background-color: var(--app-surface);
+}
+
+.app-topbar-end {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  overflow: visible;
+}
+
+.app-topbar .app-user-dropdown {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  overflow: visible;
+}
+
+.app-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.65rem 0.35rem 0.35rem;
+  border-radius: var(--app-radius-pill);
+  border: 1px solid var(--app-border);
+  background: var(--app-page-bg);
+  font-size: 0.8125rem;
+  color: var(--app-text);
+}
+
+.app-user-pill .bi {
+  font-size: 1.25rem;
+  color: var(--app-text-muted);
+}
+
+.app-user-pill.dropdown-toggle::after {
+  margin-left: 0.35rem;
+  opacity: 0.55;
+}
+
+.app-main {
+  position: relative;
+  z-index: 0;
+  flex: 1;
+  padding: 1.25rem 1.5rem 2.5rem;
+  max-width: 100%;
+  min-height: 0;
+}
+
+/* Mobile sidebar */
+@media (max-width: 991.98px) {
+  .app-topbar-menu {
+    display: inline-flex;
+  }
+
+  .app-sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+  }
+
+  .app-shell.app-sidebar-open .app-sidebar {
+    transform: translateX(0);
+  }
+
+  .app-shell.app-sidebar-open .app-sidebar-backdrop {
+    display: block;
+  }
+
+  .app-wrap {
+    margin-left: 0;
+  }
+
+  .app-sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 1035;
+    background: rgba(20, 28, 38, 0.45);
+  }
+}
+
+/* ——— Guest / login ——— */
+.app-body--guest {
+  background: var(--app-page-bg);
+}
+
+.app-guest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.5rem;
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-guest-brand {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--app-text);
+  text-decoration: none;
+}
+
+.app-guest-brand:hover {
+  color: var(--app-primary-hover);
+}
+
+.app-guest-main {
+  padding: 1.5rem 1rem 3rem;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.app-login-page {
+  min-height: calc(100vh - 3.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background: linear-gradient(165deg, #eef4f8 0%, #f4f6f9 45%, #e8eef5 100%);
+}
+
+.app-login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2rem 2rem 1.75rem;
+  background: var(--app-surface);
+  border-radius: var(--app-radius);
+  border: 1px solid var(--app-border);
+  box-shadow: 0 12px 40px rgba(30, 45, 61, 0.08);
+}
+
+.app-login-card h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--app-text);
+  margin-bottom: 1.25rem;
+}
+
+/* ——— Page chrome (title + actions) ——— */
+.app-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.app-page-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--app-text);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.app-page-title.text-uppercase {
+  letter-spacing: 0.04em;
+}
+
+.app-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Toolbar: filtros arriba */
+.app-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 1rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.1rem;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+}
+
+.app-toolbar .form-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+/* Stock / filtros: columna flexible dentro de .app-toolbar (misma fila que Producción). */
+.app-toolbar-grow {
+  flex: 1 1 12rem;
+  min-width: 12rem;
+}
+
+/* Menú de acciones Stock: mismas clases .btn que Producción; solo layout apilado. */
+.app-btn-stack {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 22rem;
+}
+
+/* ——— Cards ——— */
+.app-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.app-card:last-child {
+  margin-bottom: 0;
+}
+
+.app-card-header {
+  padding: 0.65rem 1.1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-text);
+  background: linear-gradient(180deg, #fafbfc 0%, #f4f6f8 100%);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-card-header--split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+/* Título + descripción gris (dashboard / Stock) */
+.app-card-header--stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.app-card-header-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--app-text);
+  line-height: 1.3;
+}
+
+.app-card-desc {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--app-text-muted);
+  line-height: 1.45;
+  max-width: 48rem;
+}
+
+.app-card-body {
+  padding: 1.1rem 1.15rem;
+}
+
+.app-card-body--flush {
+  padding: 0;
+}
+
+/* Panel (dashboard): KPI operativos hipoclorito — mismo lenguaje que .app-card, sin aspecto de botón */
+.app-panel-kpi {
+  border: 1px solid var(--app-border);
+  box-shadow: 0 1px 0 rgba(30, 45, 61, 0.04);
+}
+.app-panel-kpi .app-card-header {
+  background: linear-gradient(180deg, #f0f7fc 0%, #e8f2f9 100%);
+  border-bottom: 1px solid var(--app-border);
+}
+.app-panel-kpi .app-panel-kpi-value {
+  font-size: clamp(1.5rem, 4vw, 2rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--app-text);
+  line-height: 1.15;
+  margin-bottom: 0.35rem;
+}
+
+/* ——— Tables ——— */
+.table-app {
+  width: 100%;
+  margin: 0;
+  font-size: 0.8125rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--app-text);
+}
+
+.table-app thead th {
+  background: var(--app-table-header) !important;
+  color: var(--app-table-header-fg) !important;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.5rem 0.65rem;
+  border: none;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table-app thead th:first-child {
+  border-radius: 0;
+}
+
+.table-app tbody td {
+  padding: 0.45rem 0.65rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.table-app tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-app tbody tr:hover td {
+  background: #f8fafc;
+}
+
+.table-app td.text-muted,
+.table-app th {
+  color: inherit;
+}
+
+.table-responsive.app-table-scroll {
+  border-radius: 0 0 var(--app-radius-sm) var(--app-radius-sm);
+}
+
+/* Compact data tables (hipo / reactor) */
+.table-compact {
+  font-size: 0.78rem;
+}
+
+.table-compact thead th {
+  font-size: 0.68rem;
+  padding: 0.45rem 0.4rem;
+}
+
+.table-compact tbody td {
+  padding: 0.32rem 0.4rem;
+  white-space: nowrap;
+}
+
+.cell-ellipsis {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill-warn {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.1;
+  padding: 0.12rem 0.35rem;
+  border-radius: var(--app-radius-pill);
+  background: #fff8e6;
+  border: 1px solid #f5e0a8;
+  color: #7a5a00;
+  margin: 0.06rem 0.12rem 0.06rem 0;
+}
+
+.note-muted {
+  font-size: 0.75rem;
+  color: var(--app-text-muted);
+  margin-top: 0.25rem;
+}
+
+/* ——— Campos analíticos: erlenmeyer PDF de referencia (.hipo-conc-* = alias histórico) ——— */
+.analysis-ref-flask-btn,
+.hipo-conc-flask-btn {
+  border: none;
+  background: transparent;
+  padding: 0.12rem;
+  margin: 0;
+  line-height: 0;
+  border-radius: var(--app-radius-sm);
+  vertical-align: middle;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.analysis-ref-flask-btn:focus-visible,
+.hipo-conc-flask-btn:focus-visible {
+  outline: 2px solid rgba(66, 180, 232, 0.55);
+  outline-offset: 2px;
+}
+.analysis-ref-flask-btn--empty,
+.hipo-conc-flask-btn--empty {
+  color: #c82333;
+}
+.analysis-ref-flask-btn--empty .analysis-ref-flask-liquid,
+.hipo-conc-flask-btn--empty .hipo-conc-flask-liquid {
+  opacity: 0;
+}
+.analysis-ref-flask-btn--ok,
+.hipo-conc-flask-btn--ok {
+  color: #198754;
+}
+.analysis-ref-flask-btn--ok .analysis-ref-flask-liquid,
+.hipo-conc-flask-btn--ok .hipo-conc-flask-liquid {
+  opacity: 0.9;
+}
+.analysis-ref-flask-outline,
+.hipo-conc-flask-outline {
+  vector-effect: non-scaling-stroke;
+}
+
+/* <dialog> nativo: PDF de referencia (erlenmeyer).
+   NUNCA dejar background: transparent en el <dialog>: en Chrome/Edge (y con tema oscuro del SO)
+   el “hueco” del modal se pinta negro y parece que el matraz queda “atrás” tapado.
+   color-scheme: light evita que el UA invierta colores del panel. */
+.analysis-ref-dialog {
+  max-width: min(32rem, 94vw);
+  width: 100%;
+  padding: 0;
+  border: none;
+  margin: auto;
+  background: var(--app-surface);
+  color: var(--app-text);
+  color-scheme: light;
+  isolation: isolate;
+  border-radius: var(--app-radius);
+  box-shadow: 0 0.5rem 1.75rem rgba(15, 23, 42, 0.22);
+  /* Fallback si el navegador no usa top layer correctamente con showModal() */
+  z-index: 200100;
+}
+.analysis-ref-dialog::backdrop {
+  background-color: rgba(15, 23, 42, 0.45);
+}
+.analysis-ref-dialog-surface {
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+  background: transparent;
+  border-radius: inherit;
+  border: 1px solid var(--app-border);
+  overflow: hidden;
+}
+.analysis-ref-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+.analysis-ref-dialog-title {
+  font-weight: 600;
+  color: var(--app-text);
+  padding-top: 0.15rem;
+}
+.analysis-ref-dialog-body {
+  padding: 0.85rem 1rem 1rem;
+  max-height: min(70vh, 28rem);
+  overflow-y: auto;
+}
+
+/* ——— Forms ——— */
+.form-control,
+.form-select {
+  border-color: var(--app-border);
+  border-radius: var(--app-radius-sm);
+  font-size: 0.875rem;
+  padding: 0.45rem 0.75rem;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(66, 180, 232, 0.65);
+  box-shadow: 0 0 0 3px rgba(66, 180, 232, 0.12);
+}
+
+.form-label {
+  font-weight: 500;
+  font-size: 0.8125rem;
+  color: var(--app-text);
+  margin-bottom: 0.3rem;
+}
+
+.form-text {
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+
+/* ——— Buttons ——— */
+.btn {
+  border-radius: var(--app-radius-sm);
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.45rem 0.95rem;
+}
+
+.btn-sm {
+  padding: 0.32rem 0.65rem;
+  font-size: 0.8125rem;
+}
+
+.btn-primary {
+  background: var(--app-primary);
+  border-color: var(--app-primary);
+  color: #fff;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: var(--app-primary-hover);
+  border-color: var(--app-primary-hover);
+  color: #fff;
+}
+
+.btn-primary:active {
+  background: var(--app-primary-active) !important;
+  border-color: var(--app-primary-active) !important;
+}
+
+.btn-outline-primary {
+  color: #1a8ab8;
+  border-color: #b8e4f5;
+  background: rgba(66, 180, 232, 0.06);
+}
+
+.btn-outline-primary:hover {
+  background: rgba(66, 180, 232, 0.14);
+  border-color: var(--app-primary);
+  color: #157aa3;
+}
+
+.btn-outline-secondary {
+  color: var(--app-text-muted);
+  border-color: var(--app-border);
+  background: var(--app-surface);
+}
+
+.btn-outline-secondary:hover {
+  background: var(--app-page-bg);
+  border-color: #cfd6de;
+  color: var(--app-text);
+}
+
+.btn-outline-danger {
+  border-radius: var(--app-radius-sm);
+}
+
+.btn-warning {
+  background: #f0b429;
+  border-color: #e8a820;
+  color: #1a1508;
+}
+
+.btn-warning:hover {
+  background: #e8a820;
+  border-color: #d99e1c;
+  color: #1a1508;
+}
+
+/* ——— Alerts ——— */
+.alert {
+  border: none;
+  border-radius: var(--app-radius-sm);
+  font-size: 0.875rem;
+}
+
+.alert-dismissible {
+  padding-right: 2.5rem;
+}
+
+/* ——— Hub module cards ——— */
+.app-module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  gap: 1rem;
+}
+
+.app-module-card {
+  display: block;
+  height: 100%;
+  padding: 1.15rem 1.2rem;
+  text-decoration: none;
+  color: inherit;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-module-card:hover {
+  border-color: rgba(66, 180, 232, 0.45);
+  box-shadow: 0 6px 20px rgba(30, 45, 61, 0.06);
+  color: inherit;
+}
+
+.app-module-card h2 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+  color: var(--app-text);
+}
+
+.app-module-card p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--app-text-muted);
+}
+
+.app-module-card--featured {
+  border-color: rgba(66, 180, 232, 0.35);
+  background: linear-gradient(180deg, #f7fcff 0%, #fff 100%);
+}
+
+.app-module-card--featured h2 {
+  color: #1a7aa8;
+}
+
+/* ——— Columnas status cards ——— */
+.app-stat-card {
+  height: 100%;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  overflow: hidden;
+}
+
+.app-stat-card .app-card-header {
+  background: linear-gradient(180deg, #1a5f9e 0%, #164f85 100%);
+  color: #fff;
+  border-bottom: none;
+}
+
+.app-stat-card .app-card-body {
+  font-size: 0.875rem;
+}
+
+/* Estados columnas intercambio (Circuito de Agua): verde vs alerta */
+.app-stat-card.app-columna-estado--ok .app-card-header {
+  background: linear-gradient(180deg, #198754 0%, #157347 100%);
+}
+.app-stat-card.app-columna-estado--ok .app-card-body.app-columna-estado-body {
+  background: linear-gradient(180deg, #e8f8ef 0%, #f7fcf9 100%);
+  color: #0d3018;
+  border-top: 1px solid rgba(25, 135, 84, 0.2);
+}
+.app-stat-card.app-columna-estado--ok .app-card-body.app-columna-estado-body strong {
+  color: #0a2914;
+}
+.app-stat-card.app-columna-estado--warn .app-card-header {
+  background: linear-gradient(180deg, #ffc107 0%, #e0a800 100%);
+  color: #4f3a00;
+}
+.app-stat-card.app-columna-estado--warn .app-card-body.app-columna-estado-body {
+  background: linear-gradient(180deg, #fff8db 0%, #fffdf2 100%);
+  color: #5c4500;
+  border-top: 1px solid rgba(255, 193, 7, 0.35);
+}
+.app-stat-card.app-columna-estado--warn .app-card-body.app-columna-estado-body strong {
+  color: #4a3600;
+}
+.app-stat-card.app-columna-estado--warn .app-card-body.app-columna-estado-body .text-muted {
+  color: #7a620f !important;
+}
+.app-stat-card.app-columna-estado--danger .app-card-header {
+  background: linear-gradient(180deg, #dc3545 0%, #b02a37 100%);
+}
+.app-stat-card.app-columna-estado--danger .app-card-body.app-columna-estado-body {
+  background: linear-gradient(180deg, #fdecee 0%, #fff8f8 100%);
+  color: #4a151a;
+  border-top: 1px solid rgba(220, 53, 69, 0.28);
+}
+.app-stat-card.app-columna-estado--danger .app-card-body.app-columna-estado-body strong {
+  color: #3a1015;
+}
+.app-stat-card.app-columna-estado--danger .app-card-body.app-columna-estado-body .text-muted {
+  color: #6b2b33 !important;
+}
+
+.app-semaforo-global {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.app-semaforo-dot {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+.app-semaforo-dot--verde {
+  background: #198754;
+  box-shadow: 0 0 0 4px rgba(25, 135, 84, 0.18);
+}
+.app-semaforo-dot--amarillo {
+  background: #ffc107;
+  box-shadow: 0 0 0 4px rgba(255, 193, 7, 0.2);
+}
+.app-semaforo-dot--rojo {
+  background: #dc3545;
+  box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.2);
+}
+.app-semaforo-text {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+/* ——— Timer / badges in cards ——— */
+.app-timer-display {
+  font-size: 1.65rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text);
+}
+
+.app-badge-soft {
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--app-radius-pill);
+}
+
+.badge.text-bg-secondary.app-badge-soft {
+  background: #e8ecf1 !important;
+  color: var(--app-text-muted) !important;
+}
+
+.badge.text-bg-success.app-badge-soft {
+  background: #d4edda !important;
+  color: #1e5c2e !important;
+}
+
+.badge.text-bg-danger.app-badge-soft {
+  background: #fde2e4 !important;
+  color: #9b1c2e !important;
+}
+
+/* ——— Pagination (Bootstrap) ——— */
+.pagination {
+  gap: 0.25rem;
+}
+
+.page-link {
+  border-radius: var(--app-radius-sm);
+  border-color: var(--app-border);
+  color: var(--app-text);
+  font-size: 0.875rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.page-item.active .page-link {
+  background: var(--app-primary);
+  border-color: var(--app-primary);
+}
+
+.page-link:hover {
+  background: var(--app-page-bg);
+  border-color: #cfd6de;
+  color: var(--app-text);
+}
+
+/*
+ * Dropdown perfil (topbar) — causas reales del fallo “abierto pero no se ve”:
+ *
+ * A) ORDEN DE PINTADO: <main class="app-main"> va DESPUÉS del <header> en el DOM. El menú
+ *    cuelga hacia abajo sobre el área del main. Sin capas explícitas, el bloque de contenido
+ *    tapaba el menú (stacking / painter’s order entre hermanos).
+ *
+ * B) POPPER + transform: Por defecto Popper usa transform:translate3d() en el .dropdown-menu.
+ *    Eso crea un stacking context adicional; junto a header position:sticky y el main, en
+ *    algunos navegadores el menú quedaba detrás o mal compuesto visualmente.
+ *
+ * C) OVERFLOW: Cualquier overflow:hidden|auto|scroll en un ancestro recorta position:absolute.
+ *    Por eso .app-shell, .app-wrap, .app-topbar y .app-topbar-end quedan en overflow:visible.
+ *
+ * Solución: JS en base.html fuerza Popper strategy:"fixed" + gpuAcceleration:false (top/left
+ * en viewport, sin translate3d en el menú) y este bloque fija z-index muy alto + fondo sólido.
+ */
+.app-topbar .dropdown-menu {
+  z-index: 9999 !important;
+  background-color: var(--app-surface) !important;
+  background-clip: padding-box;
+  opacity: 1 !important;
+  visibility: visible !important;
+  border-radius: var(--app-radius-sm);
+  border: 1px solid var(--app-border) !important;
+  box-shadow: 0 10px 28px rgba(30, 45, 61, 0.15);
+  font-size: 0.875rem;
+  min-width: 13rem;
+}
+
+.app-topbar .dropdown-item {
+  padding: 0.45rem 1rem;
+}
+
+.app-topbar .dropdown-item:hover {
+  background: var(--app-page-bg);
+}
+
+.app-user-dropdown-menu {
+  min-width: 13rem;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.app-user-dropdown-menu .dropdown-item {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.app-user-dropdown-menu .dropdown-item i.bi {
+  flex-shrink: 0;
+}
+
+.app-user-dropdown-menu button.dropdown-item {
+  width: 100%;
+  text-align: start;
+}
+
+/* ——— Bootstrap modales (entregas, etc.) ———
+   Por encima del topbar (1050) y del menú usuario; si el .modal está dentro de #appShell, reparent a body (base.html). */
+.modal-backdrop {
+  --bs-backdrop-zindex: 10040;
+  z-index: 10040 !important;
+}
+.modal {
+  --bs-modal-zindex: 10050;
+  z-index: 10050 !important;
+}
+/* Refuerzo Bootstrap: el contenido del diálogo debe recibir clics (el .modal-dialog usa pointer-events: none). */
+.modal .modal-content {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 1;
+}
+
+/* ——— Utilities ——— */
+.app-text-secondary {
+  color: var(--app-text-muted);
+}
+
+.app-intro {
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
+  max-width: 42rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.55;
+}
+
+/* ——— Manual del sistema ——— */
+.app-manual-page .app-manual-section {
+  scroll-margin-top: 5.5rem;
+}
+
+.app-manual-toc-inner {
+  position: sticky;
+  top: 4.5rem;
+}
+
+.app-manual-toc .nav {
+  list-style: none;
+  padding-left: 0;
+  margin-bottom: 0;
+}
+
+.app-manual-toc-link {
+  display: block;
+  padding: 0.35rem 0.25rem;
+  color: var(--app-text-muted);
+  text-decoration: none;
+  border-radius: var(--app-radius-sm);
+  font-weight: 500;
+}
+
+.app-manual-toc-link:hover {
+  color: var(--app-text);
+  background: var(--app-page-bg);
+}
+
+.app-manual-prose {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--app-text);
+}
+
+.app-manual-prose p:last-child,
+.app-manual-prose ul:last-child {
+  margin-bottom: 0;
+}
+
+.app-manual-prose ul {
+  padding-left: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.app-manual-prose li + li {
+  margin-top: 0.35rem;
+}
+
+/* Control hipoclorito: voltajes por celda vs total (columnas separadas, sin solapamiento) */
+.table-app.table-compact thead th.app-th-voltajes-celdas {
+  white-space: normal;
+  max-width: 6.5rem;
+  line-height: 1.25;
+}
+
+.table-app.table-compact thead th.app-th-voltaje-total {
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.table-app.table-compact tbody td.app-table-voltajes-td {
+  white-space: normal;
+  vertical-align: top;
+  min-width: 4.75rem;
+  max-width: 7.5rem;
+  border-right: 1px solid var(--app-border);
+  padding-right: 0.5rem;
+  overflow: hidden;
+  word-wrap: break-word;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.table-app.table-compact tbody td.app-table-voltaje-total-td {
+  white-space: nowrap;
+  vertical-align: middle;
+  min-width: 3.5rem;
+  width: 1%;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  border-left: 1px solid transparent;
+  box-shadow: inset 1px 0 0 var(--app-border);
+  background: linear-gradient(90deg, rgba(22, 79, 133, 0.05) 0%, transparent 65%);
+}
+
+.table-app.table-compact tbody td.app-table-voltaje-total-td .voltaje-total-value {
+  display: inline-block;
+  padding: 0.1rem 0.25rem;
+  border-radius: var(--app-radius-sm);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--app-border);
+}
+
+.voltajes-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.voltajes-cell-row {
+  display: block;
+  line-height: 1.3;
+}
+
+.voltajes-cell-n {
+  font-weight: 700;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: #164f85;
+}
+
+.voltajes-cell-sep {
+  font-weight: 500;
+  margin: 0 0.05rem;
+  color: var(--app-text-muted);
+}
+
+.voltajes-cell-v {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text);
+}
+
+/* Calendario de consumos (Graficos / resumen) */
+.consumo-cal-panel {
+  max-width: 52rem;
+  margin: 0 auto;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.consumo-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.consumo-cal-weekdays > div {
+  font-size: 0.63rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+
+.consumo-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25rem;
+}
+
+.consumo-cal-day {
+  min-height: 3.25rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+  background: #fff;
+  padding: 0.22rem 0.28rem;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.consumo-cal-day:hover {
+  border-color: rgba(66, 180, 232, 0.55);
+  box-shadow: 0 3px 10px rgba(30, 45, 61, 0.06);
+}
+
+.consumo-cal-day--blank {
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(0, 0, 0, 0.06);
+  pointer-events: none;
+}
+
+.consumo-cal-day--today {
+  border-color: #42b4e8;
+}
+
+.consumo-cal-day--selected {
+  border-color: #1a5f9e;
+  box-shadow: inset 0 0 0 1px rgba(26, 95, 158, 0.25);
+  background: #f7fbff;
+}
+
+.consumo-cal-day-num {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--app-text);
+  line-height: 1;
+}
+
+.consumo-cal-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.14rem;
+  align-items: center;
+}
+
+.consumo-dot {
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  vertical-align: middle;
+}
+
+.consumo-dot-more {
+  font-size: 0.61rem;
+  color: var(--app-text-muted);
+  line-height: 1;
+}
+
+.graficos-layout {
+  display: grid;
+  grid-template-columns: minmax(20rem, 1.1fr) minmax(22rem, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.graficos-col-charts .app-card {
+  margin-bottom: 0.75rem;
+}
+
+.graficos-col-charts .app-card:last-child {
+  margin-bottom: 0;
+}
+
+.app-mini-chart {
+  width: 100%;
+  height: 11rem !important;
+}
+
+@media (max-width: 1199.98px) {
+  .graficos-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .app-mini-chart {
+    height: 10rem !important;
+  }
+}
+
+.graficos-grid-2x2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.graficos-grid-cell {
+  margin-bottom: 0;
+  height: 100%;
+}
+
+.graficos-grid-cell .app-card-body {
+  height: calc(100% - 2.45rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.app-mini-chart-wrap {
+  flex: 1;
+  min-height: 11rem;
+}
+
+.graficos-var-chooser {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.22rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.graficos-var-chooser label {
+  margin: 0;
+  color: var(--app-text);
+}
+
+.graficos-var-chooser input[type="checkbox"] {
+  margin-right: 0.3rem;
+  transform: translateY(1px);
+}
+
+@media (max-width: 1199.98px) {
+  .graficos-grid-2x2 {
+    grid-template-columns: 1fr;
+  }
+}

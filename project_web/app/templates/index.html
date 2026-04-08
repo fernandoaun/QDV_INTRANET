@@ -3,31 +3,31 @@
 {% block content %}
 
 {% if not nav_user %}
-<div class="card border-primary mb-4">
-  <div class="card-header bg-primary text-white py-3">
-    <strong class="fs-5">Cómo entrar (leé esto primero)</strong>
+<div class="app-card mb-4 border-primary border-opacity-25" style="border-width:2px;">
+  <div class="app-card-header" style="background:linear-gradient(180deg,#1a5f9e 0%,#164f85 100%);color:#fff;border:none;">
+    <strong>Cómo entrar (leé esto primero)</strong>
   </div>
-  <div class="card-body">
-    <p class="lead mb-3">
+  <div class="app-card-body">
+    <p class="lead mb-3" style="font-size:1.05rem;">
       Acá <strong>no hay clave guardada</strong>. Tenés que crearla vos en la carpeta del programa.
       Abrí el archivo de texto <strong>COMO_ENTRAR.txt</strong> en la misma carpeta que <code>run.py</code>.
     </p>
-    <ol class="fs-6 lh-lg">
+    <ol class="fs-6 lh-lg mb-0">
       <li class="mb-2">
-        <strong>Doble clic</strong> en <code class="bg-light px-1">CREAR_USUARIO_ADMIN.bat</code><br>
-        <span class="text-secondary">Te pide la contraseña <strong>dos veces</strong> (no se ve al escribir, es normal).</span>
+        <strong>Doble clic</strong> en <code class="bg-light px-1 rounded">CREAR_USUARIO_ADMIN.bat</code><br>
+        <span class="app-text-secondary">Te pide la contraseña <strong>dos veces</strong> (no se ve al escribir, es normal).</span>
       </li>
       <li class="mb-2">
-        Si dice que <code>admin</code> ya existe: <strong>doble clic</strong> en <code class="bg-light px-1">CAMBIAR_CLAVE.bat</code>
+        Si dice que <code>admin</code> ya existe: <strong>doble clic</strong> en <code class="bg-light px-1 rounded">CAMBIAR_CLAVE.bat</code>
       </li>
       <li class="mb-2">
-        <strong>Doble clic</strong> en <code class="bg-light px-1">iniciar_local.bat</code> y <strong>no cierres</strong> esa ventana negra.
+        <strong>Doble clic</strong> en <code class="bg-light px-1 rounded">iniciar_local.bat</code> y <strong>no cierres</strong> esa ventana negra.
       </li>
       <li class="mb-2">
         En el navegador entrá a: <a href="http://127.0.0.1:5000/login"><strong>http://127.0.0.1:5000/login</strong></a>
       </li>
       <li class="mb-0">
-        Usuario: <code class="bg-light px-1">admin</code> — Contraseña: <strong>la que escribiste</strong> en el paso 1.
+        Usuario: <code class="bg-light px-1 rounded">admin</code> — Contraseña: <strong>la que escribiste</strong> en el paso 1.
       </li>
     </ol>
   </div>
@@ -45,13 +45,13 @@
 </div>
 {% endif %}
 
-<div class="card shadow-sm">
-  <div class="card-body">
-    <h1 class="h4 mb-3">Química del Valle — Web</h1>
+<div class="app-card">
+  <div class="app-card-body">
+    <h1 class="app-page-title mb-3">Química del Valle — Web</h1>
     {% if nav_user %}
     <a class="btn btn-primary" href="{{ url_for('main.dashboard') }}">Ir al panel</a>
-    {% if user_can('produccion') %}
-    <a class="btn btn-outline-primary ms-2" href="{{ url_for('produccion.hub') }}">Producción</a>
+    {% if user_can_production_hub %}
+    <a class="btn btn-outline-primary ms-2 fw-semibold text-uppercase" href="{{ url_for('produccion.hub') }}">Producción</a>
     {% endif %}
     {% else %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">Ingresar</a>

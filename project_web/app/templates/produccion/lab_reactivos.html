@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "produccion/_analysis_ref_flask.html" import analysis_ref_flask_pdf_link %}
+{% block title %}{{ module_title }} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title text-uppercase">{{ module_title }}</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
+</div>
+
+{% if nav_user and nav_user.is_admin %}
+<div class="app-card mb-4">
+  <div class="app-card-header">Nuevo reactivo (solo administración)</div>
+  <div class="app-card-body">
+    <form method="post" action="{{ url_for('produccion.lab_reactivos_nuevo') }}" enctype="multipart/form-data" class="row g-2 align-items-end">
+    {% include "_csrf.html" %}
+      <div class="col-md-4">
+        <label class="form-label" for="labReagentName">Nombre del reactivo</label>
+        <input class="form-control" id="labReagentName" name="name" required maxlength="256" autocomplete="off" placeholder="Ej. Solución patrón X">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="labReagentPdf">Archivo PDF (obligatorio)</label>
+        <input class="form-control" id="labReagentPdf" type="file" name="pdf" accept=".pdf,application/pdf" required>
+      </div>
+      <div class="col-md-4">
+        <button type="submit" class="btn btn-primary">Guardar en catálogo</button>
+      </div>
+      <div class="col-12">
+        <div class="note-muted mb-0">Solo PDF. El archivo se valida también en el servidor.</div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-4">
+  <div class="app-card-header">Catálogo de reactivos</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Reactivo</th>
+          <th class="text-center" style="width:3.5rem" title="Ficha PDF">PDF</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in reagent_display %}
+        {% set href_pdf = url_for('produccion.lab_reactivos_pdf', reagent_id=r.id) if r.pdf_ok else '#' %}
+        <tr>
+          <td class="align-middle">{{ r.name }}</td>
+          <td class="text-center align-middle">
+            {{ analysis_ref_flask_pdf_link(href_pdf, r.name, pdf_ok=r.pdf_ok) }}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="2" class="text-center text-muted py-3">No hay reactivos cargados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

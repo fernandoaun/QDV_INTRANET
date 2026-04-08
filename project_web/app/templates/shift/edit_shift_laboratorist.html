@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Laboratorista del turno · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Laboratorista del turno actual</h1>
+  <p class="app-intro mb-0">Actualizá quién acompaña en planta si cambió durante la jornada. El turno sigue a tu nombre.</p>
+</div>
+<div class="app-card" style="max-width: 560px;">
+  <div class="app-card-header">Turno iniciado {{ shift_session.started_at_iso }}</div>
+  <div class="app-card-body">
+    <p class="small app-text-secondary mb-3">Operador responsable: <strong>{{ (shift_session.user.nombre_completo or shift_session.user.username)|e }}</strong></p>
+    <form method="post">
+    {% include "_csrf.html" %}
+      {% include "shift/_laboratorist_turn_fields.html" %}
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('produccion.hub') }}">Volver a Producción</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

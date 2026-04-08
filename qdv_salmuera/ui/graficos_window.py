@@ -4,10 +4,9 @@ from datetime import date, datetime, timedelta
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-# PEGAR AQUÍ: class DashboardGraficosWindow (V4 582–872)
+from qdv_salmuera.utils.validators import to_float_or_none
 
-# Nota: si en tu V4 llamaba a métodos DB con otros nombres,
-# ajustamos en DB para que coincidan o adaptamos aquí.
+
 class DashboardGraficosWindow(tk.Toplevel):
     def __init__(self, parent, db):
         super().__init__(parent)
@@ -202,14 +201,6 @@ class DashboardGraficosWindow(tk.Toplevel):
                 "Voltaje celda (prom)": [],
             }
 
-            def _to_float(x):
-                try:
-                    if x is None:
-                        return None
-                    return float(x)
-                except Exception:
-                    return None
-
             # cargar puntos
             for r in registros:
                 dt = _parse_dt(r)
@@ -218,17 +209,17 @@ class DashboardGraficosWindow(tk.Toplevel):
 
                 xs.append(dt)
 
-                series["Voltaje total"].append(_to_float(r.get("voltaje_total")))
-                series["Amperaje"].append(_to_float(r.get("amperaje")))
-                series["Caudal Agua (L/h)"].append(_to_float(r.get("caudal_agua_l_h")))
-                series["Caudal Salmuera (L/h)"].append(_to_float(r.get("caudal_salmuera_l_h")))
-                series["Hipoclorito - Concentración"].append(_to_float(r.get("hipo_conc")))
-                series["Hipoclorito - Exceso Soda"].append(_to_float(r.get("hipo_exceso_soda")))
-                series["Salmuera - Temperatura"].append(_to_float(r.get("sal_temp")))
-                series["Salmuera - Concentración"].append(_to_float(r.get("sal_conc")))
-                series["Salmuera - pH"].append(_to_float(r.get("sal_ph")))
-                series["Soda - Concentración"].append(_to_float(r.get("soda_conc")))
-                series["Declorinación - pH"].append(_to_float(r.get("declor_ph")))
+                series["Voltaje total"].append(to_float_or_none(r.get("voltaje_total")))
+                series["Amperaje"].append(to_float_or_none(r.get("amperaje")))
+                series["Caudal Agua (L/h)"].append(to_float_or_none(r.get("caudal_agua_l_h")))
+                series["Caudal Salmuera (L/h)"].append(to_float_or_none(r.get("caudal_salmuera_l_h")))
+                series["Hipoclorito - Concentración"].append(to_float_or_none(r.get("hipo_conc")))
+                series["Hipoclorito - Exceso Soda"].append(to_float_or_none(r.get("hipo_exceso_soda")))
+                series["Salmuera - Temperatura"].append(to_float_or_none(r.get("sal_temp")))
+                series["Salmuera - Concentración"].append(to_float_or_none(r.get("sal_conc")))
+                series["Salmuera - pH"].append(to_float_or_none(r.get("sal_ph")))
+                series["Soda - Concentración"].append(to_float_or_none(r.get("soda_conc")))
+                series["Declorinación - pH"].append(to_float_or_none(r.get("declor_ph")))
 
                 volts = r.get("voltajes_celdas") or []
                 try:
@@ -319,16 +310,6 @@ class DashboardGraficosWindow(tk.Toplevel):
             messagebox.showerror("Error en gráficos", f"{e}\n\n{traceback.format_exc()}")
 
 
-
-    def _to_float(x):
-        try:
-            if x is None:
-                return None
-            return float(x)
-        except Exception:
-            return None
-
-
 def build_fig_proceso_quimico_ultimas_24h(db) -> Figure:
     """Construye la figura del gráfico Proceso químico para las últimas 24 h (electrolizadores 2 y 3)."""
     def _parse_dt(r):
@@ -348,12 +329,6 @@ def build_fig_proceso_quimico_ultimas_24h(db) -> Figure:
             hhmmss = h
         try:
             return datetime.fromisoformat(f"{f}T{hhmmss}")
-        except Exception:
-            return None
-
-    def _to_float(x):
-        try:
-            return float(x) if x is not None else None
         except Exception:
             return None
 
@@ -378,9 +353,9 @@ def build_fig_proceso_quimico_ultimas_24h(db) -> Figure:
             if dt is None or dt < hace_24:
                 continue
             xs.append(dt)
-            hipo.append(_to_float(r.get("hipo_conc")))
-            exceso_soda.append(_to_float(r.get("hipo_exceso_soda")))
-            soda.append(_to_float(r.get("soda_conc")))
+            hipo.append(to_float_or_none(r.get("hipo_conc")))
+            exceso_soda.append(to_float_or_none(r.get("hipo_exceso_soda")))
+            soda.append(to_float_or_none(r.get("soda_conc")))
         return xs, hipo, exceso_soda, soda
 
     xs_e2, hipo_e2, exceso_e2, soda_e2 = _build_series(registros_e2)

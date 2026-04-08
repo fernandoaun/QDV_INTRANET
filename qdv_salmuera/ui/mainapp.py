@@ -78,6 +78,19 @@ class QDVApp(tk.Tk):
 
         ttk.Separator(root).pack(fill="x", pady=10)
 
+        tk.Label(
+            root,
+            text=(
+                "Datos locales: esta versión guarda en una base SQLite propia (no es la misma que la intranet QDV Web). "
+                "Para uso compartido en planta o en red, usá solo la aplicación web (carpeta project_web)."
+            ),
+            fg=QDV_COLORS["muted"],
+            bg=QDV_COLORS["bg"],
+            wraplength=920,
+            justify="left",
+            font=(QDV_COLORS["font_family"], 9),
+        ).pack(fill="x", pady=(0, 8))
+
         # Body
         body = ttk.Frame(root, style="QDV.Card.TFrame")
         body.pack(fill="both", expand=True)
@@ -94,11 +107,6 @@ class QDVApp(tk.Tk):
             ttk.Button(left, text="Producción", command=self.open_produccion, width=24, style="QDV.NeuModule.TButton").pack(anchor="w", pady=5)
         if self.session.can("graficos"):
             ttk.Button(left, text="Gráficos", command=self.open_graficos, width=24, style="QDV.NeuModule.TButton").pack(anchor="w", pady=5)
-
-        if self.session.can("recepcion"):
-            ttk.Button(left, text="Recepción (próx.)", command=self._not_implemented, width=24, style="QDV.NeuModule.TButton").pack(anchor="w", pady=5)
-        if self.session.can("despacho"):
-            ttk.Button(left, text="Despacho (próx.)", command=self._not_implemented, width=24, style="QDV.NeuModule.TButton").pack(anchor="w", pady=5)
 
         if self.session.is_admin:
             ttk.Button(
@@ -123,7 +131,8 @@ class QDVApp(tk.Tk):
         card.columnconfigure(0, weight=1)
         card.rowconfigure(0, weight=1)
 
-        self._embed_proceso_chart()
+        # Diferir matplotlib: la ventana principal aparece antes; el gráfico no bloquea el primer paint
+        self.after_idle(self._embed_proceso_chart)
 
     def _embed_proceso_chart(self) -> None:
         """Dibuja el gráfico de Proceso químico (últimas 24 h) en el panel Estado."""
@@ -149,9 +158,6 @@ class QDVApp(tk.Tk):
         except Exception:
             # logo opcional, no frenamos la app
             pass
-
-    def _not_implemented(self):
-        messagebox.showinfo("QDV", "Módulo aún no implementado.")
 
     def logout(self) -> None:
         self._logout_requested = True

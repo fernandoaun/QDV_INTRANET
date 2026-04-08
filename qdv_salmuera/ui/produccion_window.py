@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from typing import Optional, Dict, Any
 
 from qdv_salmuera.auth.session import UserSession
 from qdv_salmuera.data.db import DB
-from qdv_salmuera.ui.theme import QDV_COLORS, apply_qdv_theme
-
 from qdv_salmuera.ui.salmuera_window import CircuitoSalmueraWindow
 from qdv_salmuera.ui.consumo_stock_window import RealizarConsumoWindow, StockWindow
 from qdv_salmuera.ui.reactor_window import ReactorWindow
@@ -123,9 +121,6 @@ class ProduccionWindow(tk.Toplevel):
         cal_lf.pack(fill="both", expand=True, pady=(12, 0))
         self._consumo_calendar = ConsumoCalendarPanel(cal_lf, self.db)
         self._consumo_calendar.pack(fill="both", expand=True)
-
-    def _not_implemented(self):
-        messagebox.showinfo("Producción", "Esta pantalla se migra en el próximo paso (Circuito Salmuera / Historial / Edición).")
 
     def _refresh_resumen(self):
         stock_mp = self.db.get_stock_consolidado("materia_prima")

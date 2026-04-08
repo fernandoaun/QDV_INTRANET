@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash
 
 from app.extensions import db
 from app.models import User
+from app.user_roles import ROLE_ADMINISTRADOR
 
 
 def register_cli(app: Flask) -> None:
@@ -38,6 +39,7 @@ def register_cli(app: Flask) -> None:
             username=name,
             password_hash=generate_password_hash(password),
             is_admin=True,
+            rol=ROLE_ADMINISTRADOR,
             activo=True,
         )
         db.session.add(u)
@@ -51,9 +53,10 @@ def register_cli(app: Flask) -> None:
         if not rows:
             click.echo("No hay usuarios. Creá uno con: python -m flask --app run create-admin TU_NOMBRE")
             return
-        click.echo("id\tusuario\t\tadmin\tactivo")
+        click.echo("id\tusuario\t\tadmin\trol\tactivo")
         for u in rows:
-            click.echo(f"{u.id}\t{u.username}\t\t{u.is_admin}\t{u.activo}")
+            r = getattr(u, "rol", "") or ""
+            click.echo(f"{u.id}\t{u.username}\t\t{u.is_admin}\t{r}\t{u.activo}")
 
     @app.cli.command("reset-password")
     @click.argument("username")

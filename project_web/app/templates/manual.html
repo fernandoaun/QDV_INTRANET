@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Manual del sistema · QDV{% endblock %}
+{% block extra_head %}
+<style>html { scroll-behavior: smooth; }</style>
+{% endblock %}
+{% block content %}
+<div class="app-manual-page" id="manual-top">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Manual del sistema</h1>
+      <p class="app-intro mb-0">Guía de uso del sistema web Química del Valle — producción, registros y stock. Los permisos de cada módulo los define un administrador.</p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+    </div>
+  </div>
+
+  <div class="row g-4 align-items-start">
+    <nav class="col-lg-3 col-xl-2 app-manual-toc" aria-label="Índice del manual">
+      <div class="app-card app-manual-toc-inner">
+        <div class="app-card-header">Índice</div>
+        <div class="app-card-body py-2">
+          <ul class="nav flex-column gap-1 small">
+            <li><a class="app-manual-toc-link" href="#intro">Introducción</a></li>
+            <li><a class="app-manual-toc-link" href="#turno">Cambio de turno (operaciones)</a></li>
+            <li><a class="app-manual-toc-link" href="#hipoclorito">Control de Hipoclorito</a></li>
+            <li><a class="app-manual-toc-link" href="#salmuera">Circuito de Salmuera</a></li>
+            <li><a class="app-manual-toc-link" href="#agua">Circuito de Agua</a></li>
+            <li><a class="app-manual-toc-link" href="#stock">Stock y consumos</a></li>
+            <li><a class="app-manual-toc-link" href="#reglas">Reglas del sistema</a></li>
+            <li><a class="app-manual-toc-link" href="#consejos">Consejos de uso</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="col-lg-9 col-xl-10 app-manual-body">
+      <article class="app-manual-section app-card mb-4" id="intro">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">1. Introducción</h2>
+          <p class="app-card-desc">Qué es este sistema y cómo está organizado.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <p>Esta aplicación web permite registrar y consultar información de producción: control de hipoclorito, circuito de salmuera, circuito de agua (incluye columnas de intercambio iónico) y gestión de stock y consumos.</p>
+          <p>Iniciás sesión con usuario y contraseña. Según tu perfil verás solo los menús y pantallas para los que tenés permiso. El panel lateral y la barra superior te permiten moverte entre módulos.</p>
+          <p>Los datos se guardan en la base del sistema; los mensajes en verde o rojo indican éxito o errores al guardar.</p>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="turno">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">2. Cambio de turno (operaciones)</h2>
+          <p class="app-card-desc">Toma y entrega con trazabilidad; no aplica a administrador ni a otros perfiles.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <p>Al iniciar sesión, si tu perfil es <strong>operaciones</strong> y no hay otro turno abierto, el sistema pregunta si tomás el turno de planta. Si elegís «no», entrás en <strong>modo solo lectura</strong>: podés navegar y consultar según permisos, pero no guardar formularios ni confirmar acciones hasta activar el turno (aviso en pantalla). Al cerrar sesión con turno a tu nombre, se pregunta si entregás el turno; si no entregás, la sesión no se cierra (política segura de planta).</p>
+          <p class="small app-text-secondary mb-0">El <strong>laboratorista</strong> no inicia sesión en esta aplicación: trabaja junto al operador responsable; la trazabilidad queda asociada al turno de quien opera.</p>
+          <p>Solo puede haber <strong>un turno abierto</strong> a la vez. La entrega incluye consumos del período, avisos con hora y origen del registro, acción tomada por aviso si los hubo, stock de hipoclorito en litros obligatorio y observaciones opcionales. El compañero que entra <strong>recepciona</strong> el parte antes de quedar con turno activo.</p>
+          <p>El historial está en <strong>Producción → Cambio de turno</strong> (también accesible con permiso de hub de producción).</p>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="hipoclorito">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">3. Control de Hipoclorito</h2>
+          <p class="app-card-desc">Módulo <strong>{{ module_labels.salmuera }}</strong> — registros por turno y análisis.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <p><strong>Qué se carga:</strong> cantidad de celdas y voltajes por celda, electrolizador, turno y lote (sugeridos por el sistema), amperajes, caudales de agua y salmuera, concentraciones y parámetros de las líneas (hipo, sal, soda, declor), observaciones y motivo de atraso si corresponde.</p>
+          <p><strong>Cronómetro:</strong> ayuda a controlar el intervalo entre análisis según la configuración del sistema; no bloquea el guardado.</p>
+          <p><strong>Reglas importantes:</strong> el servidor valida cantidad de voltajes, rangos de voltaje según cantidad de celdas, electrolizador entero positivo, y que el caudal de agua sea menor que el de salmuera. Usá punto o coma para decimales.</p>
+          <p><strong>Historial:</strong> desde la pantalla principal podés abrir el historial filtrado por fechas para revisar registros anteriores.</p>
+          <p><strong>PDF Hipo conc:</strong> junto al campo Hipo conc hay un ícono de matraz (erlenmeyer): rojo si no hay PDF de referencia, verde si está cargado. Al pulsarlo se abre un panel con el enlace al PDF y, para administradores, la carga o eliminación del archivo (solo formato PDF).</p>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="salmuera">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">4. Circuito de Salmuera</h2>
+          <p class="app-card-desc">Módulo <strong>{{ module_labels.reactor }}</strong> — pH, densidad y excesos.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <p><strong>Qué se registra:</strong> por cada toma: pH, temperatura, densidad, concentración de tabla, excesos de NaOH y Na₂CO₃, observaciones. El operador y el lote se toman del contexto del día.</p>
+          <p><strong>Avisos informativos:</strong> el sistema puede mostrar avisos que <em>no impiden guardar</em>. En Control de Hipoclorito se evalúan exceso de soda, concentración y pH de salmuera a la salida de celda y pH de declorinación; los avisos se muestran en pantalla y, al guardar, se agregan al final del campo observaciones para trazabilidad. En reactor de fusión, los criterios son otros (exceso de soda/carbonato y concentración según esa pantalla).</p>
+          <p><strong>Historial:</strong> consultá rangos de fechas para auditar valores y avisos del pasado.</p>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="agua">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">5. Circuito de Agua</h2>
+          <p class="app-card-desc">Módulo <strong>{{ module_labels.agua }}</strong> — análisis y columnas en una sola pantalla.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <p><strong>Circuito de agua:</strong> turno, lote y operador se completan automáticamente con el mismo criterio que en Control de Hipoclorito (solo lectura en pantalla; el servidor recalcula al guardar). Cargás columna (1 a 3), temperatura, dureza y observaciones por análisis del día seleccionado. El cronómetro indica el tiempo hasta el próximo análisis esperado (intervalo de 8 horas respecto del último registro del día) o el atraso si ya venció; no bloquea el guardado.</p>
+          <p><strong>Historial:</strong> con <strong>Ver historial</strong> (mismo criterio que Circuito de Salmuera) consultás registros por rango de fechas, con orden del más reciente al más antiguo.</p>
+          <p><strong>Columnas de intercambio iónico:</strong> en la misma pantalla, más abajo, visualizás el último estado por columna con código de color (verde: en operación o regenerada; rojo: por regenerar). Podés registrar un nuevo estado (en operación, regenerada o por regenerar); la fecha y hora de registro se toman automáticamente al guardar. Además podés cargar durezas y observaciones.</p>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="stock">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">6. Stock y consumos</h2>
+          <p class="app-card-desc">Ingresos, existencias y salidas.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <p><strong>Ingreso:</strong> alta de producto por categoría (materia prima o laboratorio), marca, lote, vencimiento, cantidad y operador.</p>
+          <p><strong>Existencias:</strong> listado consolidado por producto según categoría; podés alternar entre materia prima y laboratorio.</p>
+          <p><strong>Consumo:</strong> elegís categoría y producto; luego marca, cantidad, operador y, si el producto lo requiere, equipo (filtro). Las observaciones son opcionales.</p>
+          <p><strong>Stock mínimo:</strong> si tu proceso define mínimos, coordiná con administración; la web registra movimientos y existencias según las reglas del servicio de stock.</p>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="reglas">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">7. Reglas del sistema</h2>
+          <p class="app-card-desc">Validaciones y comportamiento general.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <ul>
+            <li>Los formularios envían datos al servidor; si falta un campo obligatorio o un valor no es válido, verás un mensaje de error.</li>
+            <li>En hipoclorito, las validaciones de voltajes, electrolizador y caudales también se controlan en el navegador para feedback inmediato.</li>
+            <li>Sin permiso para un módulo, no verás su acceso en el menú; si accedés por URL directa, el sistema redirige y avisa.</li>
+            <li>Administradores gestionan usuarios, permisos y equipos desde <strong>Usuarios</strong> y <strong>Equipos</strong>.</li>
+          </ul>
+        </div>
+      </article>
+
+      <article class="app-manual-section app-card mb-4" id="consejos">
+        <div class="app-card-header app-card-header--stack">
+          <h2 class="app-card-header-title">8. Consejos de uso</h2>
+          <p class="app-card-desc">Buenas prácticas operativas.</p>
+        </div>
+        <div class="app-card-body app-manual-prose">
+          <ul>
+            <li>Verificá la <strong>fecha</strong> del día antes de cargar registros en pantallas filtradas por fecha.</li>
+            <li>Usá el <strong>historial</strong> para auditorías y para comparar tendencias.</li>
+            <li>Mantené las <strong>observaciones</strong> claras cuando haya algo atípico en planta.</li>
+            <li>En stock, confirmá <strong>categoría y producto</strong> antes de registrar consumos.</li>
+            <li>El buscador de la barra superior filtra ítems del menú lateral para encontrar módulos más rápido.</li>
+          </ul>
+        </div>
+      </article>
+
+      <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center pb-4">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Volver al panel</a>
+        <a class="btn btn-outline-primary btn-sm" href="#manual-top"><i class="bi bi-arrow-up me-1" aria-hidden="true"></i>Subir al inicio</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

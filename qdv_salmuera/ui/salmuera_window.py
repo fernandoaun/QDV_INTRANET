@@ -35,19 +35,18 @@ from qdv_salmuera.utils.dates import (
     iso_to_ddmmyyyy,
     parse_date_ddmmyyyy,
     date_to_iso,
+    format_hhmmss,
 )
 
 from qdv_salmuera.ui.widgets import ScrollableFrame
-from qdv_salmuera.ui.dialogs import HistorialDialog, CodigoSeguridadDialog, AddOperadorDialog
+from qdv_salmuera.ui.dialogs import HistorialDialog, CodigoSeguridadDialog
+from qdv_salmuera.ui.produccion_ui_helpers import add_operador_via_dialog
 from qdv_salmuera.ui.salmuera_edit import EditRegistroDialog
 from qdv_salmuera.ui.theme import QDV_COLORS
 from qdv_salmuera.ui.module_labels import module_label
 from qdv_salmuera.utils.module_defaults import build_daily_lot, get_current_username
 
-# PEGAR AQUÍ: class CircuitoSalmueraWindow (V4 1594–2575)
-# =========================
-# VENTANA: Circuito de Salmuera
-# =========================
+
 class CircuitoSalmueraWindow(tk.Toplevel):
     def __init__(self, master, db: DB):
         super().__init__(master)
@@ -116,6 +115,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.var_motivo_atraso = tk.StringVar()
         self.ent_motivo_atraso = None
         self._timer_job = None
+        self._prev_timer_seconds_left: Optional[int] = None
 
         # Advertencias rojas grandes
         self.warn_caudad = None
@@ -128,13 +128,6 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self._wire_validation()
         self._refresh_save_state()
         self._load_day_table()
-
-    def _format_hhmmss(self, seconds: int) -> str:
-        seconds = max(0, int(seconds))
-        h = seconds // 3600
-        m = (seconds % 3600) // 60
-        s = seconds % 60
-        return f"{h:02d}:{m:02d}:{s:02d}"
 
     def _set_timer_overdue_ui(self, overdue: bool):
         self.timer_overdue = overdue
@@ -197,6 +190,9 @@ class CircuitoSalmueraWindow(tk.Toplevel):
                 pass
             self._timer_job = None
 
+        # Primera medición tras reinicio: permite detectar cruce vencido/sin reutilizar "prev" viejo
+        self._prev_timer_seconds_left = None
+
         # Arranca el loop
         self._tick_timer()
 
@@ -231,21 +227,28 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
             # Calcular segundos restantes
             remaining = int((self.next_due_dt - now).total_seconds())
+            prev = self._prev_timer_seconds_left
             self.timer_seconds_left = max(0, remaining)
 
             # Mostrar en pantalla
-            # Mostrar en pantalla
             if self.lbl_timer is not None:
-                self.var_timer.set(self._format_hhmmss(self.timer_seconds_left))
+                self.var_timer.set(format_hhmmss(self.timer_seconds_left))
 
             # Estado vencido / no vencido
             self._set_timer_overdue_ui(self.timer_seconds_left <= 0)
 
-            # Refrescar validación de Guardar
-            try:
-                self._refresh_save_state()
-            except Exception:
-                pass
+            # Validación de Guardar: solo depende del timer al cruzar vencido / recuperarse,
+            # no hace falta revalidar cada segundo (evita consultas DB en _validate_all).
+            crossed = prev is not None and (prev > 0) != (self.timer_seconds_left > 0)
+            need_refresh = crossed or (
+                prev is None and self.timer_seconds_left <= 0
+            )
+            self._prev_timer_seconds_left = self.timer_seconds_left
+            if need_refresh:
+                try:
+                    self._refresh_save_state()
+                except Exception:
+                    pass
 
         except Exception as e:
             # Si algo falla, lo ves en el reloj (así no queda "02:00:00" engañoso)
@@ -270,21 +273,12 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
 
     def _add_operador(self):
-        dlg = AddOperadorDialog(self)
-        self.wait_window(dlg)
-        if not dlg.result:
+        name = add_operador_via_dialog(self, self.db)
+        if name is None:
             return
-        try:
-            self.db.add_operador(dlg.result)
-        except sqlite3.IntegrityError:
-            messagebox.showwarning("Atención", "Ese operador ya existe.")
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo agregar el operador.\n\nDetalle: {e}")
-            return
-
         self.operadores = self.db.fetch_operadores()
         self.cbo_operador["values"] = self.operadores
-        self.var_operador.set(dlg.result)
+        self.var_operador.set(name)
         self._refresh_save_state()
 
     def _set_default_operador_lote(self):
@@ -623,6 +617,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         self.var_celdas.trace_add("write", lambda *_: self._rebuild_voltage_fields())
         self.txt_obs.bind("<KeyRelease>", lambda _e: self._refresh_save_state())
+        self.var_motivo_atraso.trace_add("write", lambda *_: self._refresh_save_state())
 
     def _validate_all(self):
         n = 0
@@ -705,6 +700,10 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         lote = self.var_lote.get().strip()
         if not lote:
             return False, "Lote es obligatorio."
+
+        if self.timer_seconds_left <= 0:
+            if not self.var_motivo_atraso.get().strip():
+                return False, "ADVERTENCIA: El análisis está vencido. Indique el motivo del atraso."
 
         return True, "OK"
 
@@ -1026,7 +1025,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             "Hipoclorito - Concentración", "Hipoclorito - Exceso Soda",
             "Salmuera Salida - Temperatura", "Salmuera Salida - Concentración", "Salmuera Salida - pH",
             "Soda Salida - Concentración", "Declorinación - pH",
-            "Operador", "Lote", "Observaciones", "Creado (ISO)"
+            "Operador", "Lote", "Observaciones", "Motivo atraso", "Creado (ISO)"
         ]
         ws.append(headers)
 
@@ -1058,6 +1057,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
                 r["operador"],
                 r.get("lote", ""),
                 r.get("observaciones", ""),
+                r.get("atraso_motivo", ""),
                 r["created_at_iso"]
             ]
             ws.append(row)

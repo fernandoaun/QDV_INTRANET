@@ -147,8 +147,9 @@ class ConsumoCalendarPanel(ttk.Frame):
             {r["producto"] for r in rows},
             key=lambda s: s.lower(),
         )
-        for pname in products_in_range:
-            self.db.get_or_create_product_color(pname)
+        product_colors: Dict[str, str] = {
+            pname: self.db.get_or_create_product_color(pname) for pname in products_in_range
+        }
 
         today = date.today()
         range_start = today - timedelta(days=29)
@@ -171,7 +172,7 @@ class ConsumoCalendarPanel(ttk.Frame):
             for col in range(7):
                 if d > cal_end:
                     break
-                self._make_day_cell(grid, row, col, d, range_start, range_end, by_date)
+                self._make_day_cell(grid, row, col, d, range_start, range_end, by_date, product_colors)
                 d += timedelta(days=1)
             row += 1
 
@@ -191,7 +192,7 @@ class ConsumoCalendarPanel(ttk.Frame):
             r, col = divmod(i, max_cols)
             cell = ttk.Frame(leg_grid, style="QDV.OnCard.TFrame")
             cell.grid(row=r, column=col, sticky="w", padx=8, pady=4)
-            hex_c = self.db.get_or_create_product_color(prod)
+            hex_c = product_colors[prod]
             tk.Label(
                 cell,
                 text="●",
@@ -237,6 +238,7 @@ class ConsumoCalendarPanel(ttk.Frame):
         range_start: date,
         range_end: date,
         by_date: Dict[str, Dict[str, float]],
+        product_colors: Dict[str, str],
     ) -> None:
         c = QDV_COLORS
         in_30 = range_start <= d <= range_end
@@ -294,7 +296,7 @@ class ConsumoCalendarPanel(ttk.Frame):
             wrap.pack(anchor="s")
             wrap.bind("<Button-1>", lambda e, dd=d: self._on_day_click(dd, True))
             for pname in sorted(prods_day.keys(), key=lambda x: x.lower()):
-                hx = self.db.get_or_create_product_color(pname)
+                hx = product_colors[pname]
                 lb = tk.Label(
                     wrap,
                     text="●",

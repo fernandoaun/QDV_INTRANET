@@ -236,5 +236,9 @@ python -m flask --app run create-admin admin --password "..."
 
 ## Notas de seguridad
 
-- Los formularios de login **no** incluyen token CSRF todavía; para exposición pública ampliada conviene añadir Flask-WTF u otra protección.
+- Los envíos **POST** de formularios están protegidos con **CSRF** (Flask-WTF): cada `<form method="post">` incluye el token vía `{% include "_csrf.html" %}`. Si agregás un formulario nuevo, incluí ese fragmento dentro del formulario.
 - Las contraseñas usan `werkzeug.security` (esquema distinto al hash personalizado de la app de escritorio): usuarios migrados desde el desktop requerirán **reestablecer contraseña** o un script de migración de hashes.
+
+## Relación con la app de escritorio
+
+En el mismo repositorio, la carpeta `qdv_salmuera/` (hermana de `project_web/`) es la app **Tkinter** con **otro SQLite**. No comparte base con esta web. Para política de uso y riesgo de divergencia, ver el `README.md` en la raíz del monorepo.

@@ -8,6 +8,19 @@ from typing import Optional, List, Dict, Any, Tuple
 from qdv_salmuera.config import settings as cfg
 
 
+def _parse_voltajes_cell_list(raw: Any) -> List[Any]:
+    """Parsea voltajes_json de SQLite; nunca lanza por JSON inválido."""
+    if raw is None:
+        return []
+    if isinstance(raw, str) and not raw.strip():
+        return []
+    try:
+        v = json.loads(raw) if isinstance(raw, str) else raw
+        return v if isinstance(v, list) else []
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+
+
 def normalize_tipo_producto(tipo: Any) -> str:
     """
     Valores canónicos en DB y UI: "Filtro" o "Normal" (solo esta capitalización).
@@ -63,10 +76,8 @@ def _allocate_product_color_hex(nombre_clave: str, existing_hexes: List[str]) ->
             return _color_hex_from_hue(h)
     return _color_hex_from_hue(base_hue)
 
-# PEGAR AQUÍ: class DB completa (V4 125–581)
-# Luego ajustar cualquier referencia a DB_FILENAME por self.db_path o por el path que se pasa al constructor.
 # =========================
-# DB
+# DB — SQLite local (solo app de escritorio; ver README del repositorio)
 # =========================
 class DB:
     def __init__(self, db_path: str):
@@ -412,53 +423,6 @@ class DB:
                 )
             con.commit()
     
-    def fetch_salmuera_range(self, desde_iso: str, hasta_iso: str):
-        with self._connect() as con:
-            cur = con.cursor()
-            cur.execute("""
-                SELECT
-                    id, fecha_iso, hora_hm, electrolizador, cantidad_celdas, turno,
-                    voltajes_json, voltaje_total,
-                    amperaje, caudal_agua_l_h, caudal_salmuera_l_h,
-                    hipo_conc, hipo_exceso_soda,
-                    sal_temp, sal_conc, sal_ph,
-                    soda_conc, declor_ph,
-                    operador, COALESCE(observaciones,''), COALESCE(atraso_motivo,''),
-                    created_at_iso
-                FROM salmuera_registros
-                WHERE fecha_iso BETWEEN ? AND ?
-                ORDER BY fecha_iso ASC, hora_hm ASC, id ASC;
-            """, (desde_iso, hasta_iso))
-            rows = cur.fetchall()
-
-        out = []
-        for r in rows:
-            out.append({
-                "id": r[0],
-                "fecha_iso": r[1],
-                "hora_hm": r[2],
-                "electrolizador": r[3],
-                "cantidad_celdas": r[4],
-                "turno": r[5],
-                "voltajes_celdas": json.loads(r[6]) if r[6] else [],
-                "voltaje_total": r[7],
-                "amperaje": r[8],
-                "caudal_agua_l_h": r[9],
-                "caudal_salmuera_l_h": r[10],
-                "hipo_conc": r[11],
-                "hipo_exceso_soda": r[12],
-                "sal_temp": r[13],
-                "sal_conc": r[14],
-                "sal_ph": r[15],
-                "soda_conc": r[16],
-                "declor_ph": r[17],
-                "operador": r[18],
-                "observaciones": r[19],
-                "atraso_motivo": r[20],
-                "created_at_iso": r[21],
-            })
-        return out
-
     def fetch_last_salmuera(self):
         """Devuelve el último registro de salmuera (ORDER BY id DESC LIMIT 1) como dict."""
         with self._connect() as con:
@@ -483,7 +447,6 @@ class DB:
         if not r:
             return None
 
-        import json
         return {
             "id": r[0],
             "fecha_iso": r[1],
@@ -491,7 +454,7 @@ class DB:
             "electrolizador": r[3],
             "cantidad_celdas": r[4],
             "turno": r[5],
-            "voltajes_celdas": json.loads(r[6]) if r[6] else [],
+            "voltajes_celdas": _parse_voltajes_cell_list(r[6]),
             "voltaje_total": r[7],
             "amperaje": r[8],
             "caudal_agua_l_h": r[9],
@@ -747,7 +710,7 @@ class DB:
             "electrolizador": r[3],
             "cantidad_celdas": r[4],
             "turno": r[5],
-            "voltajes_celdas": json.loads(r[6]) if r[6] else [],
+            "voltajes_celdas": _parse_voltajes_cell_list(r[6]),
             "voltaje_total": r[7],
             "amperaje": r[8],
             "caudal_agua_l_h": r[9],
@@ -794,7 +757,7 @@ class DB:
                 "electrolizador": r[3],
                 "cantidad_celdas": r[4],
                 "turno": r[5],
-                "voltajes_celdas": json.loads(r[6]),
+                "voltajes_celdas": _parse_voltajes_cell_list(r[6]),
                 "voltaje_total": r[7],
                 "amperaje": r[8],
                 "caudal_agua_l_h": r[9],
@@ -824,15 +787,15 @@ class DB:
                     hipo_conc, hipo_exceso_soda,
                     sal_temp, sal_conc, sal_ph,
                     soda_conc, declor_ph,
-                    operador, lote, observaciones,
+                    operador, lote, observaciones, COALESCE(atraso_motivo, ''),
                     created_at_iso
                 FROM salmuera_registros
                 WHERE fecha_iso BETWEEN ? AND ?
-                ORDER BY fecha_iso ASC, id ASC;
+                ORDER BY fecha_iso ASC, hora_hm ASC, id ASC;
             """, (fecha_desde_iso, fecha_hasta_iso))
             rows = cur.fetchall()
 
-        out = []
+        out: List[Dict[str, Any]] = []
         for r in rows:
             out.append({
                 "id": r[0],
@@ -841,7 +804,7 @@ class DB:
                 "electrolizador": r[3],
                 "cantidad_celdas": r[4],
                 "turno": r[5],
-                "voltajes_celdas": json.loads(r[6]),
+                "voltajes_celdas": _parse_voltajes_cell_list(r[6]),
                 "voltaje_total": r[7],
                 "amperaje": r[8],
                 "caudal_agua_l_h": r[9],
@@ -856,7 +819,8 @@ class DB:
                 "operador": r[18],
                 "lote": r[19] or "",
                 "observaciones": r[20] or "",
-                "created_at_iso": r[21]
+                "atraso_motivo": r[21] or "",
+                "created_at_iso": r[22],
             })
         return out
 
@@ -1139,69 +1103,78 @@ class DB:
             con.commit()
 
     def get_latest_estado_columnas(self) -> Dict[int, Dict[str, Any]]:
+        def _default_col(col: int) -> Dict[str, Any]:
+            return {
+                "id": None,
+                "columna_numero": col,
+                "estado": "En operación",
+                "fecha_regeneracion": "",
+                "hora_regeneracion": "",
+                "dureza_salida_ppm": None,
+                "dureza_post_regeneracion_ppm": None,
+                "observaciones": "",
+                "created_at_iso": "",
+                "updated_at_iso": "",
+            }
+
         out: Dict[int, Dict[str, Any]] = {}
         with self._connect() as con:
             cur = con.cursor()
-            for col in (1, 2, 3):
-                cur.execute(
-                    """
-                    SELECT
-                        id, columna_numero, estado, fecha_regeneracion, hora_regeneracion,
-                        dureza_salida_ppm, dureza_post_regeneracion_ppm, observaciones,
-                        created_at_iso, updated_at_iso
+            cur.execute(
+                """
+                SELECT
+                    t.id, t.columna_numero, t.estado, t.fecha_regeneracion, t.hora_regeneracion,
+                    t.dureza_salida_ppm, t.dureza_post_regeneracion_ppm, t.observaciones,
+                    t.created_at_iso, t.updated_at_iso
+                FROM columnas_intercambio_ionico t
+                INNER JOIN (
+                    SELECT columna_numero, MAX(id) AS mid
                     FROM columnas_intercambio_ionico
-                    WHERE columna_numero = ?
-                    ORDER BY id DESC
-                    LIMIT 1;
-                    """,
-                    (col,),
-                )
-                r = cur.fetchone()
-                if r:
-                    out[col] = {
-                        "id": r[0],
-                        "columna_numero": r[1],
-                        "estado": r[2],
-                        "fecha_regeneracion": r[3] or "",
-                        "hora_regeneracion": r[4] or "",
-                        "dureza_salida_ppm": r[5],
-                        "dureza_post_regeneracion_ppm": r[6],
-                        "observaciones": r[7] or "",
-                        "created_at_iso": r[8],
-                        "updated_at_iso": r[9],
-                    }
-                cur.execute(
-                    """
-                    SELECT
-                        fecha_regeneracion, hora_regeneracion,
-                        dureza_salida_ppm, dureza_post_regeneracion_ppm
+                    WHERE columna_numero IN (1, 2, 3)
+                    GROUP BY columna_numero
+                ) AS m ON t.id = m.mid AND t.columna_numero = m.columna_numero;
+                """
+            )
+            for r in cur.fetchall():
+                col = int(r[1])
+                out[col] = {
+                    "id": r[0],
+                    "columna_numero": col,
+                    "estado": r[2],
+                    "fecha_regeneracion": r[3] or "",
+                    "hora_regeneracion": r[4] or "",
+                    "dureza_salida_ppm": r[5],
+                    "dureza_post_regeneracion_ppm": r[6],
+                    "observaciones": r[7] or "",
+                    "created_at_iso": r[8],
+                    "updated_at_iso": r[9],
+                }
+            cur.execute(
+                """
+                SELECT
+                    t.columna_numero,
+                    t.fecha_regeneracion, t.hora_regeneracion,
+                    t.dureza_salida_ppm, t.dureza_post_regeneracion_ppm
+                FROM columnas_intercambio_ionico t
+                INNER JOIN (
+                    SELECT columna_numero, MAX(id) AS mid
                     FROM columnas_intercambio_ionico
-                    WHERE columna_numero = ?
-                      AND estado = 'Regenerada'
-                    ORDER BY id DESC
-                    LIMIT 1;
-                    """,
-                    (col,),
-                )
-                last_reg = cur.fetchone()
-                if col not in out:
-                    out[col] = {
-                        "id": None,
-                        "columna_numero": col,
-                        "estado": "En operación",
-                        "fecha_regeneracion": "",
-                        "hora_regeneracion": "",
-                        "dureza_salida_ppm": None,
-                        "dureza_post_regeneracion_ppm": None,
-                        "observaciones": "",
-                        "created_at_iso": "",
-                        "updated_at_iso": "",
-                    }
-                if last_reg:
-                    out[col]["fecha_regeneracion"] = last_reg[0] or ""
-                    out[col]["hora_regeneracion"] = last_reg[1] or ""
-                    out[col]["dureza_salida_ppm"] = last_reg[2]
-                    out[col]["dureza_post_regeneracion_ppm"] = last_reg[3]
+                    WHERE columna_numero IN (1, 2, 3) AND estado = 'Regenerada'
+                    GROUP BY columna_numero
+                ) AS m ON t.id = m.mid AND t.columna_numero = m.columna_numero;
+                """
+            )
+            reg_by_col = {int(r[0]): r for r in cur.fetchall()}
+
+        for col in (1, 2, 3):
+            if col not in out:
+                out[col] = _default_col(col)
+            if col in reg_by_col:
+                lr = reg_by_col[col]
+                out[col]["fecha_regeneracion"] = lr[1] or ""
+                out[col]["hora_regeneracion"] = lr[2] or ""
+                out[col]["dureza_salida_ppm"] = lr[3]
+                out[col]["dureza_post_regeneracion_ppm"] = lr[4]
         return out
 
     def save_estado_columna(
@@ -1816,25 +1789,31 @@ class DB:
     def get_marcas_por_producto(self, categoria: str, producto: str) -> List[str]:
         cat = self._validate_categoria_stock(categoria)
         prod = (producto or "").strip()
+        if not prod:
+            return []
         with self._connect() as con:
             cur = con.cursor()
             cur.execute(
                 """
-                SELECT marca,
-                       COALESCE(SUM(cantidad), 0) AS total_ing
-                FROM ingresos_stock
-                WHERE categoria = ? AND producto = ?
-                GROUP BY marca
-                ORDER BY marca COLLATE NOCASE ASC;
+                SELECT ing.marca
+                FROM (
+                    SELECT marca, SUM(cantidad) AS t_ing
+                    FROM ingresos_stock
+                    WHERE categoria = ? AND producto = ?
+                    GROUP BY marca
+                ) AS ing
+                LEFT JOIN (
+                    SELECT marca, SUM(cantidad) AS t_con
+                    FROM consumos_stock
+                    WHERE categoria = ? AND producto = ?
+                    GROUP BY marca
+                ) AS con ON ing.marca = con.marca
+                WHERE (COALESCE(ing.t_ing, 0) - COALESCE(con.t_con, 0)) > 0
+                ORDER BY ing.marca COLLATE NOCASE ASC;
                 """,
-                (cat, prod),
+                (cat, prod, cat, prod),
             )
-            base_rows = cur.fetchall()
-            marcas = []
-            for marca, _ in base_rows:
-                if self.get_stock_actual(cat, prod, str(marca)) > 0:
-                    marcas.append(str(marca))
-        return marcas
+            return [str(r[0]) for r in cur.fetchall()]
 
     def save_consumo_stock(
         self,

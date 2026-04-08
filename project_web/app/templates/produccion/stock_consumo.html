@@ -1,39 +1,157 @@
 {% extends "base.html" %}
 {% block title %}Consumo stock · QDV{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Realizar consumo</h1>
-<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.stock_hub') }}">← Stock</a>
-<form method="get" class="row g-2 mb-4">
-  <input type="hidden" name="categoria" value="{{ categoria }}">
-  <div class="col-auto"><label class="form-label">Categoría</label>
-    <select class="form-select" name="categoria" onchange="this.form.submit()">
-      <option value="materia_prima" {% if categoria=='materia_prima' %}selected{% endif %}>Materia prima</option>
-      <option value="laboratorio" {% if categoria=='laboratorio' %}selected{% endif %}>Laboratorio</option>
-    </select></div>
-  <div class="col-md-4"><label class="form-label">Producto</label>
-    <select class="form-select" name="producto" onchange="this.form.submit()">
-      <option value="">— Elegir —</option>
-      {% for p in productos %}<option value="{{ p }}" {% if p==producto_sel %}selected{% endif %}>{{ p }}</option>{% endfor %}
-    </select></div>
-</form>
-{% if producto_sel %}
-<form method="post" class="card card-body shadow-sm row g-2">
-  <input type="hidden" name="categoria" value="{{ categoria }}">
-  <input type="hidden" name="producto" value="{{ producto_sel }}">
-  <div class="col-md-4"><label class="form-label">Marca</label>
-    <select class="form-select" name="marca" required>{% for m in marcas %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select></div>
-  <div class="col-md-2"><label class="form-label">Cantidad</label><input class="form-control" name="cantidad" type="number" step="any" required></div>
-  <div class="col-md-4"><label class="form-label">Operador</label>
-    <select class="form-select" name="operador">{% for o in operadores %}<option value="{{ o.nombre }}" {% if o.nombre == username %}selected{% endif %}>{{ o.nombre }}</option>{% endfor %}</select></div>
-  {% if is_filter %}
-  <div class="col-md-4"><label class="form-label">Equipo (filtro)</label>
-    <select class="form-select" name="equipo_id" required>
-      {% for e in equipos %}<option value="{{ e.id }}">{{ e.nombre_equipo }}</option>{% endfor %}
-    </select></div>
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Realizar consumo</h1>
+      <p class="app-intro mb-0">Primero elegí categoría y producto; al seleccionar, se abre el formulario de salida con marca, cantidad y operador.</p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>
+    </div>
+  </div>
+
+  <div class="app-card">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Selección de producto</h2>
+      <p class="app-card-desc">Los cambios en categoría o producto actualizan esta pantalla automáticamente.</p>
+    </div>
+    <div class="app-card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label" for="scCat">Categoría</label>
+          <select class="form-select" id="scCat" name="categoria" onchange="this.form.submit()">
+            <option value="materia_prima" {% if categoria=='materia_prima' %}selected{% endif %}>Materia prima</option>
+            <option value="producto_terminado" {% if categoria=='producto_terminado' %}selected{% endif %}>Producto terminado</option>
+            <option value="laboratorio" {% if categoria=='laboratorio' %}selected{% endif %}>Laboratorio</option>
+          </select>
+        </div>
+        <div class="col-md-6 col-lg-5">
+          <label class="form-label" for="scProd">Producto</label>
+          <select class="form-select" id="scProd" name="producto" onchange="this.form.submit()">
+            <option value="">— Elegir producto —</option>
+            {% for p in productos %}<option value="{{ p }}" {% if p==producto_sel %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          </select>
+        </div>
+      </form>
+      {% if not producto_sel %}
+      <p class="app-card-desc mt-3 mb-0">Seleccioná un producto para cargar el consumo.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if producto_sel %}
+  <div class="app-card">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Datos del consumo</h2>
+      <p class="app-card-desc">Producto: <strong>{{ producto_sel }}</strong> · completá cantidad y demás campos requeridos.</p>
+    </div>
+    <div class="app-card-body">
+      {% if producto_es_stockeable %}
+      <div class="alert alert-info py-2">Producto <strong>estoqueable</strong>: se valida stock disponible antes de registrar el consumo.</div>
+      {% else %}
+      <div class="alert alert-secondary py-2">Producto <strong>no estoqueable</strong>: el consumo se registra con trazabilidad sin descontar existencias.</div>
+      {% endif %}
+      <form method="post" class="row g-3" id="stockConsumoForm">
+      {% include "_csrf.html" %}
+        <input type="hidden" name="categoria" value="{{ categoria }}">
+        <input type="hidden" name="producto" value="{{ producto_sel }}">
+        <input type="hidden" id="productoRequiereEquipoFlag" value="{{ '1' if producto_requiere_equipo else '0' }}">
+        <input type="hidden" id="productoStockeableFlag" value="{{ '1' if producto_es_stockeable else '0' }}">
+        <div class="col-md-4" id="marcaSelectWrap"><label class="form-label">Marca</label>
+          <select class="form-select" name="marca" id="marcaSelect">{% for m in marcas %}<option value="{{ m }}">{{ m }}</option>{% endfor %}</select></div>
+        <div class="col-md-4 d-none" id="marcaInputWrap">
+          <label class="form-label" for="marcaInput">Marca / referencia</label>
+          <input class="form-control" id="marcaInput" name="marca" placeholder="Ej. Sin marca / N/A">
+        </div>
+        <div class="col-md-2"><label class="form-label">Cantidad</label><input class="form-control" name="cantidad" type="number" step="any" required></div>
+        <div class="col-md-4"><label class="form-label">Operador</label>
+          <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
+          <input type="hidden" name="operador" value="{{ operador_sugerido or username }}"></div>
+        <div class="col-md-4 {% if not producto_requiere_equipo %}d-none{% endif %}" id="equipoFieldWrap">
+          <label class="form-label">Equipo {% if producto_requiere_equipo %}<span class="text-danger">*</span>{% endif %}</label>
+          <select class="form-select" name="equipo_id" id="equipoField" {% if producto_requiere_equipo %}required{% endif %}>
+            <option value="">— Elegir equipo —</option>
+            {% for e in equipos %}<option value="{{ e.id }}">{{ e.nombre_equipo }}</option>{% endfor %}
+          </select>
+          <div class="form-text">Obligatorio solo para productos configurados con requerimiento de equipo.</div>
+        </div>
+        <div class="col-12"><label class="form-label">Observaciones</label><input class="form-control" name="observaciones"></div>
+        <div class="col-12 pt-1">
+          <button type="submit" class="btn btn-primary">Registrar consumo</button>
+        </div>
+      </form>
+      {% if producto_es_stockeable and not marcas %}
+      <div class="alert alert-warning mt-3 mb-0">No hay marcas con stock para este producto.</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="app-card mt-3">
+    <div class="app-card-header app-card-header--split">
+      <span>Últimos consumos del producto</span>
+      <span class="small app-text-secondary">{{ consumos_recientes|length }} registro(s)</span>
+    </div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Marca</th><th>Cantidad</th><th>Operador</th><th>Equipo</th><th>Obs.</th></tr></thead>
+        <tbody>
+          {% for r in consumos_recientes %}
+          <tr>
+            <td>{{ r.id }}</td>
+            <td>{{ r.fecha }}</td>
+            <td>{{ r.hora }}</td>
+            <td>{{ r.marca }}</td>
+            <td>{{ r.cantidad }}</td>
+            <td>{{ r.operador }}</td>
+            <td>{{ r.equipo or '-' }}</td>
+            <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-muted text-center py-3">Sin consumos para este producto.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
   {% endif %}
-  <div class="col-12"><label class="form-label">Observaciones</label><input class="form-control" name="observaciones"></div>
-  <div class="col-12"><button class="btn btn-warning">Registrar consumo</button></div>
-</form>
-{% if not marcas and producto_sel %}<p class="text-warning">No hay marcas con stock para este producto.</p>{% endif %}
-{% endif %}
+</div>
+<script>
+(() => {
+  const form = document.getElementById("stockConsumoForm");
+  const requiresFlag = document.getElementById("productoRequiereEquipoFlag");
+  const stockableFlag = document.getElementById("productoStockeableFlag");
+  const equipoWrap = document.getElementById("equipoFieldWrap");
+  const equipoField = document.getElementById("equipoField");
+  const marcaSelectWrap = document.getElementById("marcaSelectWrap");
+  const marcaInputWrap = document.getElementById("marcaInputWrap");
+  const marcaSelect = document.getElementById("marcaSelect");
+  const marcaInput = document.getElementById("marcaInput");
+  if (!form || !requiresFlag || !equipoWrap || !equipoField || !stockableFlag || !marcaSelectWrap || !marcaInputWrap) return;
+  const requiereEquipo = requiresFlag.value === "1";
+  const isStockable = stockableFlag.value === "1";
+  equipoWrap.classList.toggle("d-none", !requiereEquipo);
+  equipoField.required = requiereEquipo;
+  marcaSelectWrap.classList.toggle("d-none", !isStockable);
+  marcaInputWrap.classList.toggle("d-none", isStockable);
+  if (marcaSelect) {
+    marcaSelect.required = isStockable;
+    marcaSelect.disabled = !isStockable;
+  }
+  if (marcaInput) {
+    marcaInput.required = !isStockable;
+    marcaInput.disabled = isStockable;
+  }
+  form.addEventListener("submit", (ev) => {
+    if (requiereEquipo && !String(equipoField.value || "").trim()) {
+      ev.preventDefault();
+      alert("Este producto requiere seleccionar equipo.");
+      equipoField.focus();
+    }
+    if (!isStockable && marcaInput && !String(marcaInput.value || "").trim()) {
+      marcaInput.value = "N/A";
+    }
+  });
+})();
+</script>
 {% endblock %}

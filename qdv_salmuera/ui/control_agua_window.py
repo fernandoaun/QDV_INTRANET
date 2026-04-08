@@ -19,7 +19,8 @@ from qdv_salmuera.utils.validators import validate_float, validate_int, is_int_o
 from qdv_salmuera.utils.validators import fmt_num
 from qdv_salmuera.utils.dates import iso_to_ddmmyyyy, parse_date_ddmmyyyy, date_to_iso
 from qdv_salmuera.ui.widgets import ScrollableFrame
-from qdv_salmuera.ui.dialogs import HistorialDialog, CodigoSeguridadDialog, AddOperadorDialog
+from qdv_salmuera.ui.dialogs import HistorialDialog, CodigoSeguridadDialog
+from qdv_salmuera.ui.produccion_ui_helpers import add_operador_via_dialog, bind_excel_field_navigation
 from qdv_salmuera.ui.theme import QDV_COLORS
 from qdv_salmuera.ui.module_timer import PersistentModuleTimer, TimerConfig
 from qdv_salmuera.ui.module_labels import module_label
@@ -141,32 +142,6 @@ class ControlAguaWindow(tk.Toplevel):
             on_overdue_change=_on_overdue,
         )
         self._timer.start()
-
-    def _bind_excel_navigation(self, widgets: List[tk.Widget]) -> None:
-        """
-        ENTER -> siguiente / último -> guardar
-        SHIFT+ENTER -> anterior
-        """
-        if not widgets:
-            return
-
-        last_idx = len(widgets) - 1
-
-        for i, w in enumerate(widgets):
-            def _next(event, i=i):
-                if i < last_idx:
-                    widgets[i + 1].focus_set()
-                else:
-                    self.on_save()
-                return "break"
-
-            def _prev(event, i=i):
-                if i > 0:
-                    widgets[i - 1].focus_set()
-                return "break"
-
-            w.bind("<Return>", _next)
-            w.bind("<Shift-Return>", _prev)
 
     def _build_ui(self) -> None:
         outer = ttk.Frame(self, padding=16)
@@ -312,7 +287,7 @@ class ControlAguaWindow(tk.Toplevel):
             self.ent_dureza,
             self.txt_obs,
         ]
-        self._bind_excel_navigation(focus_order)
+        bind_excel_field_navigation(focus_order, self.on_save)
 
         # Acciones
         act = ttk.Frame(body)
@@ -589,21 +564,13 @@ class ControlAguaWindow(tk.Toplevel):
             messagebox.showerror("Estado de columnas", f"No se pudo guardar columna {columna}.\n\nDetalle: {e}")
 
     def _add_operador(self) -> None:
-        dlg = AddOperadorDialog(self)
-        self.wait_window(dlg)
-        if not dlg.result:
+        name = add_operador_via_dialog(self, self.db)
+        if name is None:
             return
-        try:
-            self.db.add_operador(dlg.result)
-        except sqlite3.IntegrityError:
-            messagebox.showwarning("Atención", "Ese operador ya existe.")
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo agregar el operador.\n\nDetalle: {e}")
-            return
-
         self.operadores = self.db.fetch_operadores()
-        self.cbo_operador["values"] = self.operadores
-        self.var_operador.set(dlg.result)
+        if self.cbo_operador is not None:
+            self.cbo_operador["values"] = self.operadores
+        self.var_operador.set(name)
 
     def _validate_all(self) -> Tuple[bool, str]:
         op = (self.var_operador.get() or "").strip()

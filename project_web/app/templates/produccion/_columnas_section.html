@@ -1,0 +1,58 @@
+<section id="columnas" class="mt-4" aria-labelledby="columnas-heading">
+  <h2 id="columnas-heading" class="h5 mb-3">Columnas de intercambio iónico</h2>
+  <div class="row g-3 mb-4">
+    {% for col in [1,2,3] %}
+    {% set est = columnas_latest[col].estado %}
+    <div class="col-md-4">
+      <div class="app-stat-card h-100{% if est == 'Por Regenerar' %} app-columna-estado--danger{% elif est == 'Regenerada' %} app-columna-estado--warn{% elif est == 'En operación' %} app-columna-estado--ok{% endif %}">
+        <div class="app-card-header">Columna {{ col }}</div>
+        <div class="app-card-body small app-columna-estado-body">
+          <p class="mb-2"><strong>Estado:</strong> {{ columnas_latest[col].estado }}</p>
+          <p class="mb-2"><strong>Regeneración:</strong> {{ columnas_latest[col].fecha_regeneracion }} {{ columnas_latest[col].hora_regeneracion }}</p>
+          {% if columnas_latest[col].dureza_salida_ppm is not none %}
+          <p class="mb-1"><strong>Dureza salida:</strong> {{ columnas_latest[col].dureza_salida_ppm }} ppm</p>
+          {% endif %}
+          {% if columnas_latest[col].dureza_post_regeneracion_ppm is not none %}
+          <p class="mb-1"><strong>Dureza post reg.:</strong> {{ columnas_latest[col].dureza_post_regeneracion_ppm }} ppm</p>
+          {% endif %}
+          {% if columnas_latest[col].observaciones %}
+          <p class="mb-0 text-muted"><strong>Obs.:</strong> {{ columnas_latest[col].observaciones }}</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="app-card">
+    <div class="app-card-header">Registrar nuevo estado</div>
+    <div class="app-card-body">
+      <form method="post" class="row g-2">
+      {% include "_csrf.html" %}
+        <input type="hidden" name="form_action" value="columnas_estado">
+        <input type="hidden" name="fecha" value="{{ fecha }}">
+        <div class="col-md-2"><label class="form-label">Columna</label>
+          <select class="form-select" name="columna_numero"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></div>
+        <div class="col-md-3"><label class="form-label">Estado</label>
+          <select class="form-select" name="estado">
+            <option value="En operación">En operación</option>
+            <option value="Regenerada">Regenerada</option>
+            <option value="Por Regenerar">Por Regenerar</option>
+          </select></div>
+        <div class="col-md-2">
+          <label class="form-label">Fecha reg. (dd/mm/yyyy)</label>
+          <input class="form-control" value="{{ columnas_reg_fecha }}" readonly aria-readonly="true">
+          <input type="hidden" name="fecha_regeneracion" value="{{ columnas_reg_fecha }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Hora reg.</label>
+          <input class="form-control" value="{{ columnas_reg_hora }}" readonly aria-readonly="true">
+          <input type="hidden" name="hora_regeneracion" value="{{ columnas_reg_hora }}">
+        </div>
+        <div class="col-md-2"><label class="form-label">Dureza salida ppm</label><input class="form-control" name="dureza_salida_ppm"></div>
+        <div class="col-md-2"><label class="form-label">Dureza post reg. ppm</label><input class="form-control" name="dureza_post_regeneracion_ppm"></div>
+        <div class="col-12"><label class="form-label">Observaciones</label><input class="form-control" name="observaciones"></div>
+        <div class="col-12"><button type="submit" class="btn btn-primary">Guardar estado de columna</button></div>
+      </form>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Gestión de entregas · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Entregas</h1>
+    <p class="app-intro mb-0">Tabla operativa. Las acciones críticas piden confirmación y se validan en el servidor.</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.hub') }}">← Hub</a>
+    {% if user_can_entregas_programar() %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('entregas.nueva') }}">+ Programar</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Listado</span>
+    <span class="small app-text-secondary">{{ entregas|length }} registro(s)</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Lugar</th>
+          <th>Producto</th>
+          <th class="text-end">Litros</th>
+          <th>F. prevista</th>
+          <th>Estado</th>
+          <th>Chofer / resp.</th>
+          <th>Obs.</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entregas %}
+        {% set st = e.estado or '' %}
+        <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
+          <td><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
+          <td>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
+          <td>{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
+          <td class="text-end">{{ e.cantidad }}</td>
+          <td>{{ e.fecha_prevista }}</td>
+          <td>
+            {% if st == 'programada' %}
+            <span class="badge rounded-pill text-bg-secondary">Programada</span>
+            {% elif st == 'cargada' %}
+            <span class="badge rounded-pill text-bg-warning text-dark">Cargada</span>
+            {% else %}
+            <span class="badge rounded-pill text-bg-success">Entregada</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if st == 'entregada' and e.entregada_chofer_nombre %}
+            {{ e.entregada_chofer_nombre }}
+            {% elif e.chofer_previsto %}
+            {{ e.chofer_previsto }}
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="small text-truncate" style="max-width:8rem;" title="{{ e.observaciones or '' }}">{{ (e.observaciones or '')[:40] }}{% if e.observaciones and e.observaciones|length > 40 %}…{% endif %}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entregas.historial', eid=e.id) }}" title="Historial"><i class="bi bi-clock-history" aria-hidden="true"></i></a>
+            {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Editar</a>
+            {% endif %}
+            {% if user_can_entregas_cargar() and st == 'programada' %}
+            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalCargar{{ e.id }}">Cargar</button>
+            {% endif %}
+            {% if user_can_entregas_entregar() and st != 'entregada' %}
+              {% if e.producto|es_hipoclorito_entrega and st != 'cargada' %}
+              {# hipoclorito exige carga previa #}
+              {% else %}
+            <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalEntregar{{ e.id }}">Entregado</button>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas cargadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% for e in entregas %}
+{% if user_can_entregas_cargar() and (e.estado or '') == 'programada' %}
+<div class="modal fade" id="modalCargar{{ e.id }}" tabindex="-1" aria-labelledby="mc{{ e.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="mc{{ e.id }}">Confirmar carga</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">¿Confirmás que la entrega fue <strong>cargada</strong> en el camión?</p>
+        <p class="small app-text-secondary mt-2 mb-0">{{ e.cliente }} · {% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} · {{ e.cantidad }} L</p>
+        {% if e.producto|es_hipoclorito_entrega %}
+        <p class="small text-danger mt-2 mb-0">Se registrará un <strong>consumo de stock</strong> del producto <strong>{{ hipoclorito_nombre_catalogo }}</strong> con marca fija <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> (trazabilidad; mismo tope operativo que el Panel). Fecha y hora de esta confirmación.</p>
+        {% endif %}
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form method="post" action="{{ url_for('entregas.gestion') }}" class="d-inline">
+        {% include "_csrf.html" %}
+          <input type="hidden" name="action" value="cargar">
+          <input type="hidden" name="entrega_id" value="{{ e.id }}">
+          <input type="hidden" name="confirm" value="1">
+          <button type="submit" class="btn btn-warning">Sí, cargada</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% if user_can_entregas_entregar() and (e.estado or '') != 'entregada' %}
+  {% set puede_ent = (e.estado or '') == 'cargada' or not (e.producto|es_hipoclorito_entrega) %}
+  {% if puede_ent %}
+<div class="modal fade" id="modalEntregar{{ e.id }}" tabindex="-1" aria-labelledby="me{{ e.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="me{{ e.id }}">Confirmar entrega</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0">¿Confirmás que la entrega fue <strong>entregada</strong> al cliente?</p>
+        <p class="small app-text-secondary mt-2 mb-0">Lugar: <strong>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</strong>. Fecha y hora del registro serán las del momento en que confirmes. El responsable se registrará como <strong>{{ nav_user.nombre_completo or nav_user.username }}</strong>.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <form method="post" action="{{ url_for('entregas.gestion') }}" class="d-inline">
+        {% include "_csrf.html" %}
+          <input type="hidden" name="action" value="entregar">
+          <input type="hidden" name="entrega_id" value="{{ e.id }}">
+          <input type="hidden" name="confirm" value="1">
+          <button type="submit" class="btn btn-success">Sí, entregada</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+  {% endif %}
+{% endif %}
+{% endfor %}
+{% endblock %}

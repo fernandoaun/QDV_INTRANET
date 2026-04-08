@@ -1,51 +1,108 @@
 {% extends "base.html" %}
 {% block title %}Editar {{ edit_user.username }}{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Usuario: {{ edit_user.username }}</h1>
-<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('admin_users.list_users') }}">← Lista</a>
+<div class="app-page-head">
+  <h1 class="app-page-title">Usuario: {{ edit_user.username }}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_users.list_users') }}">← Lista</a>
+  </div>
+</div>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Datos y permisos</div>
-  <div class="card-body">
+<div class="app-card mb-4">
+  <div class="app-card-header">Datos y permisos</div>
+  <div class="app-card-body">
     <form method="post">
+    {% include "_csrf.html" %}
       <input type="hidden" name="action" value="core">
       <div class="mb-2"><label class="form-label">Nombre de usuario</label>
         <input class="form-control" name="username" value="{{ edit_user.username }}" required></div>
-      <div class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_admin" value="1" id="adm" {% if edit_user.is_admin %}checked{% endif %}>
-        <label class="form-check-label" for="adm">Administrador (tiene todos los permisos)</label></div>
+      <div class="mb-2"><label class="form-label">Nombre completo</label>
+        <input class="form-control" name="nombre_completo" value="{{ edit_user.nombre_completo or '' }}" placeholder="Opcional"></div>
+      <div class="mb-3">
+        <label class="form-label" for="userRol">Perfil</label>
+        <select class="form-select" name="rol" id="userRol" required>
+          {% for rk in user_roles_ordered %}
+          <option value="{{ rk }}" {% if (edit_user.rol or 'operaciones') == rk %}selected{% endif %}>{{ role_labels[rk] }}</option>
+          {% endfor %}
+        </select>
+        <p class="form-text small mb-0"><strong>Laboratorista</strong> no ingresa al sistema (login bloqueado): en planta acompaña al operador responsable. <strong>Administrador</strong> tiene acceso total (sin tabla de permisos).</p>
+      </div>
       <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="activo" value="1" id="act" {% if edit_user.activo %}checked{% endif %}>
         <label class="form-check-label" for="act">Activo</label></div>
       {% if not edit_user.is_admin %}
-      <p class="small text-muted">Permisos (solo si no es admin):</p>
-      <div class="row">
-        {% for k in permission_keys %}
-        <div class="col-md-6"><div class="form-check">
-          <input class="form-check-input" type="checkbox" name="perm_{{ k }}" value="1" id="p{{ loop.index }}" {% if k in perms_set %}checked{% endif %}>
-          <label class="form-check-label" for="p{{ loop.index }}">{{ permission_labels.get(k, k) }}</label>
-        </div></div>
-        {% endfor %}
+      {% if hide_perm_grid %}
+      <p class="small app-text-secondary mb-0">Este perfil no usa permisos en el panel (sin acceso web).</p>
+      {% else %}
+      <p class="small app-text-secondary">Permisos <strong>efectivos</strong> (plantilla del perfil más lo guardado aquí). Desmarcar un ítem que trae el perfil lo revoca para este usuario. Guardá para aplicar.</p>
+      <div class="table-responsive app-table-scroll">
+        <table class="table table-app table-compact mb-0 align-middle">
+          <thead><tr><th>Recurso</th><th>Ver</th><th>Editar</th></tr></thead>
+          <tbody>
+            {% for g in permission_tree %}
+            {% set gkey = g.key %}
+            {% set rowid = 'grp_' ~ loop.index %}
+            <tr>
+              <td><strong>{{ g.label }}</strong></td>
+              <td>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="permv_{{ gkey }}" value="1" id="{{ rowid }}_v" {% if gkey in perms_set %}checked{% endif %}>
+                  <label class="form-check-label small" for="{{ rowid }}_v">ver</label>
+                </div>
+              </td>
+              <td>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="perme_{{ gkey }}" value="1" id="{{ rowid }}_e" {% if gkey in perms_edit_set %}checked{% endif %}>
+                  <label class="form-check-label small" for="{{ rowid }}_e">editar</label>
+                </div>
+              </td>
+            </tr>
+            {% for c in g.children %}
+            {% set ckey = c.key %}
+            {% set cid = rowid ~ '_c' ~ loop.index %}
+            <tr>
+              <td class="ps-4">{{ c.label }}</td>
+              <td>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="permv_{{ ckey }}" value="1" id="{{ cid }}_v" {% if ckey in perms_set %}checked{% endif %}>
+                  <label class="form-check-label small" for="{{ cid }}_v">ver</label>
+                </div>
+              </td>
+              <td>
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="perme_{{ ckey }}" value="1" id="{{ cid }}_e" {% if ckey in perms_edit_set %}checked{% endif %}>
+                  <label class="form-check-label small" for="{{ cid }}_e">editar</label>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
+      {% endif %}
       {% endif %}
       <button type="submit" class="btn btn-primary mt-3">Guardar</button>
     </form>
   </div>
 </div>
 
-<div class="card shadow-sm mb-4">
-  <div class="card-header">Cambiar contraseña</div>
-  <div class="card-body">
+<div class="app-card mb-4">
+  <div class="app-card-header">Cambiar contraseña</div>
+  <div class="app-card-body">
     <form method="post" class="row g-2">
+    {% include "_csrf.html" %}
       <input type="hidden" name="action" value="password">
       <div class="col-md-4"><input type="password" class="form-control" name="password" placeholder="Nueva clave" required></div>
       <div class="col-md-4"><input type="password" class="form-control" name="password2" placeholder="Repetir" required></div>
-      <div class="col-12"><button class="btn btn-warning">Actualizar contraseña</button></div>
+      <div class="col-12"><button type="submit" class="btn btn-primary">Actualizar contraseña</button></div>
     </form>
   </div>
 </div>
 
 {% if edit_user.id != nav_user.id %}
 <form method="post" action="{{ url_for('admin_users.delete_user', uid=edit_user.id) }}" onsubmit="return confirm('¿Eliminar usuario?');">
-  <button class="btn btn-outline-danger">Eliminar usuario</button>
+{% include "_csrf.html" %}
+  <button type="submit" class="btn btn-outline-danger">Eliminar usuario</button>
 </form>
 {% endif %}
 {% endblock %}

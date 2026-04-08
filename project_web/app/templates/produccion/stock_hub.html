@@ -1,16 +1,71 @@
 {% extends "base.html" %}
 {% block title %}Stock · QDV{% endblock %}
 {% block content %}
-<h1 class="h4 mb-4">Stock y consumos</h1>
-<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.hub') }}">← Producción</a>
-<div class="list-group">
-  {% if user_can('bolson_registro') %}
-  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_ingreso') }}">Ingreso de stock</a>
-  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_ver', categoria='materia_prima') }}">Ver stock materia prima</a>
-  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_ver', categoria='laboratorio') }}">Ver stock laboratorio</a>
-  {% endif %}
-  {% if user_can('bolson_carga') %}
-  <a class="list-group-item list-group-item-action" href="{{ url_for('produccion.stock_consumo', categoria='materia_prima') }}">Realizar consumo</a>
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Stock y consumos</h1>
+      <p class="app-intro mb-0">Ingreso de materiales, consulta de existencias y registro de consumos. Misma estética que el resto de Producción.</p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+    </div>
+  </div>
+  <div class="app-module-grid" role="navigation" aria-label="Acciones de stock y consumos">
+    {% if user_can_stock_ingreso_mp %}
+    <a class="app-module-card app-module-card--featured" href="{{ url_for('produccion.stock_ingreso', categoria='materia_prima') }}">
+      <h2>Ingreso de materias primas</h2>
+      <p>Registrar entradas, lotes, vencimientos y cantidades.</p>
+    </a>
+    {% endif %}
+    {% if user_can_stock_ingreso_lab %}
+    <a class="app-module-card" href="{{ url_for('produccion.stock_ingreso', categoria='laboratorio') }}">
+      <h2>Ingreso de laboratorio</h2>
+      <p>Registrar entradas de productos de laboratorio.</p>
+    </a>
+    {% endif %}
+    {% if user_can_stock_existencias %}
+    <a class="app-module-card" href="{{ url_for('produccion.stock_ver', categoria='todas') }}">
+      <h2>Existencias</h2>
+      <p>Listado consolidado de materias primas y laboratorio.</p>
+    </a>
+    {% endif %}
+    {% if user_can_stock_consumos %}
+    <a class="app-module-card {% if not user_can_stock_ingreso_mp and not user_can_stock_ingreso_lab %}app-module-card--featured{% endif %}" href="{{ url_for('produccion.stock_consumo', categoria='materia_prima') }}">
+      <h2>Consumos</h2>
+      <p>Registrar salida de producto y observaciones.</p>
+    </a>
+    {% endif %}
+  </div>
+  {% if user_can_stock_historial %}
+  <div class="app-card mt-3">
+    <div class="app-card-header app-card-header--split">
+      <span>Consumos recientes</span>
+      <span class="small app-text-secondary">Últimos 30 días · {{ consumos_30d|length }} registro(s)</span>
+    </div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Categoría</th><th>Producto</th><th>Marca</th><th>Cantidad</th><th>Equipo</th><th>Operador</th><th>Obs.</th></tr></thead>
+        <tbody>
+          {% for r in consumos_30d %}
+          <tr>
+            <td>{{ r.fecha }}</td>
+            <td>{{ r.hora }}</td>
+            <td>{% if r.categoria == 'materia_prima' %}Materia prima{% elif r.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
+            <td>{{ r.producto }}</td>
+            <td>{{ r.marca }}</td>
+            <td>{{ r.cantidad }}</td>
+            <td>{{ r.equipo or '-' }}</td>
+            <td>{{ r.operador }}</td>
+            <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-muted text-center py-3">Sin consumos en los últimos 30 días.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

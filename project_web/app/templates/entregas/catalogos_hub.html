@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Catálogos entregas · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Catálogos · Entregas</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.hub') }}">← Hub Entregas</a>
+  </div>
+</div>
+<p class="app-intro">Solo administradores. Los datos se usan en el formulario de programación de entregas.</p>
+<div class="app-module-grid">
+  <a class="app-module-card" href="{{ url_for('entregas.catalogos_productos') }}">
+    <h2>Productos terminados</h2>
+    <p>Nombre comercial y vínculo al producto en stock.</p>
+  </a>
+  <a class="app-module-card" href="{{ url_for('entregas.catalogos_clientes') }}">
+    <h2>Clientes</h2>
+    <p>Destinatarios de entregas.</p>
+  </a>
+  <a class="app-module-card" href="{{ url_for('entregas.catalogos_lugares') }}">
+    <h2>Lugares de entrega</h2>
+    <p>Cada lugar pertenece a un cliente.</p>
+  </a>
+  <a class="app-module-card" href="{{ url_for('entregas.catalogos_choferes') }}">
+    <h2>Choferes</h2>
+    <p>Conductores previstos u operativos.</p>
+  </a>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Entrega de turno · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Entrega de turno</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
+  </div>
+</div>
+<p class="small app-text-secondary">Turno iniciado: <strong>{{ shift_session.started_at_iso }}</strong>. Operador de turno: <strong>{{ shift_session|shift_operator_display }}</strong>. Revisá consumos y avisos antes de confirmar.</p>
+
+<form method="post" class="mb-4">
+{% include "_csrf.html" %}
+  {% if from_logout %}
+  <input type="hidden" name="from_logout" value="1">
+  <input type="hidden" name="after_logout" value="1">
+  {% endif %}
+
+  <div class="app-card mb-3">
+    <div class="app-card-header">Consumos en este turno</div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead>
+          <tr>
+            <th>Fecha / hora reg.</th>
+            <th>Producto</th>
+            <th>Cantidad</th>
+            <th>Unidad</th>
+            <th>Equipo</th>
+            <th>Operador</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in consumos %}
+          <tr>
+            <td>{{ c.created_at_iso }}</td>
+            <td>{{ c.producto }}</td>
+            <td>{{ c.cantidad }}</td>
+            <td>{{ c.unidad or '—' }}</td>
+            <td>{{ c.equipo }}</td>
+            <td>{{ c.operador }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-muted text-center py-3">Sin consumos en este intervalo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="app-card-body"><p class="note-muted mb-0">Se listan todos los consumos de stock registrados en el período (alcance de planta; la columna operador indica quién cargó).</p></div>
+  </div>
+
+  <div class="app-card mb-3">
+    <div class="app-card-header">Avisos en tus registros</div>
+    <div class="app-card-body">
+      {% if warn_items %}
+      {% for w in warn_items %}
+      <div class="mb-3 pb-3 border-bottom">
+        <div class="d-flex flex-wrap gap-2 align-items-baseline mb-1">
+          <span class="badge text-bg-light border">{{ w.origin_display }}</span>
+          <span class="small text-muted">Fecha registro: <strong>{{ w.record_fecha_iso }}</strong> · Hora: <strong>{{ w.record_hora_hm }}</strong></span>
+          {% if w.record_created_at_iso %}
+          <span class="small text-muted">· Alta sistema: <strong>{{ w.record_created_at_iso }}</strong></span>
+          {% endif %}
+        </div>
+        <div class="small text-muted mb-1">{{ w.record_label }}</div>
+        <div class="fw-semibold">{{ w.warning_message }}</div>
+        <label class="form-label small mt-2">Acción tomada <span class="text-danger">*</span></label>
+        <textarea class="form-control" name="action_{{ w.source_type }}_{{ w.source_record_id }}_{{ w.warning_index }}" rows="2" required></textarea>
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="text-muted mb-0">No hay avisos operativos en tus registros de este turno.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="app-card mb-3">
+    <div class="app-card-header">Cierre</div>
+    <div class="app-card-body row g-2">
+      <div class="col-md-4">
+        <label class="form-label">Stock final hipoclorito (L) <span class="text-danger">*</span></label>
+        <input class="form-control" name="hypochlorite_stock_liters" type="text" inputmode="decimal" required placeholder="litros">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Observaciones generales (opcional)</label>
+        <input class="form-control" name="closing_notes" placeholder="Novedades de planta, equipos, etc.">
+      </div>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary">Confirmar entrega de turno</button>
+  {% if from_logout %}
+  <p class="note-muted mt-2 mb-0">Al confirmar se cerrará tu sesión.</p>
+  {% endif %}
+</form>
+{% endblock %}

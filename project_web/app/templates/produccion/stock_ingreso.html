@@ -1,18 +1,120 @@
 {% extends "base.html" %}
 {% block title %}Ingreso stock · QDV{% endblock %}
 {% block content %}
-<h1 class="h4 mb-3">Ingreso de stock</h1>
-<a class="btn btn-outline-secondary btn-sm mb-3" href="{{ url_for('produccion.stock_hub') }}">← Stock</a>
-<form method="post" class="card card-body shadow-sm row g-2">
-  <div class="col-md-3"><label class="form-label">Categoría</label>
-    <select class="form-select" name="categoria"><option value="materia_prima">Materia prima</option><option value="laboratorio">Laboratorio</option></select></div>
-  <div class="col-md-3"><label class="form-label">Producto</label><input class="form-control" name="producto" required></div>
-  <div class="col-md-3"><label class="form-label">Marca</label><input class="form-control" name="marca" required></div>
-  <div class="col-md-3"><label class="form-label">Vencimiento</label><input class="form-control" name="vencimiento" required></div>
-  <div class="col-md-3"><label class="form-label">Lote</label><input class="form-control" name="lote" required></div>
-  <div class="col-md-2"><label class="form-label">Cantidad</label><input class="form-control" name="cantidad" type="number" step="any" required></div>
-  <div class="col-md-4"><label class="form-label">Operador</label>
-    <select class="form-select" name="operador">{% for o in operadores %}<option value="{{ o.nombre }}" {% if o.nombre == username %}selected{% endif %}>{{ o.nombre }}</option>{% endfor %}</select></div>
-  <div class="col-12"><button class="btn btn-success">Guardar ingreso</button></div>
-</form>
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Ingreso de stock</h1>
+      <p class="app-intro mb-0">Completá los datos del lote. Fecha, hora y operador se sugieren automáticamente (podés ajustar fecha y hora). La cantidad solo aplica a productos estoqueables.</p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>
+    </div>
+  </div>
+
+  <div class="app-card">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Formulario de ingreso</h2>
+      <p class="app-card-desc">Categoría, producto, marca, vencimiento, lote, fecha y hora del ingreso, cantidad (si estoqueable) y operador.</p>
+    </div>
+    <div class="app-card-body">
+      <form method="post" class="row g-3">
+      {% include "_csrf.html" %}
+        <div class="col-md-3"><label class="form-label">Categoría</label>
+          <select class="form-select" name="categoria">
+            {% if 'materia_prima' in categorias_habilitadas %}
+            <option value="materia_prima" {% if categoria_sel=='materia_prima' %}selected{% endif %}>Materia prima</option>
+            {% endif %}
+            {% if 'producto_terminado' in categorias_habilitadas %}
+            <option value="producto_terminado" {% if categoria_sel=='producto_terminado' %}selected{% endif %}>Producto terminado</option>
+            {% endif %}
+            {% if 'laboratorio' in categorias_habilitadas %}
+            <option value="laboratorio" {% if categoria_sel=='laboratorio' %}selected{% endif %}>Laboratorio</option>
+            {% endif %}
+          </select></div>
+        <div class="col-md-3"><label class="form-label">Producto</label><input class="form-control" name="producto" required></div>
+        <div class="col-md-3"><label class="form-label">Marca</label><input class="form-control" name="marca" required></div>
+        <div class="col-md-3"><label class="form-label">Vencimiento</label><input class="form-control" name="vencimiento" required></div>
+        <div class="col-md-3"><label class="form-label">Lote</label><input class="form-control" name="lote" required></div>
+        <div class="col-md-3"><label class="form-label" for="fechaIngresoStock">Fecha del ingreso</label>
+          <input class="form-control" id="fechaIngresoStock" name="fecha_ingreso" type="date" value="{{ default_fecha_ingreso }}"></div>
+        <div class="col-md-2"><label class="form-label" for="horaIngresoStock">Hora</label>
+          <input class="form-control" id="horaIngresoStock" name="hora_ingreso" type="time" value="{{ default_hora_ingreso }}"></div>
+        <div class="col-md-2" id="cantidadCantStockWrap"><label class="form-label">Cantidad</label>
+          <input class="form-control" id="cantidadIngreso" name="cantidad" type="number" step="any" min="0" autocomplete="off"></div>
+        <div class="col-md-3">
+          <label class="form-label" for="isStockableSel">Stock del producto</label>
+          <select class="form-select" id="isStockableSel" name="is_stockable">
+            <option value="1" selected>Estoqueable</option>
+            <option value="0">No estoqueable</option>
+          </select>
+          <div class="form-text">Si es no estoqueable, se permitirá consumo trazable sin descontar existencias.</div>
+        </div>
+        <div class="col-md-4"><label class="form-label">Operador</label>
+          <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
+          <input type="hidden" name="operador" value="{{ operador_sugerido or username }}"></div>
+        <div class="col-md-6">
+          <label class="form-label d-block mb-1">Configuración de consumo</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="reqEquipoChk" name="requiere_equipo" value="1">
+            <label class="form-check-label" for="reqEquipoChk">Este producto requiere seleccionar equipo al registrar consumo</label>
+          </div>
+          <div class="form-text">Aplicable al producto de esta categoría. Si lo desmarcás, el equipo no será obligatorio (excepto productos históricos tipo Filtro).</div>
+        </div>
+        {% if is_admin %}
+        <div class="col-md-3" id="stockMinWrap">
+          <label class="form-label">Stock mínimo de alerta</label>
+          <input class="form-control" name="stock_minimo_alerta" type="number" step="any" min="0" placeholder="Ej: 10">
+          <div class="form-text">Solo admin. Se alerta cuando stock actual &lt;= este valor.</div>
+        </div>
+        {% else %}
+        <div class="col-md-3">
+          <label class="form-label">Stock mínimo de alerta</label>
+          <input class="form-control" value="Solo administradores" readonly aria-readonly="true">
+        </div>
+        {% endif %}
+        <div class="col-12 pt-1">
+          <button type="submit" class="btn btn-primary">Guardar ingreso</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const catSel = document.querySelector('select[name="categoria"]');
+  const stockableSel = document.getElementById("isStockableSel");
+  const stockMinWrap = document.getElementById("stockMinWrap");
+  const cantidadWrap = document.getElementById("cantidadCantStockWrap");
+  const cantidadInput = document.getElementById("cantidadIngreso");
+  if (!catSel || !stockableSel) return;
+
+  function sync() {
+    const isMateriaPrima = (catSel.value || "") === "materia_prima";
+    const isStockable = (stockableSel.value || "1") === "1";
+    stockableSel.disabled = !isMateriaPrima;
+    if (!isMateriaPrima) {
+      stockableSel.value = "1";
+    }
+    if (stockMinWrap) {
+      stockMinWrap.classList.toggle("d-none", !isStockable || !isMateriaPrima);
+    }
+    const needCantidad = !isMateriaPrima || isStockable;
+    if (cantidadWrap && cantidadInput) {
+      cantidadWrap.classList.toggle("d-none", !needCantidad);
+      cantidadInput.disabled = !needCantidad;
+      cantidadInput.required = needCantidad;
+      if (!needCantidad) {
+        cantidadInput.value = "";
+      }
+    }
+  }
+
+  catSel.addEventListener("change", sync);
+  stockableSel.addEventListener("change", sync);
+  sync();
+})();
+</script>
 {% endblock %}

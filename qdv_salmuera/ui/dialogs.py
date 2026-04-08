@@ -3,13 +3,7 @@ from tkinter import ttk, messagebox
 
 from qdv_salmuera.utils.dates import parse_date_ddmmyyyy
 
-# PEGAR AQUÍ:
-# - class HistorialDialog (V4 905–961)
-# - class CodigoSeguridadDialog (V4 962–996)
-# - class AddOperadorDialog (V4 997–1036)
-# =========================
-# Dialogs
-# =========================
+
 class HistorialDialog(tk.Toplevel):
     def __init__(self, master, default_desde: str, default_hasta: str):
         super().__init__(master)
@@ -133,42 +127,7 @@ class AddOperadorDialog(tk.Toplevel):
             return
         self.result = name
         self.destroy()
-    
 
     def _cancel(self):
         self.result = None
         self.destroy()
-
-class MotivoAtrasoDialog(tk.Toplevel):
-    def __init__(self, master, title="Análisis vencido"):
-        super().__init__(master)
-        self.title(title)
-        self.resizable(False, False)
-        self.result = None
-
-        frm = ttk.Frame(self, padding=14)
-        frm.pack(fill="both", expand=True)
-
-        ttk.Label(frm, text="El análisis está vencido (pasaron 2 horas).\nIndique el motivo del atraso:")\
-            .grid(row=0, column=0, sticky="w", pady=(0, 10))
-
-        self.var = tk.StringVar()
-        self.entry = ttk.Entry(frm, textvariable=self.var, width=60)
-        self.entry.grid(row=1, column=0, sticky="w", pady=(0, 10))
-
-        btns = ttk.Frame(frm)
-        btns.grid(row=2, column=0, sticky="e")
-
-        ttk.Button(btns, text="Confirmar", command=self._ok).pack(side="right")
-
-        self.grab_set()
-        self.entry.focus_set()
-
-    def _ok(self):
-        val = self.var.get().strip()
-        if not val:
-            messagebox.showerror("Falta motivo", "Debe indicar el motivo del atraso para continuar.")
-            return
-        self.result = val
-        self.destroy()
-

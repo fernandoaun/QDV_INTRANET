@@ -3,48 +3,423 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="manifest" href="{{ url_for('static', filename='pwa/site.webmanifest') }}">
   <title>{% block title %}QDV Salmuera{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
 </head>
-<body class="bg-light">
-  <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-    <div class="container">
-      <a class="navbar-brand" href="{{ url_for('main.index') }}">Química del Valle</a>
-      <div class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
-        {% if nav_user %}
-        {% if user_can('produccion') %}
-        <a class="nav-link text-white" href="{{ url_for('produccion.hub') }}">Producción</a>
+{% set ep = request.endpoint %}
+<body class="app-body {% if nav_user %}app-body--auth{% else %}app-body--guest{% endif %}">
+{% if nav_user %}
+<div class="app-shell" id="appShell">
+  <div class="app-sidebar-backdrop" id="appSidebarBackdrop" aria-hidden="true"></div>
+  <aside class="app-sidebar" id="appSidebar" aria-label="Navegación principal">
+    <a class="app-sidebar-brand" href="{{ url_for('main.dashboard') }}" title="Panel">QDV</a>
+    <nav class="app-sidebar-nav">
+      <ul>
+        <li>
+          <a href="{{ url_for('main.index') }}" class="app-sidenav-link {% if ep == 'main.index' %}is-active{% endif %}"
+             data-filter-text="inicio web principal" title="Inicio"><i class="bi bi-house" aria-hidden="true"></i></a>
+        </li>
+        <li>
+          <a href="{{ url_for('main.dashboard') }}" class="app-sidenav-link {% if ep == 'main.dashboard' %}is-active{% endif %}"
+             data-filter-text="panel dashboard" title="Panel"><i class="bi bi-speedometer2" aria-hidden="true"></i></a>
+        </li>
+        {% if user_can_production_hub %}
+        <li>
+          <a href="{{ url_for('produccion.hub') }}"
+             class="app-sidenav-link {% if ep and ep.startswith('produccion.') %}is-active{% endif %}"
+             data-filter-text="producción produccion hipoclorito salmuera agua stock reactor gráficos reactivos laboratorio circuito intercambio iónico"
+             title="PRODUCCIÓN — módulos operativos"><i class="bi bi-grid-1x2" aria-hidden="true"></i></a>
+        </li>
+        {% endif %}
+        {% if user_can_entregas_hub %}
+        <li>
+          <a href="{{ url_for('entregas.hub') }}"
+             class="app-sidenav-link {% if ep and ep.startswith('entregas.') %}is-active{% endif %}"
+             data-filter-text="entregas entrega camión despacho logística"
+             title="ENTREGAS — programación y seguimiento"><i class="bi bi-truck" aria-hidden="true"></i></a>
+        </li>
         {% endif %}
         {% if nav_user.is_admin %}
-        <a class="nav-link text-white" href="{{ url_for('admin_users.list_users') }}">Usuarios</a>
-        <a class="nav-link text-white" href="{{ url_for('admin_users.equipos_list') }}">Equipos</a>
+        <li>
+          <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
+             data-filter-text="equipos" title="Equipos"><i class="bi bi-cpu" aria-hidden="true"></i></a>
+        </li>
         {% endif %}
-        <a class="nav-link text-white" href="{{ url_for('main.dashboard') }}">Panel</a>
-        <form method="post" action="{{ url_for('auth.logout') }}" class="d-inline">
-          <button type="submit" class="btn btn-link nav-link text-white m-0 p-0 border-0">Salir</button>
-        </form>
-        {% else %}
-        <a class="nav-link text-white" href="{{ url_for('auth.login') }}">Ingresar</a>
+      </ul>
+    </nav>
+  </aside>
+  <div class="app-wrap">
+    <header class="app-topbar">
+      <button type="button" class="app-topbar-menu" id="appSidebarToggle" aria-label="Abrir menú">
+        <i class="bi bi-list fs-4"></i>
+      </button>
+      <div class="app-topbar-search-wrap">
+        <label class="visually-hidden" for="appNavFilter">Filtrar ítems del menú lateral</label>
+        <input type="search" id="appNavFilter" class="app-topbar-search" placeholder="Filtrar menú lateral…" autocomplete="off">
+      </div>
+      <div class="app-topbar-end d-flex align-items-center gap-2">
+        {% if shift_nav and shift_nav.show_readonly_pill %}
+        <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
+        {% endif %}
+        <div class="dropdown app-user-dropdown">
+          <button class="app-user-pill dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-haspopup="true" id="appUserMenuBtn">
+            <i class="bi bi-person-circle" aria-hidden="true"></i>
+            <span class="d-none d-sm-inline">{{ nav_user.username }}</span>
+            <span class="badge rounded-pill text-bg-secondary d-none d-md-inline" style="font-size:0.65rem;">{% if nav_user.is_admin %}{{ role_labels.get('administrador', 'Admin') }}{% else %}{{ user_role_label(nav_user) }}{% endif %}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end app-user-dropdown-menu" aria-labelledby="appUserMenuBtn">
+            <li><a class="dropdown-item" href="{{ url_for('main.dashboard') }}"><i class="bi bi-speedometer2 me-2 opacity-50" aria-hidden="true"></i>Panel</a></li>
+            {% if user_can_production_hub %}
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('produccion.hub') }}"><i class="bi bi-grid-1x2 me-2 opacity-50" aria-hidden="true"></i>PRODUCCIÓN</a></li>
+            {% endif %}
+            {% if user_can_entregas_hub %}
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('entregas.hub') }}"><i class="bi bi-truck me-2 opacity-50" aria-hidden="true"></i>ENTREGAS</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            {% if shift_nav and shift_nav.open_mine and shift_nav.may_write_operational %}
+            <li><a class="dropdown-item" href="{{ url_for('shift.edit_shift_laboratorist') }}"><i class="bi bi-person-badge me-2 opacity-50" aria-hidden="true"></i>Laboratorista del turno</a></li>
+            {% endif %}
+            {% if user_can('manual') %}
+            <li><a class="dropdown-item" href="{{ url_for('main.manual') }}"><i class="bi bi-book me-2" aria-hidden="true"></i>Manual de uso</a></li>
+            {% endif %}
+            {% if nav_user.is_admin %}
+            <li><a class="dropdown-item" href="{{ url_for('admin_users.list_users') }}"><i class="bi bi-people me-2" aria-hidden="true"></i>Usuarios</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            {% if user_can_production_hub %}
+            <li><a class="dropdown-item" href="{{ url_for('shift.historial') }}"><i class="bi bi-clipboard-data me-2 opacity-50" aria-hidden="true"></i>Cambio de turno (historial)</a></li>
+            <li><hr class="dropdown-divider"></li>
+            {% endif %}
+            <li>
+              <form method="post" action="{{ url_for('auth.logout') }}">
+              {% include "_csrf.html" %}
+                <button type="submit" class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i>Salir</button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </header>
+    <main class="app-main">
+{% else %}
+<header class="app-guest-header">
+  <a class="app-guest-brand" href="{{ url_for('main.index') }}">Química del Valle</a>
+  <div>
+    {% if ep != 'auth.login' %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">Ingresar</a>
+    {% else %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.index') }}">Inicio</a>
+    {% endif %}
+  </div>
+</header>
+<main class="app-guest-main">
+{% endif %}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show mb-3" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+          </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% if shift_nav and shift_nav.banner %}
+      <div class="alert alert-{{ shift_nav.banner.severity }} mb-3" role="status">
+        {{ shift_nav.banner.text }}
+        {% if shift_nav.banner.href %}
+        <a class="alert-link ms-1" href="{{ shift_nav.banner.href }}">{{ shift_nav.banner.link_label or 'Ir' }}</a>
         {% endif %}
       </div>
-    </div>
-  </nav>
-  <main class="container pb-5">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-        <div class="alert alert-{{ 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'success' if category == 'success' else 'info' }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
-        </div>
-        {% endfor %}
       {% endif %}
-    {% endwith %}
-    {% block content %}{% endblock %}
-  </main>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-          crossorigin="anonymous"></script>
+      {% block content %}{% endblock %}
+{% if nav_user %}
+    </main>
+  </div>
+</div>
+{% else %}
+</main>
+{% endif %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+<script>
+(function () {
+  if (!("serviceWorker" in navigator)) return;
+  var swUrl = "{{ url_for('static', filename='pwa/sw.js') }}";
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register(swUrl).catch(function () {});
+  });
+})();
+</script>
+{% if nav_user %}
+<script>
+(function () {
+  function initTopbarUserDropdown() {
+    var btn = document.getElementById("appUserMenuBtn");
+    if (!btn || typeof bootstrap === "undefined" || !bootstrap.Dropdown) return;
+    bootstrap.Dropdown.getOrCreateInstance(btn, {
+      popperConfig: function (defaultConfig) {
+        var mods = (defaultConfig.modifiers || []).map(function (m) {
+          if (m.name === "computeStyles") {
+            return {
+              name: "computeStyles",
+              options: Object.assign({}, m.options || {}, { gpuAcceleration: false })
+            };
+          }
+          return m;
+        });
+        return Object.assign({}, defaultConfig, { strategy: "fixed", modifiers: mods });
+      }
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initTopbarUserDropdown);
+  } else {
+    initTopbarUserDropdown();
+  }
+})();
+</script>
+<script>
+(function () {
+  var shell = document.getElementById("appShell");
+  var toggle = document.getElementById("appSidebarToggle");
+  var backdrop = document.getElementById("appSidebarBackdrop");
+  var filter = document.getElementById("appNavFilter");
+  function closeSidebar() {
+    if (shell) shell.classList.remove("app-sidebar-open");
+  }
+  if (toggle && shell) {
+    toggle.addEventListener("click", function () {
+      shell.classList.toggle("app-sidebar-open");
+    });
+  }
+  if (backdrop) {
+    backdrop.addEventListener("click", closeSidebar);
+  }
+  window.addEventListener("resize", function () {
+    if (window.innerWidth >= 992) closeSidebar();
+  });
+  if (filter) {
+    filter.addEventListener("input", function () {
+      var q = (filter.value || "").toLowerCase().trim();
+      document.querySelectorAll(".app-sidebar-nav a[data-filter-text]").forEach(function (a) {
+        var li = a.closest("li");
+        if (!li) return;
+        var t = (a.getAttribute("data-filter-text") || "").toLowerCase();
+        li.style.display = !q || t.indexOf(q) !== -1 ? "" : "none";
+      });
+    });
+  }
+})();
+</script>
+{% if not page_can_edit_current %}
+<script>
+(function () {
+  // Solo lectura en UI (el backend también valida). No tocar formularios fuera del contenido principal.
+  document.querySelectorAll("main.app-main form[method='post']").forEach(function (f) {
+    /* Modales Bootstrap (p. ej. entregas): no deshabilitar formularios del diálogo. */
+    if (f.closest(".modal")) return;
+    /* PDF de referencia: formularios dentro de <dialog> nativo (erlenmeyer). */
+    if (f.closest("dialog.analysis-ref-dialog")) return;
+    var act = (f.getAttribute("action") || "");
+    if (act.indexOf("/operacion/turno") !== -1) return;
+    /* Entregas: el JS del formulario debe poder habilitar cliente/lugar (dependientes). El bloqueo de envío se hace en el botón Guardar del template. */
+    if (f.id === "entregaMainForm") return;
+    f.querySelectorAll("button, input, select, textarea").forEach(function (el) {
+      var t = (el.getAttribute("type") || "").toLowerCase();
+      if (t === "hidden") return;
+      if (el.tagName === "BUTTON" || t === "submit") {
+        /* PDF de referencia (erlenmeyer): abrir panel solo lectura aunque el turno esté cerrado */
+        if (el.classList && el.classList.contains("analysis-ref-flask-btn")) return;
+        el.setAttribute("disabled", "disabled");
+      } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        el.setAttribute("readonly", "readonly");
+      } else if (el.tagName === "SELECT") {
+        el.setAttribute("disabled", "disabled");
+      }
+    });
+  });
+})();
+</script>
+{% endif %}
+<script>
+(function () {
+  /**
+   * Erlenmeyer / PDF de referencia: <dialog> nativo.
+   * Problema resuelto: diálogos dentro de #appShell a veces no superan bien sticky/topbar ni dejan
+   * el backdrop por encima del panel; además el backdrop no cierra solo y showModal() fallaba en silencio.
+   */
+  function cleanupModalArtifacts() {
+    document.querySelectorAll(".modal-backdrop").forEach(function (el) {
+      el.remove();
+    });
+    document.querySelectorAll(".offcanvas-backdrop").forEach(function (el) {
+      el.remove();
+    });
+    document.body.classList.remove("modal-open");
+    document.body.style.removeProperty("overflow");
+    document.body.style.removeProperty("padding-right");
+    document.documentElement.style.removeProperty("overflow");
+  }
+
+  function closeAppShellSidebar() {
+    var shell = document.getElementById("appShell");
+    if (shell) shell.classList.remove("app-sidebar-open");
+  }
+
+  function failsafeUnblockUi(reason) {
+    cleanupModalArtifacts();
+    closeAppShellSidebar();
+    document.querySelectorAll("dialog.analysis-ref-dialog[open]").forEach(function (d) {
+      try {
+        d.close("failsafe");
+      } catch (e) {}
+    });
+    if (reason && typeof console !== "undefined" && console.warn) {
+      console.warn("[qdv] UI desbloqueada (failsafe):", reason);
+    }
+  }
+
+  window.qdvUnblockModalUi = failsafeUnblockUi;
+
+  function reparentAnalysisRefDialog(dlg) {
+    if (dlg && dlg.parentElement !== document.body) {
+      document.body.appendChild(dlg);
+    }
+  }
+
+  function closeOtherAnalysisRefDialogs(except) {
+    document.querySelectorAll("dialog.analysis-ref-dialog[open]").forEach(function (d) {
+      if (d !== except) {
+        try {
+          d.close("other");
+        } catch (e) {}
+      }
+    });
+  }
+
+  function openAnalysisRefDialog(dlg) {
+    if (!dlg || typeof dlg.showModal !== "function") return;
+    closeOtherAnalysisRefDialogs(dlg);
+    if (dlg.open) return;
+    cleanupModalArtifacts();
+    closeAppShellSidebar();
+    reparentAnalysisRefDialog(dlg);
+    try {
+      dlg.showModal();
+    } catch (e) {
+      failsafeUnblockUi("showModal: " + (e && e.message ? e.message : e));
+    }
+  }
+
+  function closeAnalysisRefDialog(dlg) {
+    if (!dlg || typeof dlg.close !== "function") return;
+    try {
+      dlg.close();
+    } finally {
+      cleanupModalArtifacts();
+      closeAppShellSidebar();
+    }
+  }
+
+  function wireAnalysisRefDialog(dlg) {
+    if (!dlg || dlg.dataset.qdvArWired === "1") return;
+    dlg.dataset.qdvArWired = "1";
+    dlg.addEventListener("close", function () {
+      cleanupModalArtifacts();
+    });
+    dlg.addEventListener("click", function (ev) {
+      if (ev.target === dlg) {
+        dlg.close();
+      }
+    });
+    dlg.addEventListener("cancel", function () {
+      cleanupModalArtifacts();
+    });
+  }
+
+  function scanAnalysisRefDialogs() {
+    document.querySelectorAll("dialog.analysis-ref-dialog").forEach(wireAnalysisRefDialog);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", scanAnalysisRefDialogs);
+  } else {
+    scanAnalysisRefDialogs();
+  }
+
+  document.addEventListener("click", function (ev) {
+    var opener = ev.target.closest("[data-analysis-ref-open]");
+    if (opener) {
+      ev.preventDefault();
+      var id = opener.getAttribute("data-analysis-ref-open");
+      var dlg = id && document.getElementById(id);
+      if (dlg && dlg.classList && dlg.classList.contains("analysis-ref-dialog")) {
+        wireAnalysisRefDialog(dlg);
+        openAnalysisRefDialog(dlg);
+      }
+      return;
+    }
+    var closer = ev.target.closest("[data-analysis-ref-close]");
+    if (closer) {
+      var dlg = closer.closest("dialog");
+      if (dlg && dlg.classList && dlg.classList.contains("analysis-ref-dialog")) {
+        closeAnalysisRefDialog(dlg);
+      }
+      return;
+    }
+  });
+
+  /* ESC: el <dialog> modal ya dispara cancel/close; los listeners close/cancel arriba limpian Bootstrap. */
+
+  window.addEventListener("pageshow", function (ev) {
+    if (ev.persisted) failsafeUnblockUi("bfcache pageshow");
+  });
+})();
+</script>
+<script>
+(function () {
+  /* Si un .modal Bootstrap queda dentro de #appShell, el backdrop en body puede tapar el diálogo (stacking). */
+  var DBG = typeof localStorage !== "undefined" && localStorage.getItem("qdv_dbg_modal_reparent") === "1";
+  function reparentModalToBody(modalEl) {
+    if (!modalEl || !modalEl.classList || !modalEl.classList.contains("modal")) return;
+    if (modalEl.parentElement !== document.body) {
+      document.body.appendChild(modalEl);
+      if (DBG) console.info("[modal] reubicado a body:", modalEl.id || modalEl.className);
+    }
+  }
+  function reparentBootstrapModals() {
+    var n = 0;
+    document.querySelectorAll("body .modal").forEach(function (m) {
+      if (m.parentElement !== document.body) {
+        document.body.appendChild(m);
+        n += 1;
+      }
+    });
+    if (DBG && n) console.info("[modal] lote inicial reubicado:", n);
+  }
+  function go() {
+    reparentBootstrapModals();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go);
+  else go();
+  /* Antes de que Bootstrap muestre el modal (fase capture): asegurar padre = body por si el DOM cambió o el orden de scripts varió. */
+  document.addEventListener("show.bs.modal", function (ev) {
+    reparentModalToBody(ev.target);
+  }, true);
+})();
+</script>
+{% block scripts %}{% endblock %}
+{% endif %}
 </body>
 </html>

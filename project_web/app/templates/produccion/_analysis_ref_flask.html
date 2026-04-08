@@ -1,0 +1,85 @@
+{# PDF de referencia analítica: botón erlenmeyer + <dialog> nativo (top layer, sin backdrop de Bootstrap). #}
+{% macro analysis_ref_flask_button(doc_key, pdf_present, dialog_id, field_label) -%}
+<button type="button"
+        class="analysis-ref-flask-btn {% if pdf_present %}analysis-ref-flask-btn--ok{% else %}analysis-ref-flask-btn--empty{% endif %}"
+        data-analysis-ref-open="{{ dialog_id }}"
+        data-analysis-ref-doc="{{ doc_key }}"
+        title="{% if pdf_present %}PDF de referencia cargado{% else %}Sin PDF de referencia{% endif %}"
+        aria-haspopup="dialog"
+        aria-controls="{{ dialog_id }}"
+        aria-label="Documento PDF {{ field_label }}">
+  <svg class="analysis-ref-flask-svg" viewBox="0 0 28 34" width="24" height="24" aria-hidden="true">
+    <path class="analysis-ref-flask-outline" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"
+          d="M10 2h8v4.5l7 19.2a4.2 4.2 0 0 1-4.1 5.3H7.1A4.2 4.2 0 0 1 3 25.7L10 6.5V2z"/>
+    <path class="analysis-ref-flask-liquid" fill="currentColor"
+          d="M8.2 22.5 L11.5 14.5h5.8l3.2 8.2c0 .8-.6 1.5-1.4 1.6H9.5c-.9 0-1.5-.6-1.4-1.5z"/>
+  </svg>
+</button>
+{%- endmacro %}
+
+{# Enlace directo al PDF (misma silueta erlenmeyer que el botón). #}
+{% macro analysis_ref_flask_pdf_link(href, field_label, pdf_ok=True) -%}
+{% if pdf_ok %}
+<a href="{{ href }}"
+   class="analysis-ref-flask-btn analysis-ref-flask-btn--ok"
+   target="_blank" rel="noopener"
+   title="Abrir PDF"
+   aria-label="Abrir PDF {{ field_label }}">
+{% else %}
+<span class="analysis-ref-flask-btn analysis-ref-flask-btn--empty"
+      title="PDF no disponible en disco"
+      role="img"
+      aria-label="PDF no disponible {{ field_label }}">
+{% endif %}
+  <svg class="analysis-ref-flask-svg" viewBox="0 0 28 34" width="24" height="24" aria-hidden="true">
+    <path class="analysis-ref-flask-outline" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"
+          d="M10 2h8v4.5l7 19.2a4.2 4.2 0 0 1-4.1 5.3H7.1A4.2 4.2 0 0 1 3 25.7L10 6.5V2z"/>
+    <path class="analysis-ref-flask-liquid" fill="currentColor"
+          d="M8.2 22.5 L11.5 14.5h5.8l3.2 8.2c0 .8-.6 1.5-1.4 1.6H9.5c-.9 0-1.5-.6-1.4-1.5z"/>
+  </svg>
+{% if pdf_ok %}
+</a>
+{% else %}
+</span>
+{% endif %}
+{%- endmacro %}
+
+{# dialog_id = mismo id que antes (modal_id en Python) para no tocar rutas ni specs. #}
+{% macro analysis_ref_pdf_modal(doc_key, pdf_present, modal_id, title, nav_user) -%}
+<dialog id="{{ modal_id }}" class="analysis-ref-dialog" aria-modal="true" aria-labelledby="{{ modal_id }}Label">
+  <div class="analysis-ref-dialog-surface">
+    <div class="analysis-ref-dialog-header">
+      <h2 class="analysis-ref-dialog-title fs-6 mb-0" id="{{ modal_id }}Label">Documento PDF — {{ title }}</h2>
+      <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
+    </div>
+    <div class="analysis-ref-dialog-body">
+      <p class="small text-muted mb-2 mb-md-3">Erlenmeyer <strong class="text-danger">rojo</strong> = sin PDF; <strong class="text-success">verde</strong> = PDF disponible. El aviso es informativo y no afecta el guardado del registro.</p>
+      {% if pdf_present %}
+      <p class="small mb-2">Hay un documento PDF de referencia.</p>
+      <a class="btn btn-outline-primary btn-sm mb-2" href="{{ url_for('produccion.analysis_ref_pdf', doc_key=doc_key) }}" target="_blank" rel="noopener">Abrir / ver PDF</a>
+      {% else %}
+      <p class="small mb-2 mb-md-3">No hay PDF de referencia cargado.</p>
+      {% endif %}
+      {% if nav_user and nav_user.is_admin %}
+      <hr class="my-3">
+      <p class="small fw-semibold mb-2">Administración</p>
+      <form method="post" action="{{ url_for('produccion.analysis_ref_pdf', doc_key=doc_key) }}" enctype="multipart/form-data" class="mb-2">
+      {% include "_csrf.html" %}
+        <label class="form-label small mb-1">Subir o reemplazar (solo PDF)</label>
+        <input type="file" name="pdf" class="form-control form-control-sm" accept=".pdf,application/pdf">
+        <button type="submit" class="btn btn-primary btn-sm mt-2">Subir PDF</button>
+      </form>
+      {% if pdf_present %}
+      <form method="post" action="{{ url_for('produccion.analysis_ref_pdf', doc_key=doc_key) }}" class="mt-2" onsubmit="return confirm('¿Eliminar el PDF de {{ title }}?');">
+      {% include "_csrf.html" %}
+        <input type="hidden" name="action" value="delete">
+        <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar PDF</button>
+      </form>
+      {% endif %}
+      {% else %}
+      <p class="small text-muted mb-0 mt-2">Solo administradores pueden subir o eliminar este documento.</p>
+      {% endif %}
+    </div>
+  </div>
+</dialog>
+{%- endmacro %}

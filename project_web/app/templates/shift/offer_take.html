@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Tomar turno operativo · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Turno operativo</h1>
+  <p class="app-intro mb-0">¿Deseás tomar el turno de planta ahora? Sin turno activo no podés registrar cargas operativas (producción, stock, entregas). Si confirmás, el siguiente paso te pedirá si trabajás con laboratorista en planta.</p>
+</div>
+<div class="app-card" style="max-width: 520px;">
+  <div class="app-card-header">Confirmación</div>
+  <div class="app-card-body">
+    <form method="post">
+    {% include "_csrf.html" %}
+      <input type="hidden" name="next" value="{{ next_q }}">
+      <div class="d-grid gap-2">
+        <button type="submit" name="choice" value="si" class="btn btn-primary">Sí, tomar turno</button>
+        <button type="submit" name="choice" value="no" class="btn btn-outline-secondary">No por ahora</button>
+      </div>
+    </form>
+    <p class="note-muted mt-3 mb-0">Si elegís «No», entrás en <strong>modo solo lectura</strong>: podés ver módulos y datos, pero no guardar ni registrar hasta que aceptes tomar el turno (el aviso en pantalla te llevará al flujo cuando quieras activarlo).</p>
+  </div>
+</div>
+{% endblock %}

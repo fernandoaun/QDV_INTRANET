@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Historial entrega #{{ entrega.id }} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Historial · Entrega #{{ entrega.id }}</h1>
+    <p class="app-intro mb-0">{% if entrega.cliente_row %}{{ entrega.cliente_row.nombre }}{% else %}{{ entrega.cliente }}{% endif %} · {% if entrega.producto_terminado %}{{ entrega.producto_terminado.nombre }}{% else %}{{ entrega.producto }}{% endif %} · estado <strong>{{ entrega.estado }}</strong></p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.gestion') }}">← Listado</a>
+    {% if user_can_entregas_programar() %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('entregas.editar', eid=entrega.id) }}">Editar</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Datos actuales</div>
+  <div class="app-card-body row g-2 small">
+    <div class="col-md-4"><span class="app-text-secondary">Lugar</span><br><strong>{{ entrega.lugar_entrega }}</strong></div>
+    <div class="col-md-4"><span class="app-text-secondary">Fecha prevista</span><br><strong>{{ entrega.fecha_prevista }}</strong></div>
+    <div class="col-md-4"><span class="app-text-secondary">Volumen</span><br><strong>{{ entrega.cantidad }} L</strong></div>
+    {% if entrega.cargada_at_iso %}
+    <div class="col-md-4"><span class="app-text-secondary">Cargada</span><br><strong>{{ entrega.cargada_at_iso }}</strong></div>
+    {% endif %}
+    {% if entrega.entregada_at_iso %}
+    <div class="col-md-4"><span class="app-text-secondary">Entregada</span><br><strong>{{ entrega.entregada_at_iso }}</strong></div>
+    <div class="col-md-4"><span class="app-text-secondary">Responsable entrega</span><br><strong>{{ entrega.entregada_chofer_nombre or '—' }}</strong></div>
+    <div class="col-md-4"><span class="app-text-secondary">Lugar registrado al entregar</span><br><strong>{{ entrega.entregada_lugar or '—' }}</strong></div>
+    <div class="col-md-4"><span class="app-text-secondary">Día (registro)</span><br><strong>{{ entrega.entregada_dia_semana or '—' }}</strong></div>
+    {% endif %}
+    {% if entrega.consumo_stock_id %}
+    <div class="col-12"><span class="app-text-secondary">Movimiento de stock vinculado</span><br><strong>Consumo #{{ entrega.consumo_stock_id }}</strong></div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Eventos</span>
+    <span class="small app-text-secondary">{{ eventos|length }}</span>
+  </div>
+  <div class="app-card-body--flush">
+    <ul class="list-group list-group-flush">
+      {% for row in eventos %}
+      {% set ev = row.ev %}
+      <li class="list-group-item">
+        <div class="d-flex justify-content-between gap-2 flex-wrap">
+          <strong>{{ ev.tipo }}</strong>
+          <span class="small app-text-secondary">{{ ev.at_iso }} · {{ ev.actor_display }}</span>
+        </div>
+        {% if row.detalle is mapping %}
+        <pre class="small mb-0 mt-2 app-text-secondary" style="white-space:pre-wrap;">{{ row.detalle | tojson }}</pre>
+        {% elif row.detalle %}
+        <p class="small mb-0 mt-2">{{ row.detalle }}</p>
+        {% endif %}
+      </li>
+      {% else %}
+      <li class="list-group-item text-muted">Sin eventos registrados.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}
