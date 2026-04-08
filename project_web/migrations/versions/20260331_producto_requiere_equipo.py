@@ -25,8 +25,10 @@ def upgrade() -> None:
             sa.Column("requiere_equipo", sa.Boolean(), nullable=False, server_default=sa.false()),
         )
     op.execute(
-        "UPDATE productos_catalogo SET requiere_equipo = 1 "
-        "WHERE lower(trim(tipo_producto)) = 'filtro'"
+        sa.text(
+            "UPDATE productos_catalogo SET requiere_equipo = true "
+            "WHERE lower(trim(tipo_producto)) = 'filtro'"
+        )
     )
 
 
