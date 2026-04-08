@@ -1,7 +1,7 @@
 """producto.requiere_equipo para consumo con equipo obligatorio
 
 Revision ID: 20260331_producto_requiere_equipo
-Revises: 20260330_app_docs
+Revises: 20260330_av_widen
 Create Date: 2026-03-31
 """
 from typing import Sequence, Union
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "20260331_producto_requiere_equipo"
-down_revision: Union[str, Sequence[str], None] = "20260330_app_docs"
+down_revision: Union[str, Sequence[str], None] = "20260330_av_widen"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
