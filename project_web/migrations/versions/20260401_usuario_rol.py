@@ -32,8 +32,8 @@ def upgrade() -> None:
             sa.Column("rol", sa.String(length=32), nullable=False, server_default="operaciones"),
         )
     conn = op.get_bind()
-    conn.execute(sa.text("UPDATE usuarios SET rol = 'administrador' WHERE is_admin = 1"))
-    conn.execute(sa.text("UPDATE usuarios SET rol = 'operaciones' WHERE is_admin = 0"))
+    conn.execute(sa.text("UPDATE usuarios SET rol = 'administrador' WHERE is_admin IS true"))
+    conn.execute(sa.text("UPDATE usuarios SET rol = 'operaciones' WHERE is_admin IS false"))
 
 
 def downgrade() -> None:

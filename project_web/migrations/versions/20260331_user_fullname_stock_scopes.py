@@ -56,7 +56,7 @@ def upgrade() -> None:
             """
             SELECT user_id, permiso, puede_editar
             FROM permisos_usuario
-            WHERE habilitado = 1
+            WHERE habilitado IS true
               AND permiso IN ('bolson_registro', 'bolson_carga')
             """
         )
