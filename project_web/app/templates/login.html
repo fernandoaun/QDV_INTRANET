@@ -4,14 +4,6 @@
 <div class="app-login-page">
   <div class="app-login-card">
     <h1 class="h5 mb-3">Iniciar sesión</h1>
-    {% if not setup_db_ok %}
-    <div class="alert alert-warning small">Ejecutá primero: <code>python -m alembic upgrade head</code></div>
-    {% elif not hay_usuarios_web %}
-    <div class="alert alert-info small mb-3">
-      No hay usuarios todavía. Cerrá el navegador un momento, hacé <strong>doble clic</strong> en
-      <code>CREAR_USUARIO_ADMIN.bat</code> (carpeta del programa), después volvé acá.
-    </div>
-    {% endif %}
     {% if error %}
     <div class="alert alert-danger" role="alert">{{ error }}</div>
     {% endif %}
@@ -33,12 +25,6 @@
     <p class="mt-3 mb-0 small app-text-secondary">
       <a href="{{ url_for('main.index') }}">Volver al inicio</a>
     </p>
-    <hr class="my-3">
-    <p class="small text-muted mb-1">
-      ¿Dice usuario o contraseña incorrectos? Hacé <strong>doble clic</strong> en
-      <code>CAMBIAR_CLAVE.bat</code> (misma carpeta que <code>run.py</code>), elegí usuario <code>admin</code> y una clave nueva.
-    </p>
-    <p class="small text-muted mb-0">Usuario en el navegador: <code>admin</code> (todo en minúsculas).</p>
   </div>
 </div>
 {% endblock %}
