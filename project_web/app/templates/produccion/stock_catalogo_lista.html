@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Catálogo de productos · QDV{% endblock %}
+{% block content %}
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Catálogo de productos (stock)</h1>
+      <p class="app-intro mb-0">Productos disponibles para ingresos y consumos. El stock mínimo de alerta vive acá.</p>
+    </div>
+    <div class="app-page-actions d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>
+      {% if user_can_stock_catalogo_alta %}
+      <a class="btn btn-primary btn-sm" href="{{ url_for('produccion.stock_catalogo_alta') }}">+ Alta producto</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="app-card mb-3">
+    <div class="app-card-body py-3">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="form-label mb-0 small">Filtrar categoría</label>
+          <select class="form-select form-select-sm" name="categoria" onchange="this.form.submit()">
+            <option value="" {% if not filtro_cat %}selected{% endif %}>Todas</option>
+            <option value="materia_prima" {% if filtro_cat=='materia_prima' %}selected{% endif %}>Materia prima</option>
+            <option value="producto_terminado" {% if filtro_cat=='producto_terminado' %}selected{% endif %}>Producto terminado</option>
+            <option value="laboratorio" {% if filtro_cat=='laboratorio' %}selected{% endif %}>Laboratorio</option>
+          </select>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="app-card">
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Categoría</th>
+            <th>Producto</th>
+            <th>Tipo</th>
+            <th>Estoqueable</th>
+            <th>Equipo</th>
+            <th>Stock mín. alerta</th>
+            {% if nav_user and nav_user.is_admin %}<th></th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.id }}</td>
+            <td>{% if r.categoria == 'materia_prima' %}Materia prima{% elif r.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
+            <td>{{ r.nombre_producto }}</td>
+            <td>{{ r.tipo_producto }}</td>
+            <td>{% if r.is_stockable %}Sí{% else %}No{% endif %}</td>
+            <td>{% if r.requiere_equipo %}Sí{% else %}No{% endif %}</td>
+            <td>{% if r.stock_minimo_alerta is not none %}{{ r.stock_minimo_alerta }}{% else %}—{% endif %}</td>
+            {% if nav_user and nav_user.is_admin %}
+            <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('produccion.stock_catalogo_editar', pid=r.id) }}">Editar</a></td>
+            {% endif %}
+          </tr>
+          {% else %}
+          <tr><td colspan="{% if nav_user and nav_user.is_admin %}8{% else %}7{% endif %}" class="text-muted text-center py-4">Sin productos en catálogo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

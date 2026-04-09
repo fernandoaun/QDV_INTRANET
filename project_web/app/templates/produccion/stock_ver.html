@@ -44,14 +44,45 @@
     <div class="app-card-body--flush table-responsive app-table-scroll">
       <table class="table table-app table-compact mb-0">
         {% if categoria == 'todas' %}
-        <thead><tr><th>Categoría</th><th>Producto</th><th>Modalidad</th><th>Stock</th></tr></thead>
+        <thead><tr><th>Categoría</th><th>Producto</th><th>Modalidad</th><th>Stock total</th></tr></thead>
         <tbody>{% for it in items %}<tr><td>{% if it.categoria == 'materia_prima' %}Materia prima{% elif it.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td><td>{{ it.producto }}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}<span class="badge text-bg-secondary">No estoqueable</span>{% else %}<span class="badge text-bg-primary">Estoqueable</span>{% endif %}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}—{% else %}{{ it.stock | round(2) }}{% endif %}</td></tr>{% else %}<tr><td colspan="4" class="text-muted text-center py-4">Sin datos para esta categoría.</td></tr>{% endfor %}</tbody>
         {% else %}
-        <thead><tr><th>Producto</th><th>Modalidad</th><th>Stock</th></tr></thead>
+        <thead><tr><th>Producto</th><th>Modalidad</th><th>Stock total</th></tr></thead>
         <tbody>{% for it in items %}<tr><td>{{ it.producto }}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}<span class="badge text-bg-secondary">No estoqueable</span>{% else %}<span class="badge text-bg-primary">Estoqueable</span>{% endif %}</td><td>{% if it.is_stockable is defined and not it.is_stockable %}—{% else %}{{ it.stock | round(2) }}{% endif %}</td></tr>{% else %}<tr><td colspan="3" class="text-muted text-center py-4">Sin datos para esta categoría.</td></tr>{% endfor %}</tbody>
         {% endif %}
       </table>
     </div>
   </div>
+
+  {% if categoria != 'todas' and lotes_items %}
+  <div class="app-card mt-3">
+    <div class="app-card-header app-card-header--split">
+      <span class="app-card-header-title mb-0">Saldo por lote (FIFO)</span>
+      <span class="app-card-desc mb-0">{{ lotes_items|length }} línea(s)</span>
+    </div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead>
+          <tr>
+            <th>Producto</th><th>Marca</th><th>Lote</th><th>Ingreso</th><th>Venc.</th><th>Disponible</th><th>Unidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for z in lotes_items %}
+          <tr>
+            <td>{{ z.producto }}</td>
+            <td>{{ z.marca }}</td>
+            <td>{{ z.lote }}</td>
+            <td>{{ z.fecha_ingreso }} {{ z.hora_ingreso or '' }}</td>
+            <td>{{ z.vencimiento }}</td>
+            <td>{{ z.disponible | round(4) }}</td>
+            <td>{{ z.unidad or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

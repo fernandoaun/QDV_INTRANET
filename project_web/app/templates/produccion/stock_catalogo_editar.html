@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Editar producto · Catálogo · QDV{% endblock %}
+{% block content %}
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Editar producto</h1>
+      <p class="app-intro mb-0">{{ p.nombre_producto }} · {% if p.categoria == 'materia_prima' %}Materia prima{% elif p.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_catalogo_lista') }}">← Catálogo</a>
+    </div>
+  </div>
+  <div class="app-card">
+    <div class="app-card-body">
+      <form method="post" class="row g-3">
+        {% include "_csrf.html" %}
+        <div class="col-md-4">
+          <label class="form-label">Stock mínimo de alerta</label>
+          <input class="form-control" name="stock_minimo_alerta" type="number" step="any" min="0" value="{{ p.stock_minimo_alerta if p.stock_minimo_alerta is not none else 0 }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Tipo de producto</label>
+          <select class="form-select" name="tipo_producto">
+            <option value="Normal" {% if p.tipo_producto == 'Normal' %}selected{% endif %}>Normal</option>
+            <option value="Filtro" {% if p.tipo_producto == 'Filtro' %}selected{% endif %}>Filtro</option>
+          </select>
+        </div>
+        {% if p.categoria == 'materia_prima' %}
+        <div class="col-md-4">
+          <label class="form-label">Estoqueable</label>
+          <select class="form-select" name="is_stockable">
+            <option value="1" {% if p.is_stockable %}selected{% endif %}>Sí</option>
+            <option value="0" {% if not p.is_stockable %}selected{% endif %}>No</option>
+          </select>
+        </div>
+        {% endif %}
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="requiere_equipo" value="1" id="reqEqEd" {% if p.requiere_equipo %}checked{% endif %}>
+            <label class="form-check-label" for="reqEqEd">Requiere equipo al registrar consumo</label>
+          </div>
+          <div class="form-text">Tipo «Filtro» fuerza requerimiento de equipo.</div>
+        </div>
+        <div class="col-12 pt-1">
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

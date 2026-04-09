@@ -225,6 +225,17 @@ def user_can_edit_stock_ingreso_categoria(user: User | None, categoria: str | No
     return user_can_edit(user, stock_ingreso_perm_for_categoria(categoria))
 
 
+def user_can_edit_stock_catalogo_alta(user: User | None) -> bool:
+    """Alta de producto en catálogo (sin stock): mismo criterio que edición de ingreso MP o laboratorio."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    return user_can_edit_stock_ingreso_categoria(user, "materia_prima") or user_can_edit_stock_ingreso_categoria(
+        user, "laboratorio"
+    )
+
+
 def user_can_view_stock_consumos(user: User | None) -> bool:
     if user is None:
         return False

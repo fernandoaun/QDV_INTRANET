@@ -123,9 +123,13 @@ class IngresoStock(db.Model):
     vencimiento = db.Column(db.String(64), nullable=False)
     lote = db.Column(db.String(128), nullable=False)
     cantidad = db.Column(db.Float, nullable=False)
+    unidad = db.Column(db.String(64), nullable=False, default="")
     fecha = db.Column(db.String(16), nullable=False)
     hora = db.Column(db.String(8), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    observaciones = db.Column(db.Text)
+    proveedor = db.Column(db.String(256))
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 
@@ -142,6 +146,7 @@ class ConsumoStock(db.Model):
     operador = db.Column(db.String(256), nullable=False)
     observaciones = db.Column(db.Text)
     equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"))
+    ingreso_stock_id = db.Column(db.Integer, db.ForeignKey("ingresos_stock.id"), nullable=True, index=True)
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 

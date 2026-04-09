@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
 
@@ -172,6 +173,116 @@ def marcas_catalogo(cat: str, producto: str) -> list[str]:
     return [str(marca) for (marca,) in rows if str(marca or "").strip()]
 
 
+def _cantidad_consumida_en_ingreso(ingreso_id: int) -> float:
+    v = db.session.scalar(
+        select(func.coalesce(func.sum(ConsumoStock.cantidad), 0.0)).where(
+            ConsumoStock.ingreso_stock_id == int(ingreso_id)
+        )
+    )
+    return float(v or 0)
+
+
+def lotes_fifo_disponibles(categoria: str, producto: str, marca: str) -> list[dict[str, Any]]:
+    """
+    Líneas de ingreso con saldo disponible, orden FIFO (fecha → hora → id).
+    El saldo por línea reparte el stock global producto+marca, de modo que consumos
+    antiguos sin `ingreso_stock_id` sigan siendo coherentes con el total.
+    """
+    c = _validate_cat(categoria)
+    p = (producto or "").strip()
+    m = (marca or "").strip()
+    if not p or not m:
+        return []
+    global_s = stock_actual(c, p, m)
+    if global_s <= 0:
+        return []
+    ing_rows = list(
+        db.session.scalars(
+            select(IngresoStock)
+            .where(
+                IngresoStock.categoria == c,
+                IngresoStock.producto == p,
+                IngresoStock.marca == m,
+            )
+            .order_by(IngresoStock.fecha.asc(), IngresoStock.hora.asc(), IngresoStock.id.asc())
+        ).all()
+    )
+    rem_global = float(global_s)
+    out: list[dict[str, Any]] = []
+    for ing in ing_rows:
+        linked = _cantidad_consumida_en_ingreso(int(ing.id))
+        raw_left = max(float(ing.cantidad or 0) - linked, 0.0)
+        take = min(raw_left, rem_global)
+        if take > 0:
+            uid = (getattr(ing, "unidad", None) or "").strip()
+            out.append(
+                {
+                    "ingreso_id": int(ing.id),
+                    "lote": (ing.lote or "").strip(),
+                    "vencimiento": (ing.vencimiento or "").strip(),
+                    "fecha_ingreso": ing.fecha,
+                    "hora_ingreso": ing.hora,
+                    "disponible": take,
+                    "unidad": uid,
+                    "es_fifo_primero": False,
+                }
+            )
+        rem_global -= take
+        if rem_global <= 1e-12:
+            break
+    if out:
+        out[0]["es_fifo_primero"] = True
+    return out
+
+
+def saldo_consumible_lote(categoria: str, producto: str, marca: str, ingreso_id: int) -> float:
+    for row in lotes_fifo_disponibles(categoria, producto, marca):
+        if int(row["ingreso_id"]) == int(ingreso_id):
+            return float(row["disponible"])
+    return 0.0
+
+
+def list_lotes_con_saldo_por_categoria(categoria: str) -> list[dict[str, Any]]:
+    """Todas las líneas con saldo > 0 en una categoría (para existencias por lote)."""
+    c = _validate_cat(categoria)
+    pairs = db.session.execute(
+        select(IngresoStock.producto, IngresoStock.marca).where(IngresoStock.categoria == c).distinct()
+    ).all()
+    rows_out: list[dict[str, Any]] = []
+    for prod, marca in pairs:
+        p, m = str(prod or "").strip(), str(marca or "").strip()
+        if not p or not m:
+            continue
+        try:
+            if not producto_es_stockeable(c, p):
+                continue
+        except Exception:
+            continue
+        for lot in lotes_fifo_disponibles(c, p, m):
+            rows_out.append(
+                {
+                    "producto": p,
+                    "marca": m,
+                    "ingreso_id": lot["ingreso_id"],
+                    "lote": lot["lote"],
+                    "vencimiento": lot["vencimiento"],
+                    "fecha_ingreso": lot["fecha_ingreso"],
+                    "hora_ingreso": lot["hora_ingreso"],
+                    "disponible": lot["disponible"],
+                    "unidad": lot.get("unidad") or "",
+                }
+            )
+    rows_out.sort(
+        key=lambda x: (
+            str(x["producto"]).lower(),
+            str(x["marca"]).lower(),
+            str(x["fecha_ingreso"]),
+            int(x["ingreso_id"]),
+        )
+    )
+    return rows_out
+
+
 def equipos_activos() -> list[dict[str, Any]]:
     rows = db.session.scalars(
         select(Equipo).where(Equipo.activo.is_(True)).order_by(Equipo.nombre_equipo)
@@ -212,9 +323,11 @@ def save_ingreso(
     operador: str,
     requiere_equipo: bool = False,
     is_stockable: bool = True,
-    stock_minimo_alerta: Optional[float] = None,
-    actor_is_admin: bool = False,
     *,
+    unidad: str = "",
+    observaciones_ingreso: str = "",
+    proveedor: str = "",
+    cargado_por_user_id: int | None = None,
     fecha: Optional[str] = None,
     hora: Optional[str] = None,
     fecha_hora_fallback: Optional[datetime] = None,
@@ -237,15 +350,13 @@ def save_ingreso(
             raise ValueError("La cantidad debe ser mayor a cero.")
     if not p or not m or not v or not l:
         raise ValueError("Completá producto, marca, vencimiento y lote.")
-    if stock_minimo_alerta is not None and not bool(actor_is_admin):
-        raise ValueError("Solo administradores pueden configurar stock mínimo de alerta.")
     ensure_producto(
         c,
         p,
         requiere_equipo=bool(requiere_equipo),
         is_stockable=stockable_effective,
-        stock_minimo_alerta=stock_minimo_alerta,
-        can_configure_alerta=bool(actor_is_admin),
+        stock_minimo_alerta=None,
+        can_configure_alerta=False,
     )
     fb = fecha_hora_fallback or datetime.now()
     fecha_s, hora_s, created_iso = _ingreso_fecha_hora_y_created_iso(fecha, hora, fb)
@@ -257,9 +368,13 @@ def save_ingreso(
             vencimiento=v,
             lote=l,
             cantidad=qty,
+            unidad=(unidad or "").strip()[:64] or "",
             fecha=fecha_s,
             hora=hora_s,
             operador=op,
+            observaciones=(observaciones_ingreso or "").strip() or None,
+            proveedor=(proveedor or "").strip()[:256] or None,
+            cargado_por_user_id=cargado_por_user_id,
             created_at_iso=created_iso,
         )
     )
@@ -277,6 +392,7 @@ def add_consumo_stock_record(
     *,
     fecha_hora: Optional[datetime] = None,
     skip_ledger_availability_check: bool = False,
+    ingreso_stock_id: Optional[int] = None,
 ) -> ConsumoStock:
     """
     Registra un consumo en sesión (sin commit). Permite enlazar el mismo movimiento
@@ -296,15 +412,35 @@ def add_consumo_stock_record(
     if qty <= 0:
         raise ValueError("La cantidad debe ser mayor a cero.")
     is_stockable = producto_es_stockeable(c, p)
+    ingreso_sql: Optional[int] = None
     if is_stockable:
         if not m:
             raise ValueError("Marca obligatoria para productos estoqueables.")
         if not skip_ledger_availability_check:
+            if not ingreso_stock_id:
+                raise ValueError("Seleccioná el lote (línea de ingreso) del cual se descuenta el stock.")
+            iid = int(ingreso_stock_id)
+            ing_row = db.session.get(IngresoStock, iid)
+            if ing_row is None:
+                raise ValueError("Lote / ingreso no válido.")
+            if (
+                (ing_row.categoria or "").strip() != c
+                or (ing_row.producto or "").strip() != p
+                or (ing_row.marca or "").strip() != m
+            ):
+                raise ValueError("El lote seleccionado no corresponde a este producto y marca.")
+            cap = saldo_consumible_lote(c, p, m, iid)
+            if qty > cap + 1e-9:
+                raise ValueError(
+                    "La cantidad supera lo disponible en ese lote (orden FIFO). "
+                    "Reducí el monto o registrá otro consumo desde otro lote."
+                )
             st = stock_actual(c, p, m)
             if st <= 0:
                 raise ValueError("No hay stock disponible.")
-            if qty > st:
+            if qty > st + 1e-9:
                 raise ValueError("No podés consumir más de lo disponible.")
+            ingreso_sql = iid
     elif not m:
         # Trazabilidad mínima cuando no se usa stock por marca.
         m = "N/A"
@@ -329,6 +465,7 @@ def add_consumo_stock_record(
         operador=op,
         observaciones=(observaciones or "").strip(),
         equipo_id=eq_sql,
+        ingreso_stock_id=ingreso_sql,
         created_at_iso=now.isoformat(timespec="seconds"),
     )
     db.session.add(rec)
@@ -343,6 +480,7 @@ def save_consumo(
     operador: str,
     observaciones: str = "",
     equipo_id: Optional[int] = None,
+    ingreso_stock_id: Optional[int] = None,
 ) -> None:
     add_consumo_stock_record(
         categoria,
@@ -352,6 +490,7 @@ def save_consumo(
         operador,
         observaciones,
         equipo_id,
+        ingreso_stock_id=ingreso_stock_id,
     )
     db.session.commit()
 
@@ -361,14 +500,19 @@ def stock_consolidado(cat: str) -> list[dict[str, Any]]:
     ing = stock_repo.sum_ingresos_by_producto(c)
     con = stock_repo.sum_consumos_by_producto(c)
     catalog_map = stock_repo.catalog_is_stockable_map(c)
-    keys = set(ing) | set(con) | set(catalog_map)
+    try:
+        catalog_names = set(productos_catalogo(c))
+    except Exception:
+        catalog_names = set()
+    keys = catalog_names | set(ing) | set(con) | set(catalog_map)
     out: list[dict[str, Any]] = []
     for prod in sorted(keys, key=lambda x: str(x).lower()):
         is_stockable = bool(catalog_map.get(str(prod), True))
         s = float(ing.get(prod, 0) or 0) - float(con.get(prod, 0) or 0)
-        if is_stockable and s > 0:
-            out.append({"producto": str(prod), "stock": s})
-        elif not is_stockable:
+        s = max(s, 0.0)
+        if is_stockable:
+            out.append({"producto": str(prod), "stock": s, "is_stockable": True})
+        else:
             out.append({"producto": str(prod), "stock": 0.0, "is_stockable": False})
     return out
 
@@ -443,11 +587,18 @@ def _consumo_rows_to_dicts(
 ) -> list[dict[str, Any]]:
     eq_ids = {int(r.equipo_id) for r in rows if r.equipo_id is not None}
     eq_map = stock_repo.equipo_nombres_by_ids(eq_ids)
+    ing_ids = {int(r.ingreso_stock_id) for r in rows if getattr(r, "ingreso_stock_id", None)}
+    ing_lote: dict[int, str] = {}
+    if ing_ids:
+        for ing in db.session.scalars(select(IngresoStock).where(IngresoStock.id.in_(ing_ids))).all():
+            ing_lote[int(ing.id)] = (ing.lote or "").strip()
     out: list[dict[str, Any]] = []
     for r in rows:
         eq_name = ""
         if r.equipo_id is not None:
             eq_name = (eq_map.get(int(r.equipo_id)) or "").strip()
+        iid = getattr(r, "ingreso_stock_id", None)
+        lote_txt = ing_lote.get(int(iid), "") if iid is not None else ""
         item: dict[str, Any] = {
             "fecha": r.fecha,
             "hora": r.hora,
@@ -456,6 +607,8 @@ def _consumo_rows_to_dicts(
             "operador": r.operador,
             "equipo": eq_name,
             "observaciones": r.observaciones or "",
+            "lote": lote_txt,
+            "ingreso_stock_id": int(iid) if iid is not None else None,
         }
         if include_id:
             item["id"] = r.id
@@ -508,7 +661,7 @@ def build_stock_hub_template_context(user: Any) -> dict[str, Any]:
     return {"consumos_30d": consumos_30d}
 
 
-def load_stock_consumo_view_data(cat: str, producto: str) -> dict[str, Any]:
+def load_stock_consumo_view_data(cat: str, producto: str, marca_sel: str = "") -> dict[str, Any]:
     es_stockeable = True
     if producto:
         try:
@@ -524,6 +677,15 @@ def load_stock_consumo_view_data(cat: str, producto: str) -> dict[str, Any]:
                 marcas = marcas_catalogo(cat, producto)
         except Exception:
             marcas = []
+    marca_eff = (marca_sel or "").strip()
+    if es_stockeable and producto and marcas and not marca_eff and len(marcas) == 1:
+        marca_eff = marcas[0]
+    lotes: list[dict[str, Any]] = []
+    if producto and marca_eff and es_stockeable:
+        try:
+            lotes = lotes_fifo_disponibles(cat, producto, marca_eff)
+        except Exception:
+            lotes = []
     productos: list[str] = []
     try:
         productos = productos_catalogo(cat)
@@ -538,6 +700,8 @@ def load_stock_consumo_view_data(cat: str, producto: str) -> dict[str, Any]:
     return {
         "producto_es_stockeable": es_stockeable,
         "marcas": marcas,
+        "marca_sel": marca_eff,
+        "lotes": lotes,
         "productos": productos,
         "consumos_recientes": recientes,
         "equipos": equipos_activos(),
@@ -553,6 +717,8 @@ def save_consumo_from_web_form(form: Any, *, default_operador: str) -> None:
             "El operador del consumo debe coincidir con tu usuario de sesión (y turno activo si aplica)."
         )
     eq = form.get("equipo_id")
+    raw_ing = (form.get("ingreso_stock_id") or "").strip()
+    ing_id: Optional[int] = int(raw_ing) if raw_ing.isdigit() else None
     save_consumo(
         form.get("categoria") or "",
         form.get("producto") or "",
@@ -561,6 +727,7 @@ def save_consumo_from_web_form(form: Any, *, default_operador: str) -> None:
         default_operador,
         form.get("observaciones") or "",
         int(eq) if eq else None,
+        ingreso_stock_id=ing_id,
     )
 
 
@@ -570,11 +737,9 @@ def save_ingreso_from_web_form(
     categoria_post: str,
     username_fallback: str | None,
     default_operador: str,
-    actor_is_admin: bool,
     fecha_hora_fallback: datetime,
+    cargado_por_user_id: int | None = None,
 ) -> None:
-    smin_raw = (form.get("stock_minimo_alerta") or "").strip()
-    smin_val = float(smin_raw.replace(",", ".")) if smin_raw else None
     is_stockable = (form.get("is_stockable") or "1").strip() != "0"
     if categoria_post != "materia_prima":
         is_stockable = True
@@ -596,8 +761,10 @@ def save_ingreso_from_web_form(
         operador_final,
         (form.get("requiere_equipo") == "1"),
         is_stockable,
-        smin_val,
-        bool(actor_is_admin),
+        unidad=(form.get("unidad") or "").strip(),
+        observaciones_ingreso=(form.get("observaciones_ingreso") or "").strip(),
+        proveedor=(form.get("proveedor") or "").strip(),
+        cargado_por_user_id=cargado_por_user_id,
         fecha=(form.get("fecha_ingreso") or "").strip() or None,
         hora=(form.get("hora_ingreso") or "").strip() or None,
         fecha_hora_fallback=fecha_hora_fallback,
@@ -613,4 +780,95 @@ def build_stock_ver_template_context(categoria_arg: str) -> dict[str, Any]:
             items = stock_consolidado(cat)
     except Exception:
         items = []
-    return {"categoria": cat, "items": items}
+    lotes_items: list[dict[str, Any]] = []
+    try:
+        if cat != "todas":
+            lotes_items = list_lotes_con_saldo_por_categoria(cat)
+    except Exception:
+        lotes_items = []
+    return {"categoria": cat, "items": items, "lotes_items": lotes_items}
+
+
+def list_productos_catalogo_rows(categoria: str | None = None) -> list[ProductoCatalogo]:
+    q = select(ProductoCatalogo).where(ProductoCatalogo.activo.is_(True))
+    if categoria:
+        q = q.where(ProductoCatalogo.categoria == _validate_cat(categoria))
+    return list(db.session.scalars(q.order_by(ProductoCatalogo.categoria, ProductoCatalogo.nombre_producto)).all())
+
+
+def get_catalog_product(producto_id: int) -> ProductoCatalogo | None:
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None or not bool(getattr(row, "activo", True)):
+        return None
+    return row
+
+
+def create_catalog_product(
+    categoria: str,
+    nombre_producto: str,
+    *,
+    stock_minimo_alerta: float,
+    tipo_producto: str = "Normal",
+    requiere_equipo: bool = False,
+    is_stockable: bool = True,
+) -> None:
+    c = _validate_cat(categoria)
+    n = (nombre_producto or "").strip()
+    if not n:
+        raise ValueError("El nombre del producto es obligatorio.")
+    try:
+        smin = float(stock_minimo_alerta)
+    except (TypeError, ValueError):
+        raise ValueError("Stock mínimo de alerta inválido.")
+    if smin < 0 or not math.isfinite(smin):
+        raise ValueError("El stock mínimo de alerta no puede ser negativo.")
+    key = n.lower()
+    dup = db.session.execute(
+        select(ProductoCatalogo).where(
+            ProductoCatalogo.categoria == c,
+            func.lower(func.trim(ProductoCatalogo.nombre_producto)) == key,
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        raise ValueError("Ya existe un producto con ese nombre en la categoría.")
+    stockable_f = bool(is_stockable) if c == "materia_prima" else True
+    ensure_producto(
+        c,
+        n,
+        tipo=tipo_producto,
+        requiere_equipo=bool(requiere_equipo),
+        is_stockable=stockable_f,
+        stock_minimo_alerta=smin if stockable_f else None,
+        can_configure_alerta=True,
+    )
+    db.session.commit()
+
+
+def update_catalog_product_admin(
+    producto_id: int,
+    *,
+    stock_minimo_alerta: Optional[float] = None,
+    requiere_equipo: bool = False,
+    is_stockable: Optional[bool] = None,
+    tipo_producto: Optional[str] = None,
+) -> None:
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None:
+        raise ValueError("Producto no encontrado.")
+    if stock_minimo_alerta is not None:
+        v = float(stock_minimo_alerta)
+        if v < 0 or not math.isfinite(v):
+            raise ValueError("Stock mínimo de alerta inválido.")
+        row.stock_minimo_alerta = v if bool(getattr(row, "is_stockable", True)) else None
+    row.requiere_equipo = bool(requiere_equipo)
+    if normalize_tipo_producto(row.tipo_producto) == "Filtro":
+        row.requiere_equipo = True
+    if is_stockable is not None and str(row.categoria) == "materia_prima":
+        row.is_stockable = bool(is_stockable)
+        if not row.is_stockable:
+            row.stock_minimo_alerta = None
+    if tipo_producto is not None and (tipo_producto or "").strip():
+        row.tipo_producto = normalize_tipo_producto(tipo_producto)
+        if normalize_tipo_producto(row.tipo_producto) == "Filtro":
+            row.requiere_equipo = True
+    db.session.commit()

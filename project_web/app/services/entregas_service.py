@@ -98,6 +98,7 @@ def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime) -> N
             equipo_id=int(entrega.stock_equipo_id) if entrega.stock_equipo_id else None,
             fecha_hora=ahora,
             skip_ledger_availability_check=True,
+            ingreso_stock_id=None,
         )
         db.session.flush()
         consumo_id = int(rec.id)

@@ -162,6 +162,7 @@ def create_app() -> Flask:
         from app.auth_utils import user_may_view_entregas_programar
         from app.auth_utils import (
             user_can_access_stock_hub,
+            user_can_edit_stock_catalogo_alta,
             user_can_view_stock_existencias,
             user_can_view_stock_historial,
             user_can_view_stock_ingreso_categoria,
@@ -190,6 +191,7 @@ def create_app() -> Flask:
             "user_can_stock_consumos": user_can_view_stock_consumos(u),
             "user_can_stock_existencias": user_can_view_stock_existencias(u),
             "user_can_stock_historial": user_can_view_stock_historial(u),
+            "user_can_stock_catalogo_alta": user_can_edit_stock_catalogo_alta(u),
             "module_labels": MODULE_LABELS,
             "user_roles_ordered": USER_ROLES_ORDERED,
             "role_labels": ROLE_LABELS,

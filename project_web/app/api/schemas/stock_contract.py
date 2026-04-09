@@ -33,6 +33,8 @@ class ConsumoStockItemBase(TypedDict, total=False):
     operador: str
     equipo: str
     observaciones: str
+    lote: str
+    ingreso_stock_id: int | None
 
 
 class ConsumoStockItemProducto(ConsumoStockItemBase, total=False):

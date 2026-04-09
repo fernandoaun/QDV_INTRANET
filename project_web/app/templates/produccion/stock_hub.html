@@ -33,7 +33,13 @@
     {% if user_can_stock_consumos %}
     <a class="app-module-card {% if not user_can_stock_ingreso_mp and not user_can_stock_ingreso_lab %}app-module-card--featured{% endif %}" href="{{ url_for('produccion.stock_consumo', categoria='materia_prima') }}">
       <h2>Consumos</h2>
-      <p>Registrar salida de producto y observaciones.</p>
+      <p>Registrar salida por producto, marca y lote (FIFO).</p>
+    </a>
+    {% endif %}
+    {% if user_can_stock_hub %}
+    <a class="app-module-card" href="{{ url_for('produccion.stock_catalogo_lista') }}">
+      <h2>Catálogo de productos</h2>
+      <p>Alta de productos, stock mínimo de alerta y revisión del maestro.</p>
     </a>
     {% endif %}
   </div>
@@ -45,7 +51,7 @@
     </div>
     <div class="app-card-body--flush table-responsive app-table-scroll">
       <table class="table table-app table-compact mb-0">
-        <thead><tr><th>Fecha</th><th>Hora</th><th>Categoría</th><th>Producto</th><th>Marca</th><th>Cantidad</th><th>Equipo</th><th>Operador</th><th>Obs.</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Categoría</th><th>Producto</th><th>Marca</th><th>Lote</th><th>Cantidad</th><th>Equipo</th><th>Operador</th><th>Obs.</th></tr></thead>
         <tbody>
           {% for r in consumos_30d %}
           <tr>
@@ -54,13 +60,14 @@
             <td>{% if r.categoria == 'materia_prima' %}Materia prima{% elif r.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
             <td>{{ r.producto }}</td>
             <td>{{ r.marca }}</td>
+            <td>{{ r.lote or '—' }}</td>
             <td>{{ r.cantidad }}</td>
             <td>{{ r.equipo or '-' }}</td>
             <td>{{ r.operador }}</td>
             <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
           </tr>
           {% else %}
-          <tr><td colspan="9" class="text-muted text-center py-3">Sin consumos en los últimos 30 días.</td></tr>
+          <tr><td colspan="10" class="text-muted text-center py-3">Sin consumos en los últimos 30 días.</td></tr>
           {% endfor %}
         </tbody>
       </table>
