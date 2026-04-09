@@ -93,13 +93,15 @@
 
   function sync() {
     const isMateriaPrima = (catSel.value || "") === "materia_prima";
+    const isLaboratorio = (catSel.value || "") === "laboratorio";
     const isStockable = (stockableSel.value || "1") === "1";
     stockableSel.disabled = !isMateriaPrima;
     if (!isMateriaPrima) {
       stockableSel.value = "1";
     }
     if (stockMinWrap) {
-      stockMinWrap.classList.toggle("d-none", !isStockable || !isMateriaPrima);
+      const canConfigureMin = isLaboratorio || (isMateriaPrima && isStockable);
+      stockMinWrap.classList.toggle("d-none", !canConfigureMin);
     }
     const needCantidad = !isMateriaPrima || isStockable;
     if (cantidadWrap && cantidadInput) {
