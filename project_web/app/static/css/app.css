@@ -599,6 +599,20 @@ body.app-body {
   margin: 0.06rem 0.12rem 0.06rem 0;
 }
 
+/* Stock panel: bajo mínimo (crítico) — coherente con pill-warn */
+.pill-danger {
+  display: inline-block;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.1;
+  padding: 0.12rem 0.35rem;
+  border-radius: var(--app-radius-pill);
+  background: #fdecea;
+  border: 1px solid #f1aeb5;
+  color: #842029;
+  margin: 0.06rem 0.12rem 0.06rem 0;
+}
+
 .note-muted {
   font-size: 0.75rem;
   color: var(--app-text-muted);

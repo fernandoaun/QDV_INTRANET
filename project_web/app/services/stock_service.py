@@ -553,6 +553,27 @@ def stock_total_producto(cat: str, producto: str) -> float:
     return max(float(ing or 0) - float(cons or 0), 0.0)
 
 
+def _nivel_alerta_panel(stock_actual: float, stock_minimo: float) -> str | None:
+    """
+    Decide si un producto entra en el panel de alertas y con qué severidad.
+
+    Usa redondeo a 2 decimales (misma precisión que la UI) para alinear criterio
+    operativo con lo que ve el usuario.
+
+    Returns:
+        None — no mostrar (stock efectivo > mínimo).
+        "limite" — stock en el mínimo (alerta preventiva).
+        "critico" — stock por debajo del mínimo.
+    """
+    a = round(float(stock_actual), 2)
+    m = round(float(stock_minimo), 2)
+    if a > m:
+        return None
+    if a == m:
+        return "limite"
+    return "critico"
+
+
 def alertas_bajo_stock(limit: int = 100) -> list[dict[str, Any]]:
     n = int(limit or 100)
     if n < 1:
@@ -564,16 +585,22 @@ def alertas_bajo_stock(limit: int = 100) -> list[dict[str, Any]]:
     for r in rows:
         minimo = float(r.stock_minimo_alerta or 0)
         actual = stock_total_producto(str(r.categoria), str(r.nombre_producto))
-        if actual <= minimo:
-            out.append(
-                {
-                    "categoria": r.categoria,
-                    "producto": r.nombre_producto,
-                    "stock_actual": actual,
-                    "stock_minimo_alerta": minimo,
-                    "faltante": max(minimo - actual, 0.0),
-                }
-            )
+        nivel = _nivel_alerta_panel(actual, minimo)
+        if nivel is None:
+            continue
+        out.append(
+            {
+                "categoria": r.categoria,
+                "producto": r.nombre_producto,
+                "stock_actual": actual,
+                "stock_minimo_alerta": minimo,
+                "faltante": max(minimo - actual, 0.0),
+                "nivel_alerta": nivel,
+                "mensaje_alerta": (
+                    "Stock en mínimo" if nivel == "limite" else "Stock por debajo del mínimo"
+                ),
+            }
+        )
     # Criticidad: primero stock más bajo, luego mayor faltante relativo
     out.sort(key=lambda x: (float(x["stock_actual"]), -float(x["faltante"]), str(x["producto"]).lower()))
     return out[:n]

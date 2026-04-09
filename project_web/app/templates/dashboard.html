@@ -69,15 +69,22 @@
   </div>
   <div class="app-card-body--flush table-responsive app-table-scroll">
     <table class="table table-app table-compact mb-0">
-      <thead><tr><th>Categoría</th><th>Producto</th><th>Actual</th><th>Mínimo</th><th>Faltante</th></tr></thead>
+      <thead><tr><th>Categoría</th><th>Producto</th><th>Actual</th><th>Mínimo</th><th>Faltante</th><th>Estado</th></tr></thead>
       <tbody>
         {% for a in alertas_stock %}
         <tr>
           <td>{% if a.categoria == 'materia_prima' %}Materia prima{% elif a.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
           <td>{{ a.producto }}</td>
-          <td><span class="pill-warn">{{ a.stock_actual | round(2) }}</span></td>
+          <td>
+            {% if a.nivel_alerta == 'critico' %}
+            <span class="pill-danger" title="{{ a.mensaje_alerta|e }}">{{ a.stock_actual | round(2) }}</span>
+            {% else %}
+            <span class="pill-warn" title="{{ a.mensaje_alerta|e }}">{{ a.stock_actual | round(2) }}</span>
+            {% endif %}
+          </td>
           <td>{{ a.stock_minimo_alerta | round(2) }}</td>
-          <td>{{ a.faltante | round(2) }}</td>
+          <td>{% if a.nivel_alerta == 'critico' %}<span class="pill-danger" title="Déficit respecto al mínimo">{{ a.faltante | round(2) }}</span>{% else %}<span class="text-muted">{{ a.faltante | round(2) }}</span>{% endif %}</td>
+          <td class="small">{% if a.nivel_alerta == 'critico' %}<span class="text-danger fw-semibold">Crítico</span> · por debajo del mínimo{% else %}<span class="text-warning fw-semibold">Preventivo</span> · en el límite{% endif %}</td>
         </tr>
         {% endfor %}
       </tbody>

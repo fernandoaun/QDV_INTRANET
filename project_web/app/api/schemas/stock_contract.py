@@ -64,6 +64,8 @@ class StockAlertaItem(TypedDict, total=False):
     stock_actual: float
     stock_minimo_alerta: float
     faltante: float
+    nivel_alerta: str
+    mensaje_alerta: str
 
 
 class StockAlertasResponse(TypedDict, total=False):
