@@ -28,10 +28,10 @@ from app.web.modules.produccion.operativa_context import (
 )
 from app.web.modules.produccion.salmuera_helpers import (
     count_consecutive_single_cell_for_electrolizador,
-    last_salmuera_created_at_iso_for_date,
     next_salmuera_lote,
     parse_voltajes,
     salmuera_row_to_dict,
+    salmuera_timer_rows_for_date,
 )
 
 
@@ -174,7 +174,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             username=current_user().username if current_user() else "",
             turno_sugerido=turno_sugerido,
             server_now_iso=now_local().isoformat(timespec="seconds"),
-            last_created_at_iso=last_salmuera_created_at_iso_for_date(fecha),
+            salmuera_timer_rows=salmuera_timer_rows_for_date(fecha),
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),
             analysis_ref_rows_salmuera=analysis_ref_rows_salmuera,
             analysis_ref_map_salmuera=analysis_ref_map_salmuera,

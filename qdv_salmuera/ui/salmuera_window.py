@@ -50,7 +50,6 @@ from qdv_salmuera.utils.module_defaults import build_daily_lot, get_current_user
 class CircuitoSalmueraWindow(tk.Toplevel):
     def __init__(self, master, db: DB):
         super().__init__(master)
-        self.next_due_dt = None
 
         self.db = db
 
@@ -107,15 +106,15 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self.btn_borrar = None
         self.lbl_status = None
 
-        # Cronómetro análisis
-        self.timer_seconds_left = ANALYSIS_INTERVAL_SECONDS
-        self.timer_overdue = False
-        self.lbl_timer = None
-        self.var_timer = tk.StringVar(value="02:00:00")
+        # Cronómetro análisis (un vencimiento por electrolizador; fuente DB)
+        self._next_due_by_electrolizador: Dict[int, datetime] = {}
+        self._electro_timer_vars: Dict[int, tk.StringVar] = {}
+        self._electro_timer_labels: Dict[int, ttk.Label] = {}
+        self._timer_electro_inner: Optional[ttk.Frame] = None
         self.var_motivo_atraso = tk.StringVar()
         self.ent_motivo_atraso = None
         self._timer_job = None
-        self._prev_timer_seconds_left: Optional[int] = None
+        self._prev_form_timer_seconds_left: Optional[int] = None
 
         # Advertencias rojas grandes
         self.warn_caudad = None
@@ -123,63 +122,82 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         self._build_ui()
         self._set_default_operador_lote()
-        self._compute_timer_from_last_record_today()
+        self._rebuild_electro_timer_panel()
         self._start_timer()
         self._wire_validation()
         self._refresh_save_state()
         self._load_day_table()
 
-    def _set_timer_overdue_ui(self, overdue: bool):
-        self.timer_overdue = overdue
-        if getattr(self, "lbl_timer", None) is not None:
-            self.lbl_timer.config(foreground=(QDV_COLORS["danger"] if overdue else QDV_COLORS["fg"]))
-
-        if getattr(self, "ent_motivo_atraso", None) is not None:
-            if overdue:
-                self.ent_motivo_atraso.configure(state="normal")
-            else:
-                self.var_motivo_atraso.set("")
-                self.ent_motivo_atraso.configure(state="disabled")
-
-    def _compute_timer_from_last_record_today(self):
-        """
-        Define el 'deadline' del próximo análisis (último registro + 2 horas)
-        y calcula cuántos segundos faltan. Funciona aunque cierres el programa,
-        porque depende de created_at_iso guardado en la DB.
-        """
-        now = datetime.now()
-
-        # default: ahora + 2h
-        self.next_due_dt = now + timedelta(seconds=ANALYSIS_INTERVAL_SECONDS)
-
-        # estado previo (para detectar transición a vencido)
-        prev_overdue = getattr(self, "timer_overdue", False)
-
-        # Buscar último registro
-        last = None
+    def _form_electrolizador_int_optional(self) -> Optional[int]:
+        s = self.var_electrolizador.get().strip()
+        if not s or not is_int_ok(s):
+            return None
         try:
-            last = self.db.fetch_last_salmuera()
+            v = int(s)
         except Exception:
-            last = None
+            return None
+        return v if v > 0 else None
 
-        # Si hay último registro y tiene created_at_iso válido, usamos eso
-        if last and last.get("created_at_iso"):
+    def _normalize_naive_dt(self, dt: datetime) -> datetime:
+        if getattr(dt, "tzinfo", None) is not None:
+            return dt.astimezone().replace(tzinfo=None)
+        return dt
+
+    def _raw_seconds_until_due(self, electrolizador: int) -> int:
+        due = self._next_due_by_electrolizador.get(int(electrolizador))
+        if due is None:
+            return ANALYSIS_INTERVAL_SECONDS
+        due = self._normalize_naive_dt(due)
+        return int((due - datetime.now()).total_seconds())
+
+    def _sync_motivo_atraso_enabled(self, fe: Optional[int], cur: Optional[int]) -> None:
+        ent = getattr(self, "ent_motivo_atraso", None)
+        if ent is None:
+            return
+        overdue = fe is not None and cur is not None and cur <= 0
+        if overdue:
+            ent.configure(state="normal")
+        else:
+            self.var_motivo_atraso.set("")
+            ent.configure(state="disabled")
+
+    def _rebuild_electro_timer_panel(self) -> None:
+        self._next_due_by_electrolizador.clear()
+        self._electro_timer_vars.clear()
+        self._electro_timer_labels.clear()
+        inner = getattr(self, "_timer_electro_inner", None)
+        if inner is None:
+            return
+        for w in inner.winfo_children():
+            w.destroy()
+        try:
+            ids = self.db.fetch_distinct_salmuera_electrolizador_ids()
+        except Exception:
+            ids = []
+        if not ids:
+            ttk.Label(inner, text="No hay electrolizadores con registros históricos.").pack(anchor="w")
+            return
+        now = datetime.now()
+        for eid in ids:
+            due: Optional[datetime] = None
             try:
-                created = datetime.fromisoformat(last["created_at_iso"])
-                if created.tzinfo is not None:
-                    created = created.astimezone().replace(tzinfo=None)
-
-                self.next_due_dt = created + timedelta(seconds=ANALYSIS_INTERVAL_SECONDS)
+                iso = self.db.fetch_last_salmuera_created_at_iso_for_electrolizador(eid)
+                if iso:
+                    created = datetime.fromisoformat(str(iso))
+                    created = self._normalize_naive_dt(created)
+                    due = created + timedelta(seconds=ANALYSIS_INTERVAL_SECONDS)
             except Exception:
-                # si falla parseo, queda default
-                self.next_due_dt = now + timedelta(seconds=ANALYSIS_INTERVAL_SECONDS)
-
-        # calcular restante
-        remaining = int((self.next_due_dt - now).total_seconds())
-        self.timer_seconds_left = max(0, remaining)
-
-        # actualizar overdue
-        self._set_timer_overdue_ui(self.timer_seconds_left <= 0)
+                due = now + timedelta(seconds=ANALYSIS_INTERVAL_SECONDS)
+            if due is not None:
+                self._next_due_by_electrolizador[int(eid)] = self._normalize_naive_dt(due)
+            row = ttk.Frame(inner)
+            row.pack(fill="x", pady=1)
+            ttk.Label(row, text=f"Electrolizador {eid}", width=16).pack(side="left")
+            var = tk.StringVar(value="--:--:--")
+            lbl = ttk.Label(row, textvariable=var, font=("Segoe UI", 12, "bold"))
+            lbl.pack(side="left", padx=(8, 0))
+            self._electro_timer_vars[int(eid)] = var
+            self._electro_timer_labels[int(eid)] = lbl
 
     def _start_timer(self):
         # Cancela el timer anterior si existe
@@ -190,8 +208,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
                 pass
             self._timer_job = None
 
-        # Primera medición tras reinicio: permite detectar cruce vencido/sin reutilizar "prev" viejo
-        self._prev_timer_seconds_left = None
+        self._prev_form_timer_seconds_left = None
 
         # Arranca el loop
         self._tick_timer()
@@ -207,7 +224,6 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         self._timer_job = None
 
     def _tick_timer(self):
-        # Si la ventana ya no existe, cortamos
         try:
             if not self.winfo_exists():
                 return
@@ -216,50 +232,45 @@ class CircuitoSalmueraWindow(tk.Toplevel):
 
         try:
             now = datetime.now()
+            for eid, var in self._electro_timer_vars.items():
+                lbl = self._electro_timer_labels.get(eid)
+                if lbl is None:
+                    continue
+                due = self._next_due_by_electrolizador.get(eid)
+                if due is None:
+                    var.set("--:--:--")
+                    lbl.config(foreground=QDV_COLORS.get("muted", QDV_COLORS["fg"]))
+                    continue
+                nd = self._normalize_naive_dt(due)
+                remaining = int((nd - now).total_seconds())
+                var.set(format_hhmmss(max(0, remaining)))
+                lbl.config(foreground=(QDV_COLORS["danger"] if remaining <= 0 else QDV_COLORS["fg"]))
 
-            # Si no tenemos deadline, recalculamos
-            if self.next_due_dt is None:
-                self._compute_timer_from_last_record_today()
-
-            # Normalizar next_due_dt por si vino con tzinfo (evita TypeError)
-            if self.next_due_dt is not None and getattr(self.next_due_dt, "tzinfo", None) is not None:
-                self.next_due_dt = self.next_due_dt.astimezone().replace(tzinfo=None)
-
-            # Calcular segundos restantes
-            remaining = int((self.next_due_dt - now).total_seconds())
-            prev = self._prev_timer_seconds_left
-            self.timer_seconds_left = max(0, remaining)
-
-            # Mostrar en pantalla
-            if self.lbl_timer is not None:
-                self.var_timer.set(format_hhmmss(self.timer_seconds_left))
-
-            # Estado vencido / no vencido
-            self._set_timer_overdue_ui(self.timer_seconds_left <= 0)
-
-            # Validación de Guardar: solo depende del timer al cruzar vencido / recuperarse,
-            # no hace falta revalidar cada segundo (evita consultas DB en _validate_all).
-            crossed = prev is not None and (prev > 0) != (self.timer_seconds_left > 0)
-            need_refresh = crossed or (
-                prev is None and self.timer_seconds_left <= 0
-            )
-            self._prev_timer_seconds_left = self.timer_seconds_left
-            if need_refresh:
-                try:
-                    self._refresh_save_state()
-                except Exception:
-                    pass
+            fe = self._form_electrolizador_int_optional()
+            if fe is None:
+                self._sync_motivo_atraso_enabled(None, None)
+                self._prev_form_timer_seconds_left = None
+            else:
+                cur = self._raw_seconds_until_due(fe)
+                self._sync_motivo_atraso_enabled(fe, cur)
+                prev = self._prev_form_timer_seconds_left
+                crossed = prev is not None and (prev > 0) != (cur > 0)
+                need_refresh = crossed or (prev is None and cur <= 0)
+                self._prev_form_timer_seconds_left = cur
+                if need_refresh:
+                    try:
+                        self._refresh_save_state()
+                    except Exception:
+                        pass
 
         except Exception as e:
-            # Si algo falla, lo ves en el reloj (así no queda "02:00:00" engañoso)
             try:
-                if self.lbl_timer is not None:
-                    self.var_timer.set(f"ERR: {type(e).__name__}")
+                for var in self._electro_timer_vars.values():
+                    var.set(f"ERR: {type(e).__name__}")
             except Exception:
                 pass
 
         finally:
-            # Pase lo que pase, reprogramar cada 1 segundo
             self._timer_job = self.after(1000, self._tick_timer)
 
 
@@ -312,18 +323,20 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         ttk.Label(header, text=module_label("salmuera"), font=("Segoe UI", 16, "bold")).pack(side="left")
         ttk.Label(header, text=f"Día: {self.fixed_date_ddmmyyyy}", font=("Segoe UI", 11)).pack(side="right")
 
-        # Cronómetro de análisis (compacto)
-        timer_box = ttk.LabelFrame(outer, text="Cronómetro de análisis (cada 2 h)", padding=4)
+        timer_box = ttk.LabelFrame(
+            outer,
+            text=f"Cronómetro próximo análisis (cada {ANALYSIS_INTERVAL_SECONDS // 3600} h) — por electrolizador",
+            padding=4,
+        )
         timer_box.grid(row=_r, column=0, sticky="ew", pady=(0, 4))
         _r += 1
+        self._timer_electro_inner = ttk.Frame(timer_box)
+        self._timer_electro_inner.pack(fill="x")
         trow = ttk.Frame(timer_box)
-        trow.pack(fill="x")
-        ttk.Label(trow, text="Tiempo restante:").pack(side="left")
-        self.lbl_timer = ttk.Label(trow, textvariable=self.var_timer, font=("Segoe UI", 12, "bold"))
-        self.lbl_timer.pack(side="left", padx=(6, 10))
-        ttk.Label(trow, text="Motivo atraso (si venció):").pack(side="left", padx=(4, 0))
+        trow.pack(fill="x", pady=(6, 0))
+        ttk.Label(trow, text="Motivo atraso (si el electrolizador cargado está vencido):").pack(side="left", padx=(0, 6))
         self.ent_motivo_atraso = ttk.Entry(trow, textvariable=self.var_motivo_atraso, width=50)
-        self.ent_motivo_atraso.pack(side="left", padx=(4, 0), fill="x", expand=True)
+        self.ent_motivo_atraso.pack(side="left", fill="x", expand=True)
         self.ent_motivo_atraso.configure(state="disabled")
 
         # Planilla horizontal: una sola línea de carga (orden según imagen)
@@ -701,7 +714,8 @@ class CircuitoSalmueraWindow(tk.Toplevel):
         if not lote:
             return False, "Lote es obligatorio."
 
-        if self.timer_seconds_left <= 0:
+        fe = self._form_electrolizador_int_optional()
+        if fe is not None and self._raw_seconds_until_due(fe) <= 0:
             if not self.var_motivo_atraso.get().strip():
                 return False, "ADVERTENCIA: El análisis está vencido. Indique el motivo del atraso."
 
@@ -890,14 +904,7 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             self._set_default_operador_lote()
             self._refresh_save_state()
 
-            # Recalcular deadline desde momento real de guardado
-            created = datetime.fromisoformat(data["created_at_iso"])
-            if created.tzinfo is not None:
-                created = created.astimezone().replace(tzinfo=None)
-
-            self.next_due_dt = created + timedelta(seconds=ANALYSIS_INTERVAL_SECONDS)
-
-            # Reiniciar timer correctamente
+            self._rebuild_electro_timer_panel()
             self._start_timer()
 
         except Exception as e:
@@ -953,6 +960,8 @@ class CircuitoSalmueraWindow(tk.Toplevel):
             return
 
         self._load_day_table()
+        self._rebuild_electro_timer_panel()
+        self._start_timer()
         messagebox.showinfo("OK", f"Registro ID {self._selected_row_id} eliminado.")
 
     def on_historial(self):

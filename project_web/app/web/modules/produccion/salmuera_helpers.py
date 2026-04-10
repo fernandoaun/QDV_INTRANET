@@ -29,13 +29,39 @@ def next_salmuera_lote(fecha_iso: str) -> str:
     return f"{dt.strftime('%y%m%d')}{correlative:02d}"
 
 
-def last_salmuera_created_at_iso_for_date(fecha_iso: str) -> str | None:
+def distinct_salmuera_electrolizador_ids() -> list[int]:
+    """Electrolizadores que aparecen en la tabla de salmuera (hipoclorito), ordenados."""
+    rows = db.session.scalars(
+        select(SalmueraRegistro.electrolizador)
+        .where(SalmueraRegistro.electrolizador > 0)
+        .distinct()
+        .order_by(SalmueraRegistro.electrolizador.asc())
+    ).all()
+    return [int(x) for x in rows]
+
+
+def last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso: str, electrolizador: int) -> str | None:
+    """Último análisis del electrolizador en la fecha de planilla (mismo criterio temporal que el cronómetro por día)."""
     return db.session.scalar(
         select(SalmueraRegistro.created_at_iso)
-        .where(SalmueraRegistro.fecha_iso == fecha_iso)
+        .where(
+            SalmueraRegistro.fecha_iso == fecha_iso,
+            SalmueraRegistro.electrolizador == int(electrolizador),
+        )
         .order_by(SalmueraRegistro.id.desc())
         .limit(1)
     )
+
+
+def salmuera_timer_rows_for_date(fecha_iso: str) -> list[dict[str, Any]]:
+    """Filas para cronómetros por electrolizador: último registro de ese equipo en `fecha_iso`."""
+    return [
+        {
+            "electrolizador": eid,
+            "last_created_at_iso": last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso, eid),
+        }
+        for eid in distinct_salmuera_electrolizador_ids()
+    ]
 
 
 def count_consecutive_single_cell_for_electrolizador(

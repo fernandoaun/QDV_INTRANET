@@ -23,20 +23,31 @@
 <div class="app-card mb-4">
   <div class="app-card-header app-card-header--split">
     <div>
-      <strong>Cronómetro</strong> <span class="app-text-secondary">· próximo análisis</span>
+      <strong>Cronómetro</strong> <span class="app-text-secondary">· próximo análisis (por electrolizador)</span>
     </div>
     <div class="small app-text-secondary">
       Intervalo: {{ (analysis_interval_seconds // 3600) }}h
     </div>
   </div>
-  <div class="app-card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-    <div>
-      <div class="app-timer-display mb-0" id="timerText">--:--:--</div>
-      <div class="small app-text-secondary" id="timerSub">Calculando…</div>
+  <div class="app-card-body">
+    {% if salmuera_timer_rows %}
+    <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
+      {% for t in salmuera_timer_rows %}
+      <div class="col">
+        <div class="border rounded-3 p-3 h-100 app-timer-e-block" data-electrolizador="{{ t.electrolizador }}">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <span class="fw-semibold">Electrolizador {{ t.electrolizador }}</span>
+            <span class="badge text-bg-secondary app-badge-soft app-timer-e-state" id="timerState-{{ t.electrolizador }}">—</span>
+          </div>
+          <div class="app-timer-display mb-1" id="timerText-{{ t.electrolizador }}">--:--:--</div>
+          <div class="small app-text-secondary app-timer-e-sub" id="timerSub-{{ t.electrolizador }}">Calculando…</div>
+        </div>
+      </div>
+      {% endfor %}
     </div>
-    <div class="d-flex flex-wrap gap-2">
-      <span class="badge text-bg-secondary app-badge-soft" id="timerState">Estado</span>
-    </div>
+    {% else %}
+    <p class="mb-0 text-muted">No hay electrolizadores con registros históricos. Tras el primer guardado, aparecerá el cronómetro de ese equipo.</p>
+    {% endif %}
   </div>
 </div>
 
@@ -418,22 +429,15 @@
   }
 
   // ---------------------------
-  // Cronómetro: countdown desde último registro del día (created_at_iso) + interval
+  // Cronómetros: por electrolizador, último registro del día (created_at_iso) + interval (misma lógica que antes)
   // ---------------------------
-  const timerText = document.getElementById("timerText");
-  const timerSub = document.getElementById("timerSub");
-  const timerState = document.getElementById("timerState");
-
   const serverNowIso = {{ (server_now_iso | tojson) }};
-  const lastCreatedIso = {{ (last_created_at_iso | tojson) }};
+  const salmueraTimerRows = {{ (salmuera_timer_rows | tojson) }};
   const intervalSec = {{ analysis_interval_seconds | int }};
 
   function parseIsoLocal(iso) {
-    // created_at_iso se guarda sin tz (naive). Interpretamos como hora local del servidor.
-    // En Render el servidor suele estar en UTC; para el cronómetro operativo solo importa delta.
     const d = new Date(iso);
     if (!isNaN(d.getTime())) return d;
-    // fallback: "YYYY-MM-DDTHH:MM:SS"
     return new Date((iso || "").replace(" ", "T"));
   }
 
@@ -445,16 +449,21 @@
     return `${h}:${m}:${ss}`;
   }
 
-  // Intento de alinear reloj con server usando offset simple.
   const clientNow = new Date();
   const serverNow = parseIsoLocal(serverNowIso);
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
 
-  function tick() {
+  function tickElectrolizador(row) {
+    const e = row.electrolizador;
+    const timerText = document.getElementById(`timerText-${e}`);
+    const timerSub = document.getElementById(`timerSub-${e}`);
+    const timerState = document.getElementById(`timerState-${e}`);
     if (!timerText || !timerSub || !timerState) return;
+
+    const lastCreatedIso = row.last_created_at_iso;
     if (!lastCreatedIso) {
       timerText.textContent = fmtHhmmss(intervalSec);
-      timerSub.textContent = "Sin registros hoy: contando desde ahora.";
+      timerSub.textContent = "Sin análisis registrados para este electrolizador en esta fecha.";
       timerState.className = "badge text-bg-secondary app-badge-soft";
       timerState.textContent = "En tiempo";
       return;
@@ -470,14 +479,19 @@
       timerState.textContent = "En tiempo";
     } else {
       timerText.textContent = fmtHhmmss(-diffSec);
-      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0,19).replace("T"," ")}`;
+      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
     }
   }
 
-  tick();
-  setInterval(tick, 1000);
+  function tickAllTimers() {
+    if (!Array.isArray(salmueraTimerRows)) return;
+    salmueraTimerRows.forEach(tickElectrolizador);
+  }
+
+  tickAllTimers();
+  setInterval(tickAllTimers, 1000);
 })();
 </script>
 {% endblock %}

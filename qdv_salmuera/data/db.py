@@ -472,6 +472,40 @@ class DB:
             "created_at_iso": r[21],
         }
 
+    def fetch_distinct_salmuera_electrolizador_ids(self):
+        """IDs de electrolizador presentes en salmuera_registros, ordenados (>=1)."""
+        with self._connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                SELECT DISTINCT electrolizador
+                FROM salmuera_registros
+                WHERE electrolizador > 0
+                ORDER BY electrolizador ASC;
+                """
+            )
+            rows = cur.fetchall()
+        return [int(r[0]) for r in rows]
+
+    def fetch_last_salmuera_created_at_iso_for_electrolizador(self, electrolizador: int):
+        """Último análisis global de ese electrolizador (ORDER BY id DESC)."""
+        with self._connect() as con:
+            cur = con.cursor()
+            cur.execute(
+                """
+                SELECT created_at_iso
+                FROM salmuera_registros
+                WHERE electrolizador = ?
+                ORDER BY id DESC
+                LIMIT 1;
+                """,
+                (int(electrolizador),),
+            )
+            r = cur.fetchone()
+        if not r or r[0] is None:
+            return None
+        return str(r[0])
+
 
     def fetch_last_salmuera_by_electrolizador(self, electrolizador: int, limit: int = 10):
         with self._connect() as con:
