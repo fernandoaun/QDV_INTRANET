@@ -59,6 +59,32 @@ _PALETTE = (
 _CHART_PALETTE = ["#2f80ed", "#27ae60", "#f2994a", "#9b51e0"]
 
 
+def _distinct_electrolizadores_salmuera() -> list[int]:
+    """Electrolizadores que aparecen en registros de control hipoclorito (salmuera fusión), ordenados."""
+    rows = db.session.scalars(
+        select(SalmueraRegistro.electrolizador)
+        .where(SalmueraRegistro.electrolizador > 0)
+        .distinct()
+        .order_by(SalmueraRegistro.electrolizador.asc())
+    ).all()
+    return [int(x) for x in rows]
+
+
+def _parse_hipo_electrolizador_param(raw: str | None) -> tuple[str, int | None]:
+    """
+    Valor normalizado para URLs y filtro SQL.
+    Retorna (valor_en_query, id_electrolizador o None = todos).
+    """
+    s = (raw or "").strip().lower()
+    if not s or s in ("all", "todos", "*"):
+        return "all", None
+    if s.isdigit():
+        n = int(s)
+        if n > 0:
+            return str(n), n
+    return "all", None
+
+
 def _parse_vars_selection(
     raw_list: list[str],
     raw_csv: str | None,
@@ -156,6 +182,7 @@ def build_graficos_template_context(
     dia_arg: str,
     hipo_vars: list[str],
     hipo_vars_csv: str | None,
+    hipo_electrolizador: str | None,
     salmuera_vars: list[str],
     salmuera_vars_csv: str | None,
     agua_vars: list[str],
@@ -248,15 +275,27 @@ def build_graficos_template_context(
     salmuera_selected = _parse_vars_selection(salmuera_vars, salmuera_vars_csv, sal_allowed, ["concentracion_tabla"])
     agua_selected = _parse_vars_selection(agua_vars, agua_vars_csv, agua_allowed, ["dureza"])
 
+    hipo_electrolizador_sel, hipo_electrolizador_id = _parse_hipo_electrolizador_param(hipo_electrolizador)
+    elect_ids = _distinct_electrolizadores_salmuera()
+    ids_for_select = sorted(
+        set(elect_ids) | ({int(hipo_electrolizador_id)} if hipo_electrolizador_id is not None else set())
+    )
+    hipo_electrolizador_opciones: list[dict[str, str]] = [{"value": "all", "label": "Todos"}] + [
+        {"value": str(eid), "label": f"Electrolizador {eid}"} for eid in ids_for_select
+    ]
+
     cutoff_dt = now_local() - timedelta(hours=24)
     cutoff_iso = cutoff_dt.isoformat(timespec="seconds")
 
-    hipo_rows = db.session.scalars(
+    hipo_stmt = (
         select(SalmueraRegistro)
         .where(SalmueraRegistro.created_at_iso >= cutoff_iso)
         .order_by(SalmueraRegistro.created_at_iso.asc(), SalmueraRegistro.id.asc())
         .limit(2000)
-    ).all()
+    )
+    if hipo_electrolizador_id is not None:
+        hipo_stmt = hipo_stmt.where(SalmueraRegistro.electrolizador == int(hipo_electrolizador_id))
+    hipo_rows = db.session.scalars(hipo_stmt).all()
     salmuera_rows = db.session.scalars(
         select(ReactorRegistro)
         .where(ReactorRegistro.created_at_iso >= cutoff_iso)
@@ -273,6 +312,8 @@ def build_graficos_template_context(
     hipo_chart = _build_chart_payload(hipo_rows, hipo_selected, HIPO_OPTIONS)
     salmuera_chart = _build_chart_payload(salmuera_rows, salmuera_selected, SALMUERA_OPTIONS)
     agua_chart = _build_chart_payload(agua_rows, agua_selected, AGUA_OPTIONS)
+
+    hipo_sin_datos_electrolizador = bool(hipo_electrolizador_id is not None and not hipo_rows)
 
     return {
         "desde": desde,
@@ -295,4 +336,7 @@ def build_graficos_template_context(
         "salmuera_chart": salmuera_chart,
         "agua_chart": agua_chart,
         "cutoff_24h_iso": cutoff_iso,
+        "hipo_electrolizador_sel": hipo_electrolizador_sel,
+        "hipo_electrolizador_opciones": hipo_electrolizador_opciones,
+        "hipo_sin_datos_electrolizador": hipo_sin_datos_electrolizador,
     }

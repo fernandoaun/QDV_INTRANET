@@ -28,6 +28,7 @@ def graficos():
         dia_arg=(request.args.get("dia") or "").strip(),
         hipo_vars=request.args.getlist("hipo_vars"),
         hipo_vars_csv=(request.args.get("hipo_vars_csv") or "").strip() or None,
+        hipo_electrolizador=(request.args.get("hipo_electrolizador") or "").strip() or None,
         salmuera_vars=request.args.getlist("salmuera_vars"),
         salmuera_vars_csv=(request.args.get("salmuera_vars_csv") or "").strip() or None,
         agua_vars=request.args.getlist("agua_vars"),

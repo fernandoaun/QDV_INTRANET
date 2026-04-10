@@ -28,7 +28,7 @@
         {% else %}
         <a
           class="consumo-cal-day {% if c.is_today %}consumo-cal-day--today{% endif %} {% if c.is_selected %}consumo-cal-day--selected{% endif %}"
-          href="{{ url_for('produccion.graficos', desde=desde, dia=c.fecha_iso, hipo_vars_csv=hipo_csv, salmuera_vars_csv=salmuera_csv, agua_vars_csv=agua_csv) }}"
+          href="{{ url_for('produccion.graficos', desde=desde, dia=c.fecha_iso, hipo_vars_csv=hipo_csv, hipo_electrolizador=hipo_electrolizador_sel, salmuera_vars_csv=salmuera_csv, agua_vars_csv=agua_csv) }}"
           title="{{ c.fecha_iso }} · {{ c.n_consumos }} consumo(s)"
         >
           <div class="consumo-cal-day-num">{{ c.dia_num }}</div>
@@ -58,6 +58,16 @@
         <input type="hidden" name="dia" value="{{ calendario_dia_sel }}">
         <input type="hidden" name="salmuera_vars_csv" value="{{ salmuera_csv }}">
         <input type="hidden" name="agua_vars_csv" value="{{ agua_csv }}">
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-auto">
+            <label class="form-label small mb-0" for="hipoElectSel">Electrolizador</label>
+            <select class="form-select form-select-sm" id="hipoElectSel" name="hipo_electrolizador" style="min-width: 11rem;">
+              {% for eo in hipo_electrolizador_opciones %}
+              <option value="{{ eo.value }}" {% if eo.value == hipo_electrolizador_sel %}selected{% endif %}>{{ eo.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
         <div class="graficos-var-chooser">
           {% for opt in hipo_options %}
           <label><input type="checkbox" name="hipo_vars" value="{{ opt.key }}" {% if opt.key in hipo_selected %}checked{% endif %}> {{ opt.label }}</label>
@@ -72,7 +82,9 @@
         <canvas id="chartHipo" class="app-mini-chart"></canvas>
       </div>
       <p id="chartHipoStatus" class="small app-text-secondary mt-2 mb-0 d-none"></p>
-      {% if not hipo_chart.datasets %}
+      {% if hipo_sin_datos_electrolizador %}
+      <p class="small text-warning mt-2 mb-0">No hay registros de control de hipoclorito para el electrolizador seleccionado en las últimas 24 h.</p>
+      {% elif not hipo_chart.datasets %}
       <p class="small app-text-secondary mt-2 mb-0">Sin datos para graficar.</p>
       {% endif %}
     </div>
@@ -88,6 +100,7 @@
         <input type="hidden" name="desde" value="{{ desde }}">
         <input type="hidden" name="dia" value="{{ calendario_dia_sel }}">
         <input type="hidden" name="hipo_vars_csv" value="{{ hipo_csv }}">
+        <input type="hidden" name="hipo_electrolizador" value="{{ hipo_electrolizador_sel }}">
         <input type="hidden" name="agua_vars_csv" value="{{ agua_csv }}">
         <div class="graficos-var-chooser">
           {% for opt in salmuera_options %}
@@ -119,6 +132,7 @@
         <input type="hidden" name="desde" value="{{ desde }}">
         <input type="hidden" name="dia" value="{{ calendario_dia_sel }}">
         <input type="hidden" name="hipo_vars_csv" value="{{ hipo_csv }}">
+        <input type="hidden" name="hipo_electrolizador" value="{{ hipo_electrolizador_sel }}">
         <input type="hidden" name="salmuera_vars_csv" value="{{ salmuera_csv }}">
         <div class="graficos-var-chooser">
           {% for opt in agua_options %}
