@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 import re
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
@@ -11,6 +10,7 @@ from app.auth_utils import admin_required, current_user, login_required
 from app.constants import PERMISSION_FORM_KEYS, PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_TREE
 from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
+from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
     ROLE_LABORATORISTA,
@@ -269,7 +269,7 @@ def equipo_nuevo():
                 nombre_equipo=nombre,
                 descripcion=desc,
                 activo=True,
-                created_at_iso=datetime.now().isoformat(timespec="seconds"),
+                created_at_iso=now_operacion_local_iso_seconds(),
             )
         )
         db.session.commit()

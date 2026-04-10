@@ -8,11 +8,9 @@ columna operador indica quién registró).
 from __future__ import annotations
 
 import math
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -53,12 +51,9 @@ RECEPTION_WITH_OBS = "accepted_with_observations"
 
 
 def now_local_iso() -> str:
-    tz_name = (os.environ.get("APP_TIMEZONE") or "America/Argentina/Buenos_Aires").strip()
-    try:
-        tz = ZoneInfo(tz_name)
-        return datetime.now(tz).replace(tzinfo=None).isoformat(timespec="seconds")
-    except Exception:
-        return datetime.now().isoformat(timespec="seconds")
+    from app.utils.datetime_operacion import now_operacion_local_iso_seconds
+
+    return now_operacion_local_iso_seconds()
 
 
 def user_participates_operational_shift(user: User | None) -> bool:

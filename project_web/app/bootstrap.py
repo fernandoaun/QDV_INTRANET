@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from sqlalchemy import func, select
 
 from app.extensions import db
 from app.models import ColumnaIntercambio, Operador
 
 from app.constants import DEFAULT_OPERATORS
+from app.utils.datetime_operacion import now_operacion_local_iso_seconds, now_operacion_naive_local
 
 
 def ensure_seed_data() -> None:
     """Operadores por defecto y filas iniciales de columnas (paridad con app de escritorio)."""
     n_op = db.session.scalar(select(func.count()).select_from(Operador)) or 0
     if n_op == 0:
-        now = datetime.now().isoformat(timespec="seconds")
+        now = now_operacion_local_iso_seconds()
         for name in DEFAULT_OPERATORS:
             db.session.add(Operador(nombre=name, created_at_iso=now))
         db.session.commit()
@@ -25,7 +24,7 @@ def ensure_seed_data() -> None:
         )
         if int(cnt or 0) > 0:
             continue
-        now = datetime.now()
+        now = now_operacion_naive_local()
         now_iso = now.isoformat(timespec="seconds")
         fecha_h = now.strftime("%d/%m/%Y")
         hora_h = now.strftime("%H:%M")

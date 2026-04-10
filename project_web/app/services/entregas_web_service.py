@@ -7,7 +7,6 @@ catálogos de UI y operaciones de catálogo admin.
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import select
@@ -29,6 +28,7 @@ from app.models import (
     User,
 )
 from app.services import entregas_catalog_service, entregas_service, operational_informed_stock, stock_service
+from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.utils.hipoclorito_producto import (
     aliases_entrega_lower_sorted,
     clave_catalogo_stock_producto_terminado,
@@ -233,8 +233,7 @@ def create_programada_entrega_from_form(form: Any, u: User | None) -> Entrega:
     cantidad = parse_entrega_float(form.get("cantidad"))
     fecha_prev = (form.get("fecha_prevista") or "").strip()
     obs = (form.get("observaciones") or "").strip() or None
-    now = datetime.now()
-    iso = now.isoformat(timespec="seconds")
+    iso = now_operacion_local_iso_seconds()
 
     err, cli, lug, pt, ch = validar_entrega_completa(cid, lid, ptid, chid)
     if err:

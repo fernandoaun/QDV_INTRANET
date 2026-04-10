@@ -9,6 +9,11 @@ from sqlalchemy import func, select
 from app.extensions import db
 from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo
 from app.repositories.stock_repository import stock_repo
+from app.utils.datetime_operacion import (
+    format_consumo_stock_panel_datetime,
+    now_operacion_local_iso_seconds,
+    now_operacion_naive_local,
+)
 from app.utils.hipoclorito_producto import es_producto_entrega_operativo_hipoclorito
 from app.utils.tipo_producto import normalize_tipo_producto
 
@@ -49,7 +54,7 @@ def ensure_producto(
     if not n:
         raise ValueError("Producto vacío.")
     t = normalize_tipo_producto(tipo)
-    now = datetime.now().isoformat(timespec="seconds")
+    now = now_operacion_local_iso_seconds()
     row = db.session.execute(
         select(ProductoCatalogo).where(
             ProductoCatalogo.categoria == c,
@@ -358,7 +363,7 @@ def save_ingreso(
         stock_minimo_alerta=None,
         can_configure_alerta=False,
     )
-    fb = fecha_hora_fallback or datetime.now()
+    fb = fecha_hora_fallback or now_operacion_naive_local()
     fecha_s, hora_s, created_iso = _ingreso_fecha_hora_y_created_iso(fecha, hora, fb)
     db.session.add(
         IngresoStock(
@@ -454,7 +459,7 @@ def add_consumo_stock_record(
         if row is None or not row.activo:
             raise ValueError("Equipo inválido o inactivo.")
         eq_sql = eid
-    now = fecha_hora or datetime.now()
+    now = fecha_hora or now_operacion_naive_local()
     rec = ConsumoStock(
         categoria=c,
         producto=p,
@@ -629,6 +634,7 @@ def _consumo_rows_to_dicts(
         item: dict[str, Any] = {
             "fecha": r.fecha,
             "hora": r.hora,
+            "fecha_hora": format_consumo_stock_panel_datetime(r.created_at_iso, r.fecha, r.hora),
             "marca": r.marca,
             "cantidad": r.cantidad,
             "operador": r.operador,
@@ -671,7 +677,7 @@ def consumos_ultimos_dias(dias: int = 30, limit: int = 300) -> list[dict[str, An
         n = 1
     if n > 2000:
         n = 2000
-    cutoff_iso = (datetime.now() - timedelta(days=d)).strftime("%Y-%m-%d")
+    cutoff_iso = (now_operacion_naive_local() - timedelta(days=d)).strftime("%Y-%m-%d")
     rows = stock_repo.list_consumos_since_fecha(cutoff_iso, n)
     return _consumo_rows_to_dicts(rows, include_id=False, include_categoria_producto=True)
 

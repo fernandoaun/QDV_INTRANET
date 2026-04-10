@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.extensions import db
 from app.models import Operador
+from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 
 
 def add_operador(nombre: str) -> str:
@@ -12,7 +11,7 @@ def add_operador(nombre: str) -> str:
     if not n:
         raise ValueError("El nombre del operador no puede estar vacío.")
     try:
-        db.session.add(Operador(nombre=n, created_at_iso=datetime.now().isoformat(timespec="seconds")))
+        db.session.add(Operador(nombre=n, created_at_iso=now_operacion_local_iso_seconds()))
         db.session.commit()
     except Exception:
         db.session.rollback()

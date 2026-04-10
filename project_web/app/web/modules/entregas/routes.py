@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 
 from app.constants import ENTREGAS_STOCK_CATEGORIA
@@ -19,6 +17,7 @@ from app.auth_utils import (
 from app.extensions import db
 from app.models import Entrega, User
 from app.services import entregas_service, entregas_web_service as ews, stock_service
+from app.utils.datetime_operacion import now_operacion_local_iso_seconds, now_operacion_naive_local
 from app.utils.hipoclorito_producto import aliases_entrega_lower_sorted, clave_catalogo_stock_producto_terminado
 
 bp = Blueprint("entregas", __name__, url_prefix="/entregas")
@@ -80,7 +79,7 @@ def gestion():
                 flash("Falta confirmar la acción.", "warning")
                 return redirect(url_for("entregas.gestion"))
             try:
-                ahora = datetime.now()
+                ahora = now_operacion_naive_local()
                 entregas_service.ejecutar_cargada(ent, u, ahora)
                 db.session.commit()
                 flash("Entrega marcada como cargada.", "success")
@@ -96,7 +95,7 @@ def gestion():
                 flash("Falta confirmar la acción.", "warning")
                 return redirect(url_for("entregas.gestion"))
             try:
-                ahora = datetime.now()
+                ahora = now_operacion_naive_local()
                 entregas_service.ejecutar_entregada(ent, u, ahora)
                 db.session.commit()
                 flash("Entrega marcada como entregada.", "success")
@@ -219,8 +218,7 @@ def editar(eid: int):
         elif not user_can_entregas_programar_effective(u):
             return _no_edit()
 
-    now = datetime.now()
-    iso = now.isoformat(timespec="seconds")
+    iso = now_operacion_local_iso_seconds()
 
     is_hipo = stock_service.producto_entrega_es_stock_hipoclorito(ent.producto or "")
     marcas: list[str] = []
@@ -389,7 +387,7 @@ def catalogos_hub():
 @admin_required
 def catalogos_productos():
     if request.method == "POST":
-        now = datetime.now().isoformat(timespec="seconds")
+        now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_productos_terminados(request.form, now)
             if msg:
@@ -407,7 +405,7 @@ def catalogos_productos():
 @admin_required
 def catalogos_clientes():
     if request.method == "POST":
-        now = datetime.now().isoformat(timespec="seconds")
+        now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_clientes(request.form, now)
             if msg:
@@ -426,7 +424,7 @@ def catalogos_clientes():
 def catalogos_lugares():
     clientes = ews.list_clientes_entrega_admin()
     if request.method == "POST":
-        now = datetime.now().isoformat(timespec="seconds")
+        now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_lugares(request.form, now)
             if msg:
@@ -444,7 +442,7 @@ def catalogos_lugares():
 @admin_required
 def catalogos_choferes():
     if request.method == "POST":
-        now = datetime.now().isoformat(timespec="seconds")
+        now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_choferes(request.form, now)
             if msg:

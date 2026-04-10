@@ -123,13 +123,12 @@
     </div>
     <div class="app-card-body--flush table-responsive app-table-scroll">
       <table class="table table-app table-compact mb-0">
-        <thead><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Marca</th><th>Lote</th><th>Cantidad</th><th>Operador</th><th>Equipo</th><th>Obs.</th></tr></thead>
+        <thead><tr><th>ID</th><th>Fecha y hora</th><th>Marca</th><th>Lote</th><th>Cantidad</th><th>Operador</th><th>Equipo</th><th>Obs.</th></tr></thead>
         <tbody>
           {% for r in consumos_recientes %}
           <tr>
             <td>{{ r.id }}</td>
-            <td>{{ r.fecha }}</td>
-            <td>{{ r.hora }}</td>
+            <td>{{ r.fecha_hora }}</td>
             <td>{{ r.marca }}</td>
             <td>{{ r.lote or '—' }}</td>
             <td>{{ r.cantidad }}</td>
@@ -138,7 +137,7 @@
             <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
           </tr>
           {% else %}
-          <tr><td colspan="9" class="text-muted text-center py-3">Sin consumos para este producto.</td></tr>
+          <tr><td colspan="8" class="text-muted text-center py-3">Sin consumos para este producto.</td></tr>
           {% endfor %}
         </tbody>
       </table>

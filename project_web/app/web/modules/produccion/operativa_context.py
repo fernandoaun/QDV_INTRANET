@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
@@ -12,6 +10,7 @@ from app.auth_utils import current_user
 from app.extensions import db
 from app.models import Operador
 from app.services import shift_handover_service as sh
+from app.utils.datetime_operacion import now_operacion_naive_local
 
 
 def now_local() -> datetime:
@@ -19,12 +18,7 @@ def now_local() -> datetime:
     Hora local de referencia para lógica operativa (turno/autocompletados).
     Configurable con APP_TIMEZONE, por defecto America/Argentina/Buenos_Aires.
     """
-    tz_name = (os.environ.get("APP_TIMEZONE") or "America/Argentina/Buenos_Aires").strip()
-    try:
-        tz = ZoneInfo(tz_name)
-        return datetime.now(tz).replace(tzinfo=None)
-    except Exception:
-        return datetime.now()
+    return now_operacion_naive_local()
 
 
 def default_operador_for_salmuera() -> str:

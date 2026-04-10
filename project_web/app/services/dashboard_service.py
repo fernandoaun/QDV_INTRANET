@@ -6,6 +6,7 @@ from sqlalchemy import and_, func, select
 
 from app.extensions import db
 from app.models import AguaRegistro, ColumnaIntercambio, ConsumoStock, Equipo, ReactorRegistro, SalmueraRegistro
+from app.utils.datetime_operacion import format_consumo_stock_panel_datetime
 
 
 def _fmt_ts(fecha_iso: str | None, hora_hm: str | None) -> str:
@@ -158,7 +159,7 @@ def ultimos_consumos_por_materia_prima(limit: int = 30) -> list[dict[str, Any]]:
         out.append(
             {
                 "producto": r.producto,
-                "fecha_hora": _fmt_ts(r.fecha, r.hora),
+                "fecha_hora": format_consumo_stock_panel_datetime(r.created_at_iso, r.fecha, r.hora),
                 "cantidad": r.cantidad,
                 "unidad": "",
                 "equipo": eq_name,
