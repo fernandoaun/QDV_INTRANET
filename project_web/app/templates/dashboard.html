@@ -8,6 +8,14 @@
       Sesión: <strong>{{ nav_user.username }}</strong>
       {% if nav_user.is_admin %}<span class="badge rounded-pill text-bg-secondary">{{ role_labels.get('administrador', 'Administrador') }}</span>{% else %}<span class="badge rounded-pill text-bg-secondary">{{ user_role_label(nav_user) }}</span>{% endif %}
     </p>
+    {% if operational_indicators.pending_handover_notice %}
+    <div class="alert alert-warning mb-3" role="alert">
+      <div class="mb-1">{{ operational_indicators.pending_handover_notice }}</div>
+      {% if operational_indicators.pending_handover_id %}
+      <a class="alert-link fw-semibold" href="{{ url_for('shift.receive_handover', handover_id=operational_indicators.pending_handover_id) }}">Ir a recepcionar el turno</a>
+      {% endif %}
+    </div>
+    {% endif %}
     <div class="row g-3 mb-3">
       <div class="col-md-6">
         <div class="app-card app-panel-kpi h-100 mb-0" title="Cierre último turno menos cierre anterior, más cargas de camión de hipoclorito en la ventana de ese turno. Fuente: cambio de turno recepcionado.">
@@ -40,7 +48,7 @@
         </div>
       </div>
     </div>
-    <p class="app-text-secondary small mb-2">Indicadores en litros según stock declarado en <strong>cambio de turno</strong> recepcionado (no stock teórico de otros módulos).</p>
+    <p class="app-text-secondary small mb-2">Indicadores en litros según el último <strong>cambio de turno recepcionado</strong> (el que sale solo declara stock; hasta que el entrante recepcione, estos números no cambian). No usan el stock teórico por lotes de otros módulos.</p>
     {% if user_can_production_hub or user_can_entregas_hub %}
     <p class="mb-0 small">
       {% if user_can_production_hub %}

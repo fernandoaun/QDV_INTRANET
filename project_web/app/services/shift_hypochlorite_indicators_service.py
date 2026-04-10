@@ -190,6 +190,26 @@ def _fmt_iso_for_panel(iso: str | None) -> str | None:
     return s.replace("T", " ").strip()
 
 
+def _pending_handover_panel_extra() -> tuple[str | None, int | None]:
+    """
+    Si hay entrega de turno sin recepcionar, el stock declarado no entra en los KPI
+    (solo cuentan cierres recepcionados). Devuelve texto para el panel y el id para enlazar a recepción.
+    """
+    ho = sh.get_pending_handover()
+    if ho is None:
+        return None, None
+    if not _finite_non_negative_stock(ho.hypochlorite_stock_liters):
+        return None, None
+    closed = _fmt_iso_for_panel(ho.handed_over_at_iso)
+    liters = format_header_liters(float(ho.hypochlorite_stock_liters))
+    msg = (
+        f"Cambio de turno pendiente de recepción: se declaró {liters} de hipoclorito al cierre"
+        + (f" ({closed})" if closed else "")
+        + ". Los indicadores de producción y stock instantáneo solo se actualizan cuando el turno entrante recepciona el parte."
+    )
+    return msg, int(ho.id)
+
+
 def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tuple[str | None, str | None]:
     """
     (leyenda stock según último cierre recepcionado, ventana del último turno para producción).
@@ -219,6 +239,7 @@ def header_operational_indicators_dict() -> dict[str, Any]:
         instant = _instant_from_handovers(handovers)
         production = _last_shift_production_from_handovers(handovers)
         stock_note, prod_note = _panel_shift_subnotes_from_handovers(handovers)
+        pending_notice, pending_id = _pending_handover_panel_extra()
         return {
             "instant_liters": instant,
             "last_shift_production_liters": production,
@@ -226,6 +247,8 @@ def header_operational_indicators_dict() -> dict[str, Any]:
             "production_display": format_header_liters(production),
             "stock_panel_subnote": stock_note,
             "production_panel_subnote": prod_note,
+            "pending_handover_notice": pending_notice,
+            "pending_handover_id": pending_id,
             "ok": True,
         }
     except Exception:
@@ -236,5 +259,7 @@ def header_operational_indicators_dict() -> dict[str, Any]:
             "production_display": "N/D",
             "stock_panel_subnote": None,
             "production_panel_subnote": None,
+            "pending_handover_notice": None,
+            "pending_handover_id": None,
             "ok": False,
         }
