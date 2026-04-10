@@ -15,6 +15,15 @@
     <div class="app-card-body">
       <form method="post" class="row g-3">
         {% include "_csrf.html" %}
+        <div class="col-md-6">
+          <label class="form-label" for="catDest">Categoría</label>
+          <select class="form-select" id="catDest" name="nueva_categoria" required>
+            <option value="materia_prima" {% if p.categoria == 'materia_prima' %}selected{% endif %}>Materia prima</option>
+            <option value="laboratorio" {% if p.categoria == 'laboratorio' %}selected{% endif %}>Laboratorio</option>
+            <option value="producto_terminado" {% if p.categoria == 'producto_terminado' %}selected{% endif %}>Producto terminado</option>
+          </select>
+          <div class="form-text">Si cambiás la categoría, los <strong>ingresos y consumos</strong> ya registrados de este producto pasan a la categoría nueva para no perder trazabilidad.</div>
+        </div>
         <div class="col-md-4">
           <label class="form-label">Stock mínimo de alerta</label>
           <input class="form-control" name="stock_minimo_alerta" type="number" step="any" min="0" value="{{ p.stock_minimo_alerta if p.stock_minimo_alerta is not none else 0 }}">

@@ -4,7 +4,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.extensions import db
 from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo
@@ -875,6 +875,50 @@ def create_catalog_product(
         can_configure_alerta=True,
     )
     db.session.commit()
+
+
+def reassign_catalog_product_categoria(producto_id: int, nueva_categoria: str) -> None:
+    """
+    Cambia la categoría de un ítem del catálogo y alinea ingresos/consumos de stock
+    con el mismo nombre de producto (misma cadena guardada en BD).
+    """
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None or not bool(getattr(row, "activo", True)):
+        raise ValueError("Producto no encontrado.")
+    old_c = str(row.categoria or "").strip()
+    new_c = _validate_cat(nueva_categoria)
+    if old_c == new_c:
+        return
+    n = (row.nombre_producto or "").strip()
+    if not n:
+        raise ValueError("Nombre de producto inválido.")
+    key = n.lower()
+    dup = db.session.execute(
+        select(ProductoCatalogo).where(
+            ProductoCatalogo.categoria == new_c,
+            func.lower(func.trim(ProductoCatalogo.nombre_producto)) == key,
+            ProductoCatalogo.id != int(row.id),
+        )
+    ).scalar_one_or_none()
+    if dup is not None:
+        raise ValueError(
+            "Ya existe un producto con el mismo nombre en la categoría destino. "
+            "No se puede mover hasta resolver el duplicado."
+        )
+    db.session.execute(
+        update(IngresoStock)
+        .where(IngresoStock.categoria == old_c, IngresoStock.producto == n)
+        .values(categoria=new_c)
+    )
+    db.session.execute(
+        update(ConsumoStock)
+        .where(ConsumoStock.categoria == old_c, ConsumoStock.producto == n)
+        .values(categoria=new_c)
+    )
+    row.categoria = new_c
+    if new_c != "materia_prima":
+        row.is_stockable = True
+    db.session.flush()
 
 
 def update_catalog_product_admin(

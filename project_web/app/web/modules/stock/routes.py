@@ -212,6 +212,13 @@ def register_stock_routes(bp: Blueprint) -> None:
             return redirect(url_for("produccion.stock_catalogo_lista"))
         if request.method == "POST":
             try:
+                nueva_cat = (request.form.get("nueva_categoria") or "").strip()
+                if nueva_cat and nueva_cat != str(match.categoria or "").strip():
+                    stock_service.reassign_catalog_product_categoria(pid, nueva_cat)
+                    match = stock_service.get_catalog_product(pid)
+                    if match is None:
+                        flash("Producto no encontrado tras el cambio de categoría.", "danger")
+                        return redirect(url_for("produccion.stock_catalogo_lista"))
                 smin_raw = (request.form.get("stock_minimo_alerta") or "").strip().replace(",", ".")
                 smin_opt = float(smin_raw) if smin_raw else None
                 is_mp = str(match.categoria) == "materia_prima"
