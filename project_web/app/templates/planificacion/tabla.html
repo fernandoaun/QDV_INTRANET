@@ -102,6 +102,8 @@
         <tr>
           <th>Código</th>
           <th>Título</th>
+          <th>Predecesoras</th>
+          <th>Dependencia</th>
           <th>Inicio</th>
           <th>Fin</th>
           <th>Días</th>
@@ -115,13 +117,38 @@
       <tbody>
         {% for r in rows %}
         {% set atrasada = planificacion_is_atrasada(r, today) %}
-        <tr class="{% if atrasada %}table-warning{% elif r.estado == 'demorada' %}table-danger{% endif %}">
+        {% set dlist = deps_map.get(r.id, []) %}
+        {% set anal = anal_por_id.get(r.id, {}) %}
+        {% set succ_n = (succ_map.get(r.id, [])|length) %}
+        <tr class="{% if atrasada %}table-warning{% elif r.estado == 'demorada' %}table-danger{% elif anal.get('bloquea_inicio') and r.estado == 'pendiente' %}table-secondary{% endif %}">
           <td class="text-nowrap fw-semibold">{{ planificacion_display_codigo(r) }}</td>
           <td>
             <div class="fw-semibold">{{ r.titulo }}</div>
             {% if r.descripcion %}<div class="small app-text-secondary text-truncate" style="max-width:28rem;">{{ r.descripcion }}</div>{% endif %}
             {% if atrasada and r.estado not in ('finalizada','cancelada') %}
             <div class="small text-danger fw-semibold">Vencida / atrasada (fecha fin anterior a hoy)</div>
+            {% endif %}
+          </td>
+          <td class="small" style="max-width:14rem;">
+            {% if dlist %}
+              <span class="text-muted">{{ dlist|length }} ·</span>
+              {{ planificacion_resumen_predecesoras(dlist) }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+            {% if succ_n %}
+            <div class="mt-1"><span class="badge rounded-pill text-bg-secondary">Habilita {{ succ_n }}</span></div>
+            {% endif %}
+          </td>
+          <td class="small text-nowrap">
+            {% if not dlist %}
+            <span class="text-muted">Sin deps.</span>
+            {% elif anal.get('bloquea_inicio') and r.estado == 'pendiente' %}
+            <span class="badge rounded-pill text-bg-warning text-dark">Bloqueada inicio</span>
+            {% elif anal.get('bloquea_cierre') and r.estado not in ('finalizada','cancelada') %}
+            <span class="badge rounded-pill text-bg-info">Pend. cierre</span>
+            {% else %}
+            <span class="badge rounded-pill text-bg-success">OK</span>
             {% endif %}
           </td>
           <td class="text-nowrap">{{ r.fecha_inicio.isoformat() }}</td>
@@ -162,7 +189,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="text-center app-text-secondary py-4">Sin actividades con los filtros actuales.</td></tr>
+        <tr><td colspan="12" class="text-center app-text-secondary py-4">Sin actividades con los filtros actuales.</td></tr>
         {% endfor %}
       </tbody>
     </table>

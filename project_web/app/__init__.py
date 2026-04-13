@@ -206,6 +206,7 @@ def create_app() -> Flask:
             "user_role_label": lambda u=None: role_label(getattr(u, "rol", None) if u is not None else None),
             "planificacion_display_codigo": _planificacion_service.actividad_display_codigo,
             "planificacion_is_atrasada": _planificacion_service.is_atrasada,
+            "planificacion_resumen_predecesoras": lambda dlist: _planificacion_service.resumen_predecesoras_texto(dlist or []),
         }
 
     @app.context_processor

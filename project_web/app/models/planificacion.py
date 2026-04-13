@@ -35,6 +35,66 @@ class PlanificacionActividad(db.Model):
     responsable = db.relationship("User", foreign_keys=[responsable_user_id], lazy="joined")
     created_by = db.relationship("User", foreign_keys=[created_by_user_id], lazy="joined")
 
+    deps_entrantes = db.relationship(
+        "PlanificacionDependencia",
+        foreign_keys="PlanificacionDependencia.sucesora_id",
+        back_populates="sucesora",
+        passive_deletes=True,
+    )
+    deps_salientes = db.relationship(
+        "PlanificacionDependencia",
+        foreign_keys="PlanificacionDependencia.predecesora_id",
+        back_populates="predecesora",
+        passive_deletes=True,
+    )
+
     @staticmethod
     def compute_duracion_dias(fecha_inicio: date, fecha_fin: date) -> int:
         return max(1, (fecha_fin - fecha_inicio).days + 1)
+
+
+class PlanificacionDependencia(db.Model):
+    """
+    Dependencia dirigida: la actividad `sucesora` está condicionada por `predecesora`.
+
+    Tipos (PERT/CPM habituales):
+    - FS: la sucesora puede arrancar cuando la predecesora terminó.
+    - SS: la sucesora arranca cuando arranca la predecesora.
+    - FF: la sucesora puede cerrar cuando cierra la predecesora.
+    - SF: la sucesora cierra cuando arranca la predecesora.
+    """
+
+    __tablename__ = "planificacion_dependencias"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    predecesora_id = db.Column(
+        db.Integer,
+        db.ForeignKey("planificacion_actividades.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sucesora_id = db.Column(
+        db.Integer,
+        db.ForeignKey("planificacion_actividades.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    tipo = db.Column(db.String(4), nullable=False, default="FS", server_default="FS")
+    lag_dias = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+
+    predecesora = db.relationship(
+        "PlanificacionActividad",
+        foreign_keys=[predecesora_id],
+        back_populates="deps_salientes",
+        lazy="joined",
+    )
+    sucesora = db.relationship(
+        "PlanificacionActividad",
+        foreign_keys=[sucesora_id],
+        back_populates="deps_entrantes",
+        lazy="joined",
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint("predecesora_id", "sucesora_id", name="uq_planificacion_dep_pred_suc"),
+    )

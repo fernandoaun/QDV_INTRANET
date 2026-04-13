@@ -4,7 +4,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title text-uppercase">{% if mode == 'nueva' %}Nueva actividad{% else %}Editar actividad{% endif %}</h1>
-    <p class="app-intro mb-0">Título y fechas obligatorias; fin no puede ser anterior al inicio. La duración en días se recalcula sola.</p>
+    <p class="app-intro mb-0">Título y fechas obligatorias; fin no puede ser anterior al inicio. Podés definir predecesoras con tipo FS, SS, FF o SF (con validación de ciclos y de estados).</p>
   </div>
   <div class="app-page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.tabla') }}">← Tabla</a>
@@ -98,6 +98,52 @@
         <input class="form-control" id="linked_entity_id" name="linked_entity_id" inputmode="numeric"
                value="{{ (form.linked_entity_id if form else ((row.linked_entity_id|string) if row and row.linked_entity_id else ''))|e }}">
       </div>
+
+      <div class="col-12">
+        <div class="border rounded p-3 bg-body-tertiary bg-opacity-25">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span class="fw-semibold">Dependencias (predecesoras)</span>
+            <span class="small app-text-secondary">La sucesora es esta actividad. En el Gantt, las flechas de la librería reflejan solo enlaces tipo FS.</span>
+          </div>
+          <datalist id="planifPredList">
+            {% for o in picker_options_json %}
+            <option value="{{ o.id }}" label="{{ o.label|e }}"></option>
+            {% endfor %}
+          </datalist>
+          <div id="planifDepRows" class="d-flex flex-column gap-2">
+            {% for d in deps_actuales %}
+            <div class="planif-dep-row row g-2 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label small mb-0">Predecesora (ID)</label>
+                <input class="form-control form-control-sm" name="dep_pre_id" list="planifPredList" inputmode="numeric"
+                       value="{{ d.predecesora_id }}" placeholder="ej. 12">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small mb-0">Tipo</label>
+                <select class="form-select form-select-sm" name="dep_tipo">
+                  {% for td in tipos_dependencia %}
+                  <option value="{{ td }}" {% if d.tipo == td %}selected{% endif %}>{{ tipo_dependencia_labels[td] }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small mb-0">Lag (días)</label>
+                <input class="form-control form-control-sm" name="dep_lag" type="number" min="-366" max="366" value="{{ d.lag_dias }}">
+              </div>
+              <div class="col-md-2">
+                {% if page_can_edit_current %}
+                <button type="button" class="btn btn-sm btn-outline-danger w-100 planif-dep-remove">Quitar</button>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+          {% if page_can_edit_current %}
+          <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="planifDepAdd">Agregar dependencia</button>
+          {% endif %}
+        </div>
+      </div>
+
       {% if page_can_edit_current %}
       <div class="col-12 d-flex gap-2">
         <button type="submit" class="btn btn-primary">Guardar</button>
@@ -107,6 +153,30 @@
     </form>
   </div>
 </div>
+<script type="application/json" id="planifPickerJson">{{ picker_options_json | tojson }}</script>
+<template id="planifDepRowTpl">
+  <div class="planif-dep-row row g-2 align-items-end">
+    <div class="col-md-4">
+      <label class="form-label small mb-0">Predecesora (ID)</label>
+      <input class="form-control form-control-sm" name="dep_pre_id" list="planifPredList" inputmode="numeric" placeholder="ej. 12">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label small mb-0">Tipo</label>
+      <select class="form-select form-select-sm" name="dep_tipo">
+        {% for td in tipos_dependencia %}
+        <option value="{{ td }}">{{ tipo_dependencia_labels[td] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-0">Lag (días)</label>
+      <input class="form-control form-control-sm" name="dep_lag" type="number" min="-366" max="366" value="0">
+    </div>
+    <div class="col-md-2">
+      <button type="button" class="btn btn-sm btn-outline-danger w-100 planif-dep-remove">Quitar</button>
+    </div>
+  </div>
+</template>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -133,6 +203,30 @@
   if (fi) fi.addEventListener("change", refresh);
   if (ff) ff.addEventListener("change", refresh);
   refresh();
+})();
+(function () {
+  var wrap = document.getElementById("planifDepRows");
+  var tpl = document.getElementById("planifDepRowTpl");
+  var addBtn = document.getElementById("planifDepAdd");
+  function bindRemove(row) {
+    row.querySelectorAll(".planif-dep-remove").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        row.remove();
+      });
+    });
+  }
+  function addRow() {
+    if (!wrap || !tpl || !tpl.content) return;
+    var node = tpl.content.firstElementChild.cloneNode(true);
+    wrap.appendChild(node);
+    bindRemove(node);
+  }
+  if (wrap) {
+    wrap.querySelectorAll(".planif-dep-row").forEach(bindRemove);
+  }
+  if (addBtn) {
+    addBtn.addEventListener("click", function () { addRow(); });
+  }
 })();
 </script>
 {% endblock %}

@@ -17,7 +17,7 @@ from app.models.domain import (
 )
 from app.models.shift import ShiftHandover, ShiftHandoverWarningAction, ShiftSession
 from app.models.lab_reagent import LaboratoryReagent, LaboratoryReagentUsage
-from app.models.planificacion import PlanificacionActividad
+from app.models.planificacion import PlanificacionActividad, PlanificacionDependencia
 from app.models.user import PermisoUsuario, User
 
 __all__ = [
@@ -47,4 +47,5 @@ __all__ = [
     "LaboratoryReagent",
     "LaboratoryReagentUsage",
     "PlanificacionActividad",
+    "PlanificacionDependencia",
 ]

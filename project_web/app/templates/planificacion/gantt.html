@@ -19,6 +19,7 @@
   .gantt .bar-wrapper.gantt-estado-demorada .bar { fill: #fd7e14; }
   .gantt .bar-wrapper.gantt-estado-cancelada .bar { fill: #adb5bd; }
   .gantt .bar-wrapper.gantt-atrasada .bar { stroke: #dc3545; stroke-width: 2px; }
+  .gantt .bar-wrapper.gantt-dep-bloqueada .bar { opacity: 0.72; stroke: #ffc107; stroke-width: 1.5px; }
   .gantt .bar-label { fill: #f8f9fa; }
 </style>
 {% endblock %}
@@ -26,7 +27,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title text-uppercase">Gantt</h1>
-    <p class="app-intro mb-0">Librería <strong>Frappe Gantt</strong> (0.6.x). Click en barra para abrir la actividad. Tooltip nativo al pasar el mouse.</p>
+    <p class="app-intro mb-0">Librería <strong>Frappe Gantt</strong> (0.6.x): flechas entre tareas para dependencias <strong>FS</strong> (Fin→Inicio). SS/FF/SF se muestran en el detalle del tooltip y en la tabla. Tareas pendientes bloqueadas por predecesoras sin cumplir se resaltan en el gráfico.</p>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2 justify-content-end">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}">← Hub</a>

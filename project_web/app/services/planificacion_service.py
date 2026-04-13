@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import csv
 import io
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Iterable
 
-from sqlalchemy import Select, and_, or_, select
+from sqlalchemy import Select, and_, delete, or_, select
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
-from app.models import PlanificacionActividad, User
+from app.models import PlanificacionActividad, PlanificacionDependencia, User
 from app.utils.datetime_operacion import now_operacion_naive_local
 
 ESTADOS: tuple[str, ...] = ("pendiente", "en_curso", "finalizada", "demorada", "cancelada")
@@ -26,6 +27,8 @@ CATEGORIAS: tuple[str, ...] = (
     "administracion",
     "otro",
 )
+
+TIPOS_DEPENDENCIA: tuple[str, ...] = ("FS", "SS", "FF", "SF")
 
 ESTADO_LABELS: dict[str, str] = {
     "pendiente": "Pendiente",
@@ -51,6 +54,12 @@ CATEGORIA_LABELS: dict[str, str] = {
     "administracion": "Administración",
     "otro": "Otro",
 }
+TIPO_DEPENDENCIA_LABELS: dict[str, str] = {
+    "FS": "Fin → Inicio (FS)",
+    "SS": "Inicio → Inicio (SS)",
+    "FF": "Fin → Fin (FF)",
+    "SF": "Inicio → Fin (SF)",
+}
 
 _PRIOR_ORDER: dict[str, int] = {"critica": 0, "alta": 1, "media": 2, "baja": 3}
 _ESTADO_ORDER: dict[str, int] = {
@@ -70,6 +79,8 @@ def labels_context() -> dict[str, Any]:
         "estado_labels": ESTADO_LABELS,
         "prioridad_labels": PRIORIDAD_LABELS,
         "categoria_labels": CATEGORIA_LABELS,
+        "tipos_dependencia": TIPOS_DEPENDENCIA,
+        "tipo_dependencia_labels": TIPO_DEPENDENCIA_LABELS,
     }
 
 
@@ -91,6 +102,14 @@ def is_atrasada(row: PlanificacionActividad, today: date | None = None) -> bool:
     return row.fecha_fin < t
 
 
+def _pred_terminada(p: PlanificacionActividad) -> bool:
+    return p.estado in ("finalizada", "cancelada")
+
+
+def _pred_arranco(p: PlanificacionActividad) -> bool:
+    return p.estado != "pendiente"
+
+
 @dataclass
 class ActividadFiltros:
     estado: str | None = None
@@ -100,7 +119,7 @@ class ActividadFiltros:
     fecha_desde: date | None = None
     fecha_hasta: date | None = None
     q: str | None = None
-    sort: str | None = None  # inicio | fin | prioridad | estado
+    sort: str | None = None
 
 
 def parse_filtros_from_request(values: Any) -> ActividadFiltros:
@@ -188,6 +207,13 @@ def list_actividades(f: ActividadFiltros | None = None) -> list[PlanificacionAct
     return rows
 
 
+def list_actividades_for_pred_picker(exclude_id: int | None = None) -> list[PlanificacionActividad]:
+    stmt = select(PlanificacionActividad).order_by(PlanificacionActividad.fecha_inicio.asc(), PlanificacionActividad.id.asc())
+    if exclude_id is not None:
+        stmt = stmt.where(PlanificacionActividad.id != int(exclude_id))
+    return list(db.session.scalars(stmt).all())
+
+
 def get_actividad_or_none(actividad_id: int) -> PlanificacionActividad | None:
     return db.session.get(PlanificacionActividad, int(actividad_id))
 
@@ -195,6 +221,255 @@ def get_actividad_or_none(actividad_id: int) -> PlanificacionActividad | None:
 def list_users_for_responsable() -> list[User]:
     stmt = select(User).where(User.activo.is_(True)).order_by(User.username.asc())
     return list(db.session.scalars(stmt).all())
+
+
+def dependencias_entrantes_por_sucesora(sucesora_ids: list[int]) -> dict[int, list[PlanificacionDependencia]]:
+    if not sucesora_ids:
+        return {}
+    stmt = (
+        select(PlanificacionDependencia)
+        .where(PlanificacionDependencia.sucesora_id.in_(sucesora_ids))
+        .options(joinedload(PlanificacionDependencia.predecesora))
+    )
+    rows = list(db.session.scalars(stmt).unique().all())
+    out: dict[int, list[PlanificacionDependencia]] = defaultdict(list)
+    for d in rows:
+        out[int(d.sucesora_id)].append(d)
+    return dict(out)
+
+
+def dependencias_salientes_por_predecesora(pre_ids: list[int]) -> dict[int, list[PlanificacionDependencia]]:
+    if not pre_ids:
+        return {}
+    stmt = (
+        select(PlanificacionDependencia)
+        .where(PlanificacionDependencia.predecesora_id.in_(pre_ids))
+        .options(joinedload(PlanificacionDependencia.sucesora))
+    )
+    rows = list(db.session.scalars(stmt).unique().all())
+    out: dict[int, list[PlanificacionDependencia]] = defaultdict(list)
+    for d in rows:
+        out[int(d.predecesora_id)].append(d)
+    return dict(out)
+
+
+def _all_edges_except_sucesora(sucesora_id: int) -> list[tuple[int, int]]:
+    stmt = select(PlanificacionDependencia.predecesora_id, PlanificacionDependencia.sucesora_id).where(
+        PlanificacionDependencia.sucesora_id != sucesora_id
+    )
+    return [(int(a), int(b)) for a, b in db.session.execute(stmt).all()]
+
+
+def _directed_graph_has_cycle(edges: list[tuple[int, int]]) -> bool:
+    """Detección de ciclo por ordenamiento topológico (Kahn)."""
+    if not edges:
+        return False
+    g: dict[int, list[int]] = defaultdict(list)
+    indeg: dict[int, int] = defaultdict(int)
+    nodes: set[int] = set()
+    for u, v in edges:
+        g[u].append(v)
+        indeg[v] += 1
+        nodes.add(u)
+        nodes.add(v)
+    for n in nodes:
+        indeg.setdefault(n, indeg.get(n, 0))
+    from collections import deque
+
+    q = deque(n for n in nodes if indeg[n] == 0)
+    seen = 0
+    while q:
+        u = q.popleft()
+        seen += 1
+        for v in g[u]:
+            indeg[v] -= 1
+            if indeg[v] == 0:
+                q.append(v)
+    return seen != len(nodes)
+
+
+def _validate_edges_no_cycle(sucesora_id: int, nuevas: list[tuple[int, str, int]]) -> str | None:
+    """nuevas: (predecesora_id, tipo, lag). Arista lógica predecesora → sucesora."""
+    preds = [p for p, _, _ in nuevas]
+    if len(preds) != len(set(preds)):
+        return "No podés repetir la misma actividad predecesora más de una vez."
+    edges = list(_all_edges_except_sucesora(sucesora_id))
+    for p, _, _ in nuevas:
+        if p == sucesora_id:
+            return "Una actividad no puede depender de sí misma."
+        edges.append((p, sucesora_id))
+    if _directed_graph_has_cycle(edges):
+        return "Las dependencias formarían un ciclo (orden circular). Revisá predecesoras y otras actividades que dependan de esta."
+    return None
+
+
+def dependencia_stubs_for_validation(pairs: list[tuple[int, str, int]]) -> list[Any]:
+    """Objetos mínimos con .tipo y .predecesora para reutilizar validadores de estado."""
+    stubs: list[Any] = []
+    for pid, tipo, _lag in pairs:
+        p = db.session.get(PlanificacionActividad, pid)
+        if p is None:
+            continue
+        stubs.append(type("_DepStub", (), {"tipo": tipo, "predecesora": p})())
+    return stubs
+
+
+def parse_dependencias_form(form: Any, sucesora_id: int | None) -> tuple[list[tuple[int, str, int]], list[str]]:
+    """Devuelve lista (predecesora_id, tipo, lag_dias) y errores de parseo."""
+    errs: list[str] = []
+    raw_ids = form.getlist("dep_pre_id")
+    raw_tipos = form.getlist("dep_tipo")
+    raw_lags = form.getlist("dep_lag")
+    n = max(len(raw_ids), len(raw_tipos), len(raw_lags))
+    out: list[tuple[int, str, int]] = []
+    seen: set[int] = set()
+    for i in range(n):
+        rid = (raw_ids[i] if i < len(raw_ids) else "").strip()
+        if not rid:
+            continue
+        if not rid.isdigit():
+            errs.append(f"Predecesora inválida en fila {i + 1}.")
+            continue
+        pid = int(rid)
+        if sucesora_id is not None and pid == int(sucesora_id):
+            errs.append("No podés seleccionar la misma actividad como predecesora.")
+            continue
+        if pid in seen:
+            continue
+        seen.add(pid)
+        tipo = (raw_tipos[i] if i < len(raw_tipos) else "FS").strip().upper() or "FS"
+        if tipo not in TIPOS_DEPENDENCIA:
+            errs.append(f"Tipo de dependencia inválido para predecesora #{pid}.")
+            continue
+        lag_raw = (raw_lags[i] if i < len(raw_lags) else "0").strip() or "0"
+        try:
+            lag = int(lag_raw)
+        except ValueError:
+            errs.append(f"Desfase (días) inválido para predecesora #{pid}.")
+            continue
+        lag = max(-366, min(366, lag))
+        out.append((pid, tipo, lag))
+    return out, errs
+
+
+def validate_predecesoras_existen(pairs: list[tuple[int, str, int]]) -> list[str]:
+    errs: list[str] = []
+    for pid, _, _ in pairs:
+        if db.session.get(PlanificacionActividad, pid) is None:
+            errs.append(f"La actividad predecesora #{pid} no existe.")
+    return errs
+
+
+def replace_dependencias_sucesora(sucesora_id: int, pairs: list[tuple[int, str, int]]) -> str | None:
+    """
+    Reemplaza todas las dependencias entrantes de `sucesora_id`.
+    Retorna mensaje de error o None si OK.
+    """
+    sucesora_id = int(sucesora_id)
+    errs = validate_predecesoras_existen(pairs)
+    if errs:
+        return errs[0]
+    cyc = _validate_edges_no_cycle(sucesora_id, pairs)
+    if cyc:
+        return cyc
+    db.session.execute(delete(PlanificacionDependencia).where(PlanificacionDependencia.sucesora_id == sucesora_id))
+    for pid, tipo, lag in pairs:
+        db.session.add(
+            PlanificacionDependencia(
+                predecesora_id=int(pid),
+                sucesora_id=sucesora_id,
+                tipo=tipo,
+                lag_dias=int(lag),
+            )
+        )
+    return None
+
+
+def analizar_dependencias_sucesora(
+    sucesora: PlanificacionActividad,
+    deps: list[PlanificacionDependencia],
+) -> dict[str, Any]:
+    """
+    - bloquea_inicio: no debería pasarse a «en curso» (reglas FS/SS).
+    - bloquea_cierre: no debería pasarse a «finalizada» (FF/SF).
+    - mensajes: texto para UI.
+    """
+    mensajes: list[str] = []
+    bloquea_inicio = False
+    bloquea_cierre = False
+    for d in deps:
+        p = d.predecesora
+        label_p = actividad_display_codigo(p)
+        if d.tipo == "FS":
+            if not _pred_terminada(p):
+                bloquea_inicio = True
+                mensajes.append(f"FS: «{label_p}» aún no finalizada ({ESTADO_LABELS.get(p.estado, p.estado)}).")
+        elif d.tipo == "SS":
+            if not _pred_arranco(p):
+                bloquea_inicio = True
+                mensajes.append(f"SS: «{label_p}» aún no iniciada.")
+        elif d.tipo == "FF":
+            if not _pred_terminada(p):
+                bloquea_cierre = True
+                mensajes.append(f"FF: «{label_p}» debe finalizar antes de cerrar esta tarea.")
+        elif d.tipo == "SF":
+            if not _pred_arranco(p):
+                bloquea_cierre = True
+                mensajes.append(f"SF: «{label_p}» debe haber iniciado antes de cerrar esta tarea.")
+    return {
+        "bloquea_inicio": bloquea_inicio,
+        "bloquea_cierre": bloquea_cierre,
+        "mensajes": mensajes,
+        "n_deps": len(deps),
+    }
+
+
+def resumen_predecesoras_texto(deps: list[PlanificacionDependencia]) -> str:
+    if not deps:
+        return "—"
+    parts: list[str] = []
+    for d in deps:
+        p = d.predecesora
+        parts.append(f"{d.tipo} {actividad_display_codigo(p)}")
+    return ", ".join(parts)
+
+
+def validate_estado_con_dependencias(
+    sucesora: PlanificacionActividad,
+    estado_anterior: str,
+    estado_nuevo: str,
+    deps: list[PlanificacionDependencia],
+) -> str | None:
+    """Retorna mensaje de error si el cambio de estado viola dependencias."""
+    if estado_nuevo == estado_anterior:
+        return None
+    if estado_nuevo == "en_curso":
+        for d in deps:
+            p = d.predecesora
+            if d.tipo == "FS" and not _pred_terminada(p):
+                return (
+                    f"No se puede poner «En curso»: la predecesora «{actividad_display_codigo(p)}» "
+                    f"(FS) debe estar finalizada o cancelada. Estado actual: {ESTADO_LABELS.get(p.estado, p.estado)}."
+                )
+            if d.tipo == "SS" and p.estado == "pendiente":
+                return (
+                    f"No se puede poner «En curso»: la predecesora «{actividad_display_codigo(p)}» "
+                    f"(SS) debe haber iniciado (no puede estar pendiente)."
+                )
+    if estado_nuevo == "finalizada":
+        for d in deps:
+            p = d.predecesora
+            if d.tipo == "FF" and not _pred_terminada(p):
+                return (
+                    f"No se puede finalizar: la predecesora «{actividad_display_codigo(p)}» (FF) "
+                    f"debe estar finalizada o cancelada primero."
+                )
+            if d.tipo == "SF" and p.estado == "pendiente":
+                return (
+                    f"No se puede finalizar: la predecesora «{actividad_display_codigo(p)}» (SF) "
+                    f"debe haber iniciado antes."
+                )
+    return None
 
 
 def _parse_date_required(raw: str | None, field: str) -> tuple[date | None, str | None]:
@@ -211,6 +486,7 @@ def validate_and_build_from_form(
     form: Any,
     *,
     existing: PlanificacionActividad | None = None,
+    deps_entrantes: list[PlanificacionDependencia] | None = None,
 ) -> tuple[PlanificacionActividad | None, list[str]]:
     errors: list[str] = []
     titulo = (form.get("titulo") or "").strip()
@@ -278,6 +554,7 @@ def validate_and_build_from_form(
     dur = PlanificacionActividad.compute_duracion_dias(fi, ff)
 
     row = existing or PlanificacionActividad()
+    estado_anterior = existing.estado if existing is not None else "pendiente"
     row.codigo = codigo
     row.titulo = titulo
     row.descripcion = descripcion
@@ -291,20 +568,42 @@ def validate_and_build_from_form(
     row.observaciones = observaciones
     row.linked_entity_type = linked_entity_type
     row.linked_entity_id = linked_entity_id
+
+    if deps_entrantes is not None:
+        v = validate_estado_con_dependencias(row, estado_anterior, estado, deps_entrantes)
+        if v:
+            errors.append(v)
+
+    if errors:
+        return None, errors
     return row, []
 
 
-def gantt_tasks_for_rows(rows: Iterable[PlanificacionActividad]) -> list[dict[str, Any]]:
+def gantt_tasks_for_rows(
+    rows: Iterable[PlanificacionActividad],
+    *,
+    deps_por_sucesora: dict[int, list[PlanificacionDependencia]] | None = None,
+) -> list[dict[str, Any]]:
     """
-    Tareas para Frappe Gantt: `end` exclusivo (día siguiente al último día inclusive).
+    Tareas para Frappe Gantt: `end` exclusivo.
+    `dependencies`: solo tipo FS (semántica Finish→Start de la librería).
     """
-    out: list[dict[str, Any]] = []
+    rows_list = list(rows)
+    ids = [r.id for r in rows_list]
+    deps_map = deps_por_sucesora if deps_por_sucesora is not None else dependencias_entrantes_por_sucesora(ids)
     today = _today()
-    for r in rows:
+    out: list[dict[str, Any]] = []
+    for r in rows_list:
         end_excl = r.fecha_fin + timedelta(days=1)
         classes: list[str] = [f"gantt-estado-{r.estado}"]
         if is_atrasada(r, today):
             classes.append("gantt-atrasada")
+        deps = deps_map.get(int(r.id), [])
+        anal = analizar_dependencias_sucesora(r, deps)
+        if anal["bloquea_inicio"] and r.estado == "pendiente":
+            classes.append("gantt-dep-bloqueada")
+        dep_fs_ids = [str(d.predecesora_id) for d in deps if d.tipo == "FS"]
+        dep_all_txt = resumen_predecesoras_texto(deps)
         out.append(
             {
                 "id": str(r.id),
@@ -312,6 +611,7 @@ def gantt_tasks_for_rows(rows: Iterable[PlanificacionActividad]) -> list[dict[st
                 "start": r.fecha_inicio.isoformat(),
                 "end": end_excl.isoformat(),
                 "progress": 100 if r.estado == "finalizada" else (50 if r.estado == "en_curso" else 0),
+                "dependencies": ",".join(dep_fs_ids) if dep_fs_ids else "",
                 "custom_class": " ".join(classes),
                 "edit_url": None,
                 "meta": {
@@ -323,6 +623,9 @@ def gantt_tasks_for_rows(rows: Iterable[PlanificacionActividad]) -> list[dict[st
                     "fecha_fin": r.fecha_fin.isoformat(),
                     "duracion_dias": r.duracion_dias,
                     "observaciones": r.observaciones or "",
+                    "dependencias": dep_all_txt,
+                    "dependencias_detalle": anal["mensajes"],
+                    "dep_bloquea_inicio": anal["bloquea_inicio"],
                 },
             }
         )
@@ -330,6 +633,9 @@ def gantt_tasks_for_rows(rows: Iterable[PlanificacionActividad]) -> list[dict[st
 
 
 def export_csv_bytes(rows: Iterable[PlanificacionActividad]) -> bytes:
+    rows_list = list(rows)
+    ids = [r.id for r in rows_list]
+    deps_map = dependencias_entrantes_por_sucesora(ids)
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=";", lineterminator="\n")
     w.writerow(
@@ -347,12 +653,14 @@ def export_csv_bytes(rows: Iterable[PlanificacionActividad]) -> bytes:
             "observaciones",
             "linked_entity_type",
             "linked_entity_id",
+            "predecesoras",
         ]
     )
-    for r in rows:
+    for r in rows_list:
         ru = ""
         if r.responsable_user_id and r.responsable is not None:
             ru = (r.responsable.username or "").strip()
+        pred_txt = resumen_predecesoras_texto(deps_map.get(int(r.id), []))
         w.writerow(
             [
                 actividad_display_codigo(r),
@@ -368,6 +676,7 @@ def export_csv_bytes(rows: Iterable[PlanificacionActividad]) -> bytes:
                 (r.observaciones or "").replace("\n", " ").replace("\r", " "),
                 r.linked_entity_type or "",
                 r.linked_entity_id if r.linked_entity_id is not None else "",
+                pred_txt,
             ]
         )
     raw = buf.getvalue().encode("utf-8-sig")
