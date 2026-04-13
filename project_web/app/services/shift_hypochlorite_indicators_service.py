@@ -5,14 +5,17 @@ Indicadores operativos de hipoclorito a partir del stock declarado en cambio de 
 Para importar desde rutas u otros servicios usá `app.services.operational_informed_stock`
 (la API pública y las validaciones de negocio); este archivo conserva la implementación.
 
-Fuente única de verdad operativa (litros) para el Panel y para validar Entregas de hipoclorito:
-- Stock instantáneo = último stock informado en turno recepcionado − suma de litros de entregas
-  en estado «cargada» desde ese cierre (ver `get_instant_stock`).
-- Las entregas «programada» comprometen litros contra ese mismo techo (ver
-  `operational_liters_available_for_new_programada`).
+Fuente operativa (litros) para el Panel y para validar Entregas de hipoclorito (`get_instant_stock`):
+- Base = último stock informado en un cambio de turno recepcionado.
+- Resta: litros de entregas «cargada» desde ese cierre hasta ahora.
+- Suma: ingresos en Stock categoría «producto terminado» cuyo producto es hipoclorito operativo
+  (mismos alias que entregas), con `created_at_iso` estrictamente posterior a ese cierre.
+  Así un ingreso PT registrado por administración impacta el instantáneo sin esperar otro turno.
 
-No usar para este criterio el stock teórico por marca (`ingresos_stock` / `consumos_stock`);
-ese ledger sigue existiendo solo para trazabilidad al registrar el consumo al marcar «Cargar».
+Las entregas «programada» se comparan contra ese techo (`operational_liters_available_for_new_programada`).
+
+El ledger `ingresos_stock` / `consumos_stock` sigue siendo la fuente de existencias por lote;
+el consumo al marcar «Cargar» en entregas también se registra ahí para trazabilidad.
 """
 from __future__ import annotations
 
@@ -21,8 +24,9 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.extensions import db
-from app.models import Entrega, ShiftHandover
+from app.models import Entrega, IngresoStock, ShiftHandover
 from app.services import shift_handover_service as sh
 from app.utils.hipoclorito_producto import entrega_columna_es_hipoclorito_operativo_sql
 
@@ -62,6 +66,31 @@ def _list_received_handovers_with_valid_stock(limit: int = 80) -> list[ShiftHand
             continue
         out.append(h)
     return out
+
+
+def sum_hipochlorito_producto_terminado_ingresos_since(anchor_iso_exclusive: str) -> float:
+    """
+    Litros sumados de `ingresos_stock` (categoría producto terminado) para producto hipoclorito
+    operativo, con fecha de registro (`created_at_iso`) posterior al cierre de turno `anchor_iso_exclusive`.
+    """
+    t = (anchor_iso_exclusive or "").strip()
+    if not t:
+        return 0.0
+    hipo = entrega_columna_es_hipoclorito_operativo_sql(IngresoStock.producto)
+    if hipo is None:
+        return 0.0
+    total = db.session.scalar(
+        select(func.coalesce(func.sum(IngresoStock.cantidad), 0.0)).where(
+            IngresoStock.categoria == ENTREGAS_STOCK_CATEGORIA,
+            hipo,
+            IngresoStock.created_at_iso > t,
+        )
+    )
+    try:
+        v = float(total or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+    return v if math.isfinite(v) else 0.0
 
 
 def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_inclusive: str | None) -> float:
@@ -104,7 +133,8 @@ def _instant_from_handovers(handovers: list[ShiftHandover]) -> float | None:
     if not cierre:
         return None
     loads = _sum_hipochlorite_truck_loads_liters(cierre, None)
-    return base - loads
+    ingresos_pt = sum_hipochlorito_producto_terminado_ingresos_since(cierre)
+    return base - loads + ingresos_pt
 
 
 def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> float | None:
@@ -218,7 +248,13 @@ def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tupl
         return None, None
     last = handovers[0]
     closed = _fmt_iso_for_panel(last.handed_over_at_iso)
-    stock_note = f"Último stock informado (cierre recepcionado): {closed}" if closed else None
+    if closed:
+        stock_note = (
+            f"Último stock informado (cierre recepcionado): {closed}. "
+            "El valor incluye ingresos de producto terminado (hipoclorito) en Stock registrados después de ese cierre."
+        )
+    else:
+        stock_note = None
     t0 = _fmt_iso_for_panel(last.shift_started_at_iso)
     t1 = _fmt_iso_for_panel(last.handed_over_at_iso)
     if t0 and t1:
