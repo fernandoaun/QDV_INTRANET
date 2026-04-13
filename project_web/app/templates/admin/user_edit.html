@@ -8,6 +8,24 @@
   </div>
 </div>
 
+{% if admin_viewer_read_only %}
+<div class="alert alert-info" role="status">
+  Modo solo lectura: podés ver los datos de la cuenta; solo un administrador puede modificar perfiles, permisos o contraseñas.
+</div>
+<div class="app-card mb-4">
+  <div class="app-card-header">Datos (solo consulta)</div>
+  <div class="app-card-body">
+    <dl class="row mb-0">
+      <dt class="col-sm-3">Usuario</dt><dd class="col-sm-9">{{ edit_user.username }}</dd>
+      <dt class="col-sm-3">Nombre completo</dt><dd class="col-sm-9">{{ edit_user.nombre_completo or '—' }}</dd>
+      <dt class="col-sm-3">Perfil</dt><dd class="col-sm-9">{{ user_role_label(edit_user) }}</dd>
+      <dt class="col-sm-3">Administrador</dt><dd class="col-sm-9">{% if edit_user.is_admin %}Sí{% else %}No{% endif %}</dd>
+      <dt class="col-sm-3">Activo</dt><dd class="col-sm-9">{% if edit_user.activo %}Sí{% else %}No{% endif %}</dd>
+    </dl>
+  </div>
+</div>
+{% else %}
+
 <div class="app-card mb-4">
   <div class="app-card-header">Datos y permisos</div>
   <div class="app-card-body">
@@ -25,13 +43,13 @@
           <option value="{{ rk }}" {% if (edit_user.rol or 'operaciones') == rk %}selected{% endif %}>{{ role_labels[rk] }}</option>
           {% endfor %}
         </select>
-        <p class="form-text small mb-0"><strong>Laboratorista</strong> no ingresa al sistema (login bloqueado): en planta acompaña al operador responsable. <strong>Administrador</strong> tiene acceso total (sin tabla de permisos).</p>
+        <p class="form-text small mb-0"><strong>Laboratorista</strong> no ingresa al sistema (login bloqueado): en planta acompaña al operador responsable. <strong>Administrador</strong> tiene acceso total (sin tabla de permisos). <strong>Angel</strong> ve todo el sistema sin poder modificar datos.</p>
       </div>
       <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="activo" value="1" id="act" {% if edit_user.activo %}checked{% endif %}>
         <label class="form-check-label" for="act">Activo</label></div>
       {% if not edit_user.is_admin %}
       {% if hide_perm_grid %}
-      <p class="small app-text-secondary mb-0">Este perfil no usa permisos en el panel (sin acceso web).</p>
+      <p class="small app-text-secondary mb-0">Este perfil no usa permisos por módulo en el panel (plantilla fija del rol).</p>
       {% else %}
       <p class="small app-text-secondary">Permisos <strong>efectivos</strong> (plantilla del perfil más lo guardado aquí). Desmarcar un ítem que trae el perfil lo revoca para este usuario. Guardá para aplicar.</p>
       <div class="table-responsive app-table-scroll">
@@ -104,5 +122,7 @@
 {% include "_csrf.html" %}
   <button type="submit" class="btn btn-outline-danger">Eliminar usuario</button>
 </form>
+{% endif %}
+
 {% endif %}
 {% endblock %}

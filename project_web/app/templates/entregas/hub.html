@@ -21,10 +21,10 @@
     <p>Cliente, lugar, producto terminado, volumen en litros y fecha prevista.</p>
   </a>
   {% endif %}
-  {% if nav_user and nav_user.is_admin %}
+  {% if user_can_view_admin_configuration() %}
   <a class="app-module-card" href="{{ url_for('entregas.catalogos_hub') }}">
     <h2>Catálogos de entregas</h2>
-    <p>Productos terminados, clientes, lugares y choferes.</p>
+    <p>Productos terminados, clientes, lugares y choferes{% if not nav_user.is_admin %} (solo consulta){% endif %}.</p>
   </a>
   {% endif %}
 </div>

@@ -8,7 +8,7 @@ from flask import flash, g, has_request_context, redirect, request, session, url
 from app.extensions import db
 from app.models import PermisoUsuario, User
 from app.constants import PERMISSION_KEYS
-from app.user_roles import compute_session_perm_lists, normalize_stored_rol
+from app.user_roles import compute_session_perm_lists, normalize_stored_rol, user_is_global_read_only
 
 from sqlalchemy import select
 
@@ -58,6 +58,18 @@ def user_can_access_production_hub(user: User | None) -> bool:
     if user is None:
         return False
     return any(user_can(user, p) for p in _PRODUCTION_HUB_PERMS)
+
+
+def user_can_view_admin_configuration(user: User | None) -> bool:
+    """
+    Pantallas de administración en modo consulta (usuarios, equipos, catálogos de entregas).
+    Administrador o quien tenga permiso de vista «admin_usuarios» (p. ej. perfil Angel).
+    """
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    return user_can(user, "admin_usuarios")
 
 
 def user_can_access_entregas_hub(user: User | None) -> bool:
@@ -179,6 +191,8 @@ def user_can_edit(user: User | None, perm: str) -> bool:
         return False
     if user.is_admin:
         return True
+    if user_is_global_read_only(user):
+        return False
     if has_request_context():
         override = getattr(g, "_qdv_api_perms_edit", None)
         if override is not None:
@@ -337,6 +351,8 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
     Edición en pantalla: permisos de perfil + turno operativo (solo perfil operaciones).
     Las rutas shift.* se eximen del chequeo de turno en UI (cada vista valida en servidor).
     """
+    if user is not None and user_is_global_read_only(user):
+        return False
     if not user_can_edit_endpoint(user, endpoint):
         return False
     if user is None:
@@ -356,7 +372,8 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
 def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
     ep = (endpoint or "").strip()
     if ep in ("entregas.api_lugares_por_cliente", "entregas.api_marcas_producto_terminado"):
-        return user_can_access_entregas_hub(user)
+        # Endpoints JSON auxiliares; no habilitan edición de página (formularios usan otros endpoints).
+        return False
     if ep.startswith("entregas.catalogos"):
         return bool(user and user.is_admin)
     if ep == "entregas.nueva":
@@ -379,7 +396,14 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_edit_stock_ingreso_categoria(user, cat)
     key = endpoint_permission_key(endpoint)
     if key is None:
-        return True
+        if user is None:
+            return False
+        if user.is_admin:
+            return True
+        # Hub, panel u otras vistas sin clave explícita: editar solo si el usuario tiene algún permiso de edición.
+        if has_request_context():
+            return len(session.get("perms_edit", [])) > 0
+        return False
     return user_can_edit(user, key)
 
 

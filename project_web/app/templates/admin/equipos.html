@@ -7,6 +7,7 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_users.list_users') }}">← Usuarios</a>
   </div>
 </div>
+{% if viewer_may_manage_users|default(false) %}
 <div class="app-card mb-4">
   <div class="app-card-header">Nuevo equipo</div>
   <div class="app-card-body">
@@ -18,6 +19,9 @@
     </form>
   </div>
 </div>
+{% else %}
+<div class="alert alert-info mb-3" role="status">Modo solo lectura: listado de equipos; solo un administrador puede crear o cambiar el estado.</div>
+{% endif %}
 <div class="app-card">
   <div class="app-card-body--flush table-responsive app-table-scroll">
     <table class="table table-app table-compact mb-0">
@@ -29,10 +33,14 @@
         <td>{{ e.nombre_equipo }}</td>
         <td>{% if e.activo %}Sí{% else %}No{% endif %}</td>
         <td>
+          {% if viewer_may_manage_users|default(false) %}
           <form method="post" action="{{ url_for('admin_users.equipo_toggle', eid=e.id) }}" class="d-inline">
           {% include "_csrf.html" %}
             <button type="submit" class="btn btn-sm btn-outline-secondary">Activar/Desactivar</button>
           </form>
+          {% else %}
+          <span class="text-muted small">—</span>
+          {% endif %}
         </td>
       </tr>
       {% else %}

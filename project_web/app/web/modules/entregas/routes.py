@@ -4,13 +4,13 @@ from flask import Blueprint, current_app, flash, jsonify, redirect, render_templ
 
 from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.auth_utils import (
-    admin_required,
     current_user,
     login_required,
     user_can_access_entregas_hub,
     user_can_entregas_cargar_effective,
     user_can_entregas_entregar_effective,
     user_can_entregas_programar_effective,
+    user_can_view_admin_configuration,
     user_display_name,
     user_may_view_entregas_programar,
 )
@@ -377,16 +377,24 @@ def historial(eid: int):
 
 @bp.get("/catalogos")
 @login_required
-@admin_required
 def catalogos_hub():
-    return render_template("entregas/catalogos_hub.html")
+    u = current_user()
+    if u is None or not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
+        return redirect(url_for("entregas.hub"))
+    return render_template("entregas/catalogos_hub.html", viewer_may_edit_catalogos=bool(u.is_admin))
 
 
 @bp.route("/catalogos/productos-terminados", methods=["GET", "POST"])
 @login_required
-@admin_required
 def catalogos_productos():
+    u = current_user()
+    if u is None:
+        return redirect(url_for("auth.login", next=request.url))
     if request.method == "POST":
+        if not u.is_admin:
+            flash("Solo administradores pueden modificar catálogos.", "warning")
+            return redirect(url_for("entregas.catalogos_productos"))
         now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_productos_terminados(request.form, now)
@@ -396,15 +404,28 @@ def catalogos_productos():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_productos"))
 
+    if not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
+        return redirect(url_for("entregas.hub"))
+
     rows = ews.list_productos_terminados_admin()
-    return render_template("entregas/catalogos_productos.html", items=rows)
+    return render_template(
+        "entregas/catalogos_productos.html",
+        items=rows,
+        viewer_may_edit_catalogos=bool(u.is_admin),
+    )
 
 
 @bp.route("/catalogos/clientes", methods=["GET", "POST"])
 @login_required
-@admin_required
 def catalogos_clientes():
+    u = current_user()
+    if u is None:
+        return redirect(url_for("auth.login", next=request.url))
     if request.method == "POST":
+        if not u.is_admin:
+            flash("Solo administradores pueden modificar catálogos.", "warning")
+            return redirect(url_for("entregas.catalogos_clientes"))
         now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_clientes(request.form, now)
@@ -414,16 +435,28 @@ def catalogos_clientes():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_clientes"))
 
+    if not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
+        return redirect(url_for("entregas.hub"))
+
     rows = ews.list_clientes_entrega_admin()
-    return render_template("entregas/catalogos_clientes.html", items=rows)
+    return render_template(
+        "entregas/catalogos_clientes.html",
+        items=rows,
+        viewer_may_edit_catalogos=bool(u.is_admin),
+    )
 
 
 @bp.route("/catalogos/lugares", methods=["GET", "POST"])
 @login_required
-@admin_required
 def catalogos_lugares():
-    clientes = ews.list_clientes_entrega_admin()
+    u = current_user()
+    if u is None:
+        return redirect(url_for("auth.login", next=request.url))
     if request.method == "POST":
+        if not u.is_admin:
+            flash("Solo administradores pueden modificar catálogos.", "warning")
+            return redirect(url_for("entregas.catalogos_lugares"))
         now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_lugares(request.form, now)
@@ -433,15 +466,30 @@ def catalogos_lugares():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_lugares"))
 
+    if not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
+        return redirect(url_for("entregas.hub"))
+
+    clientes = ews.list_clientes_entrega_admin()
     rows = ews.list_lugares_entrega_admin()
-    return render_template("entregas/catalogos_lugares.html", items=rows, clientes=clientes)
+    return render_template(
+        "entregas/catalogos_lugares.html",
+        items=rows,
+        clientes=clientes,
+        viewer_may_edit_catalogos=bool(u.is_admin),
+    )
 
 
 @bp.route("/catalogos/choferes", methods=["GET", "POST"])
 @login_required
-@admin_required
 def catalogos_choferes():
+    u = current_user()
+    if u is None:
+        return redirect(url_for("auth.login", next=request.url))
     if request.method == "POST":
+        if not u.is_admin:
+            flash("Solo administradores pueden modificar catálogos.", "warning")
+            return redirect(url_for("entregas.catalogos_choferes"))
         now = now_operacion_local_iso_seconds()
         try:
             msg = ews.catalog_post_choferes(request.form, now)
@@ -451,5 +499,13 @@ def catalogos_choferes():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_choferes"))
 
+    if not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
+        return redirect(url_for("entregas.hub"))
+
     rows = ews.list_choferes_entrega_admin()
-    return render_template("entregas/catalogos_choferes.html", items=rows)
+    return render_template(
+        "entregas/catalogos_choferes.html",
+        items=rows,
+        viewer_may_edit_catalogos=bool(u.is_admin),
+    )

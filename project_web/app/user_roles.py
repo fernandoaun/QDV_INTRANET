@@ -1,6 +1,7 @@
 """
 Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 
+- «solo_lectura_total» (Angel): ve todos los módulos y datos; no puede mutar nada (vista completa, edición vacía en sesión).
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
 - Los permisos finales = plantilla del rol efectivo, aplicando filas en `permisos_usuario` como overrides:
@@ -21,6 +22,7 @@ ROLE_ADMINISTRADOR = "administrador"
 ROLE_OPERACIONES = "operaciones"
 ROLE_LOGISTICA = "logistica"
 ROLE_MANTENIMIENTO = "mantenimiento"
+ROLE_SOLO_LECTURA_TOTAL = "solo_lectura_total"
 ROLE_LABORATORISTA = "laboratorista"
 
 USER_ROLES_ORDERED: tuple[str, ...] = (
@@ -28,6 +30,7 @@ USER_ROLES_ORDERED: tuple[str, ...] = (
     ROLE_OPERACIONES,
     ROLE_LOGISTICA,
     ROLE_MANTENIMIENTO,
+    ROLE_SOLO_LECTURA_TOTAL,
     ROLE_LABORATORISTA,
 )
 
@@ -36,6 +39,7 @@ ROLE_LABELS: dict[str, str] = {
     ROLE_OPERACIONES: "Operaciones",
     ROLE_LOGISTICA: "Logística",
     ROLE_MANTENIMIENTO: "Mantenimiento",
+    ROLE_SOLO_LECTURA_TOTAL: "Angel",
     ROLE_LABORATORISTA: "Laboratorista",
 }
 
@@ -52,6 +56,9 @@ _LEGACY_ALIASES: dict[str, str] = {
     "pasante": ROLE_LABORATORISTA,
     "practicante": ROLE_LABORATORISTA,
     "pasant": ROLE_LABORATORISTA,
+    "angel": ROLE_SOLO_LECTURA_TOTAL,
+    "read_only_full": ROLE_SOLO_LECTURA_TOTAL,
+    "solo_lectura": ROLE_SOLO_LECTURA_TOTAL,
 }
 _BASE_OPERACIONES: frozenset[str] = frozenset(
     {
@@ -128,6 +135,13 @@ def normalize_stored_rol(raw: str | None) -> str:
     return ROLE_OPERACIONES
 
 
+def user_is_global_read_only(user: object | None) -> bool:
+    """True si el perfil es Angel (solo lectura total en todo el sistema)."""
+    if user is None or bool(getattr(user, "is_admin", False)):
+        return False
+    return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_SOLO_LECTURA_TOTAL
+
+
 def effective_role_for_permissions(stored_rol: str | None) -> str:
     """
     Rol lógico para permisos (plantillas). «laboratorista» no hereda plantilla operativa.
@@ -157,6 +171,8 @@ def _base_view_edit_for_effective_role(effective: str) -> tuple[set[str], set[st
     if effective == ROLE_MANTENIMIENTO:
         v = set(_BASE_MANTENIMIENTO) & keys
         return v, set(v)
+    if effective == ROLE_SOLO_LECTURA_TOTAL:
+        return set(_ALL_PERM_KEYS), set()
     if effective == ROLE_LABORATORISTA:
         return set(), set()
     return set(), set()
@@ -208,6 +224,9 @@ def compute_session_perm_lists(stored_rol: str | None, rows: list[PermisoUsuario
     Plantilla(rol_efectivo) + overrides en `permisos_usuario` (incluye revocaciones habilitado=False).
     """
     eff = effective_role_for_permissions(stored_rol)
+    if eff == ROLE_SOLO_LECTURA_TOTAL:
+        # Vista total fija; sin edición aunque existan filas en permisos_usuario.
+        return sorted(_ALL_PERM_KEYS), []
     bv, be = _base_view_edit_for_effective_role(eff)
     view, edit = apply_permiso_rows_over_template(bv, be, rows)
     return sorted(view), sorted(edit)

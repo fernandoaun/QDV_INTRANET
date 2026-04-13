@@ -6,7 +6,7 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from sqlalchemy import delete, func, select
 from werkzeug.security import generate_password_hash
 
-from app.auth_utils import admin_required, current_user, login_required
+from app.auth_utils import admin_required, current_user, login_required, user_can_view_admin_configuration
 from app.constants import PERMISSION_FORM_KEYS, PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_TREE
 from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
@@ -15,6 +15,7 @@ from app.user_roles import (
     ROLE_ADMINISTRADOR,
     ROLE_LABORATORISTA,
     ROLE_LABELS,
+    ROLE_SOLO_LECTURA_TOTAL,
     USER_ROLES_ORDERED,
     compute_session_perm_lists,
     normalize_stored_rol,
@@ -27,10 +28,13 @@ bp = Blueprint("admin_users", __name__, url_prefix="/admin")
 
 @bp.get("/usuarios")
 @login_required
-@admin_required
 def list_users():
+    u = current_user()
+    if u is None or not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a usuarios.", "warning")
+        return redirect(url_for("main.dashboard"))
     rows = db.session.scalars(select(User).order_by(User.username)).all()
-    return render_template("admin/users_list.html", users=rows)
+    return render_template("admin/users_list.html", users=rows, viewer_may_manage_users=bool(u.is_admin))
 
 
 def _normalize_username(raw: str) -> str:
@@ -92,14 +96,24 @@ def create_user():
 
 @bp.route("/usuarios/<int:uid>", methods=["GET", "POST"])
 @login_required
-@admin_required
 def edit_user(uid: int):
+    viewer = current_user()
+    if viewer is None or not user_can_view_admin_configuration(viewer):
+        flash("No tenés permiso para acceder a usuarios.", "warning")
+        return redirect(url_for("main.dashboard"))
+
     u = db.session.get(User, uid)
     if u is None:
         flash("Usuario no encontrado.", "danger")
         return redirect(url_for("admin_users.list_users"))
 
+    viewer_may_mutate = bool(viewer.is_admin)
+    admin_viewer_read_only = not viewer_may_mutate
+
     if request.method == "POST":
+        if not viewer_may_mutate:
+            flash("Solo un administrador puede modificar usuarios o contraseñas.", "warning")
+            return redirect(url_for("admin_users.edit_user", uid=uid))
         act = request.form.get("action")
         if act == "core":
             new_username = _normalize_username(request.form.get("username") or "")
@@ -141,7 +155,10 @@ def edit_user(uid: int):
             u.is_admin = will_admin
             u.activo = will_activo
             db.session.execute(delete(PermisoUsuario).where(PermisoUsuario.user_id == u.id))
-            if not u.is_admin and normalize_stored_rol(u.rol) != ROLE_LABORATORISTA:
+            if not u.is_admin and normalize_stored_rol(u.rol) not in (
+                ROLE_LABORATORISTA,
+                ROLE_SOLO_LECTURA_TOTAL,
+            ):
                 bv, be = role_template_perm_sets(u.rol)
                 for key in PERMISSION_FORM_KEYS:
                     if key not in PERMISSION_KEYS:
@@ -219,11 +236,15 @@ def edit_user(uid: int):
         view_l, edit_l = compute_session_perm_lists(u.rol, rows)
         perms_set = set(view_l)
         perms_edit_set = set(edit_l)
-    hide_perm_grid = (not u.is_admin) and normalize_stored_rol(u.rol) == ROLE_LABORATORISTA
+    hide_perm_grid = (not u.is_admin) and normalize_stored_rol(u.rol) in (
+        ROLE_LABORATORISTA,
+        ROLE_SOLO_LECTURA_TOTAL,
+    )
     return render_template(
         "admin/user_edit.html",
         edit_user=u,
         hide_perm_grid=hide_perm_grid,
+        admin_viewer_read_only=admin_viewer_read_only,
         permission_keys=PERMISSION_KEYS,
         permission_labels=PERMISSION_LABELS,
         permission_tree=PERMISSION_TREE,
@@ -251,10 +272,13 @@ def delete_user(uid: int):
 
 @bp.get("/equipos")
 @login_required
-@admin_required
 def equipos_list():
+    u = current_user()
+    if u is None or not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a equipos.", "warning")
+        return redirect(url_for("main.dashboard"))
     rows = db.session.scalars(select(Equipo).order_by(Equipo.nombre_equipo)).all()
-    return render_template("admin/equipos.html", equipos=rows)
+    return render_template("admin/equipos.html", equipos=rows, viewer_may_manage_users=bool(u.is_admin))
 
 
 @bp.post("/equipos/nuevo")

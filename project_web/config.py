@@ -23,6 +23,7 @@ class ProductionConfig(BaseConfig):
 class TestingConfig(BaseConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    WTF_CSRF_ENABLED = False
 
 
 def _default_sqlite_uri(base_dir: Path) -> str:
@@ -129,6 +130,7 @@ def get_config_dict(base_dir: Path) -> dict:
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
         "TESTING": getattr(cfg, "TESTING", False),
+        "WTF_CSRF_ENABLED": getattr(cfg, "WTF_CSRF_ENABLED", True),
         "SQLALCHEMY_DATABASE_URI": uri,
         "SQLALCHEMY_TRACK_MODIFICATIONS": cfg.SQLALCHEMY_TRACK_MODIFICATIONS,
         "SQLALCHEMY_ECHO": cfg.SQLALCHEMY_ECHO,

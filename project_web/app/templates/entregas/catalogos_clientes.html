@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Clientes entrega · QDV{% endblock %}
 {% block content %}
+{% set can_edit_cat = viewer_may_edit_catalogos|default(true) %}
 <div class="app-page-head">
   <h1 class="app-page-title">Clientes (entregas)</h1>
   <div class="app-page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.catalogos_hub') }}">← Catálogos</a>
   </div>
 </div>
+{% if can_edit_cat %}
 <div class="app-card mb-4">
   <div class="app-card-header">Nuevo cliente</div>
   <div class="app-card-body">
@@ -19,6 +21,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 <div class="app-card">
   <div class="app-card-body--flush table-responsive app-table-scroll">
     <table class="table table-app table-compact mb-0">
@@ -31,12 +34,16 @@
         <td class="small text-truncate" style="max-width:12rem;" title="{{ it.observaciones or '' }}">{{ it.observaciones or '—' }}</td>
         <td>{% if it.activo %}Sí{% else %}No{% endif %}</td>
         <td>
+          {% if can_edit_cat %}
           <form method="post" class="d-inline">
           {% include "_csrf.html" %}
             <input type="hidden" name="action" value="toggle">
             <input type="hidden" name="id" value="{{ it.id }}">
             <button type="submit" class="btn btn-sm btn-outline-secondary">Activar/Desactivar</button>
           </form>
+          {% else %}
+          <span class="text-muted small">—</span>
+          {% endif %}
         </td>
       </tr>
       {% else %}

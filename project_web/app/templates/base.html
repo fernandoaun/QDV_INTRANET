@@ -48,7 +48,7 @@
              title="ENTREGAS — programación y seguimiento"><i class="bi bi-truck" aria-hidden="true"></i></a>
         </li>
         {% endif %}
-        {% if nav_user.is_admin %}
+        {% if user_can_view_admin_configuration() %}
         <li>
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
              data-filter-text="equipos" title="Equipos"><i class="bi bi-cpu" aria-hidden="true"></i></a>
@@ -67,7 +67,9 @@
         <input type="search" id="appNavFilter" class="app-topbar-search" placeholder="Filtrar menú lateral…" autocomplete="off">
       </div>
       <div class="app-topbar-end d-flex align-items-center gap-2">
-        {% if shift_nav and shift_nav.show_readonly_pill %}
+        {% if user_is_global_read_only() %}
+        <span class="badge rounded-pill text-bg-info app-badge-soft d-none d-md-inline" title="Perfil Angel: acceso de solo lectura en todo el sistema.">Modo solo lectura</span>
+        {% elif shift_nav and shift_nav.show_readonly_pill %}
         <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
         {% endif %}
         <div class="dropdown app-user-dropdown">
@@ -91,7 +93,7 @@
             {% if user_can('manual') %}
             <li><a class="dropdown-item" href="{{ url_for('main.manual') }}"><i class="bi bi-book me-2" aria-hidden="true"></i>Manual de uso</a></li>
             {% endif %}
-            {% if nav_user.is_admin %}
+            {% if user_can_view_admin_configuration() %}
             <li><a class="dropdown-item" href="{{ url_for('admin_users.list_users') }}"><i class="bi bi-people me-2" aria-hidden="true"></i>Usuarios</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>

@@ -152,6 +152,7 @@ def create_app() -> Flask:
         from app.auth_utils import has_permission as _has_permission
         from app.auth_utils import user_can as _user_can
         from app.auth_utils import user_can_edit as _user_can_edit
+        from app.auth_utils import user_can_view_admin_configuration as _user_can_view_admin_configuration
         from app.auth_utils import user_can_access_entregas_hub
         from app.auth_utils import user_can_access_production_hub
         from app.auth_utils import (
@@ -169,7 +170,7 @@ def create_app() -> Flask:
             user_can_view_stock_consumos,
         )
         from app.constants import MODULE_LABELS
-        from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label
+        from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label, user_is_global_read_only
         from flask import request
 
         u = _current_user()
@@ -178,6 +179,8 @@ def create_app() -> Flask:
             "user_can": (lambda perm: _user_can(u, perm)),
             "has_permission": (lambda perm: _has_permission(u, perm)),
             "user_can_edit": (lambda perm: _user_can_edit(u, perm)),
+            "user_can_view_admin_configuration": (lambda: _user_can_view_admin_configuration(u)),
+            "user_is_global_read_only": (lambda: user_is_global_read_only(u)),
             "page_can_edit_current": _page_can_edit_effective(u, request.endpoint, flask_session),
             "user_can_production_hub": user_can_access_production_hub(u),
             "user_can_entregas_hub": user_can_access_entregas_hub(u),

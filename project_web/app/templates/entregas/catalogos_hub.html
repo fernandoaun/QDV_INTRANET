@@ -7,7 +7,7 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.hub') }}">← Hub Entregas</a>
   </div>
 </div>
-<p class="app-intro">Solo administradores. Los datos se usan en el formulario de programación de entregas.</p>
+<p class="app-intro">Los datos se usan en el formulario de programación de entregas. {% if viewer_may_edit_catalogos|default(true) %}Solo administradores pueden editarlos.{% else %}Estás en modo solo consulta; la edición la realiza un administrador.{% endif %}</p>
 <div class="app-module-grid">
   <a class="app-module-card" href="{{ url_for('entregas.catalogos_productos') }}">
     <h2>Productos terminados</h2>

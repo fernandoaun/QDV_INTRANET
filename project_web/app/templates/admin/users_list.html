@@ -7,6 +7,7 @@
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
   </div>
 </div>
+{% if viewer_may_manage_users|default(false) %}
 <div class="app-card">
   <div class="app-card-header">Crear usuario</div>
   <div class="app-card-body">
@@ -49,6 +50,9 @@
     </form>
   </div>
 </div>
+{% else %}
+<div class="alert alert-info mb-3" role="status">Modo solo lectura: podés ver la lista de usuarios; solo un administrador puede crear o modificar cuentas.</div>
+{% endif %}
 <div class="app-card mt-3">
   <div class="app-card-body--flush table-responsive app-table-scroll">
     <table class="table table-app table-compact mb-0">
