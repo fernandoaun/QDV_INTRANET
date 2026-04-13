@@ -9,7 +9,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from sqlalchemy import select
 
 from app.auth_utils import current_user, login_required, permission_required
-from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS, SECURITY_DELETE_CODE
+from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS, SALMUERA_PANEL_ELECTROLIZADORES, SECURITY_DELETE_CODE
 from app.extensions import db
 from app.models import SalmueraRegistro
 from app.services.analysis_ref_pdf import HIPO_CONC_PDF_DOC_KEY, SALMUERA_ANALYSIS_REF_SPECS, analysis_ref_ui_rows
@@ -28,6 +28,7 @@ from app.web.modules.produccion.operativa_context import (
 )
 from app.web.modules.produccion.salmuera_helpers import (
     count_consecutive_single_cell_for_electrolizador,
+    last_salmuera_row_dict_for_electrolizador_on_date,
     next_salmuera_lote,
     parse_voltajes,
     salmuera_row_to_dict,
@@ -162,6 +163,11 @@ def register_salmuera_routes(bp: Blueprint) -> None:
         analysis_ref_rows_salmuera = analysis_ref_ui_rows(SALMUERA_ANALYSIS_REF_SPECS)
         analysis_ref_map_salmuera = {r["doc_key"]: r for r in analysis_ref_rows_salmuera}
 
+        salmuera_ultimo_por_electrolizador: dict[int, dict[str, Any] | None] = {
+            int(eid): last_salmuera_row_dict_for_electrolizador_on_date(fecha, int(eid))
+            for eid in SALMUERA_PANEL_ELECTROLIZADORES
+        }
+
         return render_template(
             "produccion/salmuera.html",
             fecha=fecha,
@@ -175,6 +181,8 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             turno_sugerido=turno_sugerido,
             server_now_iso=now_local().isoformat(timespec="seconds"),
             salmuera_timer_rows=salmuera_timer_rows_for_date(fecha),
+            salmuera_panel_electrolizadores=list(SALMUERA_PANEL_ELECTROLIZADORES),
+            salmuera_ultimo_por_electrolizador=salmuera_ultimo_por_electrolizador,
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),
             analysis_ref_rows_salmuera=analysis_ref_rows_salmuera,
             analysis_ref_map_salmuera=analysis_ref_map_salmuera,

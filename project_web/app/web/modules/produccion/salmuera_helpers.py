@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from app.constants import SALMUERA_PANEL_ELECTROLIZADORES
 from app.extensions import db
 from app.models import SalmueraRegistro
 from app.services.operational_warnings import warnings_for_salmuera_registro
@@ -54,14 +55,32 @@ def last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso: str, ele
 
 
 def salmuera_timer_rows_for_date(fecha_iso: str) -> list[dict[str, Any]]:
-    """Filas para cronómetros por electrolizador: último registro de ese equipo en `fecha_iso`."""
+    """Filas para cronómetros por electrolizador: último registro de ese equipo en `fecha_iso`.
+
+    Una fila por cada electrolizador configurado en `SALMUERA_PANEL_ELECTROLIZADORES`
+    (independientemente de si ya hay historial), para mantener la UI dual estable.
+    """
     return [
         {
-            "electrolizador": eid,
-            "last_created_at_iso": last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso, eid),
+            "electrolizador": int(eid),
+            "last_created_at_iso": last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso, int(eid)),
         }
-        for eid in distinct_salmuera_electrolizador_ids()
+        for eid in SALMUERA_PANEL_ELECTROLIZADORES
     ]
+
+
+def last_salmuera_row_dict_for_electrolizador_on_date(fecha_iso: str, electrolizador: int) -> dict[str, Any] | None:
+    """Último registro del día para un electrolizador (para resumen en panel)."""
+    row = db.session.scalar(
+        select(SalmueraRegistro)
+        .where(
+            SalmueraRegistro.fecha_iso == fecha_iso,
+            SalmueraRegistro.electrolizador == int(electrolizador),
+        )
+        .order_by(SalmueraRegistro.created_at_iso.desc(), SalmueraRegistro.id.desc())
+        .limit(1)
+    )
+    return salmuera_row_to_dict(row) if row else None
 
 
 def count_consecutive_single_cell_for_electrolizador(

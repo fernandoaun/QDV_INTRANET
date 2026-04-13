@@ -135,5 +135,7 @@ DEFAULT_OPERATORS = ["Operador 1", "Operador 2", "Operador 3"]
 VOLTAGE_MIN = 2.0
 VOLTAGE_MAX = 4.5
 ANALYSIS_INTERVAL_SECONDS = 2 * 60 * 60
+# Electrolizadores con formulario y cronómetro propio en pantalla (carga simultánea). Ampliar la tupla para sumar equipos.
+SALMUERA_PANEL_ELECTROLIZADORES: tuple[int, ...] = (2, 3)
 AGUA_ANALYSIS_INTERVAL_SECONDS = 8 * 60 * 60
 SECURITY_DELETE_CODE = "8956"
