@@ -50,17 +50,6 @@ def puede_marcar_cargada(entrega: Entrega) -> bool:
     return str(entrega.estado or "") == "programada" and entrega.consumo_stock_id is None
 
 
-def validar_hipochlorito_cantidad_vs_stock_operativo_panel(
-    cantidad: float,
-    *,
-    exclude_entrega_id: int | None = None,
-) -> None:
-    """Delega en la fuente única de stock informado (misma que el Panel)."""
-    informed_stock.raise_if_programada_qty_exceeds_operational_avail(
-        cantidad, exclude_entrega_id=exclude_entrega_id
-    )
-
-
 def puede_marcar_entregada(entrega: Entrega) -> bool:
     if str(entrega.estado or "") == "entregada":
         return False

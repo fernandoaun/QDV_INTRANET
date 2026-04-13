@@ -161,6 +161,7 @@ def marcas_y_equipo_para_producto_stock(stock_producto: str) -> tuple[list[str],
 
 
 def ctx_hipo_operational_programar(exclude_entrega_id: int | None = None) -> dict[str, object]:
+    """KPIs informativos en el formulario de programación (no bloquean guardar)."""
     reserved = operational_informed_stock.sum_hipochlorito_programada_liters(exclude_entrega_id)
     avail = operational_informed_stock.operational_liters_available_for_new_programada(exclude_entrega_id)
     return {
@@ -250,7 +251,7 @@ def create_programada_entrega_from_form(form: Any, u: User | None) -> Entrega:
         cat_key = clave_catalogo_stock_producto_terminado(prod_stock)
         if stock_service.producto_requiere_equipo(ENTREGAS_STOCK_CATEGORIA, cat_key) and stock_eq is None:
             raise ValueError("Este producto requiere equipo en el consumo de stock.")
-        entregas_service.validar_hipochlorito_cantidad_vs_stock_operativo_panel(cantidad, exclude_entrega_id=None)
+        # Stock operativo: no se valida al programar; solo al confirmar «Cargar» en gestión.
     else:
         stock_cat, stock_marca, stock_eq = None, None, None
 

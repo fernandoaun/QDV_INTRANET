@@ -280,13 +280,7 @@ def editar(eid: int):
                 if stock_service.producto_requiere_equipo(ENTREGAS_STOCK_CATEGORIA, cat_key) and stock_eq is None:
                     flash("Este producto requiere equipo.", "danger")
                     return redirect(url_for("entregas.editar", eid=eid))
-                try:
-                    entregas_service.validar_hipochlorito_cantidad_vs_stock_operativo_panel(
-                        cantidad, exclude_entrega_id=int(ent.id)
-                    )
-                except ValueError as ex:
-                    flash(str(ex), "danger")
-                    return redirect(url_for("entregas.editar", eid=eid))
+                # Stock operativo: no se valida al editar programación; solo al confirmar «Cargar».
             else:
                 stock_cat, stock_marca, stock_eq = None, None, None
 

@@ -18,13 +18,14 @@
   <div class="app-card-body">
     {% if st != 'entregada' %}
     <div class="alert alert-secondary small mb-3" role="status">
+      <p class="mb-2"><strong>Programar</strong> es planificación: <strong>no se exige stock en planta</strong> ni se descuenta stock al guardar. La validación estricta de stock operativo ocurre solo al confirmar <strong>Cargar</strong> en el listado de entregas.</p>
       {% if operational_indicators.ok %}
-      <div><strong>Stock instantáneo (hipoclorito)</strong> — mismo criterio que el <strong>Panel</strong>: {{ operational_indicators.instant_display }}.</div>
-      <div class="mt-1">Comprometido en entregas <em>programadas</em>: {{ hipo_ops_reserved_programada_display }}.
-        Cupo disponible para programar (sin superar el instantáneo): <strong>{{ hipo_ops_avail_programar_display }}</strong>.</div>
-      <p class="mb-0 mt-2 text-muted">La marca de producto terminado es siempre <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> (trazabilidad comercial/almacén). No define otro stock ni cambia el tope del Panel. Si el producto lo requiere, el <strong>equipo</strong> también es dato de trazabilidad del movimiento.</p>
+      <div><strong>Referencia — stock instantáneo (hipoclorito)</strong> (mismo criterio que el <strong>Panel</strong>): {{ operational_indicators.instant_display }}.</div>
+      <div class="mt-1">Litros en entregas <em>programadas</em> (informativo): {{ hipo_ops_reserved_programada_display }}.
+        Saldo instantáneo menos esas programadas: <strong>{{ hipo_ops_avail_programar_display }}</strong> — solo ayuda a planificar; podés programar por encima si la logística lo requiere.</div>
+      <p class="mb-0 mt-2 text-muted">La marca de producto terminado es siempre <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> (trazabilidad comercial/almacén). Si el producto lo requiere, el <strong>equipo</strong> también es dato de trazabilidad del movimiento al cargar.</p>
       {% else %}
-      <p class="mb-0">No hay stock operativo de hipoclorito informado en un cambio de turno recepcionado (el Panel muestra «N/D»). No se puede validar programaciones de hipoclorito hasta entonces.</p>
+      <p class="mb-0">El Panel aún no tiene stock operativo de hipoclorito informado (recepcionar cambio de turno). <strong>Podés programar igual.</strong> Para <strong>cargar</strong> hipoclorito hará falta ese stock informado y volumen disponible al momento de la carga.</p>
       {% endif %}
     </div>
     {% endif %}
@@ -73,7 +74,7 @@
           <option value="{{ p.id }}" data-stock="{{ p.stock_producto|e }}" {% if entrega and entrega.producto_terminado_id == p.id %}selected{% elif not entrega and selected_producto_terminado_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
           {% endfor %}
         </select>
-        <div class="form-text">El impacto operativo de hipoclorito sigue el mismo stock instantáneo que el Panel. El producto terminado comercial y el nombre en cambio de turno pueden diferir; operativamente cuentan como el mismo producto y el consumo en almacén se registra como «{{ hipoclorito_nombre_catalogo }}».</div>
+        <div class="form-text">Al <strong>cargar</strong> el camión, el stock de hipoclorito se valida contra el mismo instantáneo que el Panel. El producto terminado comercial y el nombre en cambio de turno pueden diferir; el consumo en almacén se registra como «{{ hipoclorito_nombre_catalogo }}».</div>
       </div>
       <div class="col-md-3">
         <label class="form-label">Volumen (litros) <span class="text-danger">*</span></label>

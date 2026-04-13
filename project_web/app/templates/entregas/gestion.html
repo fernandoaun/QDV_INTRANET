@@ -100,7 +100,7 @@
         <p class="mb-0">¿Confirmás que la entrega fue <strong>cargada</strong> en el camión?</p>
         <p class="small app-text-secondary mt-2 mb-0">{{ e.cliente }} · {% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} · {{ e.cantidad }} L</p>
         {% if e.producto|es_hipoclorito_entrega %}
-        <p class="small text-danger mt-2 mb-0">Se registrará un <strong>consumo de stock</strong> del producto <strong>{{ hipoclorito_nombre_catalogo }}</strong> con marca fija <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> (trazabilidad; mismo tope operativo que el Panel). Fecha y hora de esta confirmación.</p>
+        <p class="small text-danger mt-2 mb-0">Se validará el <strong>stock disponible en planta</strong> (mismo criterio que el Panel). Si no alcanza, no se podrá cargar. Si alcanza, se registrará el <strong>consumo</strong> de <strong>{{ hipoclorito_nombre_catalogo }}</strong> con marca <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> con fecha y hora de esta confirmación.</p>
         {% endif %}
       </div>
       <div class="modal-footer">
