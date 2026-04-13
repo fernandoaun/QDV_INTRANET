@@ -72,6 +72,12 @@ def user_can_view_admin_configuration(user: User | None) -> bool:
     return user_can(user, "admin_usuarios")
 
 
+def user_can_access_planificacion(user: User | None) -> bool:
+    if user is None:
+        return False
+    return user_can(user, "planificacion")
+
+
 def user_can_access_entregas_hub(user: User | None) -> bool:
     """Acceso al módulo Entregas solo con permisos explícitos del árbol entregas_* (sin heredar Producción)."""
     if user is None:
@@ -384,6 +390,8 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_entregas_programar_effective(user)
     if ep.startswith("entregas."):
         return user_can_edit_entregas_any_action(user)
+    if ep.startswith("planificacion."):
+        return user_can_edit(user, "planificacion")
     if ep == "produccion.stock_consumo":
         return user_can_edit_stock_consumos(user)
     if ep == "produccion.stock_ver":

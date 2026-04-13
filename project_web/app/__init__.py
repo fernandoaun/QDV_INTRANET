@@ -103,6 +103,7 @@ def create_app() -> Flask:
     from app.web.modules.panel import bp as main_bp
     from app.web.modules.produccion import bp as produccion_bp
     from app.web.modules.shift import bp as shift_bp
+    from app.web.modules.planificacion import bp as planificacion_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -110,6 +111,7 @@ def create_app() -> Flask:
     app.register_blueprint(entregas_bp)
     app.register_blueprint(shift_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(planificacion_bp)
 
     @app.before_request
     def _guard_operational_shift_writes():
@@ -154,6 +156,7 @@ def create_app() -> Flask:
         from app.auth_utils import user_can_edit as _user_can_edit
         from app.auth_utils import user_can_view_admin_configuration as _user_can_view_admin_configuration
         from app.auth_utils import user_can_access_entregas_hub
+        from app.auth_utils import user_can_access_planificacion
         from app.auth_utils import user_can_access_production_hub
         from app.auth_utils import (
             user_can_entregas_cargar_effective,
@@ -170,6 +173,7 @@ def create_app() -> Flask:
             user_can_view_stock_consumos,
         )
         from app.constants import MODULE_LABELS
+        from app.services import planificacion_service as _planificacion_service
         from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label, user_is_global_read_only
         from flask import request
 
@@ -184,6 +188,7 @@ def create_app() -> Flask:
             "page_can_edit_current": _page_can_edit_effective(u, request.endpoint, flask_session),
             "user_can_production_hub": user_can_access_production_hub(u),
             "user_can_entregas_hub": user_can_access_entregas_hub(u),
+            "user_can_planificacion": user_can_access_planificacion(u),
             "user_can_entregas_programar": lambda: user_can_entregas_programar_effective(u),
             "user_can_entregas_programar_view": lambda: user_may_view_entregas_programar(u),
             "user_can_entregas_cargar": lambda: user_can_entregas_cargar_effective(u),
@@ -199,6 +204,8 @@ def create_app() -> Flask:
             "user_roles_ordered": USER_ROLES_ORDERED,
             "role_labels": ROLE_LABELS,
             "user_role_label": lambda u=None: role_label(getattr(u, "rol", None) if u is not None else None),
+            "planificacion_display_codigo": _planificacion_service.actividad_display_codigo,
+            "planificacion_is_atrasada": _planificacion_service.is_atrasada,
         }
 
     @app.context_processor

@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Planificación · Tabla · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Planificación</h1>
+    <p class="app-intro mb-0">Listado operativo de actividades. Los filtros se aplican por URL y se reutilizan en el Gantt.</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2 justify-content-end">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}">← Hub</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.gantt', **request.args) }}"><i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>Gantt</a>
+    {% if page_can_edit_current %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('planificacion.nueva') }}"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nueva actividad</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.export_csv', **request.args) }}"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV (Excel)</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Filtros y orden</span>
+    <span class="small app-text-secondary">Rango: solape con el intervalo indicado</span>
+  </div>
+  <div class="app-card-body">
+    <form class="row g-2 align-items-end" method="get" action="{{ url_for('planificacion.tabla') }}">
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_estado">Estado</label>
+        <select class="form-select form-select-sm" id="f_estado" name="estado">
+          <option value="">(todos)</option>
+          {% for s in estados %}
+          <option value="{{ s }}" {% if filtros.estado == s %}selected{% endif %}>{{ estado_labels[s] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_resp">Responsable</label>
+        <select class="form-select form-select-sm" id="f_resp" name="responsable_user_id">
+          <option value="">(todos)</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if filtros.responsable_user_id == u.id %}selected{% endif %}>{{ u.username }}{% if u.nombre_completo %} — {{ u.nombre_completo }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_cat">Categoría</label>
+        <select class="form-select form-select-sm" id="f_cat" name="categoria">
+          <option value="">(todas)</option>
+          {% for c in categorias %}
+          <option value="{{ c }}" {% if filtros.categoria == c %}selected{% endif %}>{{ categoria_labels[c] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_pri">Prioridad</label>
+        <select class="form-select form-select-sm" id="f_pri" name="prioridad">
+          <option value="">(todas)</option>
+          {% for p in prioridades %}
+          <option value="{{ p }}" {% if filtros.prioridad == p %}selected{% endif %}>{{ prioridad_labels[p] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_fd">Desde</label>
+        <input class="form-control form-control-sm" type="date" id="f_fd" name="fecha_desde" value="{{ filtros.fecha_desde or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_fh">Hasta</label>
+        <input class="form-control form-control-sm" type="date" id="f_fh" name="fecha_hasta" value="{{ filtros.fecha_hasta or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-0" for="f_q">Buscar texto</label>
+        <input class="form-control form-control-sm" type="search" id="f_q" name="q" value="{{ filtros.q or '' }}" placeholder="Título, código, notas…">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="f_sort">Orden</label>
+        <select class="form-select form-select-sm" id="f_sort" name="sort">
+          <option value="">Inicio (predeterminado)</option>
+          <option value="inicio" {% if filtros.sort == 'inicio' %}selected{% endif %}>Inicio</option>
+          <option value="fin" {% if filtros.sort == 'fin' %}selected{% endif %}>Fin</option>
+          <option value="prioridad" {% if filtros.sort == 'prioridad' %}selected{% endif %}>Prioridad</option>
+          <option value="estado" {% if filtros.sort == 'estado' %}selected{% endif %}>Estado</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+      </div>
+      <div class="col-md-2 d-grid">
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('planificacion.tabla') }}">Limpiar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Actividades</span>
+    <span class="small app-text-secondary">{{ rows|length }} registro(s) · Hoy operación: {{ today.isoformat() }}</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Título</th>
+          <th>Inicio</th>
+          <th>Fin</th>
+          <th>Días</th>
+          <th>Responsable</th>
+          <th>Categoría</th>
+          <th>Prioridad</th>
+          <th>Estado</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set atrasada = planificacion_is_atrasada(r, today) %}
+        <tr class="{% if atrasada %}table-warning{% elif r.estado == 'demorada' %}table-danger{% endif %}">
+          <td class="text-nowrap fw-semibold">{{ planificacion_display_codigo(r) }}</td>
+          <td>
+            <div class="fw-semibold">{{ r.titulo }}</div>
+            {% if r.descripcion %}<div class="small app-text-secondary text-truncate" style="max-width:28rem;">{{ r.descripcion }}</div>{% endif %}
+            {% if atrasada and r.estado not in ('finalizada','cancelada') %}
+            <div class="small text-danger fw-semibold">Vencida / atrasada (fecha fin anterior a hoy)</div>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">{{ r.fecha_inicio.isoformat() }}</td>
+          <td class="text-nowrap">{{ r.fecha_fin.isoformat() }}</td>
+          <td>{{ r.duracion_dias }}</td>
+          <td class="small">
+            {% if r.responsable %}
+              {{ r.responsable.username }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="small">{{ categoria_labels.get(r.categoria, r.categoria) }}</td>
+          <td class="small">{{ prioridad_labels.get(r.prioridad, r.prioridad) }}</td>
+          <td class="small">
+            {% if page_can_edit_current %}
+            <form method="post" action="{{ url_for('planificacion.cambiar_estado', actividad_id=r.id) }}" class="d-flex gap-1 align-items-center">
+              {% include "_csrf.html" %}
+              <select class="form-select form-select-sm" name="estado" aria-label="Estado fila {{ r.id }}">
+                {% for s in estados %}
+                <option value="{{ s }}" {% if r.estado == s %}selected{% endif %}>{{ estado_labels[s] }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="btn btn-sm btn-outline-primary">OK</button>
+            </form>
+            {% else %}
+            {{ estado_labels.get(r.estado, r.estado) }}
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('planificacion.editar', actividad_id=r.id) }}">Ver / editar</a>
+            {% if page_can_edit_current %}
+            <form method="post" action="{{ url_for('planificacion.eliminar', actividad_id=r.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar esta actividad?');">
+              {% include "_csrf.html" %}
+              <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-center app-text-secondary py-4">Sin actividades con los filtros actuales.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

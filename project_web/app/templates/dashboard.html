@@ -49,21 +49,26 @@
       </div>
     </div>
     <p class="app-text-secondary small mb-2">Indicadores en litros según el último <strong>cambio de turno recepcionado</strong> (el que sale solo declara stock; hasta que el entrante recepcione, estos números no cambian). No usan el stock teórico por lotes de otros módulos.</p>
-    {% if user_can_production_hub or user_can_entregas_hub %}
+    {% if user_can_production_hub or user_can_entregas_hub or user_can_planificacion %}
     <p class="mb-0 small">
       {% if user_can_production_hub %}
       <a href="{{ url_for('produccion.hub') }}">Ir a Producción</a>
       {% endif %}
-      {% if user_can_production_hub and user_can_entregas_hub %}<span class="app-text-secondary mx-1">·</span>{% endif %}
+      {% if user_can_production_hub and (user_can_entregas_hub or user_can_planificacion) %}<span class="app-text-secondary mx-1">·</span>{% endif %}
       {% if user_can_entregas_hub %}
       <a href="{{ url_for('entregas.hub') }}">Ir a Entregas</a>
       {% endif %}
+      {% if user_can_entregas_hub and user_can_planificacion %}<span class="app-text-secondary mx-1">·</span>{% endif %}
+      {% if user_can_planificacion %}
+      <a href="{{ url_for('planificacion.hub') }}">Ir a Planificación</a>
+      {% endif %}
     </p>
     {% endif %}
-    {% if not user_can_production_hub or not user_can_entregas_hub %}
+    {% if not user_can_production_hub or not user_can_entregas_hub or not user_can_planificacion %}
     <p class="text-warning mb-0 small mt-3">
       {% if not user_can_production_hub %}Sin acceso a <strong>Producción</strong>. {% endif %}
       {% if not user_can_entregas_hub %}Sin acceso a <strong>Entregas</strong>. {% endif %}
+      {% if not user_can_planificacion %}Sin acceso a <strong>Planificación</strong>. {% endif %}
       Un administrador puede habilitar permisos en <em>Usuarios → Editar</em>.
     </p>
     {% endif %}

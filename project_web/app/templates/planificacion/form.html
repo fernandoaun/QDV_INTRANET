@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{% if mode == 'nueva' %}Nueva actividad{% else %}Editar actividad{% endif %} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">{% if mode == 'nueva' %}Nueva actividad{% else %}Editar actividad{% endif %}</h1>
+    <p class="app-intro mb-0">Título y fechas obligatorias; fin no puede ser anterior al inicio. La duración en días se recalcula sola.</p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.tabla') }}">← Tabla</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body">
+    <form method="post" class="row g-3" id="planificacionActivityForm">
+      {% include "_csrf.html" %}
+      <div class="col-md-4">
+        <label class="form-label" for="codigo">Código (opcional)</label>
+        <input class="form-control" id="codigo" name="codigo" maxlength="64"
+               value="{{ (form.codigo if form else (row.codigo if row else '') or '')|e }}">
+        <div class="form-text">Si queda vacío se muestra el ID interno (#123).</div>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label" for="titulo">Título <span class="text-danger">*</span></label>
+        <input class="form-control" id="titulo" name="titulo" required maxlength="256"
+               value="{{ (form.titulo if form else (row.titulo if row else ''))|e }}">
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="descripcion">Descripción</label>
+        <textarea class="form-control" id="descripcion" name="descripcion" rows="3">{{ (form.descripcion if form else (row.descripcion if row else '') or '')|e }}</textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="fecha_inicio">Fecha inicio <span class="text-danger">*</span></label>
+        <input class="form-control" type="date" id="fecha_inicio" name="fecha_inicio" required
+               value="{{ (form.fecha_inicio if form else (row.fecha_inicio.isoformat() if row else default_fecha_inicio))|e }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="fecha_fin">Fecha fin <span class="text-danger">*</span></label>
+        <input class="form-control" type="date" id="fecha_fin" name="fecha_fin" required
+               value="{{ (form.fecha_fin if form else (row.fecha_fin.isoformat() if row else default_fecha_fin))|e }}">
+      </div>
+      <div class="col-md-3 d-flex align-items-end">
+        <div class="w-100">
+          <div class="small text-muted mb-1">Duración estimada (días, inclusive)</div>
+          <div class="form-control bg-body-secondary" id="duracion_preview" aria-live="polite">—</div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="responsable_user_id">Responsable (usuario)</label>
+        <select class="form-select" id="responsable_user_id" name="responsable_user_id">
+          <option value="">(sin asignar)</option>
+          {% set cur = (form.responsable_user_id if form else ((row.responsable_user_id|string) if row and row.responsable_user_id else '')) %}
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if cur|string == u.id|string %}selected{% endif %}>{{ u.username }}{% if u.nombre_completo %} — {{ u.nombre_completo }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="categoria">Categoría</label>
+        {% set ccur = (form.categoria if form else (row.categoria if row else 'otro')) %}
+        <select class="form-select" id="categoria" name="categoria">
+          {% for c in categorias %}
+          <option value="{{ c }}" {% if ccur == c %}selected{% endif %}>{{ categoria_labels[c] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="prioridad">Prioridad</label>
+        {% set pcur = (form.prioridad if form else (row.prioridad if row else 'media')) %}
+        <select class="form-select" id="prioridad" name="prioridad">
+          {% for p in prioridades %}
+          <option value="{{ p }}" {% if pcur == p %}selected{% endif %}>{{ prioridad_labels[p] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="estado">Estado</label>
+        {% set scur = (form.estado if form else (row.estado if row else 'pendiente')) %}
+        <select class="form-select" id="estado" name="estado">
+          {% for s in estados %}
+          <option value="{{ s }}" {% if scur == s %}selected{% endif %}>{{ estado_labels[s] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="observaciones">Observaciones</label>
+        <textarea class="form-control" id="observaciones" name="observaciones" rows="3">{{ (form.observaciones if form else (row.observaciones if row else '') or '')|e }}</textarea>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="linked_entity_type">Vínculo futuro — tipo</label>
+        <input class="form-control" id="linked_entity_type" name="linked_entity_type" maxlength="32"
+               placeholder="ej.: entrega, mantenimiento (opcional)"
+               value="{{ (form.linked_entity_type if form else (row.linked_entity_type if row else '') or '')|e }}">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label" for="linked_entity_id">Vínculo futuro — ID</label>
+        <input class="form-control" id="linked_entity_id" name="linked_entity_id" inputmode="numeric"
+               value="{{ (form.linked_entity_id if form else ((row.linked_entity_id|string) if row and row.linked_entity_id else ''))|e }}">
+      </div>
+      {% if page_can_edit_current %}
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('planificacion.tabla') }}">Cancelar</a>
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var fi = document.getElementById("fecha_inicio");
+  var ff = document.getElementById("fecha_fin");
+  var prev = document.getElementById("duracion_preview");
+  function daysInclusive(a, b) {
+    if (!a || !b) return null;
+    var da = new Date(a + "T12:00:00");
+    var db = new Date(b + "T12:00:00");
+    if (isNaN(da.getTime()) || isNaN(db.getTime())) return null;
+    var ms = db.getTime() - da.getTime();
+    var d = Math.floor(ms / 86400000) + 1;
+    return d > 0 ? d : null;
+  }
+  function refresh() {
+    if (!prev) return;
+    var d = daysInclusive(fi && fi.value, ff && ff.value);
+    if (!d) { prev.textContent = "—"; return; }
+    prev.textContent = String(d) + " día(s)";
+    if (d < 1) prev.textContent = "Revisá las fechas";
+  }
+  if (fi) fi.addEventListener("change", refresh);
+  if (ff) ff.addEventListener("change", refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

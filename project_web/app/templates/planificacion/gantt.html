@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Planificación · Gantt · QDV{% endblock %}
+{% block extra_head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+<style>
+  /* Contenedor con scroll vertical para muchas tareas */
+  .planif-gantt-wrap {
+    max-height: min(70vh, 720px);
+    overflow: auto;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0.5rem;
+    background: var(--bs-body-bg, #0f1118);
+  }
+  .planif-gantt-wrap .gantt-container { min-height: 420px; }
+  /* Estados (relleno de barra) */
+  .gantt .bar-wrapper.gantt-estado-pendiente .bar { fill: #6c757d; }
+  .gantt .bar-wrapper.gantt-estado-en_curso .bar { fill: #0d6efd; }
+  .gantt .bar-wrapper.gantt-estado-finalizada .bar { fill: #198754; }
+  .gantt .bar-wrapper.gantt-estado-demorada .bar { fill: #fd7e14; }
+  .gantt .bar-wrapper.gantt-estado-cancelada .bar { fill: #adb5bd; }
+  .gantt .bar-wrapper.gantt-atrasada .bar { stroke: #dc3545; stroke-width: 2px; }
+  .gantt .bar-label { fill: #f8f9fa; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Gantt</h1>
+    <p class="app-intro mb-0">Librería <strong>Frappe Gantt</strong> (0.6.x). Click en barra para abrir la actividad. Tooltip nativo al pasar el mouse.</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2 justify-content-end">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}">← Hub</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.tabla', **request.args) }}"><i class="bi bi-table me-1" aria-hidden="true"></i>Tabla</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.export_csv', **request.args) }}"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Filtros (misma lógica que la tabla)</span>
+    <span class="small app-text-secondary">Vista temporal</span>
+  </div>
+  <div class="app-card-body">
+    <form class="row g-2 align-items-end" method="get" action="{{ url_for('planificacion.gantt') }}">
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_estado">Estado</label>
+        <select class="form-select form-select-sm" id="g_estado" name="estado">
+          <option value="">(todos)</option>
+          {% for s in estados %}
+          <option value="{{ s }}" {% if filtros.estado == s %}selected{% endif %}>{{ estado_labels[s] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_resp">Responsable</label>
+        <select class="form-select form-select-sm" id="g_resp" name="responsable_user_id">
+          <option value="">(todos)</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" {% if filtros.responsable_user_id == u.id %}selected{% endif %}>{{ u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_cat">Categoría</label>
+        <select class="form-select form-select-sm" id="g_cat" name="categoria">
+          <option value="">(todas)</option>
+          {% for c in categorias %}
+          <option value="{{ c }}" {% if filtros.categoria == c %}selected{% endif %}>{{ categoria_labels[c] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_pri">Prioridad</label>
+        <select class="form-select form-select-sm" id="g_pri" name="prioridad">
+          <option value="">(todas)</option>
+          {% for p in prioridades %}
+          <option value="{{ p }}" {% if filtros.prioridad == p %}selected{% endif %}>{{ prioridad_labels[p] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_fd">Desde</label>
+        <input class="form-control form-control-sm" type="date" id="g_fd" name="fecha_desde" value="{{ filtros.fecha_desde or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_fh">Hasta</label>
+        <input class="form-control form-control-sm" type="date" id="g_fh" name="fecha_hasta" value="{{ filtros.fecha_hasta or '' }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label small mb-0" for="g_q">Buscar texto</label>
+        <input class="form-control form-control-sm" type="search" id="g_q" name="q" value="{{ filtros.q or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-0" for="g_vista">Escala</label>
+        <select class="form-select form-select-sm" id="g_vista" name="vista">
+          {% for vm in ['Quarter Day','Half Day','Day','Week','Month'] %}
+          <option value="{{ vm }}" {% if view_mode == vm %}selected{% endif %}>{{ vm }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button type="submit" class="btn btn-sm btn-primary">Aplicar</button>
+      </div>
+    </form>
+    <p class="small app-text-secondary mb-0 mt-2">Exportación PDF/imagen del gráfico: pendiente de ampliación (por ahora CSV desde la tabla o esta vista).</p>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-body d-flex flex-wrap gap-2 align-items-center">
+    <span class="small app-text-secondary me-2">Cambiar escala rápido:</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-vm="Day">Diaria</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-vm="Week">Semanal</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-vm="Month">Mensual</button>
+    <span class="small app-text-secondary ms-auto">{{ tasks_json|length }} tarea(s) en pantalla</span>
+  </div>
+</div>
+
+<div class="planif-gantt-wrap mb-3">
+  <svg id="planif-gantt"></svg>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.umd.min.js"></script>
+<script>
+(function () {
+  var tasks = {{ tasks_json | tojson }};
+  var initialMode = {{ view_mode | tojson }};
+  var gantt = null;
+  var urlById = {};
+  (tasks || []).forEach(function (t) {
+    if (!t || t.id == null) return;
+    urlById[String(t.id)] = t.edit_url || "";
+  });
+  function mount(mode) {
+    var el = document.getElementById("planif-gantt");
+    if (!el || typeof Gantt === "undefined") return;
+    el.innerHTML = "";
+    gantt = new Gantt(el, tasks, {
+      view_mode: mode || initialMode || "Week",
+      date_format: "YYYY-MM-DD",
+      on_click: function (task) {
+        var url = urlById[String(task.id)];
+        if (url) window.location.href = url;
+      }
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { mount(initialMode); });
+  } else {
+    mount(initialMode);
+  }
+  document.querySelectorAll("button[data-vm]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var vm = btn.getAttribute("data-vm");
+      if (gantt && typeof gantt.change_view_mode === "function") {
+        gantt.change_view_mode(vm);
+      } else {
+        mount(vm);
+      }
+      var sel = document.getElementById("g_vista");
+      if (sel) sel.value = vm;
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -84,6 +84,7 @@ _BASE_OPERACIONES: frozenset[str] = frozenset(
         "entregas_entregar",
         "recepcion",
         "despacho",
+        "planificacion",
     }
 )
 
@@ -99,6 +100,7 @@ _BASE_LOGISTICA: frozenset[str] = frozenset(
         "stock_hub",
         "stock_existencias",
         "stock_historial",
+        "planificacion",
     }
 )
 
@@ -115,6 +117,7 @@ _BASE_MANTENIMIENTO: frozenset[str] = frozenset(
         "stock_hub",
         "stock_existencias",
         "stock_historial",
+        "planificacion",
     }
 )
 

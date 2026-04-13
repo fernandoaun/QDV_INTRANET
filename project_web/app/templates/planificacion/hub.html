@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Planificación · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Planificación</h1>
+    <p class="app-intro mb-0">Tareas, entregas, mantenimiento y otras actividades con seguimiento temporal y vista Gantt.</p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+  </div>
+</div>
+<div class="app-module-grid">
+  <a class="app-module-card app-module-card--featured" href="{{ url_for('planificacion.tabla') }}">
+    <h2>Tabla de actividades</h2>
+    <p>Alta, edición, filtros, orden y cambio de estado.</p>
+  </a>
+  <a class="app-module-card" href="{{ url_for('planificacion.gantt') }}">
+    <h2>Gantt</h2>
+    <p>Cronograma con vistas diaria, semanal y mensual; filtros compartidos con la tabla.</p>
+  </a>
+  {% if page_can_edit_current %}
+  <a class="app-module-card" href="{{ url_for('planificacion.nueva') }}">
+    <h2>Nueva actividad</h2>
+    <p>Formulario de carga con validaciones de fechas y duración en días.</p>
+  </a>
+  {% endif %}
+</div>
+{% endblock %}

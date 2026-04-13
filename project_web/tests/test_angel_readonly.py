@@ -101,3 +101,30 @@ def test_angel_cannot_create_user(angel_client):
 def test_angel_api_entregas_ok(angel_client):
     r = angel_client.get("/api/v1/entregas")
     assert r.status_code == 200
+
+
+def test_angel_planificacion_tabla_ok(angel_client):
+    r = angel_client.get("/planificacion/tabla", follow_redirects=True)
+    assert r.status_code == 200
+
+
+def test_angel_planificacion_post_nueva_forbidden(angel_client):
+    lg = angel_client.get("/planificacion/nueva")
+    assert lg.status_code == 200
+    html = lg.get_data(as_text=True)
+    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+    assert m is not None
+    r = angel_client.post(
+        "/planificacion/nueva",
+        data={
+            "csrf_token": m.group(1),
+            "titulo": "No debe persistir",
+            "fecha_inicio": "2026-01-01",
+            "fecha_fin": "2026-01-02",
+            "estado": "pendiente",
+            "prioridad": "media",
+            "categoria": "otro",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)

@@ -24,6 +24,7 @@ PERMISSION_KEYS: list[str] = [
     "recepcion",
     "despacho",
     "admin_usuarios",
+    "planificacion",
 ]
 
 # Nombre del producto en catálogo de stock (producto terminado / ingresos / consumos).
@@ -74,6 +75,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "recepcion": "Recepción",
     "despacho": "Despacho",
     "admin_usuarios": "Administración de usuarios",
+    "planificacion": "Planificación y Gantt",
 }
 
 PERMISSION_TREE: list[dict[str, object]] = [
@@ -115,6 +117,7 @@ PERMISSION_TREE: list[dict[str, object]] = [
     {"key": "admin_usuarios", "label": "Administración de usuarios", "children": []},
     {"key": "recepcion", "label": "Recepción", "children": []},
     {"key": "despacho", "label": "Despacho", "children": []},
+    {"key": "planificacion", "label": "Planificación y Gantt", "children": []},
 ]
 
 
