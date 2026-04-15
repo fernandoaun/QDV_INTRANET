@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import select
 
 from app.auth_utils import current_user, login_required, permission_required
@@ -37,6 +37,12 @@ from app.web.modules.produccion.salmuera_helpers import (
 
 
 def register_salmuera_routes(bp: Blueprint) -> None:
+    def _is_ajax_request() -> bool:
+        return (
+            request.headers.get("X-Requested-With", "").lower() == "xmlhttprequest"
+            or "application/json" in request.headers.get("Accept", "").lower()
+        )
+
     @bp.route("/salmuera/hipo-conc-pdf", methods=["GET", "POST"])
     @login_required
     @permission_required("salmuera")
@@ -133,10 +139,33 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                 )
                 db.session.add(data)
                 db.session.commit()
+                registro_dict = salmuera_row_to_dict(data)
+                ultimo_panel = last_salmuera_row_dict_for_electrolizador_on_date(fecha, electrolizador)
+                timer_rows = salmuera_timer_rows_for_date(fecha)
+                panel_timer = next(
+                    (row for row in timer_rows if int(row.get("electrolizador", 0)) == int(electrolizador)),
+                    {"electrolizador": electrolizador, "last_created_at_iso": data.created_at_iso},
+                )
+                if _is_ajax_request():
+                    return (
+                        jsonify(
+                            {
+                                "ok": True,
+                                "message": "Registro de salmuera guardado.",
+                                "saved_electrolizador": int(electrolizador),
+                                "registro": registro_dict,
+                                "ultimo": ultimo_panel,
+                                "timer_row": panel_timer,
+                            }
+                        ),
+                        200,
+                    )
                 flash("Registro de salmuera guardado.", "success")
                 return redirect(url_for("produccion.salmuera", fecha=fecha))
             except Exception as e:
                 db.session.rollback()
+                if _is_ajax_request():
+                    return jsonify({"ok": False, "error": str(e)}), 400
                 flash(str(e), "danger")
 
         if request.method == "POST" and request.form.get("action") == "borrar":

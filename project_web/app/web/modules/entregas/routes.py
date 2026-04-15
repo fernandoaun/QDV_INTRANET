@@ -108,7 +108,13 @@ def gestion():
         return redirect(url_for("entregas.gestion"))
 
     rows = entregas_service.listar_entregas()
-    return render_template("entregas/gestion.html", entregas=rows, **ews.gestion_constants_context())
+    entregas_kpis = entregas_service.entregas_kpis_rolling()
+    return render_template(
+        "entregas/gestion.html",
+        entregas=rows,
+        entregas_kpis=entregas_kpis,
+        **ews.gestion_constants_context(),
+    )
 
 
 @bp.get("/api/lugares-por-cliente/<int:cliente_id>")

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
-from typing import Any, Optional
+from datetime import datetime, timedelta
+from typing import Any
+
+from sqlalchemy import func, select
 
 from app.extensions import db
 from app.constants import ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA, ENTREGAS_STOCK_CATEGORIA
@@ -10,8 +12,93 @@ from app.models import Entrega, EntregaEvento, User
 from app.services import operational_informed_stock as informed_stock
 from app.services import stock_service
 from app.utils.hipoclorito_producto import nombre_ledger_canonico_hipoclorito
+from app.utils.datetime_operacion import now_operacion_naive_local
 
 _DIAS_ES = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+
+# Ventana de KPIs en gestión web: últimos N días corridos hacia atrás desde "ahora" (APP_TIMEZONE).
+ENTREGAS_KPI_ROLLING_DAYS_DEFAULT = 30
+
+
+def _fmt_cantidad_entrega_display(q: float) -> str:
+    """Miles con punto; decimales con coma (si aplica)."""
+    v = float(q or 0)
+    if v <= 0:
+        return "0"
+    if abs(v - round(v)) < 1e-6:
+        n = int(round(v))
+        return f"{n:,}".replace(",", ".")
+    neg = v < 0
+    v = abs(v)
+    whole = int(v)
+    frac_cents = int(round((v - whole) * 100))
+    if frac_cents >= 100:
+        whole += 1
+        frac_cents = 0
+    w = f"{whole:,}".replace(",", ".")
+    if neg:
+        w = "-" + w
+    if frac_cents:
+        frac_s = f"{frac_cents:02d}".rstrip("0")
+        return f"{w},{frac_s}"
+    return w
+
+
+def entregas_kpis_rolling(dias: int = ENTREGAS_KPI_ROLLING_DAYS_DEFAULT) -> dict[str, Any]:
+    """Totales de volumen y cantidad de operaciones en una ventana móvil de `dias` corridos.
+
+    Criterio temporal: desde (ahora local de operación − `dias` días) hasta ahora, inclusive.
+    Los timestamps comparados son strings ISO guardados por las acciones «Cargar» y «Entregado»
+    (`cargada_at_iso`, `entregada_at_iso`), coherentes con `now_operacion_naive_local()`.
+
+    - **Cargado**: suma de `cantidad` donde hay `cargada_at_iso` en la ventana (carga real en camión).
+      No incluye entregas solo programadas (`programada` sin carga).
+    - **Entregado**: suma de `cantidad` donde `estado == "entregada"` y `entregada_at_iso` en la ventana.
+      No incluye cargas sin cierre de entrega ni programación sin entregar.
+
+    Se excluyen filas con `cantidad` <= 0. El módulo gestiona el volumen en **litros** (`cantidad` / columna «Litros»).
+    """
+    dias = max(1, int(dias or ENTREGAS_KPI_ROLLING_DAYS_DEFAULT))
+    now = now_operacion_naive_local()
+    start = now - timedelta(days=dias)
+    start_s = start.isoformat(timespec="seconds")
+    end_s = now.isoformat(timespec="seconds")
+
+    q_carga = select(func.coalesce(func.sum(Entrega.cantidad), 0.0), func.count()).where(
+        Entrega.cargada_at_iso.isnot(None),
+        Entrega.cargada_at_iso != "",
+        Entrega.cantidad > 0,
+        Entrega.cargada_at_iso >= start_s,
+        Entrega.cargada_at_iso <= end_s,
+    )
+    total_cargado, n_cargas = db.session.execute(q_carga).one()
+
+    q_ent = select(func.coalesce(func.sum(Entrega.cantidad), 0.0), func.count()).where(
+        Entrega.estado == "entregada",
+        Entrega.entregada_at_iso.isnot(None),
+        Entrega.entregada_at_iso != "",
+        Entrega.cantidad > 0,
+        Entrega.entregada_at_iso >= start_s,
+        Entrega.entregada_at_iso <= end_s,
+    )
+    total_ent, n_ent = db.session.execute(q_ent).one()
+
+    tc = float(total_cargado or 0)
+    te = float(total_ent or 0)
+    return {
+        "periodo_dias": dias,
+        "periodo_subtitulo": f"últimos {dias} días corridos",
+        "unidad": "L",
+        "unidad_larga": "litros",
+        "total_cargado": tc,
+        "total_entregado": te,
+        "count_cargas": int(n_cargas or 0),
+        "count_entregas": int(n_ent or 0),
+        "total_cargado_display": _fmt_cantidad_entrega_display(tc),
+        "total_entregado_display": _fmt_cantidad_entrega_display(te),
+        "ventana_inicio_iso": start_s,
+        "ventana_fin_iso": end_s,
+    }
 
 
 def dia_semana_es(fecha_hora: datetime) -> str:

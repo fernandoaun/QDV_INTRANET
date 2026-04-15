@@ -33,7 +33,7 @@
         <div class="app-card-header app-card-header--split">
           <div>
             <strong>Electrolizador {{ eid }}</strong>
-            <div class="small app-text-secondary mt-1">
+            <div class="small app-text-secondary mt-1" id="ultimoAnalisisText-{{ eid }}">
               {% if ult %}
               Último análisis hoy: <span class="text-body">{{ ult.hora_hm }}</span> · Lote {{ ult.lote or "—" }} · ID {{ ult.id }}
               {% else %}
@@ -69,6 +69,7 @@
             <input type="hidden" name="action" value="guardar">
             <input type="hidden" name="voltajes" id="voltajesSerialized-{{ eid }}" value="">
             <input type="hidden" name="electrolizador" value="{{ eid }}">
+            <div id="salmueraPanelMessage-{{ eid }}" class="alert py-2 px-3 d-none" role="status" aria-live="polite"></div>
             <div class="row g-2">
               <div class="col-md-4 col-xl-3">
                 <label class="form-label">Celdas (N)</label>
@@ -209,7 +210,7 @@
                 <th>Creado</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="salmueraRows-{{ eid }}">
               {% for r in registros | selectattr('electrolizador', 'equalto', eid) %}
               <tr>
                 <td>{{ r.id }}</td>
@@ -338,6 +339,106 @@
 
     const hipocloritoWarnPanel = document.getElementById(`hipocloritoOpWarningsPanel-${eid}`);
     const hipocloritoWarnList = document.getElementById(`hipocloritoOpWarningsList-${eid}`);
+    const panelMessage = document.getElementById(`salmueraPanelMessage-${eid}`);
+    const panelRows = document.getElementById(`salmueraRows-${eid}`);
+    const ultimoText = document.getElementById(`ultimoAnalisisText-${eid}`);
+    let isSubmitting = false;
+
+    function showPanelMessage(text, kind) {
+      if (!panelMessage) return;
+      panelMessage.classList.remove("d-none", "alert-success", "alert-danger", "alert-warning", "alert-info");
+      panelMessage.classList.add(kind || "alert-info");
+      panelMessage.textContent = text || "";
+    }
+
+    function clearPanelMessage() {
+      if (!panelMessage) return;
+      panelMessage.classList.add("d-none");
+      panelMessage.textContent = "";
+    }
+
+    function esc(text) {
+      return String(text == null ? "" : text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function updateLastSummary(ultimo) {
+      if (!ultimoText) return;
+      if (!ultimo) {
+        ultimoText.innerHTML = "Sin registros para este electrolizador en la fecha seleccionada.";
+        return;
+      }
+      ultimoText.innerHTML = `Último análisis hoy: <span class="text-body">${esc(ultimo.hora_hm || "—")}</span> · Lote ${esc(ultimo.lote || "—")} · ID ${esc(ultimo.id || "—")}`;
+    }
+
+    function rowHtml(registro) {
+      const warnings = Array.isArray(registro.warnings) ? registro.warnings : [];
+      const voltajes = Array.isArray(registro.voltajes_celdas) ? registro.voltajes_celdas : [];
+      const warningsHtml = warnings.length
+        ? warnings.map((w) => `<span class="pill-warn" title="${esc(w)}">${esc(w)}</span>`).join("")
+        : '<span class="text-muted">-</span>';
+      const voltajesHtml = voltajes.length
+        ? voltajes.map((v) => esc(v)).join(", ")
+        : '<span class="text-muted">-</span>';
+      const voltajeTotal = Number.isFinite(Number(registro.voltaje_total))
+        ? Number(registro.voltaje_total).toFixed(2)
+        : esc(registro.voltaje_total || "");
+      return `
+        <tr>
+          <td>${esc(registro.id)}</td>
+          <td>${esc(registro.hora_hm)}</td>
+          <td>${esc(registro.turno)}</td>
+          <td>${esc(registro.operador)}</td>
+          <td>${esc(registro.lote)}</td>
+          <td>${esc(registro.cantidad_celdas)}</td>
+          <td class="app-table-voltajes-td">${voltajesHtml}</td>
+          <td class="app-table-voltaje-total-td"><span class="voltaje-total-value">${voltajeTotal}</span></td>
+          <td>${esc(registro.amperaje)}</td>
+          <td>${esc(registro.caudal_agua_l_h)}</td>
+          <td>${esc(registro.caudal_salmuera_l_h)}</td>
+          <td>${esc(registro.hipo_conc)}</td>
+          <td>${esc(registro.hipo_exceso_soda)}</td>
+          <td>${esc(registro.sal_temp)}</td>
+          <td>${esc(registro.sal_conc)}</td>
+          <td>${esc(registro.sal_ph)}</td>
+          <td>${esc(registro.soda_conc)}</td>
+          <td>${esc(registro.declor_ph)}</td>
+          <td>${warningsHtml}</td>
+          <td title="${esc(registro.observaciones)}"><div class="cell-ellipsis">${esc(registro.observaciones)}</div></td>
+          <td title="${esc(registro.atraso_motivo)}"><div class="cell-ellipsis">${esc(registro.atraso_motivo)}</div></td>
+          <td>${esc(registro.created_at_iso)}</td>
+        </tr>
+      `;
+    }
+
+    function upsertSavedRow(registro) {
+      if (!panelRows || !registro) return;
+      const emptyRow = panelRows.querySelector("tr td.text-center.text-muted");
+      if (emptyRow) {
+        const tr = emptyRow.closest("tr");
+        if (tr) tr.remove();
+      }
+      panelRows.insertAdjacentHTML("afterbegin", rowHtml(registro));
+    }
+
+    function resetOnlyThisPanel() {
+      form.querySelectorAll("input[type='text'], input:not([type]), input[type='number']").forEach((el) => {
+        if (!el.name || el.readOnly || el.type === "hidden") return;
+        if (el.name.startsWith("voltaje_")) return;
+        el.value = "";
+      });
+      if (nInput) {
+        nInput.value = "6";
+      }
+      if (typeof voltCtx.rebuildVoltages === "function") {
+        voltCtx.rebuildVoltages();
+      }
+      renderHipocloritoWarnings();
+    }
 
     function parseHipoWarnField(name) {
       const el = form.querySelector(`input[name="${name}"]`);
@@ -418,11 +519,51 @@
       return true;
     }
 
-    form.addEventListener("submit", (ev) => {
+    form.addEventListener("submit", async (ev) => {
       const n = parseInt((nInput && nInput.value) ? nInput.value : "1", 10) || 1;
       writeSerialized(n);
       if (!validateClientSide()) {
         ev.preventDefault();
+        return;
+      }
+      ev.preventDefault();
+      if (isSubmitting) return;
+      isSubmitting = true;
+      clearPanelMessage();
+      const submitBtn = form.querySelector("button[type='submit']");
+      if (submitBtn) submitBtn.disabled = true;
+      try {
+        const resp = await fetch(form.getAttribute("action") || window.location.href, {
+          method: "POST",
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+          },
+          body: new FormData(form),
+          credentials: "same-origin",
+        });
+        const payload = await resp.json().catch(() => ({}));
+        if (!resp.ok || !payload || payload.ok !== true) {
+          throw new Error((payload && (payload.error || payload.message)) || `Error HTTP ${resp.status}`);
+        }
+        showPanelMessage(payload.message || "Registro guardado.", "alert-success");
+        upsertSavedRow(payload.registro);
+        updateLastSummary(payload.ultimo);
+        if (payload.timer_row && Array.isArray(salmueraTimerRows)) {
+          const idx = salmueraTimerRows.findIndex((r) => Number(r.electrolizador) === Number(eid));
+          if (idx >= 0) {
+            salmueraTimerRows[idx] = payload.timer_row;
+          } else {
+            salmueraTimerRows.push(payload.timer_row);
+          }
+          tickElectrolizador(payload.timer_row);
+        }
+        resetOnlyThisPanel();
+      } catch (err) {
+        showPanelMessage((err && err.message) ? err.message : "No se pudo guardar el registro.", "alert-danger");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        isSubmitting = false;
       }
     });
   }
