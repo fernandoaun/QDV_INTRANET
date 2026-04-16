@@ -100,6 +100,7 @@ def create_app() -> Flask:
     from app.web.modules.admin import bp as admin_bp
     from app.web.modules.auth import bp as auth_bp
     from app.web.modules.entregas import bp as entregas_bp
+    from app.web.modules.export_historicos import bp as export_historicos_bp
     from app.web.modules.panel import bp as main_bp
     from app.web.modules.produccion import bp as produccion_bp
     from app.web.modules.shift import bp as shift_bp
@@ -109,6 +110,7 @@ def create_app() -> Flask:
     app.register_blueprint(main_bp)
     app.register_blueprint(produccion_bp)
     app.register_blueprint(entregas_bp)
+    app.register_blueprint(export_historicos_bp)
     app.register_blueprint(shift_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(planificacion_bp)

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Exportar históricos · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Exportar históricos a Excel</h1>
+    <p class="app-intro mb-0">
+      Elegí el período (fecha desde y hasta, <strong>ambos inclusive</strong>) y los módulos a incluir.
+      Se descarga un archivo <strong>.xlsx</strong> con <strong>una hoja por módulo</strong>, encabezados fijos, filtros y primera fila congelada.
+    </p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Criterios de exportación</div>
+  <div class="app-card-body">
+    <form method="post" action="{{ url_for('export_historicos.index') }}" class="row g-3">
+      {% include "_csrf.html" %}
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="fecha_desde">Fecha desde</label>
+        <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" value="{{ default_desde }}" required>
+      </div>
+      <div class="col-md-4 col-lg-3">
+        <label class="form-label" for="fecha_hasta">Fecha hasta</label>
+        <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" value="{{ default_hasta }}" required>
+      </div>
+      <div class="col-12">
+        <div class="fw-semibold mb-2">Módulos a exportar</div>
+        <div class="row g-2">
+          {% for m in module_rows %}
+          <div class="col-md-6 col-xl-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="modulos" value="{{ m.key }}" id="mod_{{ m.key }}">
+              <label class="form-check-label" for="mod_{{ m.key }}">{{ m.label }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="col-12">
+        <button type="submit" class="btn btn-primary">Descargar Excel</button>
+      </div>
+      <div class="col-12">
+        <p class="small app-text-secondary mb-0">
+          <strong>Filtros por módulo:</strong>
+          Control de hipoclorito, reactor, agua y bolsón por <em>fecha de planilla/registro</em>;
+          entregas por <em>fecha prevista</em>;
+          stock ingresos y consumos por <em>fecha operativa del movimiento</em>;
+          cambio de turno por <em>fecha/hora de entrega del turno</em> (<code>handed_over_at_iso</code>).
+          Límite técnico por hoja: {{ max_rows_per_sheet }} filas; si necesitás más, acotá fechas o pedí soporte.
+        </p>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

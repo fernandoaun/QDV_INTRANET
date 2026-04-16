@@ -176,6 +176,7 @@ def build_dashboard_template_context(user: "User | None") -> dict[str, Any]:
     """
     from app.auth_utils import user_can, user_can_access_stock_hub
     from app.services import stock_service
+    from app.services.historicos_export_service import allowed_export_keys_for_user
 
     alertas_stock: list[dict[str, Any]] = []
     ultimos_hipoclorito: list[dict[str, Any]] = []
@@ -216,4 +217,5 @@ def build_dashboard_template_context(user: "User | None") -> dict[str, Any]:
         "ultimo_salmuera": ultimo_salmuera,
         "ultimo_agua": ultimo_agua,
         "ultimos_consumos_mp": ultimos_consumos_mp,
+        "user_can_export_historicos": bool(u and allowed_export_keys_for_user(u)),
     }

@@ -49,6 +49,12 @@
       </div>
     </div>
     <p class="app-text-secondary small mb-2">Indicadores en litros según el último <strong>cambio de turno recepcionado</strong> (el que sale solo declara stock; hasta que el entrante recepcione, estos números no cambian). No usan el stock teórico por lotes de otros módulos.</p>
+    {% if user_can_export_historicos %}
+    <p class="mb-2 small">
+      <a href="{{ url_for('export_historicos.index') }}" class="fw-semibold">Exportar históricos a Excel</a>
+      <span class="app-text-secondary"> — período inclusive, una hoja por módulo (.xlsx)</span>
+    </p>
+    {% endif %}
     {% if user_can_production_hub or user_can_entregas_hub or user_can_planificacion %}
     <p class="mb-0 small">
       {% if user_can_production_hub %}
