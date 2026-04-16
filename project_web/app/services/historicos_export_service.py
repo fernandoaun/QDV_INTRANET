@@ -8,9 +8,6 @@ from datetime import date
 from io import BytesIO
 from typing import Any, Callable
 
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font
-from openpyxl.utils import get_column_letter
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -69,6 +66,8 @@ def _safe_sheet_title(name: str) -> str:
 
 
 def _autosize_and_freeze(ws, ncols: int, nrows: int) -> None:
+    from openpyxl.utils import get_column_letter
+
     if nrows < 1:
         return
     ws.freeze_panes = "A2"
@@ -85,6 +84,8 @@ def _autosize_and_freeze(ws, ncols: int, nrows: int) -> None:
 
 
 def _write_sheet(ws, headers: list[str], rows: list[list[Any]]) -> None:
+    from openpyxl.styles import Alignment, Font
+
     bold = Font(bold=True)
     for col, h in enumerate(headers, start=1):
         cell = ws.cell(row=1, column=col, value=h)
@@ -564,6 +565,14 @@ def build_historicos_workbook(selected_keys: list[str], d0: date, d1: date) -> t
     Genera un único .xlsx con una hoja por clave en `selected_keys`.
     Retorna (buffer, error_msg). Si error_msg no es None, buffer es None.
     """
+    try:
+        from openpyxl import Workbook
+    except ImportError:
+        return None, (
+            "En el servidor no está instalada la librería openpyxl (necesaria para Excel). "
+            "El administrador debe asegurarse de que el deploy ejecute: pip install -r requirements.txt"
+        )
+
     keys = [k for k in selected_keys if k in FETCHERS]
     if not keys:
         return None, "No hay módulos válidos para exportar."

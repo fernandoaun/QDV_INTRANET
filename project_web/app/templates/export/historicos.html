@@ -6,6 +6,7 @@
     <h1 class="app-page-title">Exportar históricos a Excel</h1>
     <p class="app-intro mb-0">
       Elegí el período (fecha desde y hasta, <strong>ambos inclusive</strong>) y los módulos a incluir.
+      Por defecto vienen marcados todos los módulos que podés exportar; podés desmarcar los que no necesites.
       Se descarga un archivo <strong>.xlsx</strong> con <strong>una hoja por módulo</strong>, encabezados fijos, filtros y primera fila congelada.
     </p>
   </div>
@@ -33,7 +34,7 @@
           {% for m in module_rows %}
           <div class="col-md-6 col-xl-4">
             <div class="form-check">
-              <input class="form-check-input" type="checkbox" name="modulos" value="{{ m.key }}" id="mod_{{ m.key }}">
+              <input class="form-check-input" type="checkbox" name="modulos" value="{{ m.key }}" id="mod_{{ m.key }}" checked>
               <label class="form-check-label" for="mod_{{ m.key }}">{{ m.label }}</label>
             </div>
           </div>

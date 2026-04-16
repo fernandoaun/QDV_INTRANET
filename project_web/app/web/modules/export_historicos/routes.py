@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from flask import flash, redirect, render_template, request, send_file, url_for
+from flask import current_app, flash, redirect, render_template, request, send_file, url_for
 
 from app.auth_utils import current_user, login_required
 from app.services.historicos_export_service import (
@@ -50,7 +50,16 @@ def index():
             flash("Seleccioná al menos un módulo para exportar.", "warning")
             return redirect(url_for("export_historicos.index"))
 
-        bio, gen_err = build_historicos_workbook(selected, d0, d1)
+        try:
+            bio, gen_err = build_historicos_workbook(selected, d0, d1)
+        except Exception:
+            current_app.logger.exception("Fallo al generar exportación de históricos Excel")
+            flash(
+                "Ocurrió un error al generar el archivo. Si acabás de desplegar, comprobá que el build "
+                "instaló las dependencias (openpyxl). Si persiste, contactá soporte.",
+                "danger",
+            )
+            return redirect(url_for("export_historicos.index"))
         if gen_err or bio is None:
             flash(gen_err or "No se pudo generar el archivo.", "warning")
             return redirect(url_for("export_historicos.index"))
