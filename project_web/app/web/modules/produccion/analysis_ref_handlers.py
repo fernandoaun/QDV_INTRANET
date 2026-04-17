@@ -6,14 +6,14 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from flask import Response, abort, flash, redirect, request, send_from_directory, url_for
+from flask import Response, abort, flash, redirect, request, send_file, url_for
 
 from app.auth_utils import current_user, user_can
 from app.extensions import db
 from app.models import AppUploadedDocument
 from app.services.analysis_ref_pdf import (
-    analysis_ref_pdf_file_exists,
     analysis_ref_pdf_meta,
+    analysis_ref_pdf_resolve_file_path,
     analysis_ref_pdf_storage_dir,
 )
 from app.web.modules.produccion.operativa_context import now_local
@@ -62,14 +62,14 @@ def handle_analysis_ref_pdf_request(doc_key: str) -> Response:
 
     if request.method == "GET":
         row = db.session.get(AppUploadedDocument, doc_key)
-        if not row or not analysis_ref_pdf_file_exists(doc_key, row):
+        resolved = analysis_ref_pdf_resolve_file_path(doc_key, row)
+        if resolved is None:
             abort(404)
-        return send_from_directory(
-            store_dir,
-            row.stored_filename,
+        return send_file(
+            resolved,
             mimetype="application/pdf",
             as_attachment=False,
-            download_name=row.original_filename or f"{doc_key}.pdf",
+            download_name=(row.original_filename or f"{doc_key}.pdf"),
         )
 
     if u.is_admin is not True:
@@ -80,11 +80,12 @@ def handle_analysis_ref_pdf_request(doc_key: str) -> Response:
     if action == "delete":
         row = db.session.get(AppUploadedDocument, doc_key)
         if row:
-            fp = store_dir / row.stored_filename
-            try:
-                fp.unlink(missing_ok=True)
-            except OSError:
-                pass
+            old_fp = analysis_ref_pdf_resolve_file_path(doc_key, row)
+            if old_fp is not None:
+                try:
+                    old_fp.unlink(missing_ok=True)
+                except OSError:
+                    pass
             db.session.delete(row)
             db.session.commit()
             flash(f"PDF de {label} eliminado.", "info")
@@ -107,11 +108,12 @@ def handle_analysis_ref_pdf_request(doc_key: str) -> Response:
     dest = store_dir / stored
     row = db.session.get(AppUploadedDocument, doc_key)
     if row:
-        old_fp = store_dir / row.stored_filename
-        try:
-            old_fp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        old_fp = analysis_ref_pdf_resolve_file_path(doc_key, row)
+        if old_fp is not None:
+            try:
+                old_fp.unlink(missing_ok=True)
+            except OSError:
+                pass
         row.stored_filename = stored
         row.original_filename = orig_name
         row.updated_at_iso = now_local().isoformat(timespec="seconds")

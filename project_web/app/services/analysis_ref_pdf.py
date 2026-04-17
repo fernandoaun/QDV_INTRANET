@@ -2,17 +2,21 @@
 PDFs de referencia junto a campos analíticos (ícono erlenmeyer).
 
 Cada documento tiene una clave estable en `app_uploaded_documents.doc_key`.
-El archivo de Hipo conc histórico sigue en `uploads/hipo_conc/`; el resto en `uploads/analysis_ref/<doc_key>/`.
+En disco, bajo la raíz de uploads (ver ``uploads_workspace_root`` en ``upload_paths``):
+- Hipo conc histórico: ``hipo_conc/``
+- Resto: ``analysis_ref/<doc_key>/``
+
+En producción sin volumen persistente (p. ej. deploy default en Render), esa carpeta se pierde
+al redesplegar; usar ``APP_UPLOAD_ROOT`` apuntando a un disco persistente.
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from flask import current_app
-
 from app.extensions import db
 from app.models import AppUploadedDocument
+from app.services.upload_paths import resolve_under_upload_roots, uploads_workspace_root
 from sqlalchemy import select
 
 # Clave original (no renombrar; ya puede existir fila y archivos en disco).
@@ -72,26 +76,36 @@ def analysis_ref_pdf_meta(doc_key: str) -> dict[str, Any] | None:
     return _ANALYSIS_REF_PDF_REGISTRY.get(doc_key)
 
 
-def _legacy_hipo_conc_dir() -> Path:
-    p = Path(current_app.instance_path) / "uploads" / "hipo_conc"
-    p.mkdir(parents=True, exist_ok=True)
-    return p
+def analysis_ref_pdf_relative_file_path(doc_key: str, stored_filename: str) -> Path:
+    """Ruta relativa a la raíz ``uploads`` (hipo_conc/... o analysis_ref/...)."""
+    meta = _ANALYSIS_REF_PDF_REGISTRY.get(doc_key)
+    if meta and meta.get("legacy_hipo_dir"):
+        return Path("hipo_conc") / stored_filename
+    return Path("analysis_ref") / doc_key / stored_filename
 
 
 def analysis_ref_pdf_storage_dir(doc_key: str) -> Path:
+    """Directorio donde escribir el PDF de este doc_key (solo la raíz de trabajo)."""
     meta = _ANALYSIS_REF_PDF_REGISTRY.get(doc_key)
+    base = uploads_workspace_root()
     if meta and meta.get("legacy_hipo_dir"):
-        return _legacy_hipo_conc_dir()
-    p = Path(current_app.instance_path) / "uploads" / "analysis_ref" / doc_key
+        p = base / "hipo_conc"
+    else:
+        p = base / "analysis_ref" / doc_key
     p.mkdir(parents=True, exist_ok=True)
     return p
 
 
-def analysis_ref_pdf_file_exists(doc_key: str, row: AppUploadedDocument | None) -> bool:
+def analysis_ref_pdf_resolve_file_path(doc_key: str, row: AppUploadedDocument | None) -> Path | None:
+    """Primera ruta en disco donde existe el archivo (raíz persistente + fallbacks)."""
     if row is None:
-        return False
-    fp = analysis_ref_pdf_storage_dir(doc_key) / row.stored_filename
-    return fp.is_file()
+        return None
+    rel = analysis_ref_pdf_relative_file_path(doc_key, row.stored_filename)
+    return resolve_under_upload_roots(rel)
+
+
+def analysis_ref_pdf_file_exists(doc_key: str, row: AppUploadedDocument | None) -> bool:
+    return analysis_ref_pdf_resolve_file_path(doc_key, row) is not None
 
 
 def analysis_ref_pdf_present_map(doc_keys: tuple[str, ...]) -> dict[str, bool]:

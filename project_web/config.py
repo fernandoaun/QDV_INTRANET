@@ -126,6 +126,10 @@ def get_config_dict(base_dir: Path) -> dict:
     cors_raw = (os.environ.get("CORS_ORIGINS") or "").strip()
     cors_origins = [o.strip() for o in cors_raw.split(",") if o.strip()] if cors_raw else []
 
+    # Raíz persistente para PDFs (erlenmeyer), reactivos, etc. Equivale a instance/uploads.
+    # En Render: montar Persistent Disk y apuntar aquí (ver DEPLOY_RENDER.md).
+    app_upload_root = (os.environ.get("APP_UPLOAD_ROOT") or "").strip()
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
@@ -145,6 +149,7 @@ def get_config_dict(base_dir: Path) -> dict:
         "RATELIMIT_HEADERS_ENABLED": ratelimit_headers,
         "API_DOCS_REQUIRE_AUTH": api_docs_require_auth,
         "CORS_ORIGINS": cors_origins,
+        "APP_UPLOAD_ROOT": app_upload_root,
     }
     # Desarrollo local: que HTML/CSS/JS se lean de disco en cada request (evita “no veo los cambios”).
     if name not in ("production", "testing"):

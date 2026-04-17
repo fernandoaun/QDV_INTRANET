@@ -51,7 +51,30 @@ No hace falta configurar eso manualmente si usás Blueprint.
 5. Esperá propagación.
 6. Render activa SSL automático (https) cuando verifica el DNS.
 
-## 6) Si el deploy falla
+## 6) PDFs del erlenmeyer y archivos subidos (importante)
+
+Los PDFs de referencia analítica (ícono erlenmeyer) y los adjuntos de reactivos de laboratorio **no** van a la base de datos: el archivo está en disco y en la BD solo hay el nombre interno (`app_uploaded_documents`, `laboratory_reagents`).
+
+Por defecto la app guardaba bajo `instance/uploads/` dentro del proyecto. **En Render el filesystem del servicio web es efímero**: cada nuevo deploy **borra** esa carpeta. La base PostgreSQL **sí** se conserva, entonces los registros siguen diciendo que hay PDF pero el archivo **ya no existe** → erlenmeyer en rojo / 404.
+
+**Solución estable**
+
+1. En el servicio web de Render: **Disks** → crear un **Persistent Disk** (ej. montaje `/var/qdv/uploads`).
+2. En **Environment** agregar:
+   - `APP_UPLOAD_ROOT` = la ruta de montaje del disco (ej. `/var/qdv/uploads`).
+
+La aplicación creará ahí las carpetas `hipo_conc/`, `analysis_ref/`, `lab_reagents/`, etc. (misma estructura que antes bajo `instance/uploads`).
+
+**Recuperar archivos viejos**
+
+Si tenés una copia del árbol `uploads` anterior (misma estructura):
+
+- Copiá su contenido dentro de `APP_UPLOAD_ROOT`, **o**
+- Dejá la copia en otra ruta y definí `APP_UPLOADS_READ_FALLBACK_PATHS` con rutas separadas por coma; la app buscará PDFs ahí para **servirlos** aunque el archivo principal esté en el fallback (las nuevas subidas siguen yendo a `APP_UPLOAD_ROOT`).
+
+**Primera vez después de configurar el disco**: subir de nuevo los PDFs desde un usuario administrador, o restaurar copia de archivos como arriba.
+
+## 7) Si el deploy falla
 
 Revisá en Render -> **Logs**:
 

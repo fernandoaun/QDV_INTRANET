@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, send_from_directory, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
 from sqlalchemy import select
 
 from app.auth_utils import current_user, login_required, permission_required
@@ -15,6 +15,7 @@ from app.services import shift_handover_service as sh
 from app.web.modules.produccion.analysis_ref_handlers import validate_pdf_upload
 from app.web.modules.produccion.lab_reagents_helpers import (
     lab_reagent_pdf_is_readable,
+    lab_reagent_pdf_resolve_path,
     lab_reagents_storage_dir,
     lab_usage_shift_session_id,
     parse_lab_usage_used_at_iso,
@@ -46,9 +47,11 @@ def register_lab_reagents_routes(bp: Blueprint) -> None:
         row = db.session.get(LaboratoryReagent, reagent_id)
         if row is None or not lab_reagent_pdf_is_readable(row):
             abort(404)
-        return send_from_directory(
-            lab_reagents_storage_dir(),
-            row.pdf_stored_filename,
+        resolved = lab_reagent_pdf_resolve_path(row)
+        if resolved is None:
+            abort(404)
+        return send_file(
+            resolved,
             mimetype="application/pdf",
             as_attachment=False,
             download_name=row.pdf_original_filename or f"reactivo-{reagent_id}.pdf",
