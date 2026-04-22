@@ -6,11 +6,11 @@ Punto de entrada para rutas: `app.services.operational_informed_stock`.
 Definición obligatoria (no mezclar con otras fórmulas):
 
 **PRODUCCIÓN (último turno con cierre recepcionado)**
-  = stock al cierre de ese turno − stock al inicio de ese turno
-  = `hypochlorite` del handover de ese cierre − `hypochlorite` del handover consecutivo
-    anterior (cierre = stock inicial = fin del turno previo)
-  No se corrige por cargas, ingresos de stock ni movimientos intermedios: solo la diferencia
-  entre los dos volúmenes informados en cambio de turno.
+  = stock final − stock inicial + cargas en el turno − ingresos PT admin en el turno
+  = `hypochlorite` del cierre de ese partido − cierre inmediatamente anterior
+    + entregas «cargada» hipo con `cargada_at_iso` en [inicio, cierre del turno]
+    − `sum_hipo_administrador_pt_ingresos` en el mismo intervalo
+  (las cargas bajaron el stock y se re-suman; los ingresos admin lo inflaron y se restan.)
 
 **STOCK INSTANTÁNEO**
   = stock al inicio del turno en análisis − cargas (entregas «cargada») + ingresos de PT
@@ -196,8 +196,10 @@ def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> flo
     t1 = (last.handed_over_at_iso or "").strip()
     if not t0 or not t1 or t0 > t1:
         return None
-    d = s_last - s_prev
-    return d if math.isfinite(d) else None
+    loads = _sum_hipochlorite_truck_loads_liters(t0, t1)
+    ingr = sum_hipo_administrador_pt_ingresos_in_interval(t0, t1)
+    p = s_last - s_prev + loads - ingr
+    return p if math.isfinite(p) else None
 
 
 def get_instant_stock() -> float | None:
@@ -238,8 +240,9 @@ def operational_liters_available_for_new_programada(exclude_entrega_id: int | No
 def get_last_shift_production() -> float | None:
     """
     Producción del turno cuyo cierre es el último partido recepcionado:
-    stock al final de ese turno (declarado en el parte) − stock al inicio
-    (= cierre recepcionado inmediatamente anterior). Sin ajuste por cargas ni ingresos.
+    stock final − stock inicial + cargas hipo (ventana [inicio, cierre] del turno)
+    − ingresos PT por administrador en esa misma ventana.
+    Solo con dos o más cierres recepcionados válidos; si no, None (no inventar cierre).
     """
     return _last_shift_production_from_handovers(_list_received_handovers_with_valid_stock())
 
@@ -287,7 +290,7 @@ def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tupl
     if t0i and t1i:
         prod_note = (
             f"Turno cerrado (recepcionado): inicio {t0i} — cierre {t1i}. "
-            "Producción = solo stock de cierre − stock de apertura (cierre del turno previo en el registro), sin mezclar cargas ni ingresos."
+            "Producción = (stock cierre − stock apertura) + cargas del período − ingresos PT (admin) del mismo período."
         )
     elif t1i:
         prod_note = f"Cierre del turno: {t1i}."
@@ -304,9 +307,10 @@ def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tupl
         "− entregas «cargada» (hipo) + ingresos de PT hechos con usuario administrador, desde el inicio operativo de turno."
     )
     kpi_legend = (
-        "Producción: solo diferencia de volúmenes en cambio de turno. "
-        "Stock instantáneo: volumen al inicio del turno, menos camiones cargados, más ingresos de PT (solo usuario administrador) "
-        "desde el inicio del turno. No se usa el saldo de existencias por lotes."
+        "Producción del turno: stock final − stock inicial + cargas (camión) − ingresos PT por administrador, "
+        "todos en [inicio, cierre] de ese turno. "
+        "Stock instantáneo: stock al inicio del turno en curso − cargas + ingresos admin desde el inicio operativo hasta ahora. "
+        "No se usa el saldo teórico por lotes de existencias."
     )
     return stock_note, prod_note, kpi_legend
 
@@ -318,6 +322,18 @@ def header_operational_indicators_dict() -> dict[str, Any]:
         production = _last_shift_production_from_handovers(handovers)
         stock_note, prod_note, kpi_legend = _panel_shift_subnotes_from_handovers(handovers)
         pending_notice, pending_id = _pending_handover_panel_extra()
+        open_s = sh.get_open_shift_session()
+        production_scope_subnote: str | None = None
+        if open_s is not None and production is not None:
+            production_scope_subnote = (
+                "Turno en curso: el número de producción corresponde al último turno "
+                "ya cerrado y recepcionado (la producción del turno actual se informa al cierre de turno)."
+            )
+        elif open_s is not None and production is None and len(handovers) < 2:
+            production_scope_subnote = (
+                "Producción disponible al cierre: hace falta al menos un turno completo recepcionado "
+                "con dos cierres encadenados en el registro; el turno actual aún no tiene cierre."
+            )
         return {
             "instant_liters": instant,
             "last_shift_production_liters": production,
@@ -325,6 +341,7 @@ def header_operational_indicators_dict() -> dict[str, Any]:
             "production_display": format_header_liters(production),
             "stock_panel_subnote": stock_note,
             "production_panel_subnote": prod_note,
+            "production_scope_subnote": production_scope_subnote,
             "kpi_definitions_legend": kpi_legend,
             "pending_handover_notice": pending_notice,
             "pending_handover_id": pending_id,
@@ -338,6 +355,7 @@ def header_operational_indicators_dict() -> dict[str, Any]:
             "production_display": "N/D",
             "stock_panel_subnote": None,
             "production_panel_subnote": None,
+            "production_scope_subnote": None,
             "kpi_definitions_legend": None,
             "pending_handover_notice": None,
             "pending_handover_id": None,
