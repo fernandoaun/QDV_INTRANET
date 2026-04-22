@@ -5,7 +5,7 @@
   <div class="app-page-head">
     <div>
       <h1 class="app-page-title">Ingreso de stock</h1>
-      <p class="app-intro mb-0">Registrá cada <strong>lote</strong> como una línea de ingreso. El <strong>stock mínimo de alerta</strong> se define en el <a href="{{ url_for('produccion.stock_catalogo_lista') }}">catálogo de productos</a> al dar de alta el producto (o lo edita un administrador). Con categoría <strong>producto terminado</strong> e hipoclorito (nombre alineado al catálogo, p. ej. «Hipoclorito» o «Hipoclorito de Sodio»), el ingreso suma al <strong>stock instantáneo del Panel</strong> después del último cierre de turno recepcionado y figura en <strong>Existencias</strong>.</p>
+      <p class="app-intro mb-0">Registrá cada <strong>lote</strong> como una línea de ingreso. El <strong>stock mínimo de alerta</strong> se define en el <a href="{{ url_for('produccion.stock_catalogo_lista') }}">catálogo de productos</a> al dar de alta el producto (o lo edita un administrador). Con categoría <strong>producto terminado</strong> e hipoclorito (nombre alineado al catálogo, p. ej. «Hipoclorito» o «Hipoclorito de Sodio»), un ingreso registrado con <strong>usuario administrador</strong> suma al <strong>stock instantáneo (operativo)</strong> del Panel (desde el inicio de turno) y en todo caso figura en <strong>Existencias</strong> por lote.</p>
     </div>
     <div class="app-page-actions">
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>

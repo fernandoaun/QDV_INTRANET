@@ -1,32 +1,45 @@
 """
-Indicadores operativos de hipoclorito a partir del stock declarado en cambio de turno
-(`ShiftHandover.hypochlorite_stock_liters`) y cargas de camión en entregas (`Entrega`).
+Indicadores de hipoclorito (litros) según reglas operativas fijas (Panel, Entregas, cabecera).
 
-Para importar desde rutas u otros servicios usá `app.services.operational_informed_stock`
-(la API pública y las validaciones de negocio); este archivo conserva la implementación.
+Punto de entrada para rutas: `app.services.operational_informed_stock`.
 
-Fuente operativa (litros) para el Panel y para validar Entregas de hipoclorito (`get_instant_stock`):
-- Base = último stock informado en un cambio de turno recepcionado.
-- Resta: litros de entregas «cargada» desde ese cierre hasta ahora.
-- Suma: ingresos en Stock categoría «producto terminado» cuyo producto es hipoclorito operativo
-  (mismos alias que entregas), con `created_at_iso` estrictamente posterior a ese cierre.
-  Así un ingreso PT registrado por administración impacta el instantáneo sin esperar otro turno.
+Definición obligatoria (no mezclar con otras fórmulas):
 
-Las entregas «programada» se comparan contra ese techo (`operational_liters_available_for_new_programada`).
+**PRODUCCIÓN (último turno con cierre recepcionado)**
+  = stock al cierre de ese turno − stock al inicio de ese turno
+  = `hypochlorite` del handover de ese cierre − `hypochlorite` del handover consecutivo
+    anterior (cierre = stock inicial = fin del turno previo)
+  No se corrige por cargas, ingresos de stock ni movimientos intermedios: solo la diferencia
+  entre los dos volúmenes informados en cambio de turno.
 
-El ledger `ingresos_stock` / `consumos_stock` sigue siendo la fuente de existencias por lote;
-el consumo al marcar «Cargar» en entregas también se registra ahí para trazabilidad.
+**STOCK INSTANTÁNEO**
+  = stock al inicio del turno en análisis − cargas (entregas «cargada») + ingresos de PT
+  de hipoclorito con `cargado_por` = usuario **administrador** (`User.is_admin`),
+  todos contados **desde el inicio operativo** de ese turno hasta ahora (ISO local).
+
+- Stock al inicio del turno: lo declarado al **cierre recepcionado inmediatamente anterior**
+  (última fila `shift_handovers` con status received y stock válido); es el volumen con el que
+  arrancó el turno en curso o el de la partida pendiente.
+- Inicio operativo (ancla T0): inicio de sesión de turno del `ShiftHandover` pendiente de
+  recepción si existe; si no, `started_at_iso` de la `ShiftSession` abierta; si no hay
+  ni pendiente ni sesión, `received_at_iso` del último turno recepcionado.
+- Cargas: `Entrega` con estado `cargada`, producto hipoclorito, `cargada_at_iso` en [T0, ahora].
+- Ingresos administrativos: `ingresos_stock` PT + join a `User.is_admin` + ventana de tiempo.
+
+Las entregas «programada» se comparan con el techo de stock instantáneo
+(`operational_liters_available_for_new_programada`).
+
+`ingresos_stock` / `consumos_stock` (lotes) distintos de esta vista operativa.
 """
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Tuple
 
 from sqlalchemy import func, select
-
 from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.extensions import db
-from app.models import Entrega, IngresoStock, ShiftHandover
+from app.models import Entrega, IngresoStock, ShiftHandover, User
 from app.services import shift_handover_service as sh
 from app.utils.hipoclorito_producto import entrega_columna_es_hipoclorito_operativo_sql
 
@@ -40,7 +53,7 @@ def _finite_non_negative_stock(v: Any) -> bool:
 
 
 def _hipo_product_sql_match():
-    """Entregas cuyo `producto` es hipoclorito operativo (cualquier alias; mismo criterio que backend/Panel)."""
+    """Entregas cuyo `producto` es hipoclorito operativo (cualquier alias)."""
     return entrega_columna_es_hipoclorito_operativo_sql(Entrega.producto)
 
 
@@ -68,22 +81,32 @@ def _list_received_handovers_with_valid_stock(limit: int = 80) -> list[ShiftHand
     return out
 
 
-def sum_hipochlorito_producto_terminado_ingresos_since(anchor_iso_exclusive: str) -> float:
+def sum_hipo_administrador_pt_ingresos_in_interval(
+    t_from_inclusive: str, t_to_inclusive: str | None
+) -> float:
     """
-    Litros sumados de `ingresos_stock` (categoría producto terminado) para producto hipoclorito
-    operativo, con fecha de registro (`created_at_iso`) posterior al cierre de turno `anchor_iso_exclusive`.
+    Suma `IngresoStock.cantidad` (L) de categoría producto terminado, producto hipoclorito
+    operativo, con `cargado_por_user_id` apuntando a un usuario con `is_admin` True, y
+    `created_at_iso` en [t_from, t_to] (t_to = ahora operativa local si se omite).
     """
-    t = (anchor_iso_exclusive or "").strip()
-    if not t:
+    t0 = (t_from_inclusive or "").strip()
+    t1 = (t_to_inclusive or "").strip() if t_to_inclusive else sh.now_local_iso()
+    if not t0 or not t1 or t0 > t1:
         return 0.0
     hipo = entrega_columna_es_hipoclorito_operativo_sql(IngresoStock.producto)
     if hipo is None:
         return 0.0
     total = db.session.scalar(
-        select(func.coalesce(func.sum(IngresoStock.cantidad), 0.0)).where(
+        select(func.coalesce(func.sum(IngresoStock.cantidad), 0.0))
+        .select_from(IngresoStock)
+        .join(User, IngresoStock.cargado_por_user_id == User.id)
+        .where(
             IngresoStock.categoria == ENTREGAS_STOCK_CATEGORIA,
             hipo,
-            IngresoStock.created_at_iso > t,
+            User.is_admin.is_(True),
+            IngresoStock.cargado_por_user_id.isnot(None),
+            IngresoStock.created_at_iso >= t0,
+            IngresoStock.created_at_iso <= t1,
         )
     )
     try:
@@ -124,17 +147,43 @@ def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_i
     return v if math.isfinite(v) else 0.0
 
 
-def _instant_from_handovers(handovers: list[ShiftHandover]) -> float | None:
+def _resolve_s0_t0_instant(
+    handovers: list[ShiftHandover],
+) -> Tuple[float, str] | None:
+    """
+    Stock al inicio del turno en curso = cierre del último handover recepcionado; ancla
+    de tiempo T0 según partida pendiente, sesión abierta o, en última instancia, recepción.
+    """
     if not handovers:
         return None
-    last = handovers[0]
-    base = float(last.hypochlorite_stock_liters)
-    cierre = (last.handed_over_at_iso or "").strip()
-    if not cierre:
+    s0 = float(handovers[0].hypochlorite_stock_liters)
+    pending = sh.get_pending_handover()
+    if pending is not None and _finite_non_negative_stock(pending.hypochlorite_stock_liters):
+        t0 = (pending.shift_started_at_iso or "").strip()
+        if t0:
+            return s0, t0
+    open_s = sh.get_open_shift_session()
+    if open_s is not None:
+        t0 = (open_s.started_at_iso or "").strip()
+        if t0:
+            return s0, t0
+    t0 = (handovers[0].received_at_iso or "").strip()
+    if t0:
+        return s0, t0
+    return None
+
+
+def _instant_from_handovers(handovers: list[ShiftHandover]) -> float | None:
+    pair = _resolve_s0_t0_instant(handovers)
+    if pair is None:
         return None
-    loads = _sum_hipochlorite_truck_loads_liters(cierre, None)
-    ingresos_pt = sum_hipochlorito_producto_terminado_ingresos_since(cierre)
-    return base - loads + ingresos_pt
+    s0, t0 = pair
+    loads = _sum_hipochlorite_truck_loads_liters(t0, None)
+    ingr = sum_hipo_administrador_pt_ingresos_in_interval(t0, None)
+    v = s0 - loads + ingr
+    if not math.isfinite(v):
+        return None
+    return v
 
 
 def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> float | None:
@@ -147,23 +196,20 @@ def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> flo
     t1 = (last.handed_over_at_iso or "").strip()
     if not t0 or not t1 or t0 > t1:
         return None
-    loads = _sum_hipochlorite_truck_loads_liters(t0, t1)
-    return s_last - s_prev + loads
+    d = s_last - s_prev
+    return d if math.isfinite(d) else None
 
 
 def get_instant_stock() -> float | None:
     """
-    Stock instantáneo (litros): último stock informado en un cambio de turno recepcionado,
-    menos cargas de camión de hipoclorito desde el cierre de ese turno (`handed_over_at_iso`) hasta ahora.
+    Stock instantáneo: stock al inicio del turno (último cierre recepcionado)
+    − cargas reales (entregas 'cargada') + ingresos PT de hipoclorito hechos por administrador,
+    en la ventana [inicio operativo de turno, ahora] (criterio detallado en el docstring del módulo).
     """
     return _instant_from_handovers(_list_received_handovers_with_valid_stock())
 
 
 def sum_hipochlorito_programada_liters(exclude_entrega_id: int | None = None) -> float:
-    """
-    Suma `Entrega.cantidad` (litros) de entregas en estado «programada» cuyo producto es hipoclorito
-    (mismo criterio de nombre que el resto del módulo).
-    """
     hipo = _hipo_product_sql_match()
     if hipo is None:
         return 0.0
@@ -182,10 +228,6 @@ def sum_hipochlorito_programada_liters(exclude_entrega_id: int | None = None) ->
 
 
 def operational_liters_available_for_new_programada(exclude_entrega_id: int | None = None) -> float | None:
-    """
-    Litros que aún se pueden comprometer en nuevas entregas «programada» sin superar el stock
-    instantáneo (mismo número que muestra el Panel). None si no hay base de turno válida (N/D).
-    """
     instant = get_instant_stock()
     if instant is None:
         return None
@@ -195,15 +237,14 @@ def operational_liters_available_for_new_programada(exclude_entrega_id: int | No
 
 def get_last_shift_production() -> float | None:
     """
-    Producción del último turno cerrado (litros):
-    stock cierre último turno − stock cierre turno anterior + cargas de hipoclorito en
-    [shift_started_at_iso, handed_over_at_iso] del último turno.
+    Producción del turno cuyo cierre es el último partido recepcionado:
+    stock al final de ese turno (declarado en el parte) − stock al inicio
+    (= cierre recepcionado inmediatamente anterior). Sin ajuste por cargas ni ingresos.
     """
     return _last_shift_production_from_handovers(_list_received_handovers_with_valid_stock())
 
 
 def format_header_liters(value: float | None) -> str:
-    """Texto para cabecera: entero con separador de miles '.' o 'N/D'."""
     if value is None:
         return "N/D"
     if not math.isfinite(value):
@@ -213,7 +254,6 @@ def format_header_liters(value: float | None) -> str:
 
 
 def _fmt_iso_for_panel(iso: str | None) -> str | None:
-    """ISO local guardado en BD → lectura breve en panel (sin parsear zona)."""
     s = (iso or "").strip()
     if not s:
         return None
@@ -221,10 +261,6 @@ def _fmt_iso_for_panel(iso: str | None) -> str | None:
 
 
 def _pending_handover_panel_extra() -> tuple[str | None, int | None]:
-    """
-    Si hay entrega de turno sin recepcionar, el stock declarado no entra en los KPI
-    (solo cuentan cierres recepcionados). Devuelve texto para el panel y el id para enlazar a recepción.
-    """
     ho = sh.get_pending_handover()
     if ho is None:
         return None, None
@@ -233,48 +269,54 @@ def _pending_handover_panel_extra() -> tuple[str | None, int | None]:
     closed = _fmt_iso_for_panel(ho.handed_over_at_iso)
     liters = format_header_liters(float(ho.hypochlorite_stock_liters))
     msg = (
-        f"Cambio de turno pendiente de recepción: se declaró {liters} de hipoclorito al cierre"
+        f"Entrega de turno sin recepcionar: {liters} de hipoclorito declarado al cierre"
         + (f" ({closed})" if closed else "")
-        + ". Los indicadores de producción y stock instantáneo solo se actualizan cuando el turno entrante recepciona el parte."
+        + ". Recepcioná el parte para continuar el ciclo. La producción del panel sigue "
+        "siendo del último turno ya recepcionado; el stock instantáneo se calcula con el turno en trámite o el en curso."
     )
     return msg, int(ho.id)
 
 
-def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tuple[str | None, str | None]:
-    """
-    (leyenda stock según último cierre recepcionado, ventana del último turno para producción).
-    """
+def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tuple[str | None, str | None, str | None]:
     if not handovers:
-        return None, None
+        return None, None, None
     last = handovers[0]
-    closed = _fmt_iso_for_panel(last.handed_over_at_iso)
-    if closed:
-        stock_note = (
-            f"Último stock informado (cierre recepcionado): {closed}. "
-            "El valor incluye ingresos de producto terminado (hipoclorito) en Stock registrados después de ese cierre."
+    t0i = _fmt_iso_for_panel(last.shift_started_at_iso)
+    t1i = _fmt_iso_for_panel(last.handed_over_at_iso)
+    prod_note: str | None
+    if t0i and t1i:
+        prod_note = (
+            f"Turno cerrado (recepcionado): inicio {t0i} — cierre {t1i}. "
+            "Producción = solo stock de cierre − stock de apertura (cierre del turno previo en el registro), sin mezclar cargas ni ingresos."
         )
-    else:
-        stock_note = None
-    t0 = _fmt_iso_for_panel(last.shift_started_at_iso)
-    t1 = _fmt_iso_for_panel(last.handed_over_at_iso)
-    if t0 and t1:
-        prod_note = f"Período del turno: {t0} a {t1}"
-    elif t1:
-        prod_note = f"Cierre del turno: {t1}"
+    elif t1i:
+        prod_note = f"Cierre del turno: {t1i}."
     else:
         prod_note = None
-    return stock_note, prod_note
+    recv = _fmt_iso_for_panel(last.received_at_iso)
+    ancla = "Inicio de turno: stock = último cierre recepcionado"
+    if recv:
+        ancla += f" (recepcionado: {recv})."
+    else:
+        ancla += "."
+    stock_note = (
+        f"{ancla} Instantáneo = ese volumen "
+        "− entregas «cargada» (hipo) + ingresos de PT hechos con usuario administrador, desde el inicio operativo de turno."
+    )
+    kpi_legend = (
+        "Producción: solo diferencia de volúmenes en cambio de turno. "
+        "Stock instantáneo: volumen al inicio del turno, menos camiones cargados, más ingresos de PT (solo usuario administrador) "
+        "desde el inicio del turno. No se usa el saldo de existencias por lotes."
+    )
+    return stock_note, prod_note, kpi_legend
 
 
 def header_operational_indicators_dict() -> dict[str, Any]:
-    """
-    Valores listos para plantilla; encapsula errores de BD para no tumbar la UI.
-    """
     try:
         handovers = _list_received_handovers_with_valid_stock()
         instant = _instant_from_handovers(handovers)
         production = _last_shift_production_from_handovers(handovers)
-        stock_note, prod_note = _panel_shift_subnotes_from_handovers(handovers)
+        stock_note, prod_note, kpi_legend = _panel_shift_subnotes_from_handovers(handovers)
         pending_notice, pending_id = _pending_handover_panel_extra()
         return {
             "instant_liters": instant,
@@ -283,6 +325,7 @@ def header_operational_indicators_dict() -> dict[str, Any]:
             "production_display": format_header_liters(production),
             "stock_panel_subnote": stock_note,
             "production_panel_subnote": prod_note,
+            "kpi_definitions_legend": kpi_legend,
             "pending_handover_notice": pending_notice,
             "pending_handover_id": pending_id,
             "ok": True,
@@ -295,6 +338,7 @@ def header_operational_indicators_dict() -> dict[str, Any]:
             "production_display": "N/D",
             "stock_panel_subnote": None,
             "production_panel_subnote": None,
+            "kpi_definitions_legend": None,
             "pending_handover_notice": None,
             "pending_handover_id": None,
             "ok": False,

@@ -18,14 +18,14 @@
     {% endif %}
     <div class="row g-3 mb-3">
       <div class="col-md-6">
-        <div class="app-card app-panel-kpi h-100 mb-0" title="Cierre último turno menos cierre anterior, más cargas de camión de hipoclorito en la ventana de ese turno. Fuente: cambio de turno recepcionado.">
+        <div class="app-card app-panel-kpi h-100 mb-0" title="Solo stock final − stock inicial del mismo turno (declarados en cambio de turno recepcionado). No incluye cargas ni ingresos.">
           <div class="app-card-header app-card-header--split">
-            <span class="text-uppercase fw-semibold small">Producción último turno</span>
+            <span class="text-uppercase fw-semibold small">Producción del último turno cerrado</span>
             <span class="small app-text-secondary">Hipoclorito</span>
           </div>
           <div class="app-card-body">
             <div class="app-panel-kpi-value">{{ operational_indicators.production_display }}</div>
-            <p class="app-text-secondary small mb-0">Litros en el último turno cerrado</p>
+            <p class="app-text-secondary small mb-0">Litros = cierre − apertura en el parte (sin cargas ni ingresos)</p>
             {% if operational_indicators.production_panel_subnote %}
             <p class="small text-muted mb-0 mt-2">{{ operational_indicators.production_panel_subnote }}</p>
             {% endif %}
@@ -33,14 +33,14 @@
         </div>
       </div>
       <div class="col-md-6">
-        <div class="app-card app-panel-kpi h-100 mb-0" title="Stock declarado en el último cambio de turno recepcionado, menos cargas de camión de hipoclorito desde ese cierre.">
+        <div class="app-card app-panel-kpi h-100 mb-0" title="Stock al inicio del turno actual (último cierre recepcionado) − cargas de camión + ingresos de PT hechos por usuario administrador, desde el inicio operativo del turno hasta ahora.">
           <div class="app-card-header app-card-header--split">
-            <span class="text-uppercase fw-semibold small">Stock instantáneo</span>
+            <span class="text-uppercase fw-semibold small">Stock instantáneo (operativo)</span>
             <span class="small app-text-secondary">Hipoclorito</span>
           </div>
           <div class="app-card-body">
             <div class="app-panel-kpi-value">{{ operational_indicators.instant_display }}</div>
-            <p class="app-text-secondary small mb-0">Litros al momento (desde último cierre recepcionado)</p>
+            <p class="app-text-secondary small mb-0">Inicio de turno − cargas + ingresos PT (admin)</p>
             {% if operational_indicators.stock_panel_subnote %}
             <p class="small text-muted mb-0 mt-2">{{ operational_indicators.stock_panel_subnote }}</p>
             {% endif %}
@@ -48,7 +48,9 @@
         </div>
       </div>
     </div>
-    <p class="app-text-secondary small mb-2">Indicadores en litros según el último <strong>cambio de turno recepcionado</strong> (el que sale solo declara stock; hasta que el entrante recepcione, estos números no cambian). No usan el stock teórico por lotes de otros módulos.</p>
+    {% if operational_indicators.kpi_definitions_legend %}
+    <p class="app-text-secondary small mb-2">{{ operational_indicators.kpi_definitions_legend }}</p>
+    {% endif %}
     {% if user_can_export_historicos %}
     <p class="mb-2 small">
       <a href="{{ url_for('export_historicos.index') }}" class="fw-semibold">Exportar históricos a Excel</a>

@@ -12,6 +12,7 @@ from app.services.shift_hypochlorite_indicators_service import (
     get_last_shift_production,
     header_operational_indicators_dict,
     operational_liters_available_for_new_programada,
+    sum_hipo_administrador_pt_ingresos_in_interval,
     sum_hipochlorito_programada_liters,
 )
 
@@ -21,6 +22,7 @@ __all__ = [
     "get_last_shift_production",
     "header_operational_indicators_dict",
     "operational_liters_available_for_new_programada",
+    "sum_hipo_administrador_pt_ingresos_in_interval",
     "sum_hipochlorito_programada_liters",
     "raise_if_carga_qty_exceeds_instant",
 ]
