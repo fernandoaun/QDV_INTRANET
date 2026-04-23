@@ -542,9 +542,32 @@
           body: new FormData(form),
           credentials: "same-origin",
         });
-        const payload = await resp.json().catch(() => ({}));
+        const raw = await resp.text();
+        let payload = null;
+        if (raw) {
+          try {
+            payload = JSON.parse(raw);
+          } catch (_) {
+            payload = null;
+          }
+        }
         if (!resp.ok || !payload || payload.ok !== true) {
-          throw new Error((payload && (payload.error || payload.message)) || `Error HTTP ${resp.status}`);
+          let msg =
+            payload && typeof payload === "object"
+              ? (payload.error || payload.message || null)
+              : null;
+          if (!msg) {
+            const t = (raw || "").trim();
+            if (/csrf|CSRF|bad request|token is missing|token ha expirado|sesión/i.test(t)) {
+              msg =
+                "Sesión o token de seguridad inválido o expirado. Recargá la página e intentá de nuevo.";
+            } else if (t && !t.startsWith("<") && t.length <= 1200) {
+              msg = t;
+            } else {
+              msg = `No se pudo guardar el registro (respuesta ${resp.status}). Recargá la página o probá más tarde.`;
+            }
+          }
+          throw new Error(msg);
         }
         showPanelMessage(payload.message || "Registro guardado.", "alert-success");
         upsertSavedRow(payload.registro);
