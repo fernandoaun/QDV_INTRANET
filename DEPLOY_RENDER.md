@@ -57,7 +57,11 @@ Los PDFs de referencia analítica (ícono erlenmeyer) y los adjuntos de reactivo
 
 Por defecto la app guardaba bajo `instance/uploads/` dentro del proyecto. **En Render el filesystem del servicio web es efímero**: cada nuevo deploy **borra** esa carpeta. La base PostgreSQL **sí** se conserva, entonces los registros siguen diciendo que hay PDF pero el archivo **ya no existe** → erlenmeyer en rojo / 404.
 
-**Solución estable**
+**Con el Blueprint actual (`render.yaml`)** ya viene un **disco persistente** montado en `/var/qdv/uploads` y la variable `APP_UPLOAD_ROOT` apuntando ahí, para que los PDFs **no se pierdan** al actualizar el sitio.
+
+Si tu servicio se creó **antes** de eso y no tiene disco: en el dashboard, **Disks** → agregar Persistent Disk con el mismo montaje y `APP_UPLOAD_ROOT=/var/qdv/uploads`, o **apply changes** al Blueprint desde el repo actualizado.
+
+**Solución estable (manual / otro host)**
 
 1. En el servicio web de Render: **Disks** → crear un **Persistent Disk** (ej. montaje `/var/qdv/uploads`).
 2. En **Environment** agregar:
