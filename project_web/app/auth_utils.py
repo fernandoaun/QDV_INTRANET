@@ -8,7 +8,7 @@ from flask import flash, g, has_request_context, redirect, request, session, url
 from app.extensions import db
 from app.models import PermisoUsuario, User
 from app.constants import PERMISSION_KEYS
-from app.user_roles import compute_session_perm_lists, normalize_stored_rol, user_is_global_read_only
+from app.user_roles import ROLE_LOGISTICA, compute_session_perm_lists, normalize_stored_rol, user_is_global_read_only
 
 from sqlalchemy import select
 
@@ -32,6 +32,10 @@ _ENTREGAS_ACCESS_PERMS: tuple[str, ...] = (
     "entregas_cargar",
     "entregas_entregar",
 )
+
+
+def _user_has_logistica_role(user: User | None) -> bool:
+    return user is not None and normalize_stored_rol(getattr(user, "rol", None)) == ROLE_LOGISTICA
 
 
 def user_display_name(user: User | None) -> str:
@@ -82,6 +86,8 @@ def user_can_access_entregas_hub(user: User | None) -> bool:
     """Acceso al módulo Entregas solo con permisos explícitos del árbol entregas_* (sin heredar Producción)."""
     if user is None:
         return False
+    if _user_has_logistica_role(user):
+        return True
     return any(user_can(user, p) for p in _ENTREGAS_ACCESS_PERMS)
 
 
@@ -107,12 +113,16 @@ def user_can_entregas_programar_effective(user: User | None) -> bool:
 def user_can_entregas_cargar_effective(user: User | None) -> bool:
     if user is None:
         return False
+    if _user_has_logistica_role(user):
+        return True
     return user_can_edit(user, "entregas_cargar")
 
 
 def user_can_entregas_entregar_effective(user: User | None) -> bool:
     if user is None:
         return False
+    if _user_has_logistica_role(user):
+        return True
     return user_can_edit(user, "entregas_entregar")
 
 
@@ -120,9 +130,9 @@ def user_can_edit_entregas_any_action(user: User | None) -> bool:
     if user is None:
         return False
     return (
-        user_can_edit(user, "entregas_programar")
-        or user_can_edit(user, "entregas_cargar")
-        or user_can_edit(user, "entregas_entregar")
+        user_can_entregas_programar_effective(user)
+        or user_can_entregas_cargar_effective(user)
+        or user_can_entregas_entregar_effective(user)
     )
 
 
