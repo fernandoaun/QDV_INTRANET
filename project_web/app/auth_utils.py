@@ -107,6 +107,8 @@ def user_can_entregas_programar_effective(user: User | None) -> bool:
     """Edición de programación / altas (no amplía por otros módulos)."""
     if user is None:
         return False
+    if _user_has_logistica_role(user):
+        return True
     return user_can_edit(user, "entregas_programar")
 
 

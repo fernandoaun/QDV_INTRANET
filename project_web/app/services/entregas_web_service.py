@@ -7,6 +7,7 @@ catálogos de UI y operaciones de catálogo admin.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from sqlalchemy import select
@@ -35,6 +36,7 @@ from app.utils.hipoclorito_producto import (
 )
 
 UNIDAD_ENTREGA = "L"
+_HORA_HHMM_RE = re.compile(r"^\d{2}:\d{2}$")
 
 
 def parse_entrega_float(raw: str | None) -> float:
@@ -47,6 +49,18 @@ def parse_entrega_positive_int(raw: str | None) -> int | None:
         return None
     v = int(s)
     return v if v > 0 else None
+
+
+def normalize_hora_prevista(raw: str | None) -> str:
+    h = (raw or "").strip()
+    if not h:
+        return ""
+    if not _HORA_HHMM_RE.fullmatch(h):
+        raise ValueError("La hora debe tener formato HH:MM.")
+    hh, mm = h.split(":", 1)
+    if int(hh) > 23 or int(mm) > 59:
+        raise ValueError("La hora prevista es inválida.")
+    return h
 
 
 def stock_fields_entrega(producto_stock_name: str, stock_equipo_id_raw: str) -> tuple[str | None, str | None, int | None]:
@@ -64,8 +78,8 @@ def validar_entrega_completa(
     producto_tid: int | None,
     chofer_id: int | None,
 ) -> tuple[str | None, object | None, object | None, object | None, ChoferEntrega | None]:
-    if not cliente_id or not lugar_id or not producto_tid:
-        return ("Cliente, lugar de entrega y producto terminado son obligatorios.", None, None, None, None)
+    if not cliente_id or not lugar_id or not producto_tid or not chofer_id:
+        return ("Cliente, lugar de entrega, producto terminado y chofer son obligatorios.", None, None, None, None)
     cli = entregas_catalog_service.get_cliente_activo(cliente_id)
     if cli is None:
         return ("Cliente inválido o inactivo.", None, None, None, None)
@@ -233,6 +247,7 @@ def create_programada_entrega_from_form(form: Any, u: User | None) -> Entrega:
     chid = parse_entrega_positive_int(form.get("chofer_entrega_id"))
     cantidad = parse_entrega_float(form.get("cantidad"))
     fecha_prev = (form.get("fecha_prevista") or "").strip()
+    hora_prev = normalize_hora_prevista(form.get("hora_prevista"))
     obs = (form.get("observaciones") or "").strip() or None
     iso = now_operacion_local_iso_seconds()
 
@@ -243,6 +258,8 @@ def create_programada_entrega_from_form(form: Any, u: User | None) -> Entrega:
         raise ValueError("El volumen en litros debe ser un número válido y mayor a cero.")
     if not fecha_prev:
         raise ValueError("La fecha prevista es obligatoria.")
+    if hora_prev:
+        obs = f"Hora prevista: {hora_prev}" + (f"\n{obs}" if obs else "")
 
     prod_stock = str(pt.stock_producto or "").strip()
     hipo = stock_service.producto_entrega_es_stock_hipoclorito(prod_stock)
@@ -292,6 +309,7 @@ def create_programada_entrega_from_form(form: Any, u: User | None) -> Entrega:
             "cantidad": cantidad,
             "unidad": UNIDAD_ENTREGA,
             "fecha_prevista": fecha_prev,
+            "hora_prevista": hora_prev or None,
         },
     )
     return en

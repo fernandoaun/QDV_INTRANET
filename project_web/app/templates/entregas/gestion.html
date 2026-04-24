@@ -1,5 +1,44 @@
 {% extends "base.html" %}
 {% block title %}Gestión de entregas · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  .entregas-quick-row td {
+    background: #f7fbff;
+    border-top: 2px solid rgba(13, 110, 253, 0.35);
+    border-bottom: 2px solid rgba(13, 110, 253, 0.18);
+    padding: .35rem;
+  }
+  .entregas-quick-cell {
+    min-width: 9rem;
+  }
+  .entregas-quick-cell--sm {
+    min-width: 6.8rem;
+  }
+  .entregas-quick-cell--lg {
+    min-width: 13rem;
+  }
+  .entregas-quick-input {
+    border: 1px solid rgba(33, 37, 41, 0.18);
+    border-radius: .35rem;
+    font-size: .95rem;
+    min-height: 2.75rem;
+    padding: .45rem .55rem;
+  }
+  .entregas-quick-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 .18rem rgba(13, 110, 253, 0.14);
+  }
+  .entregas-quick-label {
+    color: #0d3b66;
+    display: block;
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    margin-bottom: .15rem;
+    text-transform: uppercase;
+  }
+</style>
+{% endblock %}
 {% block content %}
 <div class="app-page-head">
   <div>
@@ -9,9 +48,6 @@
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.hub') }}">← Hub</a>
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('entregas.historial_entregas_lista') }}">Ver historial de entregas</a>
-    {% if user_can_entregas_programar() %}
-    <a class="btn btn-primary btn-sm" href="{{ url_for('entregas.nueva') }}">+ Programar</a>
-    {% endif %}
   </div>
 </div>
 
@@ -62,29 +98,102 @@
     <span class="small app-text-secondary">{{ entregas|length }} registro(s)</span>
   </div>
   <div class="app-card-body--flush table-responsive app-table-scroll">
+    {% if user_can_entregas_programar() %}
+    <form id="entregaQuickForm" method="post" action="{{ url_for('entregas.gestion') }}">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="programar_rapido">
+    </form>
+    {% endif %}
     <table class="table table-app table-compact mb-0 align-middle">
       <thead>
         <tr>
+          <th>Fecha</th>
+          <th>Hora</th>
           <th>Cliente</th>
           <th>Lugar</th>
           <th>Producto</th>
-          <th class="text-end">Litros</th>
-          <th>F. prevista</th>
+          <th class="text-end">Cantidad</th>
           <th>Estado</th>
-          <th>Chofer / resp.</th>
-          <th>Obs.</th>
+          <th>Chofer</th>
+          <th>Observaciones</th>
           <th class="text-end">Acciones</th>
         </tr>
       </thead>
       <tbody>
+        {% if user_can_entregas_programar() %}
+        <tr class="entregas-quick-row" id="entregaQuickRow">
+          <td class="entregas-quick-cell--sm">
+            <label class="entregas-quick-label" for="quickFecha">Fecha *</label>
+            <input class="form-control entregas-quick-input" id="quickFecha" form="entregaQuickForm" name="fecha_prevista" type="date" value="{{ quick_fecha or '' }}" required autocomplete="off">
+          </td>
+          <td class="entregas-quick-cell--sm">
+            <label class="entregas-quick-label" for="quickHora">Hora</label>
+            <input class="form-control entregas-quick-input" id="quickHora" form="entregaQuickForm" name="hora_prevista" type="time" autocomplete="off">
+          </td>
+          <td class="entregas-quick-cell--lg">
+            <label class="entregas-quick-label" for="quickCliente">Cliente *</label>
+            <select class="form-select entregas-quick-input" id="quickCliente" form="entregaQuickForm" name="cliente_id" required autocomplete="off">
+              <option value="">Cliente...</option>
+              {% for c in clientes_entrega %}
+              <option value="{{ c.id }}">{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="entregas-quick-cell--lg">
+            <label class="entregas-quick-label" for="quickLugar">Lugar *</label>
+            <select class="form-select entregas-quick-input" id="quickLugar" form="entregaQuickForm" name="lugar_entrega_id" required autocomplete="off" disabled>
+              <option value="">Elegí cliente...</option>
+            </select>
+          </td>
+          <td class="entregas-quick-cell--lg">
+            <label class="entregas-quick-label" for="quickProducto">Producto *</label>
+            <select class="form-select entregas-quick-input" id="quickProducto" form="entregaQuickForm" name="producto_terminado_id" required autocomplete="off">
+              <option value="">Producto...</option>
+              {% for p in productos_terminados %}
+              <option value="{{ p.id }}" {% if quick_producto_terminado_id and quick_producto_terminado_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="entregas-quick-cell--sm">
+            <label class="entregas-quick-label" for="quickCantidad">Cantidad *</label>
+            <input class="form-control entregas-quick-input text-end" id="quickCantidad" form="entregaQuickForm" name="cantidad" type="number" step="any" min="0" required inputmode="decimal" autocomplete="off">
+          </td>
+          <td><span class="badge rounded-pill text-bg-secondary">Programada</span></td>
+          <td class="entregas-quick-cell--lg">
+            <label class="entregas-quick-label" for="quickChofer">Chofer *</label>
+            <select class="form-select entregas-quick-input" id="quickChofer" form="entregaQuickForm" name="chofer_entrega_id" required autocomplete="off">
+              <option value="">Chofer...</option>
+              {% for ch in choferes_entrega %}
+              <option value="{{ ch.id }}" {% if quick_chofer_entrega_id and quick_chofer_entrega_id == ch.id %}selected{% endif %}>{{ ch.nombre }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          <td class="entregas-quick-cell--lg">
+            <label class="entregas-quick-label" for="quickObs">Observaciones</label>
+            <input class="form-control entregas-quick-input" id="quickObs" form="entregaQuickForm" name="observaciones" type="text" placeholder="Opcional" autocomplete="off">
+          </td>
+          <td class="text-end text-nowrap">
+            <button type="submit" form="entregaQuickForm" class="btn btn-primary btn-lg fw-semibold px-4">GUARDAR</button>
+          </td>
+        </tr>
+        {% endif %}
         {% for e in entregas %}
         {% set st = e.estado or '' %}
+        {% set obs_text = e.observaciones or '' %}
+        {% set hora_prevista = '' %}
+        {% set obs_display = obs_text %}
+        {% if obs_text.startswith('Hora prevista: ') %}
+          {% set primera_obs = obs_text.split('\n', 1)[0] %}
+          {% set hora_prevista = primera_obs.replace('Hora prevista: ', '') %}
+          {% set obs_display = obs_text.split('\n', 1)[1] if '\n' in obs_text else '' %}
+        {% endif %}
         <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
+          <td>{{ e.fecha_prevista }}</td>
+          <td>{% if hora_prevista %}{{ hora_prevista }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
           <td><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
           <td>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
           <td>{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
           <td class="text-end">{{ e.cantidad }}</td>
-          <td>{{ e.fecha_prevista }}</td>
           <td>
             {% if st == 'programada' %}
             <span class="badge rounded-pill text-bg-secondary">Programada</span>
@@ -105,7 +214,7 @@
             <span class="text-muted">—</span>
             {% endif %}
           </td>
-          <td class="small text-truncate" style="max-width:8rem;" title="{{ e.observaciones or '' }}">{{ (e.observaciones or '')[:40] }}{% if e.observaciones and e.observaciones|length > 40 %}…{% endif %}</td>
+          <td class="small text-truncate" style="max-width:10rem;" title="{{ obs_display }}">{{ obs_display[:45] }}{% if obs_display|length > 45 %}…{% endif %}</td>
           <td class="text-end text-nowrap">
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entregas.historial', eid=e.id) }}" title="Historial"><i class="bi bi-clock-history" aria-hidden="true"></i></a>
             {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
@@ -124,7 +233,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas en esta vista (semana actual + pendientes de fechas anteriores sin cargar ni entregar).</td></tr>
+        <tr><td colspan="10" class="text-center app-text-secondary py-4">No hay entregas en esta vista (semana actual + pendientes de fechas anteriores sin cargar ni entregar).</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -191,4 +300,76 @@
   {% endif %}
 {% endif %}
 {% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+  const form = document.getElementById("entregaQuickForm");
+  const row = document.getElementById("entregaQuickRow");
+  if (!form || !row) return;
+
+  const lugaresCatalogo = {{ lugares_entrega_catalogo | default([]) | tojson }};
+  const clienteSel = document.getElementById("quickCliente");
+  const lugarSel = document.getElementById("quickLugar");
+  const fields = Array.from(row.querySelectorAll("input, select, button"));
+
+  function setLugarOptions(clienteId) {
+    if (!lugarSel) return;
+    const cid = Number(clienteId || 0);
+    lugarSel.innerHTML = "";
+    if (!cid) {
+      lugarSel.disabled = true;
+      lugarSel.append(new Option("Elegí cliente...", ""));
+      return;
+    }
+    const lugares = (Array.isArray(lugaresCatalogo) ? lugaresCatalogo : []).filter((l) => Number(l.cliente_id) === cid);
+    lugarSel.disabled = false;
+    lugarSel.append(new Option(lugares.length ? "Lugar..." : "Sin lugares activos", ""));
+    lugares.forEach((l) => lugarSel.append(new Option(l.nombre || "", String(l.id || ""))));
+  }
+
+  function focusRelative(current, delta) {
+    const activeFields = Array.from(row.querySelectorAll("input, select, button")).filter((el) => !el.disabled);
+    const idx = activeFields.indexOf(current);
+    const next = activeFields[idx + delta];
+    if (next) {
+      next.focus();
+      if (typeof next.select === "function" && next.tagName !== "SELECT") next.select();
+    }
+  }
+
+  if (clienteSel) {
+    clienteSel.addEventListener("change", () => setLugarOptions(clienteSel.value));
+    setLugarOptions(clienteSel.value);
+  }
+
+  form.addEventListener("submit", (ev) => {
+    if (!form.checkValidity()) {
+      return;
+    }
+    if (!window.confirm("¿Desea programar esta entrega?")) {
+      ev.preventDefault();
+    }
+  });
+
+  fields.forEach((field) => {
+    field.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && field.tagName !== "BUTTON") {
+        ev.preventDefault();
+        form.requestSubmit();
+        return;
+      }
+      if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        focusRelative(field, 1);
+        return;
+      }
+      if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        focusRelative(field, -1);
+      }
+    });
+  });
+})();
+</script>
 {% endblock %}

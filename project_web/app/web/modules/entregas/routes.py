@@ -95,6 +95,24 @@ def gestion():
 
     if request.method == "POST":
         act = (request.form.get("action") or "").strip()
+        if act == "programar_rapido":
+            if not user_can_entregas_programar_effective(u):
+                return _no_edit()
+            try:
+                ews.create_programada_entrega_from_form(request.form, u)
+                db.session.commit()
+                flash("Entrega programada.", "success")
+                keep = {
+                    "quick_fecha": (request.form.get("fecha_prevista") or "").strip(),
+                    "quick_producto_terminado_id": (request.form.get("producto_terminado_id") or "").strip(),
+                    "quick_chofer_entrega_id": (request.form.get("chofer_entrega_id") or "").strip(),
+                }
+                return redirect(url_for("entregas.gestion", **{k: v for k, v in keep.items() if v}))
+            except ValueError as ex:
+                db.session.rollback()
+                flash(str(ex), "danger")
+                return redirect(url_for("entregas.gestion"))
+
         eid_raw = (request.form.get("entrega_id") or "").strip()
         if not eid_raw.isdigit():
             flash("Solicitud inválida.", "danger")
@@ -144,12 +162,18 @@ def gestion():
     rows = entregas_service.listar_entregas()
     entregas_kpis = entregas_service.entregas_kpis_rolling()
     sem_lunes, sem_domingo = entregas_service.rango_semana_operacion_actual()
+    catalog_bundle = ews.form_catalog_bundle(None)
     return render_template(
         "entregas/gestion.html",
         entregas=rows,
         entregas_kpis=entregas_kpis,
         entregas_vista_semana_lunes=sem_lunes,
         entregas_vista_semana_domingo=sem_domingo,
+        quick_fecha=request.args.get("quick_fecha", ""),
+        quick_producto_terminado_id=ews.parse_entrega_positive_int(request.args.get("quick_producto_terminado_id")),
+        quick_chofer_entrega_id=ews.parse_entrega_positive_int(request.args.get("quick_chofer_entrega_id")),
+        entrega_lugares_api_prefix=_entrega_lugares_api_prefix(),
+        **catalog_bundle,
         **ews.gestion_constants_context(),
     )
 

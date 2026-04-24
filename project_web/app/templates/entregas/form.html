@@ -101,9 +101,9 @@
         <input class="form-control" name="fecha_prevista" type="date" value="{{ entrega.fecha_prevista if entrega else '' }}" required>
       </div>
       <div class="col-md-8">
-        <label class="form-label">Chofer previsto</label>
-        <select class="form-select" name="chofer_entrega_id" id="entregaChoferSel">
-          <option value="">— Sin asignar —</option>
+        <label class="form-label">Chofer previsto <span class="text-danger">*</span></label>
+        <select class="form-select" name="chofer_entrega_id" id="entregaChoferSel" required>
+          <option value="">— Elegir chofer —</option>
           {% for ch in choferes_entrega %}
           <option value="{{ ch.id }}" {% if entrega and entrega.chofer_entrega_id == ch.id %}selected{% endif %}>{{ ch.nombre }}</option>
           {% endfor %}
