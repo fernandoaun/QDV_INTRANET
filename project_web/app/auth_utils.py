@@ -282,7 +282,8 @@ def user_can_view_stock_existencias(user: User | None) -> bool:
 
 def endpoint_requires_operational_shift_for_post(endpoint: str | None) -> bool:
     """
-    Mutaciones operativas que exigen turno activo (perfil operaciones).
+    Mutaciones de planta (producción/stock en panel) que exigen turno activo (perfil operaciones).
+    Entregas (logística) no entran: cada vista valida permisos entregas_*.
     Las rutas del blueprint shift y auth quedan exentas (se validan adentro).
     """
     ep = (endpoint or "").strip()
@@ -305,7 +306,7 @@ def endpoint_requires_operational_shift_for_post(endpoint: str | None) -> bool:
         "produccion.stock_",
         "produccion.operador_agregar",
         "produccion.lab_reactivos_registrar_consumo",
-        "entregas.",
+        # entregas.*: fuera del turno operativo de planta; permisos entregas_* en cada ruta.
     )
     return any(ep.startswith(p) for p in prefixes)
 
@@ -367,6 +368,9 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
     if ep.startswith("shift."):
         return True
     if user.is_admin:
+        return True
+    if ep.startswith("entregas."):
+        # Programar / cargar / entregar: ya exige permisos entregas_*; no ligar a turno de planta.
         return True
     from app.services import shift_handover_service as sh
 
