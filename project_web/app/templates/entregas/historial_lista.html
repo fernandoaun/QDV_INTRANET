@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Historial de entregas · QDV{% endblock %}
+{% block content %}
+{% set fa = filtro_aplicado %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Historial de entregas</h1>
+    <p class="app-intro mb-0">Consultá y filtrá todo el registro. La vista principal de gestión solo muestra la semana en curso y pendientes de semanas anteriores.</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.gestion') }}">← Gestión</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.hub') }}">Hub</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Filtros</span>
+    <span class="small app-text-secondary">Mismo criterio que la descarga Excel</span>
+  </div>
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-6 col-md-4 col-lg-3">
+        <label class="form-label small mb-0" for="fcli">Cliente</label>
+        <select class="form-select form-select-sm" id="fcli" name="cliente_id">
+          <option value="">— Todos —</option>
+          {% for c in filtro_clientes %}
+          <option value="{{ c.id }}" {% if fa.cliente_id and fa.cliente_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-4 col-lg-3">
+        <label class="form-label small mb-0" for="flug">Lugar de entrega</label>
+        <select class="form-select form-select-sm" id="flug" name="lugar_entrega_id">
+          <option value="">— Todos —</option>
+          {% for l in filtro_lugares %}
+          <option value="{{ l.id }}" {% if fa.lugar_entrega_id and fa.lugar_entrega_id == l.id %}selected{% endif %}>{{ l.nombre }} (cl. {{ l.cliente_id }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-4 col-lg-3">
+        <label class="form-label small mb-0" for="fch">Chofer</label>
+        <select class="form-select form-select-sm" id="fch" name="chofer_entrega_id">
+          <option value="">— Todos —</option>
+          {% for h in filtro_choferes %}
+          <option value="{{ h.id }}" {% if fa.chofer_entrega_id and fa.chofer_entrega_id == h.id %}selected{% endif %}>{{ h.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-4 col-lg-3">
+        <label class="form-label small mb-0" for="fst">Estado</label>
+        <select class="form-select form-select-sm" id="fst" name="estado">
+          <option value="">— Todos —</option>
+          {% for es in filtro_estados %}
+          <option value="{{ es }}" {% if fa.estado == es %}selected{% endif %}>{{ es }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-4 col-lg-3">
+        <label class="form-label small mb-0" for="fd0">Fecha prevista desde</label>
+        <input class="form-control form-control-sm" type="date" id="fd0" name="fecha_desde" value="{% if fa.fecha_desde %}{{ fa.fecha_desde.isoformat() }}{% endif %}">
+      </div>
+      <div class="col-6 col-md-4 col-lg-3">
+        <label class="form-label small mb-0" for="fd1">Fecha prevista hasta</label>
+        <input class="form-control form-control-sm" type="date" id="fd1" name="fecha_hasta" value="{% if fa.fecha_hasta %}{{ fa.fecha_hasta.isoformat() }}{% endif %}">
+      </div>
+      <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary btn-sm">Aplicar filtros</button>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.historial_entregas_lista') }}">Limpiar</a>
+        <a class="btn btn-success btn-sm" href="{{ url_for('entregas.historial_entregas_export_xlsx') }}{% if historial_export_query %}?{{ historial_export_query }}{% endif %}">Descargar historial en Excel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Resultados</span>
+    <span class="small app-text-secondary">{{ entregas|length }} registro(s)</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>Lugar</th>
+          <th>Producto</th>
+          <th class="text-end">Litros</th>
+          <th>F. prevista</th>
+          <th>Estado</th>
+          <th>Chofer / resp.</th>
+          <th>Obs.</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in entregas %}
+        {% set st = e.estado or '' %}
+        <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
+          <td><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
+          <td>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
+          <td>{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
+          <td class="text-end">{{ e.cantidad }}</td>
+          <td>{{ e.fecha_prevista }}</td>
+          <td>
+            {% if st == 'programada' %}
+            <span class="badge rounded-pill text-bg-secondary">Programada</span>
+            {% elif st == 'cargada' %}
+            <span class="badge rounded-pill text-bg-warning text-dark">Cargada</span>
+            {% elif st == 'entregada' %}
+            <span class="badge rounded-pill text-bg-success">Entregada</span>
+            {% else %}
+            <span class="badge rounded-pill text-bg-light text-dark border">{{ st }}</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if st == 'entregada' and e.entregada_chofer_nombre %}
+            {{ e.entregada_chofer_nombre }}
+            {% elif e.chofer_row %}
+            {{ e.chofer_row.nombre }}
+            {% elif e.chofer_previsto %}
+            {{ e.chofer_previsto }}
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="small text-truncate" style="max-width:8rem;" title="{{ e.observaciones or '' }}">{{ (e.observaciones or '')[:40] }}{% if e.observaciones and e.observaciones|length > 40 %}…{% endif %}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entregas.historial', eid=e.id) }}" title="Historial de eventos"><i class="bi bi-clock-history" aria-hidden="true"></i></a>
+            {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Editar</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas con estos filtros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

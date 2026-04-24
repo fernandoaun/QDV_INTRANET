@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
+from datetime import date
+from urllib.parse import urlencode
+
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.auth_utils import (
@@ -16,7 +19,8 @@ from app.auth_utils import (
 )
 from app.extensions import db
 from app.models import Entrega, User
-from app.services import entregas_service, entregas_web_service as ews, stock_service
+from app.services import entregas_catalog_service, entregas_service, entregas_web_service as ews, stock_service
+from app.services.entregas_service import FiltroHistorialEntregas
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds, now_operacion_naive_local
 from app.utils.hipoclorito_producto import aliases_entrega_lower_sorted, clave_catalogo_stock_producto_terminado
 
@@ -31,6 +35,36 @@ def _entrega_lugares_api_prefix() -> str:
 def _entrega_marcas_api_prefix() -> str:
     path = url_for("entregas.api_marcas_producto_terminado", pt_id=0)
     return path.rsplit("/", 1)[0] + "/"
+
+
+def _filtro_historial_entregas_from_request() -> FiltroHistorialEntregas:
+    def _int_or_none(key: str) -> int | None:
+        v = (request.args.get(key) or "").strip()
+        return int(v) if v.isdigit() else None
+
+    fd = (request.args.get("fecha_desde") or "").strip()
+    fh = (request.args.get("fecha_hasta") or "").strip()
+    d0: date | None = None
+    d1: date | None = None
+    if fd:
+        try:
+            d0 = date.fromisoformat(fd)
+        except ValueError:
+            d0 = None
+    if fh:
+        try:
+            d1 = date.fromisoformat(fh)
+        except ValueError:
+            d1 = None
+    est = (request.args.get("estado") or "").strip() or None
+    return FiltroHistorialEntregas(
+        cliente_id=_int_or_none("cliente_id"),
+        lugar_entrega_id=_int_or_none("lugar_entrega_id"),
+        chofer_entrega_id=_int_or_none("chofer_entrega_id"),
+        estado=est,
+        fecha_desde=d0,
+        fecha_hasta=d1,
+    )
 
 
 def _no_access():
@@ -109,11 +143,53 @@ def gestion():
 
     rows = entregas_service.listar_entregas()
     entregas_kpis = entregas_service.entregas_kpis_rolling()
+    sem_lunes, sem_domingo = entregas_service.rango_semana_operacion_actual()
     return render_template(
         "entregas/gestion.html",
         entregas=rows,
         entregas_kpis=entregas_kpis,
+        entregas_vista_semana_lunes=sem_lunes,
+        entregas_vista_semana_domingo=sem_domingo,
         **ews.gestion_constants_context(),
+    )
+
+
+@bp.get("/historial-entregas")
+@login_required
+def historial_entregas_lista():
+    u = current_user()
+    if not user_can_access_entregas_hub(u):
+        return _no_access()
+    filtro = _filtro_historial_entregas_from_request()
+    rows = entregas_service.get_historial_entregas_filtrado(filtro)
+    exp_qs = urlencode(request.args.to_dict(flat=True))
+    return render_template(
+        "entregas/historial_lista.html",
+        entregas=rows,
+        filtro_clientes=entregas_catalog_service.clientes_activos(),
+        filtro_lugares=entregas_catalog_service.lugares_activos_todos(),
+        filtro_choferes=entregas_catalog_service.choferes_activos(),
+        filtro_estados=entregas_service.entregas_estados_para_filtro(),
+        filtro_aplicado=filtro,
+        historial_export_query=exp_qs,
+        **ews.gestion_constants_context(),
+    )
+
+
+@bp.get("/historial-entregas/export.xlsx")
+@login_required
+def historial_entregas_export_xlsx():
+    u = current_user()
+    if not user_can_access_entregas_hub(u):
+        return _no_access()
+    filtro = _filtro_historial_entregas_from_request()
+    buf = entregas_service.exportar_historial_entregas_excel(filtro)
+    fname = f"historial_entregas_{now_operacion_naive_local().date().isoformat()}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 

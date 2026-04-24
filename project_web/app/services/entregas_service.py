@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+import re
+from datetime import date, datetime, timedelta
+from io import BytesIO
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, not_, or_, select
+from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.constants import ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA, ENTREGAS_STOCK_CATEGORIA
@@ -240,10 +243,191 @@ def _actor_operador(u: User | None) -> str:
     return _actor_display(u)
 
 
-def listar_entregas() -> list[Entrega]:
-    from app.services import entregas_catalog_service
+def _entrega_options_query():
+    return (
+        selectinload(Entrega.producto_terminado),
+        selectinload(Entrega.cliente_row),
+        selectinload(Entrega.lugar_row),
+        selectinload(Entrega.chofer_row),
+    )
 
-    return entregas_catalog_service.listar_entregas_con_catalogos()
+
+def _lunes_y_domingo_semana_conteniendo(d: date) -> tuple[date, date]:
+    """Lunes = inicio de semana (ISO); domingo = lunes + 6 días."""
+    lunes = d - timedelta(days=int(d.weekday()))
+    domingo = lunes + timedelta(days=6)
+    return lunes, domingo
+
+
+def rango_semana_operacion_actual() -> tuple[date, date]:
+    """Lunes y domingo de la semana que contiene la fecha de operación (hoy)."""
+    hoy = now_operacion_naive_local().date()
+    return _lunes_y_domingo_semana_conteniendo(hoy)
+
+
+def get_entregas_visibles_semana_actual() -> list[Entrega]:
+    """Vista principal: semana calendario (lun–dom) en fecha prevista + pendientes de semanas previas.
+
+    Criterio de «hoy»: `now_operacion_naive_local()` (zona APP_TIMEZONE).
+    Usa columna real `fecha_prevista` (texto comparable como AAAA-MM-DD).
+
+    - (a) `fecha_prevista` entre el lunes y el domingo de la semana actual, cualquier estado.
+    - (b) `fecha_prevista` anterior al lunes actual y estado distinto de cargada y entregada.
+    """
+    lunes, domingo = rango_semana_operacion_actual()
+    lunes_s, domingo_s = lunes.isoformat(), domingo.isoformat()
+    est = func.lower(func.coalesce(Entrega.estado, ""))
+    cond_semana = and_(Entrega.fecha_prevista >= lunes_s, Entrega.fecha_prevista <= domingo_s)
+    cond_backlog = and_(Entrega.fecha_prevista < lunes_s, not_(est.in_(("cargada", "entregada"))))
+    return list(
+        db.session.scalars(
+            select(Entrega)
+            .options(*_entrega_options_query())
+            .where(or_(cond_semana, cond_backlog))
+            .order_by(Entrega.fecha_prevista.asc(), Entrega.id.asc())
+        ).all()
+    )
+
+
+def listar_entregas() -> list[Entrega]:
+    return get_entregas_visibles_semana_actual()
+
+
+class FiltroHistorialEntregas:
+    __slots__ = ("cliente_id", "lugar_entrega_id", "chofer_entrega_id", "estado", "fecha_desde", "fecha_hasta")
+
+    def __init__(
+        self,
+        *,
+        cliente_id: int | None = None,
+        lugar_entrega_id: int | None = None,
+        chofer_entrega_id: int | None = None,
+        estado: str | None = None,
+        fecha_desde: date | None = None,
+        fecha_hasta: date | None = None,
+    ) -> None:
+        self.cliente_id = cliente_id
+        self.lugar_entrega_id = lugar_entrega_id
+        self.chofer_entrega_id = chofer_entrega_id
+        self.estado = (estado or "").strip() or None
+        self.fecha_desde = fecha_desde
+        self.fecha_hasta = fecha_hasta
+
+
+def get_historial_entregas_filtrado(filtro: FiltroHistorialEntregas | None = None) -> list[Entrega]:
+    """Listado completo de entregas con filtros opcionales (para historial / export)."""
+    f = filtro or FiltroHistorialEntregas()
+    q = select(Entrega).options(*_entrega_options_query()).order_by(Entrega.fecha_prevista.asc(), Entrega.id.asc())
+    if f.cliente_id is not None:
+        q = q.where(Entrega.cliente_id == int(f.cliente_id))
+    if f.lugar_entrega_id is not None:
+        q = q.where(Entrega.lugar_entrega_id == int(f.lugar_entrega_id))
+    if f.chofer_entrega_id is not None:
+        q = q.where(Entrega.chofer_entrega_id == int(f.chofer_entrega_id))
+    if f.estado is not None:
+        q = q.where(Entrega.estado == f.estado)
+    if f.fecha_desde is not None and f.fecha_hasta is not None:
+        q = q.where(
+            Entrega.fecha_prevista >= f.fecha_desde.isoformat(),
+            Entrega.fecha_prevista <= f.fecha_hasta.isoformat(),
+        )
+    elif f.fecha_desde is not None:
+        q = q.where(Entrega.fecha_prevista >= f.fecha_desde.isoformat())
+    elif f.fecha_hasta is not None:
+        q = q.where(Entrega.fecha_prevista <= f.fecha_hasta.isoformat())
+    return list(db.session.scalars(q).all())
+
+
+def entregas_estados_para_filtro() -> list[str]:
+    rows = db.session.scalars(select(Entrega.estado).distinct().order_by(Entrega.estado.asc())).all()
+    return [str(x) for x in rows if x is not None and str(x).strip() != ""]
+
+
+def _entrega_fila_excel(e: Entrega) -> list[Any]:
+    cli = e.cliente_row.nombre if e.cliente_row else e.cliente
+    lug = e.lugar_row.nombre if e.lugar_row else e.lugar_entrega
+    prod = e.producto_terminado.nombre if e.producto_terminado else e.producto
+    ch = e.chofer_row.nombre if e.chofer_row else (e.chofer_previsto or "")
+    return [
+        e.id,
+        e.fecha_prevista,
+        cli,
+        lug,
+        prod,
+        float(e.cantidad or 0),
+        (e.unidad or "").strip() or "L",
+        ch,
+        e.estado,
+        e.cargada_at_iso,
+        e.entregada_at_iso,
+        (e.observaciones or "").strip(),
+    ]
+
+
+def _safe_sheet_title(name: str) -> str:
+    s = re.sub(r"[" + re.escape("[]:*?/\\") + r"]", "_", (name or "").strip())[:31]
+    return s or "Hoja"
+
+
+def _autosize_entregas_ws(ws, ncols: int, nrows: int) -> None:
+    from openpyxl.utils import get_column_letter
+
+    if nrows < 1:
+        return
+    ws.freeze_panes = "A2"
+    last_col = get_column_letter(ncols)
+    ws.auto_filter.ref = f"A1:{last_col}{nrows}"
+    for c in range(1, ncols + 1):
+        col_letter = get_column_letter(c)
+        maxlen = 10
+        for r in range(1, min(nrows, 500) + 1):
+            v = ws.cell(row=r, column=c).value
+            if v is not None:
+                maxlen = max(maxlen, min(len(str(v)), 60))
+        ws.column_dimensions[col_letter].width = min(maxlen + 2, 55)
+
+
+def exportar_historial_entregas_excel(filtro: FiltroHistorialEntregas | None = None) -> BytesIO:
+    """Genera .xlsx con columnas legibles; respeta los mismos filtros que el historial."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+
+    rows_ent = get_historial_entregas_filtrado(filtro)
+    headers = [
+        "ID",
+        "Fecha prevista",
+        "Cliente",
+        "Lugar de entrega",
+        "Producto",
+        "Cantidad",
+        "Unidad",
+        "Chofer",
+        "Estado",
+        "Fecha/hora carga",
+        "Fecha/hora entrega",
+        "Observaciones",
+    ]
+    data_rows = [_entrega_fila_excel(e) for e in rows_ent]
+
+    wb = Workbook()
+    ws = wb.active
+    assert ws is not None
+    ws.title = _safe_sheet_title("Historial entregas")
+    bold = Font(bold=True)
+    for col, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = bold
+        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    for r_i, row in enumerate(data_rows, start=2):
+        for c_i, val in enumerate(row, start=1):
+            cell = ws.cell(row=r_i, column=c_i, value=val)
+            cell.alignment = Alignment(vertical="top", wrap_text=False)
+    _autosize_entregas_ws(ws, len(headers), 1 + len(data_rows))
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
 
 
 def entrega_to_api_dict(e: Entrega) -> dict[str, Any]:

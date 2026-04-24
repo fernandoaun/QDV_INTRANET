@@ -13,7 +13,11 @@
 <div class="app-module-grid">
   <a class="app-module-card app-module-card--featured" href="{{ url_for('entregas.gestion') }}">
     <h2>Gestión de entregas</h2>
-    <p>Listado, acciones Cargar / Entregado e historial.</p>
+    <p>Semana en curso, pendientes atrasados y acciones Cargar / Entregado. Historial completo aparte.</p>
+  </a>
+  <a class="app-module-card" href="{{ url_for('entregas.historial_entregas_lista') }}">
+    <h2>Historial de entregas</h2>
+    <p>Buscar por cliente, lugar, chofer, estado, fechas y descargar Excel.</p>
   </a>
   {% if user_can_entregas_programar_view() %}
   <a class="app-module-card" href="{{ url_for('entregas.nueva') }}">
