@@ -102,13 +102,13 @@
     <form id="entregaQuickForm" method="post" action="{{ url_for('entregas.gestion') }}">
       {% include "_csrf.html" %}
       <input type="hidden" name="action" value="programar_rapido">
+      <input type="hidden" name="hora_prevista" value="">
     </form>
     {% endif %}
     <table class="table table-app table-compact mb-0 align-middle">
       <thead>
         <tr>
           <th>Fecha</th>
-          <th>Hora</th>
           <th>Cliente</th>
           <th>Lugar</th>
           <th>Producto</th>
@@ -125,10 +125,6 @@
           <td class="entregas-quick-cell--sm">
             <label class="entregas-quick-label" for="quickFecha">Fecha *</label>
             <input class="form-control entregas-quick-input" id="quickFecha" form="entregaQuickForm" name="fecha_prevista" type="date" value="{{ quick_fecha or '' }}" required autocomplete="off">
-          </td>
-          <td class="entregas-quick-cell--sm">
-            <label class="entregas-quick-label" for="quickHora">Hora</label>
-            <input class="form-control entregas-quick-input" id="quickHora" form="entregaQuickForm" name="hora_prevista" type="time" autocomplete="off">
           </td>
           <td class="entregas-quick-cell--lg">
             <label class="entregas-quick-label" for="quickCliente">Cliente *</label>
@@ -180,16 +176,12 @@
         {% for e in entregas %}
         {% set st = e.estado or '' %}
         {% set obs_text = e.observaciones or '' %}
-        {% set hora_prevista = '' %}
         {% set obs_display = obs_text %}
         {% if obs_text.startswith('Hora prevista: ') %}
-          {% set primera_obs = obs_text.split('\n', 1)[0] %}
-          {% set hora_prevista = primera_obs.replace('Hora prevista: ', '') %}
           {% set obs_display = obs_text.split('\n', 1)[1] if '\n' in obs_text else '' %}
         {% endif %}
         <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
           <td>{{ e.fecha_prevista }}</td>
-          <td>{% if hora_prevista %}{{ hora_prevista }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
           <td><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
           <td>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
           <td>{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
@@ -233,7 +225,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="text-center app-text-secondary py-4">No hay entregas en esta vista (semana actual + pendientes de fechas anteriores sin cargar ni entregar).</td></tr>
+        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas en esta vista (semana actual + pendientes de fechas anteriores sin cargar ni entregar).</td></tr>
         {% endfor %}
       </tbody>
     </table>
