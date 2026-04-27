@@ -67,7 +67,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                     request.form,
                     now=now,
                     operador=operador_display_line() or default_operador_for_salmuera(),
-                    files=request.files,
+                    files=request.files if (current_user() and current_user().is_admin) else None,
                 )
                 db.session.commit()
                 status = analisis8_svc.build_status(now_local())
@@ -357,8 +357,12 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial_salmuera"))
 
         fs = request.files.get("archivo")
+        u = current_user()
+        if u is None or not u.is_admin:
+            flash("Solo administradores pueden subir o reemplazar PDFs de análisis.", "danger")
+            return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial_salmuera"))
         if fs is None or not fs.filename:
-            flash("Seleccioná un archivo PDF o imagen.", "warning")
+            flash("Seleccioná un archivo PDF.", "warning")
             return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial_salmuera"))
         try:
             analisis8_svc.save_attachment(row, field, fs)

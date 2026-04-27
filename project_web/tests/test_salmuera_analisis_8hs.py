@@ -116,3 +116,63 @@ def test_salmuera_analisis_8hs_salmuera_page_and_file_upload(app, auth_client, t
     file_resp = auth_client.get(f"/produccion/salmuera/analisis-8hs/{row_id}/archivo/dureza")
     assert file_resp.status_code == 200
     assert file_resp.mimetype == "application/pdf"
+
+
+def test_salmuera_analisis_8hs_non_admin_cannot_upload_pdf(app, client, tmp_path):
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import PermisoUsuario, SalmueraAnalisis8hs, User
+    from app.user_roles import ROLE_MANTENIMIENTO
+
+    app.config["APP_UPLOAD_ROOT"] = str(tmp_path / "uploads")
+
+    with app.app_context():
+        u = User(
+            username="pytest_reactor_viewer",
+            password_hash=generate_password_hash("pytest-viewer-pw"),
+            is_admin=False,
+            activo=True,
+            rol=ROLE_MANTENIMIENTO,
+        )
+        db.session.add(u)
+        db.session.flush()
+        db.session.add(PermisoUsuario(user_id=u.id, permiso="reactor", habilitado=True, puede_editar=True))
+        db.session.commit()
+
+    login_page = client.get("/login")
+    assert login_page.status_code == 200
+    login_html = login_page.get_data(as_text=True)
+    login = client.post(
+        "/login",
+        data={
+            "username": "pytest_reactor_viewer",
+            "password": "pytest-viewer-pw",
+            "csrf_token": _csrf(login_html),
+        },
+    )
+    assert login.status_code in (302, 303)
+
+    page = client.get("/produccion/reactor")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "Solo administradores pueden subir o reemplazar este PDF" in html
+    assert 'name="file_dureza"' not in html
+
+    resp = client.post(
+        "/produccion/reactor",
+        data={
+            "csrf_token": _csrf(html),
+            "action": "guardar_analisis_8hs",
+            "dureza_salmuera": "88.1",
+            "cloro_libre_salmuera": "0.3",
+            "file_dureza": (BytesIO(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF"), "dureza.pdf"),
+        },
+        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200
+
+    with app.app_context():
+        row = db.session.query(SalmueraAnalisis8hs).one()
+        assert not row.file_dureza_path

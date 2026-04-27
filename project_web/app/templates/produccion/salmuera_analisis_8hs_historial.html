@@ -98,21 +98,23 @@
       {% else %}
       <p class="small mb-2">No hay archivo cargado.</p>
       {% endif %}
+      {% if nav_user and nav_user.is_admin %}
       <hr class="my-3">
       <form method="post" action="{{ url_for(hist_file_endpoint, registro_id=r.id, field=field_name) }}" enctype="multipart/form-data" class="mb-2">
         {% include "_csrf.html" %}
-        <label class="form-label small mb-1">Subir o reemplazar (PDF o imagen)</label>
-        <input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*">
+        <label class="form-label small mb-1">Subir o reemplazar PDF</label>
+        <input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,application/pdf">
         <button type="submit" class="btn btn-primary btn-sm mt-2">Subir / reemplazar</button>
       </form>
-      {% if (present or missing) and nav_user and nav_user.is_admin %}
+      {% if present or missing %}
       <form method="post" action="{{ url_for(hist_file_endpoint, registro_id=r.id, field=field_name) }}" class="mt-2" onsubmit="return confirm('¿Eliminar el archivo de {{ title }}?');">
         {% include "_csrf.html" %}
         <input type="hidden" name="action" value="delete">
         <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar archivo</button>
       </form>
-      {% elif present or missing %}
-      <p class="small text-muted mb-0 mt-2">Solo administradores pueden eliminar este archivo.</p>
+      {% endif %}
+      {% else %}
+      <p class="small text-muted mb-0 mt-2">Solo administradores pueden subir, reemplazar o eliminar este PDF.</p>
       {% endif %}
     </div>
   </div>

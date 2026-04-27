@@ -26,7 +26,6 @@ ATTACHMENT_FIELDS = {
         "label": "Cloro libre en salmuera",
     },
 }
-_ALLOWED_ATTACHMENT_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
 def _parse_float_required(raw: str | None, label: str) -> float:
@@ -59,23 +58,19 @@ def _safe_original_name(filename: str) -> str:
 
 def _validate_attachment_upload(fs: Any) -> tuple[str, str]:
     if fs is None or not getattr(fs, "filename", None):
-        raise ValueError("Seleccioná un archivo PDF o imagen.")
+        raise ValueError("Seleccioná un archivo PDF.")
     original = _safe_original_name(str(fs.filename or ""))
     ext = Path(original).suffix.lower()
-    if ext not in _ALLOWED_ATTACHMENT_EXTENSIONS:
-        raise ValueError("Solo se permiten archivos PDF o imagen.")
+    if ext != ".pdf":
+        raise ValueError("Solo se permiten archivos PDF.")
     content_type = (getattr(fs, "content_type", None) or "").lower()
     head = fs.read(16)
     fs.seek(0)
-    if ext == ".pdf":
-        if content_type and "pdf" not in content_type:
-            raise ValueError("El archivo no es un PDF válido (tipo MIME).")
-        if len(head) < 4 or head[:4] != b"%PDF":
-            raise ValueError("El contenido no es un PDF válido.")
-        return original, ".pdf"
-    if content_type and not content_type.startswith("image/"):
-        raise ValueError("El archivo no es una imagen válida (tipo MIME).")
-    return original, ext
+    if content_type and "pdf" not in content_type:
+        raise ValueError("El archivo no es un PDF válido (tipo MIME).")
+    if len(head) < 4 or head[:4] != b"%PDF":
+        raise ValueError("El contenido no es un PDF válido.")
+    return original, ".pdf"
 
 
 def attachment_resolve_path(row: SalmueraAnalisis8hs, field: str) -> Path | None:

@@ -217,8 +217,12 @@
       <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
     </div>
     <div class="analysis-ref-dialog-body">
-      <p class="small text-muted mb-2">Adjuntá un PDF o imagen. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
-      <input type="file" name="file_dureza" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*" data-analisis8-file-input="dureza">
+      {% if nav_user and nav_user.is_admin %}
+      <p class="small text-muted mb-2">Adjuntá un PDF. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
+      <input type="file" name="file_dureza" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,application/pdf" data-analisis8-file-input="dureza">
+      {% else %}
+      <p class="small text-muted mb-0">Solo administradores pueden subir o reemplazar este PDF. Los demás perfiles pueden verlo desde el historial cuando esté cargado.</p>
+      {% endif %}
     </div>
   </div>
 </dialog>
@@ -229,8 +233,12 @@
       <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
     </div>
     <div class="analysis-ref-dialog-body">
-      <p class="small text-muted mb-2">Adjuntá un PDF o imagen. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
-      <input type="file" name="file_cloro_libre" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*" data-analisis8-file-input="cloro">
+      {% if nav_user and nav_user.is_admin %}
+      <p class="small text-muted mb-2">Adjuntá un PDF. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
+      <input type="file" name="file_cloro_libre" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,application/pdf" data-analisis8-file-input="cloro">
+      {% else %}
+      <p class="small text-muted mb-0">Solo administradores pueden subir o reemplazar este PDF. Los demás perfiles pueden verlo desde el historial cuando esté cargado.</p>
+      {% endif %}
     </div>
   </div>
 </dialog>
