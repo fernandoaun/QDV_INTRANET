@@ -48,7 +48,7 @@
         </div>
       </div>
       <div class="col-12 col-lg-8">
-        <form method="post" class="row g-2 align-items-end" id="analisis8Form" autocomplete="off">
+        <form method="post" class="row g-2 align-items-end" id="analisis8Form" enctype="multipart/form-data" autocomplete="off">
           {% include "_csrf.html" %}
           <input type="hidden" name="action" value="guardar_analisis_8hs">
           <div id="analisis8FormMessage" class="col-12 alert py-2 px-3 d-none" role="status" aria-live="polite"></div>
@@ -69,11 +69,17 @@
             <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
           </div>
           <div class="col-md-4">
-            <label class="form-label" for="analisis8Dureza">Dureza de salmuera</label>
+            <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1" for="analisis8Dureza">
+              <span>Dureza de salmuera</span>
+              {{ analysis_ref_flask_button('salmuera_analisis_8hs_dureza_nuevo', false, 'analisis8DurezaFileDialog', 'Dureza de salmuera') }}
+            </label>
             <input class="form-control" id="analisis8Dureza" name="dureza_salmuera" type="number" step="any" required inputmode="decimal">
           </div>
           <div class="col-md-4">
-            <label class="form-label" for="analisis8Cloro">Cloro libre en salmuera</label>
+            <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1" for="analisis8Cloro">
+              <span>Cloro libre en salmuera</span>
+              {{ analysis_ref_flask_button('salmuera_analisis_8hs_cloro_nuevo', false, 'analisis8CloroFileDialog', 'Cloro libre en salmuera') }}
+            </label>
             <input class="form-control" id="analisis8Cloro" name="cloro_libre_salmuera" type="number" step="any" required inputmode="decimal">
           </div>
           <div class="col-md-4">
@@ -204,6 +210,30 @@
 {% for ar in analysis_ref_rows_reactor %}
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
+<dialog id="analisis8DurezaFileDialog" class="analysis-ref-dialog" aria-modal="true" aria-labelledby="analisis8DurezaFileDialogLabel">
+  <div class="analysis-ref-dialog-surface">
+    <div class="analysis-ref-dialog-header">
+      <h2 class="analysis-ref-dialog-title fs-6 mb-0" id="analisis8DurezaFileDialogLabel">Archivo de laboratorio — Dureza de salmuera</h2>
+      <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
+    </div>
+    <div class="analysis-ref-dialog-body">
+      <p class="small text-muted mb-2">Adjuntá un PDF o imagen. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
+      <input type="file" name="file_dureza" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*" data-analisis8-file-input="dureza">
+    </div>
+  </div>
+</dialog>
+<dialog id="analisis8CloroFileDialog" class="analysis-ref-dialog" aria-modal="true" aria-labelledby="analisis8CloroFileDialogLabel">
+  <div class="analysis-ref-dialog-surface">
+    <div class="analysis-ref-dialog-header">
+      <h2 class="analysis-ref-dialog-title fs-6 mb-0" id="analisis8CloroFileDialogLabel">Archivo de laboratorio — Cloro libre en salmuera</h2>
+      <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
+    </div>
+    <div class="analysis-ref-dialog-body">
+      <p class="small text-muted mb-2">Adjuntá un PDF o imagen. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
+      <input type="file" name="file_cloro_libre" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*" data-analisis8-file-input="cloro">
+    </div>
+  </div>
+</dialog>
 <script>
 (() => {
   const form = document.getElementById("analisis8Form");
@@ -245,6 +275,23 @@
     formMsg.classList.add(kind || "alert-info");
     formMsg.textContent = text || "";
   }
+
+  function resetFileButtons() {
+    document.querySelectorAll("[data-analysis-ref-doc^='salmuera_analisis_8hs_']").forEach((btn) => {
+      btn.classList.remove("analysis-ref-flask-btn--ok");
+      btn.classList.add("analysis-ref-flask-btn--empty");
+    });
+  }
+
+  document.querySelectorAll("[data-analisis8-file-input]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const key = input.getAttribute("data-analisis8-file-input") === "dureza" ? "dureza" : "cloro";
+      const btn = document.querySelector(`[data-analysis-ref-doc="salmuera_analisis_8hs_${key}_nuevo"]`);
+      if (!btn) return;
+      btn.classList.toggle("analysis-ref-flask-btn--ok", !!input.files.length);
+      btn.classList.toggle("analysis-ref-flask-btn--empty", !input.files.length);
+    });
+  });
 
   function updateLast(last) {
     if (!lastBox) return;
@@ -310,6 +357,7 @@
         status = payload.status || status;
         showFormMessage(payload.message || "Análisis guardado.", "alert-success");
         form.reset();
+        resetFileButtons();
         tick();
       } catch (err) {
         showFormMessage((err && err.message) ? err.message : "No se pudo guardar el análisis.", "alert-danger");

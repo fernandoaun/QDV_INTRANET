@@ -307,6 +307,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             history_export_endpoint="produccion.salmuera_analisis_8hs_export_xlsx_salmuera",
             history_clear_endpoint="produccion.salmuera_analisis_8hs_historial_salmuera",
             history_back_endpoint="produccion.salmuera",
+            history_file_endpoint="produccion.salmuera_analisis_8hs_archivo",
         )
 
     @bp.get("/salmuera/analisis-8hs/export.xlsx")

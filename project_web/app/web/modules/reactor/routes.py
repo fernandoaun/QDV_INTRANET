@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.auth_utils import current_user, login_required, permission_required
 from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS
 from app.extensions import db
-from app.models import ReactorRegistro
+from app.models import ReactorRegistro, SalmueraAnalisis8hs
 from app.services import salmuera_analisis_8hs_service as analisis8_svc
 from app.services.analysis_ref_pdf import REACTOR_ANALYSIS_REF_SPECS, analysis_ref_ui_rows
 from app.web.modules.produccion.operadores_query import list_operadores_planta
@@ -47,6 +47,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
                     request.form,
                     now=now,
                     operador=operador_display_line() or default_operador_for_salmuera(),
+                    files=request.files,
                 )
                 db.session.commit()
                 status = analisis8_svc.build_status(now_local())
@@ -181,6 +182,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
             hasta=hasta,
             registros=[analisis8_svc.row_to_dict(r) for r in rows],
             module_title=MODULE_LABELS["reactor"],
+            history_file_endpoint="produccion.salmuera_analisis_8hs_archivo_reactor",
         )
 
     @bp.get("/reactor/analisis-8hs/export.xlsx")
@@ -199,3 +201,45 @@ def register_reactor_routes(bp: Blueprint) -> None:
             download_name=fname,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+    @bp.route("/reactor/analisis-8hs/<int:registro_id>/archivo/<field>", methods=["GET", "POST"])
+    @login_required
+    @permission_required("reactor")
+    def salmuera_analisis_8hs_archivo_reactor(registro_id: int, field: str):
+        if field not in analisis8_svc.ATTACHMENT_FIELDS:
+            return ("", 404)
+        row = db.session.get(SalmueraAnalisis8hs, registro_id)
+        if row is None:
+            return ("", 404)
+        meta = analisis8_svc.ATTACHMENT_FIELDS[field]
+        if request.method == "GET":
+            resolved = analisis8_svc.attachment_resolve_path(row, field)
+            if resolved is None:
+                return ("", 404)
+            suffix = resolved.suffix.lower()
+            mimetype = "application/pdf" if suffix == ".pdf" else None
+            return send_file(resolved, mimetype=mimetype, as_attachment=False)
+
+        action = (request.form.get("action") or "").strip()
+        if action == "delete":
+            u = current_user()
+            if u is None or not u.is_admin:
+                flash("Solo administradores pueden eliminar archivos de análisis.", "danger")
+                return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial"))
+            analisis8_svc.delete_attachment(row, field)
+            db.session.commit()
+            flash(f"Archivo de {meta['label']} eliminado.", "info")
+            return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial"))
+
+        fs = request.files.get("archivo")
+        if fs is None or not fs.filename:
+            flash("Seleccioná un archivo PDF o imagen.", "warning")
+            return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial"))
+        try:
+            analisis8_svc.save_attachment(row, field, fs)
+            db.session.commit()
+            flash(f"Archivo de {meta['label']} guardado.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(str(e), "danger")
+        return redirect(request.referrer or url_for("produccion.salmuera_analisis_8hs_historial"))

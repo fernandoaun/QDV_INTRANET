@@ -5,6 +5,7 @@
 {% set hist_export_endpoint = history_export_endpoint | default('produccion.salmuera_analisis_8hs_export_xlsx') %}
 {% set hist_clear_endpoint = history_clear_endpoint | default('produccion.salmuera_analisis_8hs_historial') %}
 {% set hist_back_endpoint = history_back_endpoint | default('produccion.reactor') %}
+{% set hist_file_endpoint = history_file_endpoint | default('produccion.salmuera_analisis_8hs_archivo_reactor') %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Historial · Análisis 8 hs – Dureza y Cloro Libre</h1>
@@ -91,21 +92,21 @@
     <div class="analysis-ref-dialog-body">
       <p class="small text-muted mb-2">Registro #{{ r.id }} · {{ r.fecha }} {{ r.hora }} · Turno {{ r.turno }}</p>
       {% if present %}
-      <a class="btn btn-outline-primary btn-sm mb-2" href="{{ url_for('produccion.salmuera_analisis_8hs_archivo', registro_id=r.id, field=field_name) }}" target="_blank" rel="noopener">Abrir / ver archivo</a>
+      <a class="btn btn-outline-primary btn-sm mb-2" href="{{ url_for(hist_file_endpoint, registro_id=r.id, field=field_name) }}" target="_blank" rel="noopener">Abrir / ver archivo</a>
       {% elif missing %}
       <div class="alert alert-warning py-2 small">Hay una ruta guardada, pero el archivo no existe en disco. El sistema continúa operativo.</div>
       {% else %}
       <p class="small mb-2">No hay archivo cargado.</p>
       {% endif %}
       <hr class="my-3">
-      <form method="post" action="{{ url_for('produccion.salmuera_analisis_8hs_archivo', registro_id=r.id, field=field_name) }}" enctype="multipart/form-data" class="mb-2">
+      <form method="post" action="{{ url_for(hist_file_endpoint, registro_id=r.id, field=field_name) }}" enctype="multipart/form-data" class="mb-2">
         {% include "_csrf.html" %}
         <label class="form-label small mb-1">Subir o reemplazar (PDF o imagen)</label>
         <input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*">
         <button type="submit" class="btn btn-primary btn-sm mt-2">Subir / reemplazar</button>
       </form>
       {% if (present or missing) and nav_user and nav_user.is_admin %}
-      <form method="post" action="{{ url_for('produccion.salmuera_analisis_8hs_archivo', registro_id=r.id, field=field_name) }}" class="mt-2" onsubmit="return confirm('¿Eliminar el archivo de {{ title }}?');">
+      <form method="post" action="{{ url_for(hist_file_endpoint, registro_id=r.id, field=field_name) }}" class="mt-2" onsubmit="return confirm('¿Eliminar el archivo de {{ title }}?');">
         {% include "_csrf.html" %}
         <input type="hidden" name="action" value="delete">
         <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar archivo</button>

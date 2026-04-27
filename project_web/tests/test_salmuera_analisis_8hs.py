@@ -19,6 +19,7 @@ def test_salmuera_analisis_8hs_create_history_and_export(app, auth_client):
     html = page.get_data(as_text=True)
     assert "Análisis 8 hs" in html
     assert "Dureza y Cloro Libre" in html
+    assert "analisis8DurezaFileDialog" in html
 
     resp = auth_client.post(
         "/produccion/reactor",
