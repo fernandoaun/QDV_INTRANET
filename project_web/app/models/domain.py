@@ -39,6 +39,21 @@ class SalmueraRegistro(db.Model):
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 
+class SalmueraAnalisis8hs(db.Model):
+    __tablename__ = "salmuera_analisis_8hs"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    fecha = db.Column(db.String(16), nullable=False, index=True)
+    hora = db.Column(db.String(8), nullable=False)
+    fecha_hora_iso = db.Column(db.String(32), nullable=False, index=True)
+    turno = db.Column(db.String(64), nullable=False)
+    operador = db.Column(db.String(256), nullable=False)
+    dureza_salmuera = db.Column(db.Float, nullable=False)
+    cloro_libre_salmuera = db.Column(db.Float, nullable=False)
+    observaciones = db.Column(db.Text)
+    created_at_iso = db.Column(db.String(32), nullable=False)
+
+
 class BolsonRegistro(db.Model):
     __tablename__ = "bolson_registros"
 

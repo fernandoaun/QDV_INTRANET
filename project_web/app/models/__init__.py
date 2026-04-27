@@ -13,6 +13,7 @@ from app.models.domain import (
     ProductoCatalogo,
     ProductoColor,
     ReactorRegistro,
+    SalmueraAnalisis8hs,
     SalmueraRegistro,
 )
 from app.models.shift import ShiftHandover, ShiftHandoverWarningAction, ShiftSession
@@ -26,6 +27,7 @@ __all__ = [
     "PermisoUsuario",
     "Operador",
     "SalmueraRegistro",
+    "SalmueraAnalisis8hs",
     "BolsonRegistro",
     "ReactorRegistro",
     "AguaRegistro",

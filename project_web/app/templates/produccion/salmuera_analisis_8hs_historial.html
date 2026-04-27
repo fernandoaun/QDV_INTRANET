@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Historial análisis 8 hs · {{ module_title }} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Historial · Análisis 8 hs – Dureza y Cloro Libre</h1>
+    <p class="app-intro mb-0">Registros independientes del control principal de Circuito de Salmuera.</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('produccion.salmuera_analisis_8hs_export_xlsx') }}{% if desde or hasta %}?{% if desde %}desde={{ desde }}{% endif %}{% if desde and hasta %}&{% endif %}{% if hasta %}hasta={{ hasta }}{% endif %}{% endif %}">Exportar Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.salmuera') }}#analisis8hsSalmuera">← Volver a análisis 8 hs</a>
+  </div>
+</div>
+
+<form method="get" class="app-toolbar">
+  <div>
+    <label class="form-label" for="histDesde">Fecha desde</label>
+    <input type="date" id="histDesde" name="desde" class="form-control" value="{{ desde }}">
+  </div>
+  <div>
+    <label class="form-label" for="histHasta">Fecha hasta</label>
+    <input type="date" id="histHasta" name="hasta" class="form-control" value="{{ hasta }}">
+  </div>
+  <div class="d-flex flex-wrap gap-2 pb-1">
+    <button type="submit" class="btn btn-primary">Aplicar filtro</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('produccion.salmuera_analisis_8hs_historial') }}">Limpiar</a>
+  </div>
+</form>
+
+<div class="app-card">
+  <div class="app-card-header app-card-header--split">
+    <span>Registros</span>
+    <span class="small app-text-secondary">{{ registros|length }} resultado(s)</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Hora</th>
+          <th>Turno</th>
+          <th>Operador</th>
+          <th class="text-end">Dureza</th>
+          <th class="text-end">Cloro libre</th>
+          <th>Observaciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in registros %}
+        <tr>
+          <td>{{ r.fecha }}</td>
+          <td>{{ r.hora }}</td>
+          <td>{{ r.turno }}</td>
+          <td>{{ r.operador }}</td>
+          <td class="text-end">{{ r.dureza_salmuera }}</td>
+          <td class="text-end">{{ r.cloro_libre_salmuera }}</td>
+          <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
