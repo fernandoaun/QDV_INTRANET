@@ -320,10 +320,17 @@ def logout_ask_leave_shift():
         choice = (request.form.get("choice") or "").strip().lower()
         if choice == "si":
             return redirect(url_for("shift.handover_form", from_logout=1))
+        if choice == "mantener":
+            session.clear()
+            flash(
+                "Sesión cerrada. El turno operativo queda abierto a tu nombre para que otro perfil use esta computadora.",
+                "info",
+            )
+            return redirect(url_for("auth.login"))
         if choice == "no":
             flash(
-                "Política de planta: no se cierra la sesión mientras tengas el turno sin entregar. "
-                "Seguís conectado; cuando quieras salir, entregá el turno primero.",
+                "Seguís conectado con el turno a tu nombre. Cuando quieras cambiar de usuario en esta computadora, usá "
+                "«Cerrar sesión y mantener turno abierto».",
                 "warning",
             )
             return redirect(url_for("main.dashboard"))
