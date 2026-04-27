@@ -6,7 +6,6 @@
 <div class="app-page-head">
   <h1 class="app-page-title">{{ module_title }}</h1>
   <div class="app-page-actions d-flex flex-wrap gap-2">
-    <a class="btn btn-outline-success btn-sm" href="#analisis8hsSalmuera">Análisis 8 hs</a>
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('produccion.salmuera_historial') }}">Ver historial</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.hub') }}">← Producción</a>
   </div>
@@ -24,76 +23,6 @@
 <p class="small app-text-secondary mb-3 mb-lg-2">
   Carga simultánea: cada columna es independiente (formulario, avisos, guardado y cronómetro por electrolizador).
 </p>
-
-<div class="app-card mb-3" id="analisis8hsSalmuera">
-  <div class="app-card-header app-card-header--split">
-    <div>
-      <span>Análisis 8 hs – Dureza y Cloro Libre</span>
-      <div class="small app-text-secondary mt-1">Control independiente del registro principal. Frecuencia informativa: cada {{ analisis8_interval_seconds // 3600 }} horas.</div>
-    </div>
-    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('produccion.salmuera_analisis_8hs_historial') }}">Ver historial</a>
-  </div>
-  <div class="app-card-body">
-    <div class="row g-3 align-items-stretch">
-      <div class="col-12 col-lg-4">
-        <div class="border rounded-3 p-3 h-100" data-analisis8-status>
-          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <span class="fw-semibold">Próximo análisis</span>
-            <span class="badge app-badge-soft {% if analisis8_status.is_due %}text-bg-danger{% else %}text-bg-success{% endif %}" id="analisis8State">{% if analisis8_status.is_due %}Vencido{% else %}En tiempo{% endif %}</span>
-          </div>
-          <div class="app-timer-display mb-1" id="analisis8Timer">--:--:--</div>
-          <div class="small app-text-secondary" id="analisis8Message">{{ analisis8_status.message }}</div>
-          {% if analisis8_status.last %}
-          <div class="small mt-3" id="analisis8LastBox">
-            <div><strong>Último:</strong> {{ analisis8_status.last.fecha }} {{ analisis8_status.last.hora }} · Turno {{ analisis8_status.last.turno }}</div>
-            <div>Dureza: <strong id="analisis8LastDureza">{{ analisis8_status.last.dureza_salmuera }}</strong> · Cloro libre: <strong id="analisis8LastCloro">{{ analisis8_status.last.cloro_libre_salmuera }}</strong></div>
-          </div>
-          {% else %}
-          <div class="small mt-3 text-muted" id="analisis8LastBox">Sin valores previos.</div>
-          {% endif %}
-        </div>
-      </div>
-      <div class="col-12 col-lg-8">
-        <form method="post" class="row g-2 align-items-end" id="analisis8Form" autocomplete="off">
-          {% include "_csrf.html" %}
-          <input type="hidden" name="action" value="guardar_analisis_8hs">
-          <div id="analisis8FormMessage" class="col-12 alert py-2 px-3 d-none" role="status" aria-live="polite"></div>
-          <div class="col-6 col-md-3">
-            <label class="form-label">Fecha</label>
-            <input class="form-control" value="{{ server_now_iso[:10] }}" readonly aria-readonly="true">
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label">Hora</label>
-            <input class="form-control" value="{{ server_now_iso[11:16] }}" readonly aria-readonly="true">
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label">Turno</label>
-            <input class="form-control" value="{{ turno_sugerido }}" readonly aria-readonly="true">
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label">Operador</label>
-            <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="analisis8Dureza">Dureza de salmuera</label>
-            <input class="form-control" id="analisis8Dureza" name="dureza_salmuera" type="number" step="any" required inputmode="decimal">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="analisis8Cloro">Cloro libre en salmuera</label>
-            <input class="form-control" id="analisis8Cloro" name="cloro_libre_salmuera" type="number" step="any" required inputmode="decimal">
-          </div>
-          <div class="col-md-4">
-            <label class="form-label" for="analisis8Obs">Observaciones</label>
-            <input class="form-control" id="analisis8Obs" name="observaciones" placeholder="Opcional">
-          </div>
-          <div class="col-12">
-            <button type="submit" class="btn btn-success">Guardar análisis 8 hs</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
 
 <div class="row g-3 align-items-stretch salmuera-dual-row">
   {% for eid in salmuera_panel_electrolizadores %}
@@ -333,8 +262,6 @@
 
 <script>
 (() => {
-  const analisis8InitialStatus = {{ analisis8_status | tojson }};
-  const analisis8IntervalSec = {{ analisis8_interval_seconds | int }};
   const SALMUERA_PANEL_IDS = {{ salmuera_panel_electrolizadores | tojson }};
 
   function initVoltajesPanel(eid) {
@@ -691,111 +618,6 @@
   const serverNow = parseIsoLocal(serverNowIso);
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
 
-  function initAnalisis8hs() {
-    const form = document.getElementById("analisis8Form");
-    const timerText = document.getElementById("analisis8Timer");
-    const state = document.getElementById("analisis8State");
-    const msg = document.getElementById("analisis8Message");
-    const formMsg = document.getElementById("analisis8FormMessage");
-    const lastBox = document.getElementById("analisis8LastBox");
-    let status = analisis8InitialStatus || {};
-
-    function fmt(totalSeconds) {
-      const s = Math.max(0, Math.floor(totalSeconds));
-      const h = String(Math.floor(s / 3600)).padStart(2, "0");
-      const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
-      const ss = String(s % 60).padStart(2, "0");
-      return `${h}:${m}:${ss}`;
-    }
-
-    function showFormMessage(text, kind) {
-      if (!formMsg) return;
-      formMsg.classList.remove("d-none", "alert-success", "alert-danger", "alert-warning", "alert-info");
-      formMsg.classList.add(kind || "alert-info");
-      formMsg.textContent = text || "";
-    }
-
-    function esc(text) {
-      return String(text == null ? "" : text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-    }
-
-    function updateLast(last) {
-      if (!lastBox) return;
-      if (!last) {
-        lastBox.className = "small mt-3 text-muted";
-        lastBox.textContent = "Sin valores previos.";
-        return;
-      }
-      lastBox.className = "small mt-3";
-      lastBox.innerHTML = `
-        <div><strong>Último:</strong> ${esc(last.fecha)} ${esc(last.hora)} · Turno ${esc(last.turno)}</div>
-        <div>Dureza: <strong>${esc(last.dureza_salmuera)}</strong> · Cloro libre: <strong>${esc(last.cloro_libre_salmuera)}</strong></div>
-      `;
-    }
-
-    function tick() {
-      if (!timerText || !state || !msg) return;
-      if (!status || !status.has_records || !status.next_due_iso) {
-        timerText.textContent = fmt(analisis8IntervalSec);
-        state.className = "badge app-badge-soft text-bg-danger";
-        state.textContent = "Pendiente";
-        msg.textContent = "No hay análisis registrados. Realizar primer análisis.";
-        updateLast(null);
-        return;
-      }
-      const due = parseIsoLocal(status.next_due_iso);
-      const now = new Date(Date.now() + clockOffsetMs);
-      const diffSec = (due.getTime() - now.getTime()) / 1000;
-      if (diffSec > 0) {
-        timerText.textContent = fmt(diffSec);
-        state.className = "badge app-badge-soft text-bg-success";
-        state.textContent = "En tiempo";
-        msg.textContent = "Tiempo restante para el próximo análisis.";
-      } else {
-        timerText.textContent = fmt(-diffSec);
-        state.className = "badge app-badge-soft text-bg-danger";
-        state.textContent = "Vencido";
-        msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
-      }
-      updateLast(status.last);
-    }
-
-    if (form) {
-      form.addEventListener("submit", async (ev) => {
-        ev.preventDefault();
-        const submitBtn = form.querySelector("button[type='submit']");
-        if (submitBtn) submitBtn.disabled = true;
-        try {
-          const resp = await fetch(form.getAttribute("action") || window.location.href, {
-            method: "POST",
-            headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
-            body: new FormData(form),
-            credentials: "same-origin",
-          });
-          const payload = await resp.json().catch(() => null);
-          if (!resp.ok || !payload || payload.ok !== true) {
-            throw new Error((payload && (payload.error || payload.message)) || "No se pudo guardar el análisis.");
-          }
-          status = payload.status || status;
-          showFormMessage(payload.message || "Análisis guardado.", "alert-success");
-          form.reset();
-          tick();
-        } catch (err) {
-          showFormMessage((err && err.message) ? err.message : "No se pudo guardar el análisis.", "alert-danger");
-        } finally {
-          if (submitBtn) submitBtn.disabled = false;
-        }
-      });
-    }
-    tick();
-    setInterval(tick, 1000);
-  }
-
   function tickElectrolizador(row) {
     const e = row.electrolizador;
     const timerText = document.getElementById(`timerText-${e}`);
@@ -835,7 +657,6 @@
 
   tickAllTimers();
   setInterval(tickAllTimers, 1000);
-  initAnalisis8hs();
 })();
 </script>
 {% endblock %}

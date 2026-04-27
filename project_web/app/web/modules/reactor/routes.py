@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, send_file, url_for
 from sqlalchemy import select
 
 from app.auth_utils import current_user, login_required, permission_required
 from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS
 from app.extensions import db
 from app.models import ReactorRegistro
+from app.services import salmuera_analisis_8hs_service as analisis8_svc
 from app.services.analysis_ref_pdf import REACTOR_ANALYSIS_REF_SPECS, analysis_ref_ui_rows
 from app.web.modules.produccion.operadores_query import list_operadores_planta
 from app.web.modules.produccion.operativa_context import (
+    compute_turno_from_hour,
     default_operador_for_salmuera,
     now_local,
     operador_display_line,
@@ -24,13 +26,50 @@ from app.web.modules.produccion.reactor_helpers import (
 
 
 def register_reactor_routes(bp: Blueprint) -> None:
+    def _is_ajax_request() -> bool:
+        return (
+            request.headers.get("X-Requested-With", "").lower() == "xmlhttprequest"
+            or "application/json" in request.headers.get("Accept", "").lower()
+        )
+
     @bp.route("/reactor", methods=["GET", "POST"])
     @login_required
     @permission_required("reactor")
     def reactor():
         now_for_defaults = now_local()
         fecha = (request.values.get("fecha") or now_for_defaults.strftime("%Y-%m-%d")).strip()
+        turno_sugerido = compute_turno_from_hour(now_for_defaults.strftime("%H:%M"))
         operador_sugerido = default_operador_for_salmuera()
+        if request.method == "POST" and request.form.get("action") == "guardar_analisis_8hs":
+            try:
+                now = now_local()
+                row = analisis8_svc.create_from_form(
+                    request.form,
+                    now=now,
+                    operador=operador_display_line() or default_operador_for_salmuera(),
+                )
+                db.session.commit()
+                status = analisis8_svc.build_status(now_local())
+                if _is_ajax_request():
+                    return (
+                        jsonify(
+                            {
+                                "ok": True,
+                                "message": "Análisis 8 hs de salmuera guardado.",
+                                "registro": analisis8_svc.row_to_dict(row),
+                                "status": status,
+                            }
+                        ),
+                        200,
+                    )
+                flash("Análisis 8 hs de salmuera guardado.", "success")
+                return redirect(url_for("produccion.reactor", fecha=fecha))
+            except Exception as e:
+                db.session.rollback()
+                if _is_ajax_request():
+                    return jsonify({"ok": False, "error": str(e)}), 400
+                flash(str(e), "danger")
+
         if request.method == "POST":
             try:
                 now = now_local()
@@ -81,11 +120,14 @@ def register_reactor_routes(bp: Blueprint) -> None:
             username=current_user().username if current_user() else "",
             operador_sugerido=operador_sugerido,
             operador_display_line=operador_display_line(),
+            turno_sugerido=turno_sugerido,
             server_now_iso=now_for_defaults.isoformat(timespec="seconds"),
             last_created_at_iso=last_reactor_created_at_iso_for_date(fecha),
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),
             analysis_ref_rows_reactor=analysis_ref_rows_reactor,
             analysis_ref_map_reactor=analysis_ref_map_reactor,
+            analisis8_status=analisis8_svc.build_status(now_local()),
+            analisis8_interval_seconds=analisis8_svc.ANALISIS_8HS_INTERVAL_SECONDS,
         )
 
     @bp.get("/reactor/historial")
@@ -121,4 +163,39 @@ def register_reactor_routes(bp: Blueprint) -> None:
             hasta=hasta,
             registros=[reactor_row_to_dict(r) for r in rows],
             module_title=MODULE_LABELS["reactor"],
+        )
+
+    @bp.get("/reactor/analisis-8hs/historial")
+    @login_required
+    @permission_required("reactor")
+    def salmuera_analisis_8hs_historial():
+        desde = (request.args.get("desde") or "").strip()
+        hasta = (request.args.get("hasta") or "").strip()
+        if desde and hasta and desde > hasta:
+            flash("Rango de fechas inválido: 'desde' no puede ser mayor que 'hasta'.", "warning")
+            desde, hasta = hasta, desde
+        rows = analisis8_svc.filtered_rows(desde, hasta)
+        return render_template(
+            "produccion/salmuera_analisis_8hs_historial.html",
+            desde=desde,
+            hasta=hasta,
+            registros=[analisis8_svc.row_to_dict(r) for r in rows],
+            module_title=MODULE_LABELS["reactor"],
+        )
+
+    @bp.get("/reactor/analisis-8hs/export.xlsx")
+    @login_required
+    @permission_required("reactor")
+    def salmuera_analisis_8hs_export_xlsx():
+        desde = (request.args.get("desde") or "").strip()
+        hasta = (request.args.get("hasta") or "").strip()
+        if desde and hasta and desde > hasta:
+            desde, hasta = hasta, desde
+        buf = analisis8_svc.export_excel(desde, hasta)
+        fname = f"salmuera_analisis_8hs_{now_local().date().isoformat()}.xlsx"
+        return send_file(
+            buf,
+            as_attachment=True,
+            download_name=fname,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )

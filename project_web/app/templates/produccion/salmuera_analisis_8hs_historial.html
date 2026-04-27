@@ -8,7 +8,7 @@
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-success btn-sm" href="{{ url_for('produccion.salmuera_analisis_8hs_export_xlsx') }}{% if desde or hasta %}?{% if desde %}desde={{ desde }}{% endif %}{% if desde and hasta %}&{% endif %}{% if hasta %}hasta={{ hasta }}{% endif %}{% endif %}">Exportar Excel</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.salmuera') }}#analisis8hsSalmuera">← Volver a análisis 8 hs</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.reactor') }}#analisis8hsSalmuera">← Volver a análisis 8 hs</a>
   </div>
 </div>
 
