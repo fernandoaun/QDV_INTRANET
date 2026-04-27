@@ -17,6 +17,10 @@
       <h2>Ingreso de materias primas</h2>
       <p>Registrar entradas, lotes, vencimientos y cantidades.</p>
     </a>
+    <a class="app-module-card" href="{{ url_for('produccion.stock_ingreso', categoria='producto_terminado') }}">
+      <h2>Ingreso de producto terminado</h2>
+      <p>Cargar stock terminado por lote. Para hipoclorito, los ingresos del administrador suman al stock operativo del Panel.</p>
+    </a>
     {% endif %}
     {% if user_can_stock_ingreso_lab %}
     <a class="app-module-card" href="{{ url_for('produccion.stock_ingreso', categoria='laboratorio') }}">

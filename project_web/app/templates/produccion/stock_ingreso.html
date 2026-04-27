@@ -4,7 +4,9 @@
 <div class="app-stock-module">
   <div class="app-page-head">
     <div>
-      <h1 class="app-page-title">Ingreso de stock</h1>
+      <h1 class="app-page-title">
+        {% if categoria_sel == 'producto_terminado' %}Ingreso de producto terminado{% elif categoria_sel == 'laboratorio' %}Ingreso de laboratorio{% else %}Ingreso de materias primas{% endif %}
+      </h1>
       <p class="app-intro mb-0">Registrá cada <strong>lote</strong> como una línea de ingreso. El <strong>stock mínimo de alerta</strong> se define en el <a href="{{ url_for('produccion.stock_catalogo_lista') }}">catálogo de productos</a> al dar de alta el producto (o lo edita un administrador). Con categoría <strong>producto terminado</strong> e hipoclorito (nombre alineado al catálogo, p. ej. «Hipoclorito» o «Hipoclorito de Sodio»), un ingreso registrado con <strong>usuario administrador</strong> suma al <strong>stock instantáneo (operativo)</strong> del Panel (desde el inicio de turno) y en todo caso figura en <strong>Existencias</strong> por lote.</p>
     </div>
     <div class="app-page-actions">
@@ -12,10 +14,22 @@
     </div>
   </div>
 
+  {% if categoria_sel == 'producto_terminado' %}
+  <div class="alert alert-info" role="status">
+    Estás cargando <strong>stock de producto terminado</strong>. Completá producto, marca, lote, cantidad y fecha/hora del ingreso. Si es hipoclorito y lo carga un administrador, este ingreso también suma al stock operativo usado por el Panel y por Entregas.
+  </div>
+  {% endif %}
+
   <div class="app-card">
     <div class="app-card-header app-card-header--stack">
       <h2 class="app-card-header-title">Formulario de ingreso</h2>
-      <p class="app-card-desc">Producto (idealmente elegido del catálogo), marca, lote, vencimiento, cantidad, unidad, fecha/hora y referencias opcionales.</p>
+      <p class="app-card-desc">
+        {% if categoria_sel == 'producto_terminado' %}
+        Usá la categoría <strong>Producto terminado</strong>; el producto conviene elegirlo del catálogo para que coincida con existencias, Panel y Entregas.
+        {% else %}
+        Producto (idealmente elegido del catálogo), marca, lote, vencimiento, cantidad, unidad, fecha/hora y referencias opcionales.
+        {% endif %}
+      </p>
     </div>
     <div class="app-card-body">
       <form method="post" class="row g-3">
