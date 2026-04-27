@@ -1,14 +1,18 @@
 {% extends "base.html" %}
+{% from "produccion/_analysis_ref_flask.html" import analysis_ref_flask_button %}
 {% block title %}Historial análisis 8 hs · {{ module_title }} · QDV{% endblock %}
 {% block content %}
+{% set hist_export_endpoint = history_export_endpoint | default('produccion.salmuera_analisis_8hs_export_xlsx') %}
+{% set hist_clear_endpoint = history_clear_endpoint | default('produccion.salmuera_analisis_8hs_historial') %}
+{% set hist_back_endpoint = history_back_endpoint | default('produccion.reactor') %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Historial · Análisis 8 hs – Dureza y Cloro Libre</h1>
     <p class="app-intro mb-0">Registros independientes del control principal de Circuito de Salmuera.</p>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
-    <a class="btn btn-outline-success btn-sm" href="{{ url_for('produccion.salmuera_analisis_8hs_export_xlsx') }}{% if desde or hasta %}?{% if desde %}desde={{ desde }}{% endif %}{% if desde and hasta %}&{% endif %}{% if hasta %}hasta={{ hasta }}{% endif %}{% endif %}">Exportar Excel</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.reactor') }}#analisis8hsSalmuera">← Volver a análisis 8 hs</a>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for(hist_export_endpoint) }}{% if desde or hasta %}?{% if desde %}desde={{ desde }}{% endif %}{% if desde and hasta %}&{% endif %}{% if hasta %}hasta={{ hasta }}{% endif %}{% endif %}">Exportar Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for(hist_back_endpoint) }}#analisis8hsSalmuera">← Volver a análisis 8 hs</a>
   </div>
 </div>
 
@@ -23,7 +27,7 @@
   </div>
   <div class="d-flex flex-wrap gap-2 pb-1">
     <button type="submit" class="btn btn-primary">Aplicar filtro</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('produccion.salmuera_analisis_8hs_historial') }}">Limpiar</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for(hist_clear_endpoint) }}">Limpiar</a>
   </div>
 </form>
 
@@ -42,6 +46,7 @@
           <th>Operador</th>
           <th class="text-end">Dureza</th>
           <th class="text-end">Cloro libre</th>
+          <th>Archivos</th>
           <th>Observaciones</th>
         </tr>
       </thead>
@@ -54,13 +59,63 @@
           <td>{{ r.operador }}</td>
           <td class="text-end">{{ r.dureza_salmuera }}</td>
           <td class="text-end">{{ r.cloro_libre_salmuera }}</td>
+          <td>
+            <div class="d-flex gap-1 align-items-center">
+              {{ analysis_ref_flask_button('salmuera_analisis_8hs_dureza_' ~ r.id, r.file_dureza_present, 'analisis8HistDureza-' ~ r.id, 'Dureza de salmuera') }}
+              {{ analysis_ref_flask_button('salmuera_analisis_8hs_cloro_' ~ r.id, r.file_cloro_libre_present, 'analisis8HistCloro-' ~ r.id, 'Cloro libre en salmuera') }}
+              {% if r.file_dureza_missing or r.file_cloro_libre_missing %}
+              <span class="badge text-bg-warning app-badge-soft">archivo faltante</span>
+              {% endif %}
+            </div>
+          </td>
           <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
+        <tr><td colspan="8" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% for r in registros %}
+{% for field_name, dialog_id, title, present, missing in [
+  ('dureza', 'analisis8HistDureza-' ~ r.id, 'Dureza de salmuera', r.file_dureza_present, r.file_dureza_missing),
+  ('cloro_libre', 'analisis8HistCloro-' ~ r.id, 'Cloro libre en salmuera', r.file_cloro_libre_present, r.file_cloro_libre_missing)
+] %}
+<dialog id="{{ dialog_id }}" class="analysis-ref-dialog" aria-modal="true" aria-labelledby="{{ dialog_id }}Label">
+  <div class="analysis-ref-dialog-surface">
+    <div class="analysis-ref-dialog-header">
+      <h2 class="analysis-ref-dialog-title fs-6 mb-0" id="{{ dialog_id }}Label">Archivo de laboratorio — {{ title }}</h2>
+      <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
+    </div>
+    <div class="analysis-ref-dialog-body">
+      <p class="small text-muted mb-2">Registro #{{ r.id }} · {{ r.fecha }} {{ r.hora }} · Turno {{ r.turno }}</p>
+      {% if present %}
+      <a class="btn btn-outline-primary btn-sm mb-2" href="{{ url_for('produccion.salmuera_analisis_8hs_archivo', registro_id=r.id, field=field_name) }}" target="_blank" rel="noopener">Abrir / ver archivo</a>
+      {% elif missing %}
+      <div class="alert alert-warning py-2 small">Hay una ruta guardada, pero el archivo no existe en disco. El sistema continúa operativo.</div>
+      {% else %}
+      <p class="small mb-2">No hay archivo cargado.</p>
+      {% endif %}
+      <hr class="my-3">
+      <form method="post" action="{{ url_for('produccion.salmuera_analisis_8hs_archivo', registro_id=r.id, field=field_name) }}" enctype="multipart/form-data" class="mb-2">
+        {% include "_csrf.html" %}
+        <label class="form-label small mb-1">Subir o reemplazar (PDF o imagen)</label>
+        <input type="file" name="archivo" class="form-control form-control-sm" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,application/pdf,image/*">
+        <button type="submit" class="btn btn-primary btn-sm mt-2">Subir / reemplazar</button>
+      </form>
+      {% if (present or missing) and nav_user and nav_user.is_admin %}
+      <form method="post" action="{{ url_for('produccion.salmuera_analisis_8hs_archivo', registro_id=r.id, field=field_name) }}" class="mt-2" onsubmit="return confirm('¿Eliminar el archivo de {{ title }}?');">
+        {% include "_csrf.html" %}
+        <input type="hidden" name="action" value="delete">
+        <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar archivo</button>
+      </form>
+      {% elif present or missing %}
+      <p class="small text-muted mb-0 mt-2">Solo administradores pueden eliminar este archivo.</p>
+      {% endif %}
+    </div>
+  </div>
+</dialog>
+{% endfor %}
+{% endfor %}
 {% endblock %}

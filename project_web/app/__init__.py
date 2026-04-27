@@ -306,9 +306,8 @@ def create_app() -> Flask:
     if get_config_name() == "production" and not (app.config.get("APP_UPLOAD_ROOT") or "").strip():
         app.logger.warning(
             "APP_UPLOAD_ROOT no está definido: PDFs de referencia (erlenmeyer) y adjuntos de reactivos se "
-            "guardan bajo instance/uploads. En hosts con filesystem efímero (p. ej. Render sin disco persistente) "
-            "esos archivos se pierden al redesplegar aunque la base de datos siga intacta. "
-            "Definí APP_UPLOAD_ROOT apuntando a un volumen persistente; ver DEPLOY_RENDER.md."
+            "guardan en la carpeta persistente del usuario (%APPDATA%/QDV/erlenmeyer o ~/.qdv/erlenmeyer). "
+            "En PaaS seguí definiendo APP_UPLOAD_ROOT apuntando a un volumen persistente; ver DEPLOY_RENDER.md."
         )
 
     return app

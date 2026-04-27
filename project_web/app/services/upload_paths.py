@@ -5,9 +5,9 @@ En PaaS (p. ej. Render) el código se despliega en un filesystem **efímero**: t
 no esté en la imagen o en un **disco persistente** se pierde al redesplegar.
 
 - Escritura: siempre en `APP_UPLOAD_ROOT` si está definido; si no, en
-  `<instance_path>/uploads` (adecuado solo en desarrollo o servidor con disco estable).
-- Lectura: se prueba esa raíz y luego cada ruta en `APP_UPLOADS_READ_FALLBACK_PATHS`
-  (copias de respaldo o migraciones), para no perder vínculo si el archivo existe en otro sitio.
+  `%APPDATA%/QDV/erlenmeyer` (o `~/.qdv/erlenmeyer` fuera de Windows), fuera del código.
+- Lectura: se prueba esa raíz, luego el legado `<instance_path>/uploads`, y después cada
+  ruta en `APP_UPLOADS_READ_FALLBACK_PATHS` para no perder vínculo si el archivo existe en otro sitio.
 """
 
 from __future__ import annotations
@@ -16,6 +16,13 @@ import os
 from pathlib import Path
 
 from flask import current_app
+
+
+def _default_persistent_upload_root() -> Path:
+    appdata = (os.environ.get("APPDATA") or "").strip()
+    if appdata:
+        return Path(appdata).expanduser() / "QDV" / "erlenmeyer"
+    return Path.home() / ".qdv" / "erlenmeyer"
 
 
 def uploads_workspace_root() -> Path:
@@ -29,12 +36,16 @@ def uploads_workspace_root() -> Path:
         base = Path(raw).expanduser().resolve()
         base.mkdir(parents=True, exist_ok=True)
         return base
-    return Path(current_app.instance_path).resolve() / "uploads"
+    base = _default_persistent_upload_root().resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    return base
 
 
 def uploads_read_roots() -> list[Path]:
     """Orden: raíz de trabajo primero, luego fallbacks de solo lectura."""
     roots: list[Path] = [uploads_workspace_root()]
+    legacy_instance_uploads = Path(current_app.instance_path).resolve() / "uploads"
+    roots.append(legacy_instance_uploads)
     raw = (os.environ.get("APP_UPLOADS_READ_FALLBACK_PATHS") or "").strip()
     for part in raw.split(","):
         p = part.strip()

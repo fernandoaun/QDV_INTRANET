@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from io import BytesIO
 import re
 
 
@@ -71,3 +72,46 @@ def test_salmuera_analisis_8hs_requires_numeric_values(auth_client):
     payload = resp.get_json()
     assert payload["ok"] is False
     assert "Dureza de salmuera es obligatorio" in payload["error"]
+
+
+def test_salmuera_analisis_8hs_salmuera_page_and_file_upload(app, auth_client, tmp_path):
+    from app.extensions import db
+    from app.models import SalmueraAnalisis8hs
+
+    app.config["APP_UPLOAD_ROOT"] = str(tmp_path / "uploads")
+
+    page = auth_client.get("/produccion/salmuera")
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert "Análisis 8 hs – Dureza y Cloro Libre" in html
+    assert "analisis8DurezaFileDialog" in html
+
+    resp = auth_client.post(
+        "/produccion/salmuera",
+        data={
+            "csrf_token": _csrf(html),
+            "action": "guardar_analisis_8hs",
+            "dureza_salmuera": "99.5",
+            "cloro_libre_salmuera": "0.2",
+            "observaciones": "Con archivo",
+            "file_dureza": (BytesIO(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF"), "dureza.pdf"),
+        },
+        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 200
+
+    with app.app_context():
+        row = db.session.query(SalmueraAnalisis8hs).one()
+        assert row.file_dureza_path
+        assert (tmp_path / "uploads" / row.file_dureza_path).is_file()
+        row_id = row.id
+
+    hist = auth_client.get("/produccion/salmuera/analisis-8hs/historial")
+    assert hist.status_code == 200
+    hist_html = hist.get_data(as_text=True)
+    assert "Abrir / ver archivo" in hist_html
+
+    file_resp = auth_client.get(f"/produccion/salmuera/analisis-8hs/{row_id}/archivo/dureza")
+    assert file_resp.status_code == 200
+    assert file_resp.mimetype == "application/pdf"

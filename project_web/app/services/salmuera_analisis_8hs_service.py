@@ -2,15 +2,31 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from io import BytesIO
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import select
 
 from app.extensions import db
 from app.models import SalmueraAnalisis8hs
+from app.services.upload_paths import resolve_under_upload_roots, uploads_workspace_root
 from app.web.modules.produccion.operativa_context import compute_turno_from_hour
 
 ANALISIS_8HS_INTERVAL_SECONDS = 8 * 60 * 60
+ATTACHMENT_FIELDS = {
+    "dureza": {
+        "column": "file_dureza_path",
+        "file_input": "file_dureza",
+        "label": "Dureza de salmuera",
+    },
+    "cloro_libre": {
+        "column": "file_cloro_libre_path",
+        "file_input": "file_cloro_libre",
+        "label": "Cloro libre en salmuera",
+    },
+}
+_ALLOWED_ATTACHMENT_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif"}
 
 
 def _parse_float_required(raw: str | None, label: str) -> float:
@@ -26,7 +42,103 @@ def _parse_float_required(raw: str | None, label: str) -> float:
     return v
 
 
+def _attachment_relative_path(row_id: int, field: str, stored_filename: str) -> Path:
+    return Path("salmuera_analisis_8hs") / str(int(row_id)) / field / stored_filename
+
+
+def _attachment_storage_dir(row_id: int, field: str) -> Path:
+    p = uploads_workspace_root() / "salmuera_analisis_8hs" / str(int(row_id)) / field
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _safe_original_name(filename: str) -> str:
+    base = Path(filename).name.strip()
+    return (base or "analisis.pdf")[:200]
+
+
+def _validate_attachment_upload(fs: Any) -> tuple[str, str]:
+    if fs is None or not getattr(fs, "filename", None):
+        raise ValueError("Seleccioná un archivo PDF o imagen.")
+    original = _safe_original_name(str(fs.filename or ""))
+    ext = Path(original).suffix.lower()
+    if ext not in _ALLOWED_ATTACHMENT_EXTENSIONS:
+        raise ValueError("Solo se permiten archivos PDF o imagen.")
+    content_type = (getattr(fs, "content_type", None) or "").lower()
+    head = fs.read(16)
+    fs.seek(0)
+    if ext == ".pdf":
+        if content_type and "pdf" not in content_type:
+            raise ValueError("El archivo no es un PDF válido (tipo MIME).")
+        if len(head) < 4 or head[:4] != b"%PDF":
+            raise ValueError("El contenido no es un PDF válido.")
+        return original, ".pdf"
+    if content_type and not content_type.startswith("image/"):
+        raise ValueError("El archivo no es una imagen válida (tipo MIME).")
+    return original, ext
+
+
+def attachment_resolve_path(row: SalmueraAnalisis8hs, field: str) -> Path | None:
+    meta = ATTACHMENT_FIELDS.get(field)
+    if meta is None:
+        raise ValueError("Campo de adjunto inválido.")
+    raw = (getattr(row, str(meta["column"])) or "").strip()
+    if not raw:
+        return None
+    return resolve_under_upload_roots(Path(raw))
+
+
+def attachment_exists(row: SalmueraAnalisis8hs, field: str) -> bool:
+    return attachment_resolve_path(row, field) is not None
+
+
+def save_attachment(row: SalmueraAnalisis8hs, field: str, fs: Any) -> None:
+    meta = ATTACHMENT_FIELDS.get(field)
+    if meta is None:
+        raise ValueError("Campo de adjunto inválido.")
+    if fs is None or not getattr(fs, "filename", None):
+        return
+    _original, ext = _validate_attachment_upload(fs)
+    old = attachment_resolve_path(row, field)
+    stored = f"{uuid4().hex}{ext}"
+    dest = _attachment_storage_dir(int(row.id), field) / stored
+    rel = _attachment_relative_path(int(row.id), field, stored)
+    try:
+        fs.save(str(dest))
+    except Exception:
+        try:
+            dest.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+    if old is not None:
+        try:
+            old.unlink(missing_ok=True)
+        except OSError:
+            pass
+    setattr(row, str(meta["column"]), rel.as_posix())
+
+
+def delete_attachment(row: SalmueraAnalisis8hs, field: str) -> bool:
+    meta = ATTACHMENT_FIELDS.get(field)
+    if meta is None:
+        raise ValueError("Campo de adjunto inválido.")
+    fp = attachment_resolve_path(row, field)
+    if fp is not None:
+        try:
+            fp.unlink(missing_ok=True)
+        except OSError:
+            pass
+    had_value = bool((getattr(row, str(meta["column"])) or "").strip())
+    setattr(row, str(meta["column"]), None)
+    return had_value
+
+
 def row_to_dict(row: SalmueraAnalisis8hs) -> dict[str, Any]:
+    dureza_has_path = bool((row.file_dureza_path or "").strip())
+    cloro_has_path = bool((row.file_cloro_libre_path or "").strip())
+    dureza_exists = attachment_exists(row, "dureza")
+    cloro_exists = attachment_exists(row, "cloro_libre")
     return {
         "id": int(row.id),
         "fecha": row.fecha,
@@ -37,11 +149,17 @@ def row_to_dict(row: SalmueraAnalisis8hs) -> dict[str, Any]:
         "dureza_salmuera": float(row.dureza_salmuera),
         "cloro_libre_salmuera": float(row.cloro_libre_salmuera),
         "observaciones": row.observaciones or "",
+        "file_dureza_path": row.file_dureza_path or "",
+        "file_cloro_libre_path": row.file_cloro_libre_path or "",
+        "file_dureza_present": dureza_has_path and dureza_exists,
+        "file_cloro_libre_present": cloro_has_path and cloro_exists,
+        "file_dureza_missing": dureza_has_path and not dureza_exists,
+        "file_cloro_libre_missing": cloro_has_path and not cloro_exists,
         "created_at_iso": row.created_at_iso,
     }
 
 
-def create_from_form(form: Any, *, now: datetime, operador: str) -> SalmueraAnalisis8hs:
+def create_from_form(form: Any, *, now: datetime, operador: str, files: Any | None = None) -> SalmueraAnalisis8hs:
     dureza = _parse_float_required(form.get("dureza_salmuera"), "Dureza de salmuera")
     cloro = _parse_float_required(form.get("cloro_libre_salmuera"), "Cloro libre en salmuera")
     fecha = now.strftime("%Y-%m-%d")
@@ -60,6 +178,9 @@ def create_from_form(form: Any, *, now: datetime, operador: str) -> SalmueraAnal
     )
     db.session.add(row)
     db.session.flush()
+    if files is not None:
+        for field, meta in ATTACHMENT_FIELDS.items():
+            save_attachment(row, field, files.get(str(meta["file_input"])))
     return row
 
 
@@ -128,6 +249,8 @@ def export_excel(fecha_desde: str = "", fecha_hasta: str = "") -> BytesIO:
         "Operador",
         "Dureza de salmuera",
         "Cloro libre en salmuera",
+        "Archivo dureza",
+        "Archivo cloro libre",
         "Observaciones",
         "Fecha/hora ISO",
         "Creado",
@@ -150,6 +273,8 @@ def export_excel(fecha_desde: str = "", fecha_hasta: str = "") -> BytesIO:
             row.operador,
             float(row.dureza_salmuera),
             float(row.cloro_libre_salmuera),
+            row.file_dureza_path or "",
+            row.file_cloro_libre_path or "",
             row.observaciones or "",
             row.fecha_hora_iso,
             row.created_at_iso,

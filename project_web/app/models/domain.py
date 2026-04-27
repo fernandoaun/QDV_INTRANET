@@ -51,6 +51,8 @@ class SalmueraAnalisis8hs(db.Model):
     dureza_salmuera = db.Column(db.Float, nullable=False)
     cloro_libre_salmuera = db.Column(db.Float, nullable=False)
     observaciones = db.Column(db.Text)
+    file_dureza_path = db.Column(db.Text)
+    file_cloro_libre_path = db.Column(db.Text)
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 
