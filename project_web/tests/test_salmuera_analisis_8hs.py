@@ -19,7 +19,7 @@ def test_salmuera_analisis_8hs_create_history_and_export(app, auth_client):
     html = page.get_data(as_text=True)
     assert "Análisis 8 hs" in html
     assert "Dureza y Cloro Libre" in html
-    assert "analisis8DurezaFileDialog" in html
+    assert "analysisRefModalAnalisis8Dureza" in html
 
     resp = auth_client.post(
         "/produccion/reactor",
@@ -85,7 +85,22 @@ def test_salmuera_analisis_8hs_salmuera_page_and_file_upload(app, auth_client, t
     assert page.status_code == 200
     html = page.get_data(as_text=True)
     assert "Análisis 8 hs – Dureza y Cloro Libre" in html
-    assert "analisis8DurezaFileDialog" in html
+    assert "analysisRefModalAnalisis8Dureza" in html
+
+    upload = auth_client.post(
+        "/produccion/documentos/analisis-ref/salmuera_analisis_8hs_dureza_pdf",
+        data={
+            "csrf_token": _csrf(html),
+            "pdf": (BytesIO(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF"), "dureza.pdf"),
+        },
+        content_type="multipart/form-data",
+    )
+    assert upload.status_code in (302, 303)
+
+    page_after_upload = auth_client.get("/produccion/salmuera")
+    html_after_upload = page_after_upload.get_data(as_text=True)
+    assert 'data-analysis-ref-doc="salmuera_analisis_8hs_dureza_pdf"' in html_after_upload
+    assert "analysis-ref-flask-btn--ok" in html_after_upload
 
     resp = auth_client.post(
         "/produccion/salmuera",
@@ -95,27 +110,27 @@ def test_salmuera_analisis_8hs_salmuera_page_and_file_upload(app, auth_client, t
             "dureza_salmuera": "99.5",
             "cloro_libre_salmuera": "0.2",
             "observaciones": "Con archivo",
-            "file_dureza": (BytesIO(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF"), "dureza.pdf"),
         },
         headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
-        content_type="multipart/form-data",
     )
     assert resp.status_code == 200
 
     with app.app_context():
         row = db.session.query(SalmueraAnalisis8hs).one()
-        assert row.file_dureza_path
-        assert (tmp_path / "uploads" / row.file_dureza_path).is_file()
+        assert not row.file_dureza_path
         row_id = row.id
 
     hist = auth_client.get("/produccion/salmuera/analisis-8hs/historial")
     assert hist.status_code == 200
     hist_html = hist.get_data(as_text=True)
-    assert "Abrir / ver archivo" in hist_html
+    assert "No hay archivo cargado." in hist_html
 
-    file_resp = auth_client.get(f"/produccion/salmuera/analisis-8hs/{row_id}/archivo/dureza")
+    file_resp = auth_client.get("/produccion/documentos/analisis-ref/salmuera_analisis_8hs_dureza_pdf")
     assert file_resp.status_code == 200
     assert file_resp.mimetype == "application/pdf"
+
+    missing_record_file_resp = auth_client.get(f"/produccion/salmuera/analisis-8hs/{row_id}/archivo/dureza")
+    assert missing_record_file_resp.status_code == 404
 
 
 def test_salmuera_analisis_8hs_non_admin_cannot_upload_pdf(app, client, tmp_path):
@@ -156,7 +171,7 @@ def test_salmuera_analisis_8hs_non_admin_cannot_upload_pdf(app, client, tmp_path
     page = client.get("/produccion/reactor")
     assert page.status_code == 200
     html = page.get_data(as_text=True)
-    assert "Solo administradores pueden subir o reemplazar este PDF" in html
+    assert "Solo administradores pueden subir o eliminar este documento" in html
     assert 'name="file_dureza"' not in html
 
     resp = client.post(

@@ -19,6 +19,11 @@ from app.services.analysis_ref_pdf import (
 from app.web.modules.produccion.operativa_context import now_local
 
 
+def _user_can_any_document_permission(u: Any, raw_permission: Any) -> bool:
+    permissions = raw_permission if isinstance(raw_permission, (tuple, list, set, frozenset)) else (raw_permission,)
+    return any(user_can(u, str(permission)) for permission in permissions)
+
+
 def reference_pdf_safe_original_name(filename: str) -> str:
     base = Path(filename).name.strip()
     if not base:
@@ -53,7 +58,7 @@ def handle_analysis_ref_pdf_request(doc_key: str) -> Response:
         abort(404)
 
     u = current_user()
-    if u is None or not user_can(u, str(meta["permission"])):
+    if u is None or not _user_can_any_document_permission(u, meta["permission"]):
         flash("No tenés permiso para acceder a este documento.", "danger")
         return redirect(url_for("main.dashboard"))
 

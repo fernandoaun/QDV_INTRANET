@@ -67,7 +67,6 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                     request.form,
                     now=now,
                     operador=operador_display_line() or default_operador_for_salmuera(),
-                    files=request.files if (current_user() and current_user().is_admin) else None,
                 )
                 db.session.commit()
                 status = analisis8_svc.build_status(now_local())

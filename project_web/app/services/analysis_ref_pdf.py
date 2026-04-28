@@ -21,6 +21,8 @@ from sqlalchemy import select
 
 # Clave original (no renombrar; ya puede existir fila y archivos en disco).
 HIPO_CONC_PDF_DOC_KEY = "salmuera_hipo_conc_pdf"
+ANALISIS_8HS_DUREZA_PDF_DOC_KEY = "salmuera_analisis_8hs_dureza_pdf"
+ANALISIS_8HS_CLORO_LIBRE_PDF_DOC_KEY = "salmuera_analisis_8hs_cloro_libre_pdf"
 
 _ANALYSIS_REF_PDF_REGISTRY: dict[str, dict[str, Any]] = {
     HIPO_CONC_PDF_DOC_KEY: {
@@ -42,6 +44,20 @@ _ANALYSIS_REF_PDF_REGISTRY: dict[str, dict[str, Any]] = {
         "redirect_endpoint": "produccion.salmuera",
         "modal_title": "Soda conc",
         "flash_label": "Soda conc",
+        "legacy_hipo_dir": False,
+    },
+    ANALISIS_8HS_DUREZA_PDF_DOC_KEY: {
+        "permission": ("salmuera", "reactor"),
+        "redirect_endpoint": "produccion.salmuera",
+        "modal_title": "Dureza de salmuera",
+        "flash_label": "Dureza de salmuera",
+        "legacy_hipo_dir": False,
+    },
+    ANALISIS_8HS_CLORO_LIBRE_PDF_DOC_KEY: {
+        "permission": ("salmuera", "reactor"),
+        "redirect_endpoint": "produccion.salmuera",
+        "modal_title": "Cloro libre en salmuera",
+        "flash_label": "Cloro libre en salmuera",
         "legacy_hipo_dir": False,
     },
     "reactor_exceso_naoh_pdf": {
@@ -124,11 +140,15 @@ SALMUERA_ANALYSIS_REF_SPECS: tuple[dict[str, str], ...] = (
     {"doc_key": HIPO_CONC_PDF_DOC_KEY, "modal_id": "analysisRefModalSalmueraHipoConc", "label": "Hipo conc"},
     {"doc_key": "salmuera_hipo_exceso_soda_pdf", "modal_id": "analysisRefModalSalmueraHipoExcesoSoda", "label": "Hipo exceso soda"},
     {"doc_key": "salmuera_soda_conc_pdf", "modal_id": "analysisRefModalSalmueraSodaConc", "label": "Soda conc"},
+    {"doc_key": ANALISIS_8HS_DUREZA_PDF_DOC_KEY, "modal_id": "analysisRefModalAnalisis8Dureza", "label": "Dureza de salmuera"},
+    {"doc_key": ANALISIS_8HS_CLORO_LIBRE_PDF_DOC_KEY, "modal_id": "analysisRefModalAnalisis8CloroLibre", "label": "Cloro libre en salmuera"},
 )
 
 REACTOR_ANALYSIS_REF_SPECS: tuple[dict[str, str], ...] = (
     {"doc_key": "reactor_exceso_naoh_pdf", "modal_id": "analysisRefModalReactorExcesoNaoh", "label": "Exceso NaOH"},
     {"doc_key": "reactor_exceso_na2co3_pdf", "modal_id": "analysisRefModalReactorExcesoNa2co3", "label": "Exceso Na₂CO₃"},
+    {"doc_key": ANALISIS_8HS_DUREZA_PDF_DOC_KEY, "modal_id": "analysisRefModalAnalisis8Dureza", "label": "Dureza de salmuera"},
+    {"doc_key": ANALISIS_8HS_CLORO_LIBRE_PDF_DOC_KEY, "modal_id": "analysisRefModalAnalisis8CloroLibre", "label": "Cloro libre en salmuera"},
 )
 
 AGUA_ANALYSIS_REF_SPECS: tuple[dict[str, str], ...] = (

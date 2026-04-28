@@ -71,16 +71,18 @@
             <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
           </div>
           <div class="col-md-4">
+            {% set ar_analisis8_dureza = analysis_ref_map_salmuera['salmuera_analisis_8hs_dureza_pdf'] %}
             <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1" for="analisis8Dureza">
               <span>Dureza de salmuera</span>
-              {{ analysis_ref_flask_button('salmuera_analisis_8hs_dureza_nuevo', false, 'analisis8DurezaFileDialog', 'Dureza de salmuera') }}
+              {{ analysis_ref_flask_button(ar_analisis8_dureza.doc_key, ar_analisis8_dureza.pdf_present, ar_analisis8_dureza.modal_id, ar_analisis8_dureza.label) }}
             </label>
             <input class="form-control" id="analisis8Dureza" name="dureza_salmuera" type="number" step="any" required inputmode="decimal">
           </div>
           <div class="col-md-4">
+            {% set ar_analisis8_cloro = analysis_ref_map_salmuera['salmuera_analisis_8hs_cloro_libre_pdf'] %}
             <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1" for="analisis8Cloro">
               <span>Cloro libre en salmuera</span>
-              {{ analysis_ref_flask_button('salmuera_analisis_8hs_cloro_nuevo', false, 'analisis8CloroFileDialog', 'Cloro libre en salmuera') }}
+              {{ analysis_ref_flask_button(ar_analisis8_cloro.doc_key, ar_analisis8_cloro.pdf_present, ar_analisis8_cloro.modal_id, ar_analisis8_cloro.label) }}
             </label>
             <input class="form-control" id="analisis8Cloro" name="cloro_libre_salmuera" type="number" step="any" required inputmode="decimal">
           </div>
@@ -336,38 +338,6 @@
 {% for ar in analysis_ref_rows_salmuera %}
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
-<dialog id="analisis8DurezaFileDialog" class="analysis-ref-dialog" aria-modal="true" aria-labelledby="analisis8DurezaFileDialogLabel">
-  <div class="analysis-ref-dialog-surface">
-    <div class="analysis-ref-dialog-header">
-      <h2 class="analysis-ref-dialog-title fs-6 mb-0" id="analisis8DurezaFileDialogLabel">Archivo de laboratorio — Dureza de salmuera</h2>
-      <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
-    </div>
-    <div class="analysis-ref-dialog-body">
-      {% if nav_user and nav_user.is_admin %}
-      <p class="small text-muted mb-2">Adjuntá un PDF. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
-      <input type="file" name="file_dureza" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,application/pdf" data-analisis8-file-input="dureza">
-      {% else %}
-      <p class="small text-muted mb-0">Solo administradores pueden subir o reemplazar este PDF. Los demás perfiles pueden verlo desde el historial cuando esté cargado.</p>
-      {% endif %}
-    </div>
-  </div>
-</dialog>
-<dialog id="analisis8CloroFileDialog" class="analysis-ref-dialog" aria-modal="true" aria-labelledby="analisis8CloroFileDialogLabel">
-  <div class="analysis-ref-dialog-surface">
-    <div class="analysis-ref-dialog-header">
-      <h2 class="analysis-ref-dialog-title fs-6 mb-0" id="analisis8CloroFileDialogLabel">Archivo de laboratorio — Cloro libre en salmuera</h2>
-      <button type="button" class="btn-close" data-analysis-ref-close aria-label="Cerrar"></button>
-    </div>
-    <div class="analysis-ref-dialog-body">
-      {% if nav_user and nav_user.is_admin %}
-      <p class="small text-muted mb-2">Adjuntá un PDF. El archivo se guarda junto al registro al presionar “Guardar análisis 8 hs”.</p>
-      <input type="file" name="file_cloro_libre" form="analisis8Form" class="form-control form-control-sm" accept=".pdf,application/pdf" data-analisis8-file-input="cloro">
-      {% else %}
-      <p class="small text-muted mb-0">Solo administradores pueden subir o reemplazar este PDF. Los demás perfiles pueden verlo desde el historial cuando esté cargado.</p>
-      {% endif %}
-    </div>
-  </div>
-</dialog>
 
 <script>
 (() => {
@@ -456,23 +426,6 @@
     updateLast(status.last);
   }
 
-  function resetFileButtons() {
-    document.querySelectorAll("[data-analysis-ref-doc^='salmuera_analisis_8hs_']").forEach((btn) => {
-      btn.classList.remove("analysis-ref-flask-btn--ok");
-      btn.classList.add("analysis-ref-flask-btn--empty");
-    });
-  }
-
-  document.querySelectorAll("[data-analisis8-file-input]").forEach((input) => {
-    input.addEventListener("change", () => {
-      const key = input.getAttribute("data-analisis8-file-input") === "dureza" ? "dureza" : "cloro";
-      const btn = document.querySelector(`[data-analysis-ref-doc="salmuera_analisis_8hs_${key}_nuevo"]`);
-      if (!btn) return;
-      btn.classList.toggle("analysis-ref-flask-btn--ok", !!input.files.length);
-      btn.classList.toggle("analysis-ref-flask-btn--empty", !input.files.length);
-    });
-  });
-
   if (form) {
     form.addEventListener("submit", async (ev) => {
       ev.preventDefault();
@@ -492,7 +445,6 @@
         status = payload.status || status;
         showFormMessage(payload.message || "Análisis guardado.", "alert-success");
         form.reset();
-        resetFileButtons();
         tick();
       } catch (err) {
         showFormMessage((err && err.message) ? err.message : "No se pudo guardar el análisis.", "alert-danger");
