@@ -8,7 +8,7 @@ Definición obligatoria (no mezclar con otras fórmulas):
 **PRODUCCIÓN (último turno con cierre recepcionado)**
   = stock final − stock inicial + cargas en el turno − ingresos PT admin en el turno
   = `hypochlorite` del cierre de ese partido − cierre inmediatamente anterior
-    + entregas «cargada» hipo con `cargada_at_iso` en [inicio, cierre del turno]
+    + entregas hipo con `cargada_at_iso` en [inicio, cierre del turno]
     − `sum_hipo_administrador_pt_ingresos` en el mismo intervalo
   (las cargas bajaron el stock y se re-suman; los ingresos admin lo inflaron y se restan.)
 
@@ -23,7 +23,7 @@ Definición obligatoria (no mezclar con otras fórmulas):
 - Inicio operativo (ancla T0): inicio de sesión de turno del `ShiftHandover` pendiente de
   recepción si existe; si no, `started_at_iso` de la `ShiftSession` abierta; si no hay
   ni pendiente ni sesión, `received_at_iso` del último turno recepcionado.
-- Cargas: `Entrega` con estado `cargada`, producto hipoclorito, `cargada_at_iso` en [T0, ahora].
+- Cargas: `Entrega` de hipoclorito con `cargada_at_iso` en [T0, ahora].
 - Ingresos administrativos: `ingresos_stock` PT + join a `User.is_admin` + ventana de tiempo.
 
 Las entregas «programada» se comparan con el techo de stock instantáneo
@@ -118,7 +118,7 @@ def sum_hipo_administrador_pt_ingresos_in_interval(
 
 def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_inclusive: str | None) -> float:
     """
-    Suma `Entrega.cantidad` (litros) para entregas marcadas cargadas de hipoclorito,
+    Suma `Entrega.cantidad` (litros) para entregas de hipoclorito ya cargadas en camión,
     con `cargada_at_iso` en el intervalo inclusivo [from, to]. Si to es None, hasta `now_local_iso()`.
     """
     t_from = (cargada_from_iso or "").strip()
@@ -132,7 +132,6 @@ def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_i
         return 0.0
     total = db.session.scalar(
         select(func.coalesce(func.sum(Entrega.cantidad), 0.0)).where(
-            Entrega.estado == "cargada",
             Entrega.cargada_at_iso.isnot(None),
             func.trim(Entrega.cargada_at_iso) != "",
             Entrega.cargada_at_iso >= t_from,
