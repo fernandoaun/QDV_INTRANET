@@ -150,17 +150,6 @@
                 <label class="form-label">Declor pH</label>
                 <input class="form-control" name="declor_ph" required>
               </div>
-              <div class="col-12">
-                <div class="border rounded-3 p-2">
-                  <div class="fw-semibold mb-2">ORP (mV)</div>
-                  <div class="row g-2">
-                    <div class="col-md-4 col-xl-3">
-                      <label class="form-label">ORP (mV)</label>
-                      <input class="form-control" name="orp" inputmode="decimal">
-                    </div>
-                  </div>
-                </div>
-              </div>
               <div class="col-md-6">
                 <label class="form-label">Operador</label>
                 <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
@@ -215,7 +204,6 @@
                 <th>Sal pH</th>
                 <th>Soda conc</th>
                 <th>Declor pH</th>
-                <th>ORP (mV)</th>
                 <th>Avisos</th>
                 <th>Obs.</th>
                 <th>Motivo atraso</th>
@@ -243,7 +231,6 @@
                 <td>{{ r.sal_ph }}</td>
                 <td>{{ r.soda_conc }}</td>
                 <td>{{ r.declor_ph }}</td>
-                <td>{{ r.orp if r.orp is not none else "" }}</td>
                 <td>
                   {% if r.warnings %}
                     {% for w in r.warnings %}
@@ -258,7 +245,7 @@
                 <td>{{ r.created_at_iso }}</td>
               </tr>
               {% else %}
-              <tr><td colspan="23" class="text-center text-muted py-3">Sin registros para este electrolizador.</td></tr>
+              <tr><td colspan="22" class="text-center text-muted py-3">Sin registros para este electrolizador.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -420,7 +407,6 @@
           <td>${esc(registro.sal_ph)}</td>
           <td>${esc(registro.soda_conc)}</td>
           <td>${esc(registro.declor_ph)}</td>
-          <td>${registro.orp == null ? "" : esc(registro.orp)}</td>
           <td>${warningsHtml}</td>
           <td title="${esc(registro.observaciones)}"><div class="cell-ellipsis">${esc(registro.observaciones)}</div></td>
           <td title="${esc(registro.atraso_motivo)}"><div class="cell-ellipsis">${esc(registro.atraso_motivo)}</div></td>

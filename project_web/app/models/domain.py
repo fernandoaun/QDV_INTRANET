@@ -32,7 +32,6 @@ class SalmueraRegistro(db.Model):
     sal_ph = db.Column(db.Float, nullable=False)
     soda_conc = db.Column(db.Float, nullable=False)
     declor_ph = db.Column(db.Float, nullable=False)
-    orp = db.Column(db.Float)
     operador = db.Column(db.String(256), nullable=False)
     lote = db.Column(db.String(128))
     observaciones = db.Column(db.Text)
@@ -80,6 +79,7 @@ class ReactorRegistro(db.Model):
     concentracion_tabla = db.Column(db.Float, nullable=False)
     exceso_naoh = db.Column(db.Float, nullable=False)
     exceso_na2co3 = db.Column(db.Float, nullable=False)
+    orp = db.Column(db.Float)
     observaciones = db.Column(db.Text)
     created_at_iso = db.Column(db.String(32), nullable=False)
 

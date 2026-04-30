@@ -30,6 +30,16 @@ def last_reactor_created_at_iso_for_date(fecha_iso: str) -> str | None:
     )
 
 
+def parse_optional_float(text: str | None, label: str) -> float | None:
+    value = (text or "").strip()
+    if not value:
+        return None
+    try:
+        return float(value.replace(",", "."))
+    except ValueError as exc:
+        raise ValueError(f"{label} debe ser numérico.") from exc
+
+
 def reactor_row_to_dict(r: ReactorRegistro) -> dict[str, Any]:
     warnings = warnings_for_reactor_registro(r)
     return {
@@ -44,6 +54,7 @@ def reactor_row_to_dict(r: ReactorRegistro) -> dict[str, Any]:
         "concentracion_tabla": r.concentracion_tabla,
         "exceso_naoh": r.exceso_naoh,
         "exceso_na2co3": r.exceso_na2co3,
+        "orp": r.orp,
         "observaciones": r.observaciones or "",
         "created_at_iso": r.created_at_iso,
         "warnings": warnings,

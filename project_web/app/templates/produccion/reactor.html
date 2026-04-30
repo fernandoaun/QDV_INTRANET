@@ -144,6 +144,17 @@
         </label>
         <input class="form-control" name="exceso_na2co3" required>
       </div>
+      <div class="col-12">
+        <div class="border rounded-3 p-2">
+          <div class="fw-semibold mb-2">ORP (mV)</div>
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label">ORP (mV)</label>
+              <input class="form-control" name="orp" inputmode="decimal">
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="col-12"><label class="form-label">Obs.</label><input class="form-control" name="observaciones"></div>
       <div class="col-12">
         <div class="note-muted">
@@ -171,6 +182,7 @@
           <th>Conc. salmuera</th>
           <th>Exceso soda</th>
           <th>Exceso carbonato</th>
+          <th>ORP (mV)</th>
           <th>Avisos</th>
           <th>Obs.</th>
           <th>Creado</th>
@@ -190,6 +202,7 @@
           <td>{{ r.concentracion_tabla }}</td>
           <td>{{ r.exceso_naoh }}</td>
           <td>{{ r.exceso_na2co3 }}</td>
+          <td>{{ r.orp if r.orp is not none else "" }}</td>
           <td>
             {% if r.warnings %}
               {% for w in r.warnings %}
@@ -203,7 +216,7 @@
           <td>{{ r.created_at_iso }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="14" class="text-muted text-center py-3">Sin registros este día.</td></tr>
+        <tr><td colspan="15" class="text-muted text-center py-3">Sin registros este día.</td></tr>
         {% endfor %}
       </tbody>
     </table>

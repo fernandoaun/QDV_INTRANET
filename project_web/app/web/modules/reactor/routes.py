@@ -21,6 +21,7 @@ from app.web.modules.produccion.operativa_context import (
 from app.web.modules.produccion.reactor_helpers import (
     last_reactor_created_at_iso_for_date,
     next_reactor_lote,
+    parse_optional_float,
     reactor_row_to_dict,
 )
 
@@ -80,6 +81,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
                 concentracion_tabla = float((request.form.get("concentracion_tabla") or "0").replace(",", "."))
                 exceso_naoh = float((request.form.get("exceso_naoh") or "0").replace(",", "."))
                 exceso_na2co3 = float((request.form.get("exceso_na2co3") or "0").replace(",", "."))
+                orp = parse_optional_float(request.form.get("orp"), "ORP (mV)")
                 operador_auto = default_operador_for_salmuera()
                 db.session.add(
                     ReactorRegistro(
@@ -93,6 +95,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
                         concentracion_tabla=concentracion_tabla,
                         exceso_naoh=exceso_naoh,
                         exceso_na2co3=exceso_na2co3,
+                        orp=orp,
                         observaciones=(request.form.get("observaciones") or "").strip(),
                         created_at_iso=now.isoformat(timespec="seconds"),
                     )

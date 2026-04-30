@@ -135,7 +135,6 @@ def _fetch_salmuera(d0: date, d1: date) -> list[list[Any]]:
                 d.get("sal_ph"),
                 d.get("soda_conc"),
                 d.get("declor_ph"),
-                d.get("orp"),
                 w_str,
                 d.get("observaciones"),
                 d.get("atraso_motivo"),
@@ -165,6 +164,7 @@ def _fetch_reactor(d0: date, d1: date) -> list[list[Any]]:
             r.concentracion_tabla,
             r.exceso_naoh,
             r.exceso_na2co3,
+            r.orp,
             r.observaciones,
         ]
         for r in rows
@@ -446,7 +446,6 @@ HEADERS: dict[str, list[str]] = {
         "Sal pH",
         "Soda conc",
         "Declor pH",
-        "ORP (mV)",
         "Avisos",
         "Observaciones",
         "Motivo atraso",
@@ -464,6 +463,7 @@ HEADERS: dict[str, list[str]] = {
         "Conc. tabla",
         "Exceso NaOH",
         "Exceso Na2CO3",
+        "ORP (mV)",
         "Observaciones",
     ],
     "agua": [
