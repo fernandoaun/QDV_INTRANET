@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import func, select
 
-from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo
+from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo, StockAjuste
 from app.repositories.base import BaseRepository
 
 
@@ -20,6 +20,14 @@ class StockRepository(BaseRepository):
             select(ConsumoStock.producto, func.sum(ConsumoStock.cantidad))
             .where(ConsumoStock.categoria == categoria)
             .group_by(ConsumoStock.producto)
+        ).all()
+        return {str(r[0]): float(r[1] or 0) for r in rows}
+
+    def sum_ajustes_by_producto(self, categoria: str) -> dict[str, float]:
+        rows = self.session.execute(
+            select(StockAjuste.producto, func.sum(StockAjuste.cantidad))
+            .where(StockAjuste.categoria == categoria)
+            .group_by(StockAjuste.producto)
         ).all()
         return {str(r[0]): float(r[1] or 0) for r in rows}
 
@@ -80,6 +88,15 @@ class StockRepository(BaseRepository):
                 .where(ConsumoStock.fecha >= fecha_min_inclusive)
                 .order_by(ConsumoStock.fecha.desc(), ConsumoStock.hora.desc(), ConsumoStock.id.desc())
                 .limit(limit)
+            ).all()
+        )
+
+    def list_ajustes_recent(self, limit: int = 100) -> list[StockAjuste]:
+        return list(
+            self.session.scalars(
+                select(StockAjuste)
+                .order_by(StockAjuste.created_at_iso.desc(), StockAjuste.id.desc())
+                .limit(int(limit or 100))
             ).all()
         )
 

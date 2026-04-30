@@ -23,6 +23,7 @@ from app.models.domain import (
     ReactorRegistro,
     SalmueraAnalisis8hs,
     SalmueraRegistro,
+    StockAjuste,
 )
 from app.models.shift import ShiftHandover, ShiftHandoverWarningAction, ShiftSession
 from app.models.lab_reagent import LaboratoryReagent, LaboratoryReagentUsage
@@ -43,6 +44,7 @@ __all__ = [
     "ProductoCatalogo",
     "IngresoStock",
     "ConsumoStock",
+    "StockAjuste",
     "Equipo",
     "MaintenanceComponent",
     "MaintenanceFailure",

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Ajustes stock · QDV{% endblock %}
+{% block content %}
+<div class="app-stock-module">
+  <div class="app-page-head">
+    <div>
+      <h1 class="app-page-title">Ajustes administrativos de stock</h1>
+      <p class="app-intro mb-0">Registrá variaciones que modifican existencias reales sin quedar como consumos operativos.</p>
+    </div>
+    <div class="app-page-actions">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>
+    </div>
+  </div>
+
+  <div class="app-card">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Selección</h2>
+      <p class="app-card-desc">Elegí producto, marca y lote existente. Los ajustes positivos suman y los negativos descuentan del lote seleccionado.</p>
+    </div>
+    <div class="app-card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label" for="ajCat">Categoría</label>
+          <select class="form-select" id="ajCat" name="categoria" onchange="this.form.submit()">
+            <option value="materia_prima" {% if categoria=='materia_prima' %}selected{% endif %}>Materia prima</option>
+            <option value="producto_terminado" {% if categoria=='producto_terminado' %}selected{% endif %}>Producto terminado</option>
+            <option value="laboratorio" {% if categoria=='laboratorio' %}selected{% endif %}>Laboratorio</option>
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label" for="ajProd">Producto</label>
+          <select class="form-select" id="ajProd" name="producto" onchange="this.form.submit()">
+            <option value="">— Elegir producto —</option>
+            {% for p in productos %}<option value="{{ p }}" {% if p==producto_sel %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          </select>
+        </div>
+        {% if producto_sel and producto_es_stockeable %}
+        <div class="col-md-4">
+          <label class="form-label" for="ajMarca">Marca</label>
+          <select class="form-select" id="ajMarca" name="marca" onchange="this.form.submit()">
+            <option value="">— Elegir marca —</option>
+            {% for m in marcas %}<option value="{{ m }}" {% if m==marca_sel %}selected{% endif %}>{{ m }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endif %}
+      </form>
+      {% if producto_sel and not producto_es_stockeable %}
+      <div class="alert alert-warning mt-3 mb-0">Este producto está marcado como no estoqueable. No admite ajustes de existencias.</div>
+      {% elif producto_sel and producto_es_stockeable and not marcas %}
+      <div class="alert alert-warning mt-3 mb-0">No hay lotes existentes para este producto. Para sumar stock nuevo, registrá un ingreso.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if producto_sel and producto_es_stockeable and marca_sel %}
+  <div class="app-card">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Datos del ajuste</h2>
+      <p class="app-card-desc">Producto: <strong>{{ producto_sel }}</strong> · Marca: <strong>{{ marca_sel }}</strong></p>
+    </div>
+    <div class="app-card-body">
+      <form method="post" class="row g-3">
+        {% include "_csrf.html" %}
+        <input type="hidden" name="categoria" value="{{ categoria }}">
+        <input type="hidden" name="producto" value="{{ producto_sel }}">
+        <input type="hidden" name="marca" value="{{ marca_sel }}">
+        <div class="col-md-5">
+          <label class="form-label" for="ajLote">Lote existente</label>
+          <select class="form-select" id="ajLote" name="ingreso_stock_id" {% if lotes %}required{% else %}disabled{% endif %}>
+            {% if not lotes %}
+            <option value="">No hay lotes para ajustar</option>
+            {% else %}
+            {% for L in lotes %}
+            <option value="{{ L.ingreso_id }}">Lote {{ L.lote }} · saldo {{ L.disponible }}{% if L.unidad %} {{ L.unidad }}{% endif %} · ing. {{ L.fecha_ingreso }} {{ L.hora_ingreso or '' }}</option>
+            {% endfor %}
+            {% endif %}
+          </select>
+          <div class="form-text">Para stock nuevo sin lote existente, usá Ingreso de stock.</div>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label" for="ajTipo">Tipo</label>
+          <select class="form-select" id="ajTipo" name="tipo" required>
+            <option value="positivo">Positivo (+)</option>
+            <option value="negativo">Negativo (-)</option>
+          </select>
+        </div>
+        <div class="col-md-2"><label class="form-label" for="ajCantidad">Cantidad</label><input class="form-control" id="ajCantidad" name="cantidad" type="number" step="any" min="0" required></div>
+        <div class="col-md-3"><label class="form-label" for="ajMotivo">Motivo</label><input class="form-control" id="ajMotivo" name="motivo" required placeholder="Recuento, merma, diferencia..."></div>
+        <div class="col-md-4"><label class="form-label">Administrador</label>
+          <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true"></div>
+        <div class="col-12"><label class="form-label" for="ajObs">Observaciones</label><input class="form-control" id="ajObs" name="observaciones" placeholder="Detalle opcional para gerencia"></div>
+        <div class="col-12 pt-1">
+          <button type="submit" class="btn btn-primary" {% if not lotes %}disabled{% endif %}>Guardar ajuste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="app-card mt-3">
+    <div class="app-card-header app-card-header--split">
+      <span>Ajustes recientes</span>
+      <span class="small app-text-secondary">{{ ajustes_recientes|length }} registro(s)</span>
+    </div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead><tr><th>ID</th><th>Fecha</th><th>Hora</th><th>Categoría</th><th>Producto</th><th>Marca</th><th>Lote</th><th>Tipo</th><th>Cantidad</th><th>Motivo</th><th>Admin</th><th>Obs.</th></tr></thead>
+        <tbody>
+          {% for r in ajustes_recientes %}
+          <tr>
+            <td>{{ r.id }}</td>
+            <td>{{ r.fecha }}</td>
+            <td>{{ r.hora }}</td>
+            <td>{% if r.categoria == 'materia_prima' %}Materia prima{% elif r.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
+            <td>{{ r.producto }}</td>
+            <td>{{ r.marca }}</td>
+            <td>{{ r.lote or '—' }}</td>
+            <td>{{ r.tipo }}</td>
+            <td>{{ r.cantidad }}</td>
+            <td>{{ r.motivo }}</td>
+            <td>{{ r.operador }}</td>
+            <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="12" class="text-muted text-center py-3">Sin ajustes registrados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

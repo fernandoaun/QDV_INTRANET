@@ -7,7 +7,7 @@ from typing import Any, List, Optional
 from sqlalchemy import func, select, update
 
 from app.extensions import db
-from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo
+from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo, StockAjuste
 from app.repositories.stock_repository import stock_repo
 from app.utils.datetime_operacion import (
     format_consumo_stock_panel_datetime,
@@ -147,7 +147,14 @@ def stock_actual(cat: str, producto: str, marca: str) -> float:
             ConsumoStock.marca == m,
         )
     )
-    return max(float(ing or 0) - float(cons or 0), 0.0)
+    ajustes = db.session.scalar(
+        select(func.coalesce(func.sum(StockAjuste.cantidad), 0.0)).where(
+            StockAjuste.categoria == c,
+            StockAjuste.producto == p,
+            StockAjuste.marca == m,
+        )
+    )
+    return max(float(ing or 0) - float(cons or 0) + float(ajustes or 0), 0.0)
 
 
 def marcas_con_stock(cat: str, producto: str) -> list[str]:
@@ -187,6 +194,15 @@ def _cantidad_consumida_en_ingreso(ingreso_id: int) -> float:
     return float(v or 0)
 
 
+def _cantidad_ajustada_en_ingreso(ingreso_id: int) -> float:
+    v = db.session.scalar(
+        select(func.coalesce(func.sum(StockAjuste.cantidad), 0.0)).where(
+            StockAjuste.ingreso_stock_id == int(ingreso_id)
+        )
+    )
+    return float(v or 0)
+
+
 def lotes_fifo_disponibles(categoria: str, producto: str, marca: str) -> list[dict[str, Any]]:
     """
     Líneas de ingreso con saldo disponible, orden FIFO (fecha → hora → id).
@@ -216,7 +232,8 @@ def lotes_fifo_disponibles(categoria: str, producto: str, marca: str) -> list[di
     out: list[dict[str, Any]] = []
     for ing in ing_rows:
         linked = _cantidad_consumida_en_ingreso(int(ing.id))
-        raw_left = max(float(ing.cantidad or 0) - linked, 0.0)
+        adjusted = _cantidad_ajustada_en_ingreso(int(ing.id))
+        raw_left = max(float(ing.cantidad or 0) - linked + adjusted, 0.0)
         take = min(raw_left, rem_global)
         if take > 0:
             uid = (getattr(ing, "unidad", None) or "").strip()
@@ -237,6 +254,41 @@ def lotes_fifo_disponibles(categoria: str, producto: str, marca: str) -> list[di
             break
     if out:
         out[0]["es_fifo_primero"] = True
+    return out
+
+
+def lotes_ajustables(categoria: str, producto: str, marca: str) -> list[dict[str, Any]]:
+    c = _validate_cat(categoria)
+    p = (producto or "").strip()
+    m = (marca or "").strip()
+    if not p or not m:
+        return []
+    rows = list(
+        db.session.scalars(
+            select(IngresoStock)
+            .where(
+                IngresoStock.categoria == c,
+                IngresoStock.producto == p,
+                IngresoStock.marca == m,
+            )
+            .order_by(IngresoStock.fecha.asc(), IngresoStock.hora.asc(), IngresoStock.id.asc())
+        ).all()
+    )
+    saldo_map = {int(row["ingreso_id"]): float(row["disponible"]) for row in lotes_fifo_disponibles(c, p, m)}
+    out: list[dict[str, Any]] = []
+    for ing in rows:
+        uid = (getattr(ing, "unidad", None) or "").strip()
+        out.append(
+            {
+                "ingreso_id": int(ing.id),
+                "lote": (ing.lote or "").strip(),
+                "vencimiento": (ing.vencimiento or "").strip(),
+                "fecha_ingreso": ing.fecha,
+                "hora_ingreso": ing.hora,
+                "disponible": float(saldo_map.get(int(ing.id), 0.0)),
+                "unidad": uid,
+            }
+        )
     return out
 
 
@@ -504,16 +556,17 @@ def stock_consolidado(cat: str) -> list[dict[str, Any]]:
     c = _validate_cat(cat)
     ing = stock_repo.sum_ingresos_by_producto(c)
     con = stock_repo.sum_consumos_by_producto(c)
+    ajustes = stock_repo.sum_ajustes_by_producto(c)
     catalog_map = stock_repo.catalog_is_stockable_map(c)
     try:
         catalog_names = set(productos_catalogo(c))
     except Exception:
         catalog_names = set()
-    keys = catalog_names | set(ing) | set(con) | set(catalog_map)
+    keys = catalog_names | set(ing) | set(con) | set(ajustes) | set(catalog_map)
     out: list[dict[str, Any]] = []
     for prod in sorted(keys, key=lambda x: str(x).lower()):
         is_stockable = bool(catalog_map.get(str(prod), True))
-        s = float(ing.get(prod, 0) or 0) - float(con.get(prod, 0) or 0)
+        s = float(ing.get(prod, 0) or 0) - float(con.get(prod, 0) or 0) + float(ajustes.get(prod, 0) or 0)
         s = max(s, 0.0)
         if is_stockable:
             out.append({"producto": str(prod), "stock": s, "is_stockable": True})
@@ -691,7 +744,7 @@ def build_stock_hub_template_context(user: Any) -> dict[str, Any]:
             consumos_30d = consumos_ultimos_dias(30, limit=300)
         except Exception:
             consumos_30d = []
-    return {"consumos_30d": consumos_30d}
+    return {"consumos_30d": consumos_30d, "user_is_admin": bool(getattr(user, "is_admin", False))}
 
 
 def load_stock_consumo_view_data(cat: str, producto: str, marca_sel: str = "") -> dict[str, Any]:
@@ -762,6 +815,129 @@ def save_consumo_from_web_form(form: Any, *, default_operador: str) -> None:
         int(eq) if eq else None,
         ingreso_stock_id=ing_id,
     )
+
+
+def _ajuste_rows_to_dicts(rows: list[StockAjuste]) -> list[dict[str, Any]]:
+    ing_ids = {int(r.ingreso_stock_id) for r in rows if getattr(r, "ingreso_stock_id", None)}
+    ing_lote: dict[int, str] = {}
+    if ing_ids:
+        for ing in db.session.scalars(select(IngresoStock).where(IngresoStock.id.in_(ing_ids))).all():
+            ing_lote[int(ing.id)] = (ing.lote or "").strip()
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        iid = getattr(r, "ingreso_stock_id", None)
+        out.append(
+            {
+                "id": r.id,
+                "fecha": r.fecha,
+                "hora": r.hora,
+                "categoria": r.categoria,
+                "producto": r.producto,
+                "marca": r.marca,
+                "lote": ing_lote.get(int(iid), "") if iid is not None else "",
+                "cantidad": r.cantidad,
+                "tipo": "Positivo" if float(r.cantidad or 0) >= 0 else "Negativo",
+                "motivo": r.motivo,
+                "operador": r.operador,
+                "observaciones": r.observaciones or "",
+                "ingreso_stock_id": int(iid) if iid is not None else None,
+                "admin_user_id": r.admin_user_id,
+                "created_at_iso": r.created_at_iso,
+            }
+        )
+    return out
+
+
+def ajustes_recientes(limit: int = 100) -> list[dict[str, Any]]:
+    return _ajuste_rows_to_dicts(stock_repo.list_ajustes_recent(limit))
+
+
+def load_stock_ajuste_view_data(cat: str, producto: str, marca_sel: str = "") -> dict[str, Any]:
+    c = _validate_cat(cat)
+    productos = productos_catalogo(c)
+    producto_sel = (producto or "").strip()
+    es_stockeable = producto_es_stockeable(c, producto_sel) if producto_sel else True
+    marcas: list[str] = []
+    if producto_sel and es_stockeable:
+        marcas = marcas_catalogo(c, producto_sel)
+    marca_eff = (marca_sel or "").strip()
+    if producto_sel and marcas and not marca_eff and len(marcas) == 1:
+        marca_eff = marcas[0]
+    lotes: list[dict[str, Any]] = []
+    if producto_sel and marca_eff and es_stockeable:
+        lotes = lotes_ajustables(c, producto_sel, marca_eff)
+    return {
+        "productos": productos,
+        "producto_sel": producto_sel,
+        "producto_es_stockeable": es_stockeable,
+        "marcas": marcas,
+        "marca_sel": marca_eff,
+        "lotes": lotes,
+        "ajustes_recientes": ajustes_recientes(100),
+    }
+
+
+def save_ajuste_from_web_form(form: Any, *, operador: str, admin_user_id: int | None) -> StockAjuste:
+    c = _validate_cat(form.get("categoria") or "")
+    p = (form.get("producto") or "").strip()
+    m = (form.get("marca") or "").strip()
+    motivo = (form.get("motivo") or "").strip()
+    tipo = (form.get("tipo") or "").strip()
+    raw_ing = (form.get("ingreso_stock_id") or "").strip()
+    if not p:
+        raise ValueError("Producto obligatorio.")
+    if not producto_es_stockeable(c, p):
+        raise ValueError("Solo se pueden ajustar productos estoqueables.")
+    if not m:
+        raise ValueError("Marca obligatoria.")
+    if not raw_ing.isdigit():
+        raise ValueError("Seleccioná el lote de ingreso a ajustar.")
+    if tipo not in ("positivo", "negativo"):
+        raise ValueError("Tipo de ajuste inválido.")
+    if not motivo:
+        raise ValueError("Motivo obligatorio.")
+    try:
+        qty_abs = float((form.get("cantidad") or "0").replace(",", "."))
+    except ValueError as exc:
+        raise ValueError("La cantidad debe ser numérica.") from exc
+    if qty_abs <= 0 or math.isnan(qty_abs):
+        raise ValueError("La cantidad debe ser mayor a cero.")
+
+    iid = int(raw_ing)
+    ing = db.session.get(IngresoStock, iid)
+    if ing is None:
+        raise ValueError("Lote / ingreso no válido.")
+    if (
+        (ing.categoria or "").strip() != c
+        or (ing.producto or "").strip() != p
+        or (ing.marca or "").strip() != m
+    ):
+        raise ValueError("El lote seleccionado no corresponde a este producto y marca.")
+
+    signed_qty = qty_abs if tipo == "positivo" else -qty_abs
+    if signed_qty < 0:
+        disponible = saldo_consumible_lote(c, p, m, iid)
+        if qty_abs > disponible + 1e-9:
+            raise ValueError("El ajuste negativo no puede dejar el lote con saldo negativo.")
+
+    now = now_operacion_naive_local()
+    rec = StockAjuste(
+        categoria=c,
+        producto=p,
+        marca=m,
+        cantidad=signed_qty,
+        fecha=now.strftime("%Y-%m-%d"),
+        hora=now.strftime("%H:%M"),
+        operador=(operador or "").strip() or "admin",
+        motivo=motivo,
+        observaciones=(form.get("observaciones") or "").strip() or None,
+        ingreso_stock_id=iid,
+        admin_user_id=admin_user_id,
+        created_at_iso=now.isoformat(timespec="seconds"),
+    )
+    db.session.add(rec)
+    db.session.commit()
+    return rec
 
 
 def save_ingreso_from_web_form(

@@ -132,6 +132,46 @@ def register_stock_routes(bp: Blueprint) -> None:
             producto_es_stockeable=data["producto_es_stockeable"],
         )
 
+    @bp.route("/stock/ajustes", methods=["GET", "POST"])
+    @login_required
+    def stock_ajustes():
+        u = current_user()
+        if u is None or not bool(getattr(u, "is_admin", False)):
+            flash("Solo administradores pueden registrar ajustes de stock.", "warning")
+            return redirect(url_for("produccion.stock_hub"))
+        cat = (request.values.get("categoria") or "materia_prima").strip()
+        producto = (request.values.get("producto") or "").strip()
+        marca = (request.values.get("marca") or "").strip()
+        if request.method == "POST":
+            cat = (request.form.get("categoria") or cat).strip()
+            producto = (request.form.get("producto") or producto).strip()
+            marca = (request.form.get("marca") or marca).strip()
+            try:
+                stock_service.save_ajuste_from_web_form(
+                    request.form,
+                    operador=operador_display_line() or default_operador_for_salmuera() or u.username,
+                    admin_user_id=int(u.id),
+                )
+                flash("Ajuste de stock guardado.", "success")
+                return redirect(url_for("produccion.stock_ajustes", categoria=cat, producto=producto, marca=marca))
+            except Exception as e:
+                flash(str(e), "danger")
+        data = stock_service.load_stock_ajuste_view_data(cat, producto, marca)
+        return render_template(
+            "produccion/stock_ajustes.html",
+            categoria=cat,
+            productos=data["productos"],
+            producto_sel=data["producto_sel"],
+            producto_es_stockeable=data["producto_es_stockeable"],
+            marca_sel=data["marca_sel"],
+            marcas=data["marcas"],
+            lotes=data["lotes"],
+            ajustes_recientes=data["ajustes_recientes"],
+            operador_display_line=operador_display_line(),
+            operador_sugerido=default_operador_for_salmuera(),
+            username=u.username,
+        )
+
     @bp.get("/stock/ver")
     @login_required
     def stock_ver():

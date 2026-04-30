@@ -169,6 +169,24 @@ class ConsumoStock(db.Model):
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 
+class StockAjuste(db.Model):
+    __tablename__ = "stock_ajustes"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    categoria = db.Column(db.String(32), nullable=False, index=True)
+    producto = db.Column(db.String(256), nullable=False, index=True)
+    marca = db.Column(db.String(256), nullable=False)
+    cantidad = db.Column(db.Float, nullable=False)
+    fecha = db.Column(db.String(16), nullable=False, index=True)
+    hora = db.Column(db.String(8), nullable=False)
+    operador = db.Column(db.String(256), nullable=False)
+    motivo = db.Column(db.String(256), nullable=False)
+    observaciones = db.Column(db.Text)
+    ingreso_stock_id = db.Column(db.Integer, db.ForeignKey("ingresos_stock.id"), nullable=True, index=True)
+    admin_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
+    created_at_iso = db.Column(db.String(32), nullable=False)
+
+
 class Equipo(db.Model):
     __tablename__ = "equipos"
 

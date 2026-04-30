@@ -40,6 +40,12 @@
       <p>Registrar salida por producto, marca y lote (FIFO).</p>
     </a>
     {% endif %}
+    {% if user_is_admin %}
+    <a class="app-module-card" href="{{ url_for('produccion.stock_ajustes', categoria='materia_prima') }}">
+      <h2>Ajustes de stock</h2>
+      <p>Registrar variaciones administrativas sin mezclarlas con consumos operativos.</p>
+    </a>
+    {% endif %}
     {% if user_can_stock_hub %}
     <a class="app-module-card" href="{{ url_for('produccion.stock_catalogo_lista') }}">
       <h2>Catálogo de productos</h2>

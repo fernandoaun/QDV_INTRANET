@@ -30,6 +30,7 @@ from app.models import (
     ReactorRegistro,
     SalmueraRegistro,
     ShiftHandover,
+    StockAjuste,
     User,
 )
 from app.web.modules.produccion.salmuera_helpers import salmuera_row_to_dict
@@ -310,6 +311,34 @@ def _fetch_consumos_stock(d0: date, d1: date) -> list[list[Any]]:
     ]
 
 
+def _fetch_ajustes_stock(d0: date, d1: date) -> list[list[Any]]:
+    d_s, d_e = d0.isoformat(), d1.isoformat()
+    rows = db.session.scalars(
+        select(StockAjuste)
+        .where(StockAjuste.fecha >= d_s, StockAjuste.fecha <= d_e)
+        .order_by(StockAjuste.fecha.asc(), StockAjuste.id.asc())
+        .limit(MAX_ROWS_PER_SHEET)
+    ).all()
+    return [
+        [
+            r.id,
+            r.categoria,
+            r.producto,
+            r.marca,
+            r.cantidad,
+            r.fecha,
+            r.hora,
+            r.operador,
+            r.motivo,
+            r.observaciones,
+            r.ingreso_stock_id,
+            r.admin_user_id,
+            r.created_at_iso,
+        ]
+        for r in rows
+    ]
+
+
 def _fetch_cambio_turno(d0: date, d1: date) -> list[list[Any]]:
     lo, hi = _iso_bounds(d0, d1)
     rows = db.session.scalars(
@@ -363,6 +392,9 @@ def export_module_definitions() -> list[ExportModuleDef]:
     def _can_stock_con(u: Any) -> bool:
         return bool(user_can_view_stock_historial(u) or user_can_view_stock_consumos(u))
 
+    def _can_stock_adj(u: Any) -> bool:
+        return bool(getattr(u, "is_admin", False) or user_can_view_stock_historial(u))
+
     def _can_shift(u: Any) -> bool:
         if u is None:
             return False
@@ -410,6 +442,12 @@ def export_module_definitions() -> list[ExportModuleDef]:
             "Stock — consumos (fecha del consumo)",
             "Stock_consumos",
             _can_stock_con,
+        ),
+        ExportModuleDef(
+            "stock_ajustes",
+            "Stock — ajustes administrativos (fecha del ajuste)",
+            "Stock_ajustes",
+            _can_stock_adj,
         ),
         ExportModuleDef(
             "cambio_turno",
@@ -535,6 +573,21 @@ HEADERS: dict[str, list[str]] = {
         "Ingreso stock ID",
         "Creado (ISO)",
     ],
+    "stock_ajustes": [
+        "ID",
+        "Categoría",
+        "Producto",
+        "Marca",
+        "Cantidad firmada",
+        "Fecha",
+        "Hora",
+        "Administrador",
+        "Motivo",
+        "Observaciones",
+        "Ingreso stock ID",
+        "Usuario admin ID",
+        "Creado (ISO)",
+    ],
     "cambio_turno": [
         "ID",
         "Estado",
@@ -560,6 +613,7 @@ FETCHERS: dict[str, Callable[[date, date], list[list[Any]]]] = {
     "entregas": _fetch_entregas,
     "stock_ingresos": _fetch_ingresos_stock,
     "stock_consumos": _fetch_consumos_stock,
+    "stock_ajustes": _fetch_ajustes_stock,
     "cambio_turno": _fetch_cambio_turno,
 }
 
