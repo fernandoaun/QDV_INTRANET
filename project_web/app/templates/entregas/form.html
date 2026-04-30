@@ -78,7 +78,7 @@
       </div>
       <div class="col-md-3">
         <label class="form-label">Volumen (litros) <span class="text-danger">*</span></label>
-        <input class="form-control" name="cantidad" type="number" step="any" min="0" value="{{ entrega.cantidad if entrega else '' }}" required>
+        <input class="form-control" name="cantidad" type="number" step="any" min="0" value="{{ (entrega.cantidad_programada if entrega and entrega.cantidad_programada is not none else entrega.cantidad) if entrega else '' }}" required>
         <div class="form-text">Siempre en litros (L).</div>
       </div>
       <div class="col-md-3">
@@ -92,7 +92,7 @@
       </div>
       <div class="col-md-2">
         <label class="form-label">Volumen (L)</label>
-        <input class="form-control" value="{{ entrega.cantidad }}" readonly tabindex="-1">
+        <input class="form-control" value="{{ entrega.cantidad_programada if entrega.cantidad_programada is not none else entrega.cantidad }}" readonly tabindex="-1">
       </div>
       {% endif %}
 

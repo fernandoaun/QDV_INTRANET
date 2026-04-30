@@ -19,7 +19,14 @@
   <div class="app-card-body row g-2 small">
     <div class="col-md-4"><span class="app-text-secondary">Lugar</span><br><strong>{{ entrega.lugar_entrega }}</strong></div>
     <div class="col-md-4"><span class="app-text-secondary">Fecha prevista</span><br><strong>{{ entrega.fecha_prevista }}</strong></div>
-    <div class="col-md-4"><span class="app-text-secondary">Volumen</span><br><strong>{{ entrega.cantidad }} L</strong></div>
+    {% set cantidad_programada = entrega.cantidad_programada if entrega.cantidad_programada is not none else entrega.cantidad %}
+    <div class="col-md-4"><span class="app-text-secondary">Cantidad programada</span><br><strong>{{ cantidad_programada }} L</strong></div>
+    {% if entrega.cantidad_real_cargada is not none %}
+    <div class="col-md-4"><span class="app-text-secondary">Cantidad real cargada</span><br><strong>{{ entrega.cantidad_real_cargada }} L</strong></div>
+    {% endif %}
+    {% if entrega.cantidad_real_entregada is not none %}
+    <div class="col-md-4"><span class="app-text-secondary">Cantidad real entregada</span><br><strong>{{ entrega.cantidad_real_entregada }} L</strong></div>
+    {% endif %}
     {% if entrega.cargada_at_iso %}
     <div class="col-md-4"><span class="app-text-secondary">Cargada</span><br><strong>{{ entrega.cargada_at_iso }}</strong></div>
     {% endif %}

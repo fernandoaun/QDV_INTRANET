@@ -47,6 +47,51 @@ def _fmt_cantidad_entrega_display(q: float) -> str:
     return w
 
 
+def cantidad_programada_operativa(e: Entrega) -> float:
+    return float(e.cantidad_programada if e.cantidad_programada is not None else (e.cantidad or 0))
+
+
+def cantidad_cargada_operativa(e: Entrega) -> float:
+    return float(e.cantidad_real_cargada if e.cantidad_real_cargada is not None else cantidad_programada_operativa(e))
+
+
+def cantidad_entregada_operativa(e: Entrega) -> float:
+    return float(e.cantidad_real_entregada if e.cantidad_real_entregada is not None else cantidad_programada_operativa(e))
+
+
+def _cantidad_programada_sql():
+    return func.coalesce(Entrega.cantidad_programada, Entrega.cantidad)
+
+
+def cantidad_cargada_sql():
+    return func.coalesce(Entrega.cantidad_real_cargada, Entrega.cantidad_programada, Entrega.cantidad)
+
+
+def cantidad_entregada_sql():
+    return func.coalesce(Entrega.cantidad_real_entregada, Entrega.cantidad_programada, Entrega.cantidad)
+
+
+def validate_cantidad_real(raw: float | int | str | None, label: str) -> float:
+    try:
+        qty = float(str(raw if raw is not None else "").replace(",", ".").strip() or 0)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} debe ser numérica.") from exc
+    if qty != qty:
+        raise ValueError(f"{label} debe ser numérica.")
+    if qty < 0:
+        raise ValueError(f"{label} no puede ser negativa.")
+    return qty
+
+
+def cantidad_real_warning(programada: float, real: float) -> str | None:
+    if programada <= 0:
+        return None
+    diff_ratio = abs(float(real) - float(programada)) / float(programada)
+    if diff_ratio > 0.20:
+        return "Atención: la cantidad real difiere más de 20% de la programada."
+    return None
+
+
 def entregas_kpis_rolling(dias: int = ENTREGAS_KPI_ROLLING_DAYS_DEFAULT) -> dict[str, Any]:
     """Totales de volumen y cantidad de operaciones en una ventana móvil de `dias` corridos.
 
@@ -54,9 +99,9 @@ def entregas_kpis_rolling(dias: int = ENTREGAS_KPI_ROLLING_DAYS_DEFAULT) -> dict
     Los timestamps comparados son strings ISO guardados por las acciones «Cargar» y «Entregado»
     (`cargada_at_iso`, `entregada_at_iso`), coherentes con `now_operacion_naive_local()`.
 
-    - **Cargado**: suma de `cantidad` donde hay `cargada_at_iso` en la ventana (carga real en camión).
+    - **Cargado**: suma de cantidad real cargada donde hay `cargada_at_iso` en la ventana.
       No incluye entregas solo programadas (`programada` sin carga).
-    - **Entregado**: suma de `cantidad` donde `estado == "entregada"` y `entregada_at_iso` en la ventana.
+    - **Entregado**: suma de cantidad real entregada donde `estado == "entregada"` y `entregada_at_iso` en la ventana.
       No incluye cargas sin cierre de entrega ni programación sin entregar.
 
     Se excluyen filas con `cantidad` <= 0. El módulo gestiona el volumen en **litros** (`cantidad` / columna «Litros»).
@@ -67,20 +112,22 @@ def entregas_kpis_rolling(dias: int = ENTREGAS_KPI_ROLLING_DAYS_DEFAULT) -> dict
     start_s = start.isoformat(timespec="seconds")
     end_s = now.isoformat(timespec="seconds")
 
-    q_carga = select(func.coalesce(func.sum(Entrega.cantidad), 0.0), func.count()).where(
+    qty_carga = cantidad_cargada_sql()
+    q_carga = select(func.coalesce(func.sum(qty_carga), 0.0), func.count()).where(
         Entrega.cargada_at_iso.isnot(None),
         Entrega.cargada_at_iso != "",
-        Entrega.cantidad > 0,
+        qty_carga > 0,
         Entrega.cargada_at_iso >= start_s,
         Entrega.cargada_at_iso <= end_s,
     )
     total_cargado, n_cargas = db.session.execute(q_carga).one()
 
-    q_ent = select(func.coalesce(func.sum(Entrega.cantidad), 0.0), func.count()).where(
+    qty_ent = cantidad_entregada_sql()
+    q_ent = select(func.coalesce(func.sum(qty_ent), 0.0), func.count()).where(
         Entrega.estado == "entregada",
         Entrega.entregada_at_iso.isnot(None),
         Entrega.entregada_at_iso != "",
-        Entrega.cantidad > 0,
+        qty_ent > 0,
         Entrega.entregada_at_iso >= start_s,
         Entrega.entregada_at_iso <= end_s,
     )
@@ -148,12 +195,14 @@ def puede_marcar_entregada(entrega: Entrega) -> bool:
     return str(entrega.estado or "") in ("programada", "cargada")
 
 
-def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime) -> None:
+def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime, cantidad_real: float | None = None) -> None:
     if not puede_marcar_cargada(entrega):
         raise ValueError("Esta entrega no admite la acción «Cargar».")
     op_name = _actor_operador(actor)
     iso = ahora.isoformat(timespec="seconds")
     consumo_id: int | None = None
+    programada = cantidad_programada_operativa(entrega)
+    qty_real = validate_cantidad_real(programada if cantidad_real is None else cantidad_real, "La cantidad a cargar")
     if stock_service.producto_entrega_es_stock_hipoclorito(str(entrega.producto or "")):
         cat = (entrega.stock_categoria or ENTREGAS_STOCK_CATEGORIA).strip()
         if cat != ENTREGAS_STOCK_CATEGORIA:
@@ -162,32 +211,40 @@ def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime) -> N
         if not marca:
             raise ValueError("Marca de trazabilidad QDV no configurada (constante ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA).")
         entrega.stock_marca = marca
-        qty = float(entrega.cantidad or 0)
-        informed_stock.raise_if_carga_qty_exceeds_instant(qty)
-        obs = f"Entrega #{entrega.id} · carga en camión"
-        # Un solo nombre en el ledger aunque `Entrega.producto` use el alias comercial del PT.
-        prod_ledger = nombre_ledger_canonico_hipoclorito()
-        rec = stock_service.add_consumo_stock_record(
-            cat,
-            prod_ledger,
-            marca,
-            qty,
-            op_name,
-            observaciones=obs,
-            equipo_id=int(entrega.stock_equipo_id) if entrega.stock_equipo_id else None,
-            fecha_hora=ahora,
-            skip_ledger_availability_check=True,
-            ingreso_stock_id=None,
-        )
-        db.session.flush()
-        consumo_id = int(rec.id)
+        if qty_real > 0:
+            informed_stock.raise_if_carga_qty_exceeds_instant(qty_real)
+            obs = f"Entrega #{entrega.id} · carga en camión"
+            # Un solo nombre en el ledger aunque `Entrega.producto` use el alias comercial del PT.
+            prod_ledger = nombre_ledger_canonico_hipoclorito()
+            rec = stock_service.add_consumo_stock_record(
+                cat,
+                prod_ledger,
+                marca,
+                qty_real,
+                op_name,
+                observaciones=obs,
+                equipo_id=int(entrega.stock_equipo_id) if entrega.stock_equipo_id else None,
+                fecha_hora=ahora,
+                skip_ledger_availability_check=True,
+                ingreso_stock_id=None,
+            )
+            db.session.flush()
+            consumo_id = int(rec.id)
     entrega.estado = "cargada"
     entrega.cargada_at_iso = iso
     entrega.cargada_by_user_id = int(actor.id) if actor else None
+    entrega.cantidad_programada = programada
+    entrega.cantidad_real_cargada = qty_real
     entrega.updated_at_iso = iso
     if consumo_id is not None:
         entrega.consumo_stock_id = consumo_id
-    detalle_carga: dict[str, Any] = {"consumo_stock_id": consumo_id, "operador_stock": op_name}
+    detalle_carga: dict[str, Any] = {
+        "cantidad_programada": programada,
+        "cantidad_real_cargada": qty_real,
+        "diferencia_litros": qty_real - programada,
+        "consumo_stock_id": consumo_id,
+        "operador_stock": op_name,
+    }
     if consumo_id is not None:
         detalle_carga["producto_entrega"] = str(entrega.producto or "").strip() or None
         detalle_carga["producto_ledger"] = nombre_ledger_canonico_hipoclorito()
@@ -201,18 +258,23 @@ def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime) -> N
     )
 
 
-def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime) -> None:
+def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime, cantidad_real: float | None = None) -> None:
     if not puede_marcar_entregada(entrega):
         raise ValueError("Esta entrega no admite la acción «Entregado».")
     iso = ahora.isoformat(timespec="seconds")
     lugar = (entrega.lugar_entrega or "").strip()
     chof = _actor_display(actor)
+    programada = cantidad_programada_operativa(entrega)
+    fallback = cantidad_cargada_operativa(entrega) if str(entrega.estado or "") == "cargada" else programada
+    qty_real = validate_cantidad_real(fallback if cantidad_real is None else cantidad_real, "La cantidad a entregar")
     entrega.estado = "entregada"
     entrega.entregada_at_iso = iso
     entrega.entregada_by_user_id = int(actor.id) if actor else None
     entrega.entregada_chofer_nombre = chof
     entrega.entregada_lugar = lugar
     entrega.entregada_dia_semana = dia_semana_es(ahora)
+    entrega.cantidad_programada = programada
+    entrega.cantidad_real_entregada = qty_real
     entrega.updated_at_iso = iso
     append_evento(
         int(entrega.id),
@@ -222,6 +284,9 @@ def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime) ->
         chof,
         {
             "lugar_entrega": lugar,
+            "cantidad_programada": programada,
+            "cantidad_real_entregada": qty_real,
+            "diferencia_litros": qty_real - programada,
             "fecha": ahora.strftime("%Y-%m-%d"),
             "hora": ahora.strftime("%H:%M"),
             "dia_semana": entrega.entregada_dia_semana,
@@ -354,7 +419,9 @@ def _entrega_fila_excel(e: Entrega) -> list[Any]:
         cli,
         lug,
         prod,
-        float(e.cantidad or 0),
+        cantidad_programada_operativa(e),
+        e.cantidad_real_cargada,
+        e.cantidad_real_entregada,
         (e.unidad or "").strip() or "L",
         ch,
         e.estado,
@@ -399,7 +466,9 @@ def exportar_historial_entregas_excel(filtro: FiltroHistorialEntregas | None = N
         "Cliente",
         "Lugar de entrega",
         "Producto",
-        "Cantidad",
+        "Cantidad programada",
+        "Cantidad real cargada",
+        "Cantidad real entregada",
         "Unidad",
         "Chofer",
         "Estado",
@@ -446,7 +515,12 @@ def entrega_to_api_dict(e: Entrega) -> dict[str, Any]:
         "cliente": str(e.cliente or ""),
         "lugar_entrega": str(e.lugar_entrega or ""),
         "producto": str(e.producto or ""),
-        "cantidad": float(e.cantidad or 0),
+        "cantidad": cantidad_programada_operativa(e),
+        "cantidad_programada": cantidad_programada_operativa(e),
+        "cantidad_real_cargada": float(e.cantidad_real_cargada) if e.cantidad_real_cargada is not None else None,
+        "cantidad_real_entregada": float(e.cantidad_real_entregada) if e.cantidad_real_entregada is not None else None,
+        "cantidad_operativa_cargada": cantidad_cargada_operativa(e),
+        "cantidad_operativa_entregada": cantidad_entregada_operativa(e),
         "unidad": ((e.unidad or "").strip() or None),
         "fecha_prevista": str(e.fecha_prevista or ""),
         "observaciones": ((e.observaciones or "").strip() or None),

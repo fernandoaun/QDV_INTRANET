@@ -118,7 +118,7 @@ def sum_hipo_administrador_pt_ingresos_in_interval(
 
 def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_inclusive: str | None) -> float:
     """
-    Suma `Entrega.cantidad` (litros) para entregas de hipoclorito ya cargadas en camión,
+    Suma la cantidad real cargada (litros) para entregas de hipoclorito ya cargadas en camión,
     con `cargada_at_iso` en el intervalo inclusivo [from, to]. Si to es None, hasta `now_local_iso()`.
     """
     t_from = (cargada_from_iso or "").strip()
@@ -130,8 +130,9 @@ def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_i
     hipo = _hipo_product_sql_match()
     if hipo is None:
         return 0.0
+    qty_expr = func.coalesce(Entrega.cantidad_real_cargada, Entrega.cantidad_programada, Entrega.cantidad)
     total = db.session.scalar(
-        select(func.coalesce(func.sum(Entrega.cantidad), 0.0)).where(
+        select(func.coalesce(func.sum(qty_expr), 0.0)).where(
             Entrega.cargada_at_iso.isnot(None),
             func.trim(Entrega.cargada_at_iso) != "",
             Entrega.cargada_at_iso >= t_from,
@@ -214,7 +215,8 @@ def sum_hipochlorito_programada_liters(exclude_entrega_id: int | None = None) ->
     hipo = _hipo_product_sql_match()
     if hipo is None:
         return 0.0
-    stmt = select(func.coalesce(func.sum(Entrega.cantidad), 0.0)).where(
+    qty_expr = func.coalesce(Entrega.cantidad_programada, Entrega.cantidad)
+    stmt = select(func.coalesce(func.sum(qty_expr), 0.0)).where(
         Entrega.estado == "programada",
         hipo,
     )

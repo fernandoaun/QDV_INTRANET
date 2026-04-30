@@ -55,7 +55,7 @@
   <div class="col-md-6">
     <div
       class="app-card app-panel-kpi h-100 mb-0"
-      title="Suma de litros con fecha/hora de «Cargar» (cargada_at_iso) en los últimos {{ entregas_kpis.periodo_dias }} días corridos, hora planta. No incluye solo programadas."
+      title="Suma de litros reales cargados con fecha/hora de «Cargar» (cargada_at_iso) en los últimos {{ entregas_kpis.periodo_dias }} días corridos, hora planta. No incluye solo programadas."
     >
       <div class="app-card-header app-card-header--split">
         <span class="text-uppercase fw-semibold small">Producto cargado último mes</span>
@@ -71,7 +71,7 @@
   <div class="col-md-6">
     <div
       class="app-card app-panel-kpi h-100 mb-0"
-      title="Suma de litros con estado entregada y fecha/hora de «Entregado» (entregada_at_iso) en los últimos {{ entregas_kpis.periodo_dias }} días corridos. No incluye cargado sin entregar."
+      title="Suma de litros reales entregados con estado entregada y fecha/hora de «Entregado» (entregada_at_iso) en los últimos {{ entregas_kpis.periodo_dias }} días corridos. No incluye cargado sin entregar."
     >
       <div class="app-card-header app-card-header--split">
         <span class="text-uppercase fw-semibold small">Producto entregado último mes</span>
@@ -112,7 +112,7 @@
           <th>Cliente</th>
           <th>Lugar</th>
           <th>Producto</th>
-          <th class="text-end">Cantidad</th>
+          <th class="text-end">Cantidades</th>
           <th>Estado</th>
           <th>Chofer</th>
           <th>Observaciones</th>
@@ -175,6 +175,8 @@
         {% endif %}
         {% for e in entregas %}
         {% set st = e.estado or '' %}
+        {% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
+        {% set cantidad_real = e.cantidad_real_entregada if e.cantidad_real_entregada is not none else (e.cantidad_real_cargada if e.cantidad_real_cargada is not none else none) %}
         {% set obs_text = e.observaciones or '' %}
         {% set obs_display = obs_text %}
         {% if obs_text.startswith('Hora prevista: ') %}
@@ -185,7 +187,12 @@
           <td><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
           <td>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
           <td>{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
-          <td class="text-end">{{ e.cantidad }}</td>
+          <td class="text-end">
+            <div><span class="text-muted small">Programado:</span> {{ cantidad_programada }} L</div>
+            {% if cantidad_real is not none %}
+            <div><span class="fw-semibold">Real:</span> {{ cantidad_real }} L</div>
+            {% endif %}
+          </td>
           <td>
             {% if st == 'programada' %}
             <span class="badge rounded-pill text-bg-secondary">Programada</span>
@@ -234,30 +241,42 @@
 
 {% for e in entregas %}
 {% if user_can_entregas_cargar() and (e.estado or '') == 'programada' %}
+{% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
 <div class="modal fade" id="modalCargar{{ e.id }}" tabindex="-1" aria-labelledby="mc{{ e.id }}" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
+      <form method="post" action="{{ url_for('entregas.gestion') }}" class="entrega-real-form" data-action-label="cargar">
+      {% include "_csrf.html" %}
+        <input type="hidden" name="action" value="cargar">
+        <input type="hidden" name="entrega_id" value="{{ e.id }}">
+        <input type="hidden" name="confirm" value="1">
       <div class="modal-header">
         <h2 class="modal-title fs-5" id="mc{{ e.id }}">Confirmar carga</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <p class="mb-0">¿Confirmás que la entrega fue <strong>cargada</strong> en el camión?</p>
-        <p class="small app-text-secondary mt-2 mb-0">{{ e.cliente }} · {% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} · {{ e.cantidad }} L</p>
+        <p class="small app-text-secondary mt-2 mb-3">{{ e.cliente }} · {% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %}</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-6">
+            <label class="form-label small mb-1">Cantidad programada</label>
+            <input class="form-control text-end" value="{{ cantidad_programada }}" readonly tabindex="-1">
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1" for="cantidadCargar{{ e.id }}">Cantidad a cargar</label>
+            <input class="form-control text-end entrega-real-input" id="cantidadCargar{{ e.id }}" name="cantidad_real" type="number" step="any" min="0" value="{{ cantidad_programada }}" data-programada="{{ cantidad_programada }}" required inputmode="decimal" autocomplete="off">
+          </div>
+        </div>
+        <p class="small text-warning mt-2 mb-0 d-none entrega-real-warning">Atención: la cantidad real difiere más de 20% de la programada.</p>
         {% if e.producto|es_hipoclorito_entrega %}
         <p class="small text-danger mt-2 mb-0">Se validará el <strong>stock disponible en planta</strong> (mismo criterio que el Panel). Si no alcanza, no se podrá cargar. Si alcanza, se registrará el <strong>consumo</strong> de <strong>{{ hipoclorito_nombre_catalogo }}</strong> con marca <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> con fecha y hora de esta confirmación.</p>
         {% endif %}
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <form method="post" action="{{ url_for('entregas.gestion') }}" class="d-inline">
-        {% include "_csrf.html" %}
-          <input type="hidden" name="action" value="cargar">
-          <input type="hidden" name="entrega_id" value="{{ e.id }}">
-          <input type="hidden" name="confirm" value="1">
-          <button type="submit" class="btn btn-warning">Sí, cargada</button>
-        </form>
+        <button type="submit" class="btn btn-warning">Confirmar carga</button>
       </div>
+      </form>
     </div>
   </div>
 </div>
@@ -265,27 +284,40 @@
 {% if user_can_entregas_entregar() and (e.estado or '') != 'entregada' %}
   {% set puede_ent = (e.estado or '') == 'cargada' or not (e.producto|es_hipoclorito_entrega) %}
   {% if puede_ent %}
+{% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
+{% set cantidad_entregar_default = e.cantidad_real_cargada if e.cantidad_real_cargada is not none else cantidad_programada %}
 <div class="modal fade" id="modalEntregar{{ e.id }}" tabindex="-1" aria-labelledby="me{{ e.id }}" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
+      <form method="post" action="{{ url_for('entregas.gestion') }}" class="entrega-real-form" data-action-label="entregar">
+      {% include "_csrf.html" %}
+        <input type="hidden" name="action" value="entregar">
+        <input type="hidden" name="entrega_id" value="{{ e.id }}">
+        <input type="hidden" name="confirm" value="1">
       <div class="modal-header">
         <h2 class="modal-title fs-5" id="me{{ e.id }}">Confirmar entrega</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
         <p class="mb-0">¿Confirmás que la entrega fue <strong>entregada</strong> al cliente?</p>
-        <p class="small app-text-secondary mt-2 mb-0">Lugar: <strong>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</strong>. Fecha y hora del registro serán las del momento en que confirmes. El responsable se registrará como <strong>{{ nav_user.nombre_completo or nav_user.username }}</strong>.</p>
+        <p class="small app-text-secondary mt-2 mb-3">Lugar: <strong>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</strong>. Fecha y hora del registro serán las del momento en que confirmes. El responsable se registrará como <strong>{{ nav_user.nombre_completo or nav_user.username }}</strong>.</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-6">
+            <label class="form-label small mb-1">Cantidad programada</label>
+            <input class="form-control text-end" value="{{ cantidad_programada }}" readonly tabindex="-1">
+          </div>
+          <div class="col-6">
+            <label class="form-label small mb-1" for="cantidadEntregar{{ e.id }}">Cantidad a entregar</label>
+            <input class="form-control text-end entrega-real-input" id="cantidadEntregar{{ e.id }}" name="cantidad_real" type="number" step="any" min="0" value="{{ cantidad_entregar_default }}" data-programada="{{ cantidad_programada }}" required inputmode="decimal" autocomplete="off">
+          </div>
+        </div>
+        <p class="small text-warning mt-2 mb-0 d-none entrega-real-warning">Atención: la cantidad real difiere más de 20% de la programada.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <form method="post" action="{{ url_for('entregas.gestion') }}" class="d-inline">
-        {% include "_csrf.html" %}
-          <input type="hidden" name="action" value="entregar">
-          <input type="hidden" name="entrega_id" value="{{ e.id }}">
-          <input type="hidden" name="confirm" value="1">
-          <button type="submit" class="btn btn-success">Sí, entregada</button>
-        </form>
+        <button type="submit" class="btn btn-success">Confirmar entrega</button>
       </div>
+      </form>
     </div>
   </div>
 </div>
@@ -359,6 +391,59 @@
       if (ev.key === "ArrowLeft") {
         ev.preventDefault();
         focusRelative(field, -1);
+      }
+    });
+  });
+})();
+</script>
+<script>
+(() => {
+  function toNumber(value) {
+    const n = Number(String(value || "").replace(",", "."));
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  function syncWarning(input) {
+    const form = input.closest("form");
+    const warning = form ? form.querySelector(".entrega-real-warning") : null;
+    const programada = toNumber(input.dataset.programada);
+    const real = toNumber(input.value);
+    const show = Number.isFinite(programada) && programada > 0 && Number.isFinite(real) && Math.abs(real - programada) / programada > 0.2;
+    if (warning) warning.classList.toggle("d-none", !show);
+    return show;
+  }
+
+  document.querySelectorAll(".modal").forEach((modal) => {
+    modal.addEventListener("shown.bs.modal", () => {
+      const input = modal.querySelector(".entrega-real-input");
+      if (input) {
+        input.focus();
+        input.select();
+        syncWarning(input);
+      }
+    });
+  });
+
+  document.querySelectorAll(".entrega-real-input").forEach((input) => {
+    input.addEventListener("input", () => syncWarning(input));
+  });
+
+  document.querySelectorAll(".entrega-real-form").forEach((form) => {
+    form.addEventListener("submit", (ev) => {
+      const input = form.querySelector(".entrega-real-input");
+      if (!input) return;
+      const real = toNumber(input.value);
+      if (!Number.isFinite(real) || real < 0) {
+        ev.preventDefault();
+        alert("La cantidad real no puede ser negativa y debe ser numérica.");
+        input.focus();
+        input.select();
+        return;
+      }
+      const label = form.dataset.actionLabel || "registrar";
+      const warn = syncWarning(input) ? "\n\nAtención: la diferencia supera el 20% de lo programado." : "";
+      if (!window.confirm(`¿Confirmás ${label} con cantidad real ${input.value} L?${warn}`)) {
+        ev.preventDefault();
       }
     });
   });

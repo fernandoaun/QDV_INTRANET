@@ -132,9 +132,17 @@ def gestion():
                 return redirect(url_for("entregas.gestion"))
             try:
                 ahora = now_operacion_naive_local()
-                entregas_service.ejecutar_cargada(ent, u, ahora)
+                programada = entregas_service.cantidad_programada_operativa(ent)
+                cantidad_real_raw = request.form.get("cantidad_real")
+                cantidad_real = entregas_service.validate_cantidad_real(
+                    programada if cantidad_real_raw is None else cantidad_real_raw, "La cantidad a cargar"
+                )
+                warning = entregas_service.cantidad_real_warning(programada, cantidad_real)
+                entregas_service.ejecutar_cargada(ent, u, ahora, cantidad_real)
                 db.session.commit()
                 flash("Entrega marcada como cargada.", "success")
+                if warning:
+                    flash(warning, "warning")
             except Exception as ex:  # noqa: BLE001
                 db.session.rollback()
                 flash(str(ex) or "No se pudo registrar la carga.", "danger")
@@ -148,9 +156,17 @@ def gestion():
                 return redirect(url_for("entregas.gestion"))
             try:
                 ahora = now_operacion_naive_local()
-                entregas_service.ejecutar_entregada(ent, u, ahora)
+                programada = entregas_service.cantidad_programada_operativa(ent)
+                cantidad_real_raw = request.form.get("cantidad_real")
+                cantidad_real = entregas_service.validate_cantidad_real(
+                    programada if cantidad_real_raw is None else cantidad_real_raw, "La cantidad a entregar"
+                )
+                warning = entregas_service.cantidad_real_warning(programada, cantidad_real)
+                entregas_service.ejecutar_entregada(ent, u, ahora, cantidad_real)
                 db.session.commit()
                 flash("Entrega marcada como entregada.", "success")
+                if warning:
+                    flash(warning, "warning")
             except Exception as ex:  # noqa: BLE001
                 db.session.rollback()
                 flash(str(ex) or "No se pudo registrar la entrega.", "danger")
@@ -392,6 +408,7 @@ def editar(eid: int):
 
             ews.assign_catalogo_a_entrega(ent, cli, lug, pt, ch)
             ent.cantidad = cantidad
+            ent.cantidad_programada = cantidad
             ent.fecha_prevista = fecha_prev
             ent.observaciones = obs
             ent.stock_categoria = stock_cat

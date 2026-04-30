@@ -96,11 +96,18 @@
       <tbody>
         {% for e in entregas %}
         {% set st = e.estado or '' %}
+        {% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
+        {% set cantidad_real = e.cantidad_real_entregada if e.cantidad_real_entregada is not none else (e.cantidad_real_cargada if e.cantidad_real_cargada is not none else none) %}
         <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
           <td><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
           <td>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
           <td>{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
-          <td class="text-end">{{ e.cantidad }}</td>
+          <td class="text-end">
+            <div><span class="text-muted small">Programado:</span> {{ cantidad_programada }} L</div>
+            {% if cantidad_real is not none %}
+            <div><span class="fw-semibold">Real:</span> {{ cantidad_real }} L</div>
+            {% endif %}
+          </td>
           <td>{{ e.fecha_prevista }}</td>
           <td>
             {% if st == 'programada' %}
