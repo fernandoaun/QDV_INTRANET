@@ -47,14 +47,14 @@ _ANALYSIS_REF_PDF_REGISTRY: dict[str, dict[str, Any]] = {
         "legacy_hipo_dir": False,
     },
     ANALISIS_8HS_DUREZA_PDF_DOC_KEY: {
-        "permission": ("salmuera", "reactor"),
+        "permission": "salmuera",
         "redirect_endpoint": "produccion.salmuera",
         "modal_title": "Dureza de salmuera",
         "flash_label": "Dureza de salmuera",
         "legacy_hipo_dir": False,
     },
     ANALISIS_8HS_CLORO_LIBRE_PDF_DOC_KEY: {
-        "permission": ("salmuera", "reactor"),
+        "permission": "salmuera",
         "redirect_endpoint": "produccion.salmuera",
         "modal_title": "Cloro libre en salmuera",
         "flash_label": "Cloro libre en salmuera",
@@ -147,8 +147,6 @@ SALMUERA_ANALYSIS_REF_SPECS: tuple[dict[str, str], ...] = (
 REACTOR_ANALYSIS_REF_SPECS: tuple[dict[str, str], ...] = (
     {"doc_key": "reactor_exceso_naoh_pdf", "modal_id": "analysisRefModalReactorExcesoNaoh", "label": "Exceso NaOH"},
     {"doc_key": "reactor_exceso_na2co3_pdf", "modal_id": "analysisRefModalReactorExcesoNa2co3", "label": "Exceso Na₂CO₃"},
-    {"doc_key": ANALISIS_8HS_DUREZA_PDF_DOC_KEY, "modal_id": "analysisRefModalAnalisis8Dureza", "label": "Dureza de salmuera"},
-    {"doc_key": ANALISIS_8HS_CLORO_LIBRE_PDF_DOC_KEY, "modal_id": "analysisRefModalAnalisis8CloroLibre", "label": "Cloro libre en salmuera"},
 )
 
 AGUA_ANALYSIS_REF_SPECS: tuple[dict[str, str], ...] = (
