@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Orden #{{ order.id }} · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div><h1 class="app-page-title">Orden #{{ order.id }}</h1><div class="text-muted">{{ tipos_mantenimiento.get(order.tipo_mantenimiento, order.tipo_mantenimiento) }}</div></div>
+  <div class="app-page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.ordenes') }}">Órdenes</a></div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-body">
+    <form method="post" class="row g-3 maintenance-dependent-components">
+      {% include "_csrf.html" %}
+      <div class="col-md-4"><label class="form-label">Equipo</label><select class="form-select js-equipo" name="equipo_id" required>{% for e in equipos %}<option value="{{ e.id }}" {% if order.equipo_id == e.id %}selected{% endif %}>{{ e.nombre_equipo }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><label class="form-label">Componente</label><select class="form-select js-component" name="component_id"><option value="">Equipo principal</option>{% for equipo_id, comps in components.items() %}{% for c in comps %}<option value="{{ c.id }}" data-equipo="{{ equipo_id }}" {% if order.component_id == c.id %}selected{% endif %}>{{ c.nombre }}</option>{% endfor %}{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label">Tipo</label><select class="form-select" name="tipo_mantenimiento">{% for k, v in tipos_mantenimiento.items() %}<option value="{{ k }}" {% if order.tipo_mantenimiento == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><label class="form-label">Fecha</label><input type="date" class="form-control" name="fecha_programada" value="{{ order.fecha_programada }}" required></div>
+      <div class="col-md-3"><label class="form-label">Estado</label><select class="form-select" name="estado">{% for k, v in order_estados.items() %}<option value="{{ k }}" {% if order.estado == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">Prioridad</label><select class="form-select" name="prioridad">{% for k, v in prioridades.items() %}<option value="{{ k }}" {% if order.prioridad == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">Criticidad</label><select class="form-select" name="criticidad">{% for k, v in criticidades.items() %}<option value="{{ k }}" {% if order.criticidad == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></div>
+      <div class="col-md-3"><label class="form-label">Responsable</label><input class="form-control" name="responsable" value="{{ order.responsable or '' }}"></div>
+      <div class="col-md-8"><label class="form-label">Tareas</label><textarea class="form-control" name="tareas" rows="2">{{ order.tareas or '' }}</textarea></div>
+      <div class="col-md-4"><label class="form-label">Tiempo estimado h</label><input type="number" step="0.1" class="form-control" name="tiempo_estimado_horas" value="{{ order.tiempo_estimado_horas or '' }}"></div>
+      <div class="col-md-3"><label class="form-label">Recursos</label><textarea class="form-control" name="recursos_necesarios" rows="2">{{ order.recursos_necesarios or '' }}</textarea></div>
+      <div class="col-md-3"><label class="form-label">Repuestos</label><textarea class="form-control" name="repuestos_necesarios" rows="2">{{ order.repuestos_necesarios or '' }}</textarea></div>
+      <div class="col-md-3"><label class="form-label">Herramientas</label><textarea class="form-control" name="herramientas_necesarias" rows="2">{{ order.herramientas_necesarias or '' }}</textarea></div>
+      <div class="col-md-3"><label class="form-label">EPP</label><textarea class="form-control" name="epp_necesarios" rows="2">{{ order.epp_necesarios or '' }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Resultado / acción</label><textarea class="form-control" name="resultado" rows="2">{{ order.resultado or '' }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Observaciones</label><textarea class="form-control" name="observaciones" rows="2">{{ order.observaciones or '' }}</textarea></div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">Guardar orden</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Recursos sugeridos / usados</div>
+  <div class="app-card-body">
+    {% if order.order_resources %}
+    <ul class="mb-0">
+      {% for r in order.order_resources %}
+      <li>{{ resource_categorias.get(r.categoria, r.categoria) }}: {{ r.nombre }}{% if r.cantidad %} · {{ r.cantidad }} {{ r.unidad or '' }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="text-muted">Sin recursos estructurados cargados.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  var form = document.querySelector(".maintenance-dependent-components");
+  if (!form) return;
+  var equipo = form.querySelector(".js-equipo");
+  var component = form.querySelector(".js-component");
+  var options = Array.prototype.slice.call(component.options);
+  function refresh() {
+    var selected = equipo.value || "";
+    options.forEach(function (opt) {
+      var owner = opt.getAttribute("data-equipo");
+      opt.hidden = owner && owner !== selected;
+    });
+  }
+  equipo.addEventListener("change", refresh);
+  refresh();
+})();
+</script>
+{% endblock %}

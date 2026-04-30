@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Predictivo · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div><h1 class="app-page-title">Mantenimiento predictivo</h1><div class="text-muted">Sugerencias calculadas desde fallas correctivas históricas.</div></div>
+  <div class="app-page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.hub') }}">Mantenimiento</a></div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-body">
+    <form method="post" class="d-inline">
+      {% include "_csrf.html" %}
+      <button class="btn btn-primary" type="submit">Actualizar predicciones</button>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Equipo</th><th>Componente</th><th>Tipo de falla</th><th>Fallas</th><th>Promedio días</th><th>Última falla</th><th>Estimada</th><th>Confianza</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+      {% for p in rows %}
+      <tr>
+        <td>{{ p.equipo.nombre_equipo if p.equipo else p.equipo_id }}</td>
+        <td>{{ p.component.nombre if p.component else "Equipo principal" }}</td>
+        <td>{{ p.tipo_falla }}</td>
+        <td>{{ p.cantidad_fallas }}</td>
+        <td>{{ p.promedio_dias_entre_fallas or "—" }}</td>
+        <td>{{ p.ultima_fecha_falla or "—" }}</td>
+        <td><span class="badge text-bg-info">{{ p.fecha_estimada_proxima or "—" }}</span></td>
+        <td>{{ p.nivel_confianza }}</td>
+        <td>{{ prediction_estados.get(p.estado, p.estado) }}</td>
+        <td>
+          {% if p.estado != 'programada' %}
+          <form method="post" action="{{ url_for('mantenimiento.predictivo_programar', prediction_id=p.id) }}" class="d-flex gap-1">
+            {% include "_csrf.html" %}
+            <input type="date" class="form-control form-control-sm" name="fecha_programada" value="{{ p.fecha_estimada_proxima or '' }}">
+            <button class="btn btn-sm btn-outline-primary" type="submit">Programar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="text-muted text-center py-3">Sin sugerencias. Cargá y cerrá fallas repetitivas, luego actualizá predicciones.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

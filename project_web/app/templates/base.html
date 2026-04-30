@@ -56,6 +56,14 @@
              title="PLANIFICACIÓN — tareas y Gantt"><i class="bi bi-calendar-range" aria-hidden="true"></i></a>
         </li>
         {% endif %}
+        {% if user_can_mantenimiento %}
+        <li>
+          <a href="{{ url_for('mantenimiento.hub') }}"
+             class="app-sidenav-link {% if ep and ep.startswith('mantenimiento.') %}is-active{% endif %}"
+             data-filter-text="mantenimiento equipos correctivos fallas componentes historial"
+             title="MANTENIMIENTO"><i class="bi bi-tools" aria-hidden="true"></i></a>
+        </li>
+        {% endif %}
         {% if user_can_view_admin_configuration() %}
         <li>
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
@@ -96,6 +104,9 @@
             {% endif %}
             {% if user_can_planificacion %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('planificacion.hub') }}"><i class="bi bi-calendar-range me-2 opacity-50" aria-hidden="true"></i>PLANIFICACIÓN</a></li>
+            {% endif %}
+            {% if user_can_mantenimiento %}
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('mantenimiento.hub') }}"><i class="bi bi-tools me-2 opacity-50" aria-hidden="true"></i>MANTENIMIENTO</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
             {% if shift_nav and shift_nav.open_mine and shift_nav.may_write_operational %}

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Planes preventivos · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Planes preventivos</h1>
+  <div class="app-page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.hub') }}">Mantenimiento</a></div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-header">Nuevo plan</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 maintenance-dependent-components">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="activo" value="1">
+      <div class="col-md-4"><input class="form-control" name="nombre" placeholder="Nombre del plan" required></div>
+      <div class="col-md-4">
+        <select class="form-select js-equipo" name="equipo_id" required>
+          <option value="">Equipo...</option>
+          {% for e in equipos %}<option value="{{ e.id }}">{{ e.nombre_equipo }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <select class="form-select js-component" name="component_id">
+          <option value="">Equipo principal / sin componente</option>
+          {% for equipo_id, comps in components.items() %}
+            {% for c in comps %}<option value="{{ c.id }}" data-equipo="{{ equipo_id }}">{{ c.nombre }}</option>{% endfor %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><input type="number" class="form-control" name="frecuencia_dias" placeholder="Frecuencia días"></div>
+      <div class="col-md-2"><input type="number" step="0.1" class="form-control" name="frecuencia_horas_uso" placeholder="Horas uso"></div>
+      <div class="col-md-2">
+        <select class="form-select" name="frecuencia_periodo"><option value="">Periodo</option>{% for k, v in frecuencia_periodos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-md-3"><input type="date" class="form-control" name="proxima_fecha"></div>
+      <div class="col-md-3"><input class="form-control" name="responsable" placeholder="Responsable" list="responsablesList"></div>
+      <datalist id="responsablesList">{% for u in users %}<option value="{{ u.nombre_completo or u.username }}"></option>{% endfor %}</datalist>
+      <div class="col-md-2"><input type="number" step="0.1" class="form-control" name="duracion_estimada_horas" placeholder="Duración h"></div>
+      <div class="col-md-10"><input class="form-control" name="tareas" placeholder="Tareas a realizar"></div>
+      <div class="col-md-3"><input class="form-control" name="recursos_necesarios" placeholder="Recursos"></div>
+      <div class="col-md-3"><input class="form-control" name="repuestos_necesarios" placeholder="Repuestos"></div>
+      <div class="col-md-3"><input class="form-control" name="herramientas_necesarias" placeholder="Herramientas"></div>
+      <div class="col-md-3"><input class="form-control" name="epp_necesarios" placeholder="EPP"></div>
+      <div class="col-12"><textarea class="form-control" name="observaciones" rows="2" placeholder="Observaciones"></textarea></div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">Crear plan</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Plan</th><th>Equipo</th><th>Componente</th><th>Próxima fecha</th><th>Estado</th><th>Responsable</th><th></th></tr></thead>
+      <tbody>
+      {% for p in plans %}
+        {% set st = plan_status(p) %}
+        <tr>
+          <td>{{ p.nombre }}</td>
+          <td>{{ p.equipo.nombre_equipo if p.equipo else p.equipo_id }}</td>
+          <td>{{ p.component.nombre if p.component else "—" }}</td>
+          <td>{{ p.proxima_fecha or "—" }}</td>
+          <td>{{ st|replace('_', ' ') }}</td>
+          <td>{{ p.responsable or "—" }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('mantenimiento.plan_detail', plan_id=p.id) }}">Abrir</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="text-muted text-center py-3">Sin planes preventivos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  document.querySelectorAll(".maintenance-dependent-components").forEach(function (form) {
+    var equipo = form.querySelector(".js-equipo");
+    var component = form.querySelector(".js-component");
+    if (!equipo || !component) return;
+    var options = Array.prototype.slice.call(component.options);
+    function refresh() {
+      var selected = equipo.value || "";
+      options.forEach(function (opt) {
+        var owner = opt.getAttribute("data-equipo");
+        opt.hidden = owner && owner !== selected;
+      });
+      if (component.selectedOptions[0] && component.selectedOptions[0].hidden) component.value = "";
+    }
+    equipo.addEventListener("change", refresh);
+    refresh();
+  });
+})();
+</script>
+{% endblock %}

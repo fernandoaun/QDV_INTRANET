@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Reportar falla · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Reportar falla</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.correctivos') }}">Correctivos</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body">
+    <form method="post" enctype="multipart/form-data" class="row g-3" id="failureReportForm">
+      {% include "_csrf.html" %}
+      <div class="col-md-4">
+        <label class="form-label">Fecha y hora de detección</label>
+        <input type="datetime-local" class="form-control" name="detected_at_iso" value="{{ now_value }}" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Equipo principal</label>
+        <select class="form-select" name="equipo_id" id="failureEquipoSelect" required>
+          <option value="">Seleccionar...</option>
+          {% for e in equipos %}
+          <option value="{{ e.id }}" {% if request.args.get('equipo_id')|int == e.id %}selected{% endif %}>{{ e.nombre_equipo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Equipo asociado / componente</label>
+        <select class="form-select" name="component_id" id="failureComponentSelect">
+          <option value="">Equipo principal / sin componente</option>
+          {% for equipo_id, comps in components.items() %}
+            {% for c in comps %}
+            <option value="{{ c.id }}" data-equipo="{{ equipo_id }}">{{ c.nombre }}</option>
+            {% endfor %}
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Descripción de la falla</label>
+        <textarea class="form-control" name="descripcion_falla" rows="3" required></textarea>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Síntoma observado</label>
+        <textarea class="form-control" name="sintoma_observado" rows="3"></textarea>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Causa probable</label>
+        <textarea class="form-control" name="causa_probable" rows="2"></textarea>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Criticidad</label>
+        <select class="form-select" name="criticidad">
+          {% for key, label in criticidades.items() %}
+          <option value="{{ key }}" {% if key == 'media' %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Responsable sugerido</label>
+        <input class="form-control" name="responsable_trabajo" list="responsablesList">
+        <datalist id="responsablesList">
+          {% for u in users %}
+          <option value="{{ u.nombre_completo or u.username }}"></option>
+          {% endfor %}
+        </datalist>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Adjunto inicial</label>
+        <input type="file" class="form-control" name="adjunto">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Observaciones</label>
+        <textarea class="form-control" name="observaciones" rows="2"></textarea>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">Guardar reporte</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  var equipo = document.getElementById("failureEquipoSelect");
+  var component = document.getElementById("failureComponentSelect");
+  if (!equipo || !component) return;
+  var options = Array.prototype.slice.call(component.options);
+  function refreshComponents() {
+    var selected = equipo.value || "";
+    options.forEach(function (opt) {
+      var owner = opt.getAttribute("data-equipo");
+      opt.hidden = owner && owner !== selected;
+    });
+    var current = component.options[component.selectedIndex];
+    if (current && current.hidden) component.value = "";
+  }
+  equipo.addEventListener("change", refreshComponents);
+  refreshComponents();
+})();
+</script>
+{% endblock %}

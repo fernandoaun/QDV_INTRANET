@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Equipos · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Equipos</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.hub') }}">Mantenimiento</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Equipo</th>
+          <th>Tipo</th>
+          <th>Área / sector</th>
+          <th>Estado</th>
+          <th>Activo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for e in equipos %}
+        <tr>
+          <td>{{ e.codigo_interno or "—" }}</td>
+          <td>{{ e.nombre_equipo }}</td>
+          <td>{{ e.tipo_equipo or "—" }}</td>
+          <td>{{ e.area_sector or "—" }}</td>
+          <td>{{ equipo_estados.get(e.estado, e.estado or "Operativo") }}</td>
+          <td>{% if e.activo %}Sí{% else %}No{% endif %}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=e.id) }}">Ver</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="text-muted text-center py-3">Sin equipos cargados.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

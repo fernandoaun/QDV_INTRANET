@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Correctivos · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Correctivos</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.hub') }}">Mantenimiento</a>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('mantenimiento.reportar') }}">Reportar falla</a>
+  </div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-2"><label class="form-label">Desde</label><input type="date" class="form-control" name="desde" value="{{ filtros.desde }}"></div>
+      <div class="col-md-2"><label class="form-label">Hasta</label><input type="date" class="form-control" name="hasta" value="{{ filtros.hasta }}"></div>
+      <div class="col-md-3"><label class="form-label">Equipo</label>
+        <select class="form-select" name="equipo_id">
+          <option value="">Todos</option>
+          {% for e in equipos %}
+          <option value="{{ e.id }}" {% if filtros.equipo_id == e.id %}selected{% endif %}>{{ e.nombre_equipo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Todos</option>
+          {% for key, label in failure_estados.items() %}
+          <option value="{{ key }}" {% if filtros.estado == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><label class="form-label">Criticidad</label>
+        <select class="form-select" name="criticidad">
+          <option value="">Todas</option>
+          {% for key, label in criticidades.items() %}
+          <option value="{{ key }}" {% if filtros.criticidad == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3"><label class="form-label">Responsable</label><input class="form-control" name="responsable" value="{{ filtros.responsable }}" list="responsablesCorrectivoList"></div>
+      <datalist id="responsablesCorrectivoList">
+        {% for u in users %}
+        <option value="{{ u.nombre_completo or u.username }}"></option>
+        {% endfor %}
+      </datalist>
+      <div class="col-md-auto"><button class="btn btn-outline-primary" type="submit">Filtrar</button></div>
+      <div class="col-md-auto"><a class="btn btn-outline-secondary" href="{{ url_for('mantenimiento.correctivos') }}">Limpiar</a></div>
+      <div class="col-md-auto ms-md-auto">
+        <a class="btn btn-outline-success" href="{{ url_for('mantenimiento.correctivos_export') }}{% if export_query %}?{{ export_query }}{% endif %}">Exportar Excel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Equipo</th><th>Componente</th><th>Falla</th><th>Criticidad</th><th>Estado</th><th>Responsable</th><th></th></tr></thead>
+      <tbody>
+      {% for f in rows %}
+        <tr>
+          <td>{{ f.detected_at_iso|replace('T', ' ')|truncate(16, True, '') }}</td>
+          <td>{{ f.equipo.nombre_equipo if f.equipo else f.equipo_id }}</td>
+          <td>{{ f.component.nombre if f.component else "—" }}</td>
+          <td>{{ f.descripcion_falla }}</td>
+          <td>{{ criticidades.get(f.criticidad, f.criticidad) }}</td>
+          <td>{{ failure_estados.get(f.estado, f.estado) }}</td>
+          <td>{{ f.responsable_trabajo or "—" }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('mantenimiento.failure_detail', failure_id=f.id) }}">Abrir</a></td>
+        </tr>
+      {% else %}
+        <tr><td colspan="8" class="text-muted text-center py-3">Sin correctivos para los filtros seleccionados.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

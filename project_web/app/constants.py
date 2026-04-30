@@ -25,6 +25,12 @@ PERMISSION_KEYS: list[str] = [
     "despacho",
     "admin_usuarios",
     "planificacion",
+    "mantenimiento",
+    "mantenimiento_equipos",
+    "mantenimiento_correctivos",
+    "mantenimiento_preventivos",
+    "mantenimiento_recursos",
+    "mantenimiento_predictivo",
 ]
 
 # Nombre del producto en catálogo de stock (producto terminado / ingresos / consumos).
@@ -76,6 +82,12 @@ PERMISSION_LABELS: dict[str, str] = {
     "despacho": "Despacho",
     "admin_usuarios": "Administración de usuarios",
     "planificacion": "Planificación y Gantt",
+    "mantenimiento": "Mantenimiento (módulo)",
+    "mantenimiento_equipos": "Mantenimiento · Equipos y componentes",
+    "mantenimiento_correctivos": "Mantenimiento · Correctivos",
+    "mantenimiento_preventivos": "Mantenimiento · Preventivos y órdenes",
+    "mantenimiento_recursos": "Mantenimiento · Recursos y repuestos",
+    "mantenimiento_predictivo": "Mantenimiento · Predictivo",
 }
 
 PERMISSION_TREE: list[dict[str, object]] = [
@@ -118,6 +130,17 @@ PERMISSION_TREE: list[dict[str, object]] = [
     {"key": "recepcion", "label": "Recepción", "children": []},
     {"key": "despacho", "label": "Despacho", "children": []},
     {"key": "planificacion", "label": "Planificación y Gantt", "children": []},
+    {
+        "key": "mantenimiento",
+        "label": "Mantenimiento",
+        "children": [
+            {"key": "mantenimiento_equipos", "label": "Equipos y componentes"},
+            {"key": "mantenimiento_correctivos", "label": "Correctivos"},
+            {"key": "mantenimiento_preventivos", "label": "Preventivos y órdenes"},
+            {"key": "mantenimiento_recursos", "label": "Recursos y repuestos"},
+            {"key": "mantenimiento_predictivo", "label": "Predictivo"},
+        ],
+    },
 ]
 
 

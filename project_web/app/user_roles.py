@@ -85,6 +85,8 @@ _BASE_OPERACIONES: frozenset[str] = frozenset(
         "recepcion",
         "despacho",
         "planificacion",
+        "mantenimiento",
+        "mantenimiento_correctivos",
     }
 )
 
@@ -118,6 +120,12 @@ _BASE_MANTENIMIENTO: frozenset[str] = frozenset(
         "stock_existencias",
         "stock_historial",
         "planificacion",
+        "mantenimiento",
+        "mantenimiento_equipos",
+        "mantenimiento_correctivos",
+        "mantenimiento_preventivos",
+        "mantenimiento_recursos",
+        "mantenimiento_predictivo",
     }
 )
 

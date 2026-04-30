@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Mantenimiento · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Mantenimiento</h1>
+    <div class="text-muted">Equipos, preventivos, correctivos, recursos y predictivo.</div>
+  </div>
+  <div class="app-page-actions">
+    {% if can_view_correctivos %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('mantenimiento.reportar') }}">Reportar falla</a>
+    {% endif %}
+    {% if can_view_preventivos %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('mantenimiento.ordenes') }}">Programar mantenimiento</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Correctivos abiertos</div>
+      <div class="fs-3 fw-semibold">{{ counts.correctivos_abiertos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Críticos abiertos</div>
+      <div class="fs-3 fw-semibold text-danger">{{ counts.correctivos_criticos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Equipos en mantenimiento</div>
+      <div class="fs-3 fw-semibold">{{ counts.equipos_en_mantenimiento }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-3">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Componentes registrados</div>
+      <div class="fs-3 fw-semibold">{{ counts.componentes }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Vencidos</div>
+      <div class="fs-4 fw-semibold text-danger">{{ counts.mantenimientos_vencidos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Próximos</div>
+      <div class="fs-4 fw-semibold text-warning">{{ counts.mantenimientos_proximos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Correctivos del mes</div>
+      <div class="fs-4 fw-semibold">{{ counts.correctivos_mes }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Preventivos del mes</div>
+      <div class="fs-4 fw-semibold">{{ counts.preventivos_mes }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Horas fuera servicio</div>
+      <div class="fs-4 fw-semibold">{{ counts.tiempo_fuera_servicio_horas }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Predictivas</div>
+      <div class="fs-4 fw-semibold text-info">{{ counts.predictivas_sugeridas }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% if can_view_equipos %}
+  <div class="col-md-6">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.equipos') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Equipos y componentes</h2>
+        <p class="text-muted mb-0">Ver datos técnicos, componentes asociados e historial por equipo.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if can_view_preventivos %}
+  <div class="col-md-6">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.preventivos') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Planes preventivos</h2>
+        <p class="text-muted mb-0">Crear planes, definir frecuencia y generar órdenes programadas.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-6">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.ordenes') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Mantenimientos pendientes</h2>
+        <p class="text-muted mb-0">Filtrar, ejecutar, cerrar y exportar órdenes de mantenimiento.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if can_view_recursos %}
+  <div class="col-md-6">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.recursos') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Recursos / repuestos</h2>
+        <p class="text-muted mb-0">Definir recursos sugeridos para cada equipo y tipo de mantenimiento.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if can_view_predictivo %}
+  <div class="col-md-6">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.predictivo') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Predictivo</h2>
+        <p class="text-muted mb-0">Sugerencias por fallas históricas y conversión a mantenimiento programado.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+  {% if can_view_correctivos %}
+  <div class="col-md-6">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.correctivos') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Correctivos</h2>
+        <p class="text-muted mb-0">Listar, filtrar, analizar y cerrar fallas reportadas.</p>
+      </div>
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-lg-6">
+    <div class="app-card h-100">
+      <div class="app-card-header">Equipos con más fallas</div>
+      <div class="app-card-body">
+        {% for name, total in top_equipos %}
+        <div class="d-flex justify-content-between border-bottom py-1"><span>{{ name }}</span><strong>{{ total }}</strong></div>
+        {% else %}<div class="text-muted">Sin fallas registradas.</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="app-card h-100">
+      <div class="app-card-header">Componentes con más fallas</div>
+      <div class="app-card-body">
+        {% for name, total in top_componentes %}
+        <div class="d-flex justify-content-between border-bottom py-1"><span>{{ name }}</span><strong>{{ total }}</strong></div>
+        {% else %}<div class="text-muted">Sin fallas de componentes.</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

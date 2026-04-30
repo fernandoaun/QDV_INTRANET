@@ -33,6 +33,9 @@
         <td>{{ e.nombre_equipo }}</td>
         <td>{% if e.activo %}Sí{% else %}No{% endif %}</td>
         <td>
+          {% if user_can('mantenimiento') or user_can('mantenimiento_equipos') %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=e.id) }}">Mantenimiento</a>
+          {% endif %}
           {% if viewer_may_manage_users|default(false) %}
           <form method="post" action="{{ url_for('admin_users.equipo_toggle', eid=e.id) }}" class="d-inline">
           {% include "_csrf.html" %}

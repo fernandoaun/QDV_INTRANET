@@ -101,6 +101,7 @@ def create_app() -> Flask:
     from app.web.modules.auth import bp as auth_bp
     from app.web.modules.entregas import bp as entregas_bp
     from app.web.modules.export_historicos import bp as export_historicos_bp
+    from app.web.modules.mantenimiento import bp as mantenimiento_bp
     from app.web.modules.panel import bp as main_bp
     from app.web.modules.produccion import bp as produccion_bp
     from app.web.modules.shift import bp as shift_bp
@@ -114,6 +115,7 @@ def create_app() -> Flask:
     app.register_blueprint(shift_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(planificacion_bp)
+    app.register_blueprint(mantenimiento_bp)
 
     @app.before_request
     def _guard_operational_shift_writes():
@@ -158,6 +160,7 @@ def create_app() -> Flask:
         from app.auth_utils import user_can_edit as _user_can_edit
         from app.auth_utils import user_can_view_admin_configuration as _user_can_view_admin_configuration
         from app.auth_utils import user_can_access_entregas_hub
+        from app.auth_utils import user_can_access_mantenimiento
         from app.auth_utils import user_can_access_planificacion
         from app.auth_utils import user_can_access_production_hub
         from app.auth_utils import (
@@ -191,6 +194,7 @@ def create_app() -> Flask:
             "user_can_production_hub": user_can_access_production_hub(u),
             "user_can_entregas_hub": user_can_access_entregas_hub(u),
             "user_can_planificacion": user_can_access_planificacion(u),
+            "user_can_mantenimiento": user_can_access_mantenimiento(u),
             "user_can_entregas_programar": lambda: user_can_entregas_programar_effective(u),
             "user_can_entregas_programar_view": lambda: user_may_view_entregas_programar(u),
             "user_can_entregas_cargar": lambda: user_can_entregas_cargar_effective(u),

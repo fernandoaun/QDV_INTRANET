@@ -82,6 +82,19 @@ def user_can_access_planificacion(user: User | None) -> bool:
     return user_can(user, "planificacion")
 
 
+def user_can_access_mantenimiento(user: User | None) -> bool:
+    if user is None:
+        return False
+    return (
+        user_can(user, "mantenimiento")
+        or user_can(user, "mantenimiento_equipos")
+        or user_can(user, "mantenimiento_correctivos")
+        or user_can(user, "mantenimiento_preventivos")
+        or user_can(user, "mantenimiento_recursos")
+        or user_can(user, "mantenimiento_predictivo")
+    )
+
+
 def user_can_access_entregas_hub(user: User | None) -> bool:
     """Acceso al módulo Entregas solo con permisos explícitos del árbol entregas_* (sin heredar Producción)."""
     if user is None:
@@ -408,6 +421,22 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_edit_entregas_any_action(user)
     if ep.startswith("planificacion."):
         return user_can_edit(user, "planificacion")
+    if ep.startswith("mantenimiento.equipos") or ep.startswith("mantenimiento.equipo") or ep.startswith(
+        "mantenimiento.component"
+    ):
+        return user_can_edit(user, "mantenimiento_equipos")
+    if ep.startswith("mantenimiento.correctivos") or ep.startswith("mantenimiento.reportar") or ep.startswith(
+        "mantenimiento.failure"
+    ):
+        return user_can_edit(user, "mantenimiento_correctivos")
+    if ep.startswith("mantenimiento.preventivos") or ep.startswith("mantenimiento.orden"):
+        return user_can_edit(user, "mantenimiento_preventivos")
+    if ep.startswith("mantenimiento.recursos"):
+        return user_can_edit(user, "mantenimiento_recursos")
+    if ep.startswith("mantenimiento.predictivo"):
+        return user_can_edit(user, "mantenimiento_predictivo")
+    if ep.startswith("mantenimiento."):
+        return user_can_edit(user, "mantenimiento")
     if ep == "produccion.stock_consumo":
         return user_can_edit_stock_consumos(user)
     if ep == "produccion.stock_ver":

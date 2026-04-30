@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Correctivo #{{ failure.id }} · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Correctivo #{{ failure.id }}</h1>
+    <div class="text-muted">{{ failure.equipo.nombre_equipo if failure.equipo else "Equipo" }}{% if failure.component %} · {{ failure.component.nombre }}{% endif %}</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.correctivos') }}">Correctivos</a>
+    {% if failure.equipo %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=failure.equipo.id) }}">Equipo</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-header">Datos de la falla</div>
+  <div class="app-card-body">
+    <form method="post" enctype="multipart/form-data" class="row g-3">
+      {% include "_csrf.html" %}
+      <div class="col-md-3">
+        <label class="form-label">Detectada</label>
+        <input class="form-control" value="{{ failure.detected_at_iso|replace('T', ' ')|truncate(16, True, '') }}" readonly>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Reportó</label>
+        <input class="form-control" value="{{ failure.reported_by_display or '—' }}" readonly>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          {% for key, label in failure_estados.items() %}
+          <option value="{{ key }}" {% if failure.estado == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Criticidad</label>
+        <select class="form-select" name="criticidad">
+          {% for key, label in criticidades.items() %}
+          <option value="{{ key }}" {% if failure.criticidad == key %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-6"><label class="form-label">Descripción de la falla</label><textarea class="form-control" name="descripcion_falla" rows="3" required>{{ failure.descripcion_falla }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Síntoma observado</label><textarea class="form-control" name="sintoma_observado" rows="3">{{ failure.sintoma_observado or '' }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Causa probable</label><textarea class="form-control" name="causa_probable" rows="2">{{ failure.causa_probable or '' }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Causa real</label><textarea class="form-control" name="causa_real" rows="2">{{ failure.causa_real or '' }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Acción realizada</label><textarea class="form-control" name="accion_realizada" rows="3">{{ failure.accion_realizada or '' }}</textarea></div>
+      <div class="col-md-3"><label class="form-label">Responsable del trabajo</label><input class="form-control" name="responsable_trabajo" value="{{ failure.responsable_trabajo or '' }}"></div>
+      <div class="col-md-3"><label class="form-label">Fecha y hora de cierre</label><input type="datetime-local" class="form-control" name="closed_at_iso" value="{{ closed_value }}"></div>
+      <div class="col-md-6"><label class="form-label">Repuestos utilizados</label><textarea class="form-control" name="repuestos_utilizados" rows="2">{{ failure.repuestos_utilizados or '' }}</textarea></div>
+      <div class="col-md-6"><label class="form-label">Recursos utilizados</label><textarea class="form-control" name="recursos_utilizados" rows="2">{{ failure.recursos_utilizados or '' }}</textarea></div>
+      <div class="col-md-3"><label class="form-label">Horas fuera de servicio</label><input class="form-control" name="tiempo_fuera_servicio_horas" value="{{ failure.tiempo_fuera_servicio_horas or '' }}"></div>
+      <div class="col-md-9"><label class="form-label">Adjuntar archivo</label><input type="file" class="form-control" name="adjunto"></div>
+      <div class="col-12"><label class="form-label">Observaciones</label><textarea class="form-control" name="observaciones" rows="2">{{ failure.observaciones or '' }}</textarea></div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">Guardar correctivo</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Adjuntos</div>
+  <div class="app-card-body">
+    {% if failure.attachments %}
+    <ul class="mb-0">
+      {% for a in failure.attachments %}
+      <li><a href="{{ url_for('mantenimiento.download_attachment', attachment_id=a.id) }}">{{ a.original_filename }}</a> <span class="text-muted small">· {{ a.created_at_iso|replace('T', ' ')|truncate(16, True, '') }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="text-muted">Sin adjuntos.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
