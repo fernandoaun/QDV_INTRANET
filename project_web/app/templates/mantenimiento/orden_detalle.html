@@ -20,29 +20,35 @@
       <div class="col-md-3"><label class="form-label">Responsable</label><input class="form-control" name="responsable" value="{{ order.responsable or '' }}"></div>
       <div class="col-md-8"><label class="form-label">Tareas</label><textarea class="form-control" name="tareas" rows="2">{{ order.tareas or '' }}</textarea></div>
       <div class="col-md-4"><label class="form-label">Tiempo estimado h</label><input type="number" step="0.1" class="form-control" name="tiempo_estimado_horas" value="{{ order.tiempo_estimado_horas or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Recursos</label><textarea class="form-control" name="recursos_necesarios" rows="2">{{ order.recursos_necesarios or '' }}</textarea></div>
-      <div class="col-md-3"><label class="form-label">Repuestos</label><textarea class="form-control" name="repuestos_necesarios" rows="2">{{ order.repuestos_necesarios or '' }}</textarea></div>
-      <div class="col-md-3"><label class="form-label">Herramientas</label><textarea class="form-control" name="herramientas_necesarias" rows="2">{{ order.herramientas_necesarias or '' }}</textarea></div>
-      <div class="col-md-3"><label class="form-label">EPP</label><textarea class="form-control" name="epp_necesarios" rows="2">{{ order.epp_necesarios or '' }}</textarea></div>
+      <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <label class="form-label mb-0">Recursos y presupuesto de esta orden</label>
+          <button class="btn btn-sm btn-outline-primary" type="button" id="add-resource-row">Agregar recurso</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-app table-compact mb-0">
+            <thead><tr><th>Categoría</th><th>Nombre</th><th>Cantidad</th><th>Unidad</th><th>Tiempo h</th><th>Observaciones / presupuesto</th><th></th></tr></thead>
+            <tbody id="resource-rows">
+              {% for r in order.order_resources %}
+              <tr>
+                <td><select class="form-select form-select-sm" name="resource_categoria">{% for k, v in resource_categorias.items() %}<option value="{{ k }}" {% if r.categoria == k %}selected{% endif %}>{{ v }}</option>{% endfor %}</select></td>
+                <td><input class="form-control form-control-sm" name="resource_nombre" value="{{ r.nombre }}" required></td>
+                <td><input type="number" step="0.1" class="form-control form-control-sm" name="resource_cantidad" value="{{ r.cantidad or '' }}"></td>
+                <td><input class="form-control form-control-sm" name="resource_unidad" value="{{ r.unidad or '' }}"></td>
+                <td><input type="number" step="0.1" class="form-control form-control-sm" name="resource_tiempo_estimado_horas" value="{{ r.tiempo_estimado_horas or '' }}"></td>
+                <td><input class="form-control form-control-sm" name="resource_observaciones" value="{{ r.observaciones or '' }}"></td>
+                <td><button class="btn btn-sm btn-outline-danger js-remove-resource" type="button">Quitar</button></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="form-text">Cargá acá los recursos, repuestos, herramientas, EPP o costos reales para este mantenimiento.</div>
+      </div>
       <div class="col-md-6"><label class="form-label">Resultado / acción</label><textarea class="form-control" name="resultado" rows="2">{{ order.resultado or '' }}</textarea></div>
       <div class="col-md-6"><label class="form-label">Observaciones</label><textarea class="form-control" name="observaciones" rows="2">{{ order.observaciones or '' }}</textarea></div>
       <div class="col-12"><button class="btn btn-primary" type="submit">Guardar orden</button></div>
     </form>
-  </div>
-</div>
-
-<div class="app-card">
-  <div class="app-card-header">Recursos sugeridos / usados</div>
-  <div class="app-card-body">
-    {% if order.order_resources %}
-    <ul class="mb-0">
-      {% for r in order.order_resources %}
-      <li>{{ resource_categorias.get(r.categoria, r.categoria) }}: {{ r.nombre }}{% if r.cantidad %} · {{ r.cantidad }} {{ r.unidad or '' }}{% endif %}</li>
-      {% endfor %}
-    </ul>
-    {% else %}
-    <div class="text-muted">Sin recursos estructurados cargados.</div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}
@@ -65,6 +71,31 @@
   }
   equipo.addEventListener("change", refresh);
   refresh();
+})();
+(function () {
+  var tbody = document.getElementById("resource-rows");
+  var add = document.getElementById("add-resource-row");
+  if (!tbody || !add) return;
+  var categoryOptions = `{% for k, v in resource_categorias.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}`;
+  function rowHtml() {
+    return '<tr>' +
+      '<td><select class="form-select form-select-sm" name="resource_categoria">' + categoryOptions + '</select></td>' +
+      '<td><input class="form-control form-control-sm" name="resource_nombre" required></td>' +
+      '<td><input type="number" step="0.1" class="form-control form-control-sm" name="resource_cantidad"></td>' +
+      '<td><input class="form-control form-control-sm" name="resource_unidad"></td>' +
+      '<td><input type="number" step="0.1" class="form-control form-control-sm" name="resource_tiempo_estimado_horas"></td>' +
+      '<td><input class="form-control form-control-sm" name="resource_observaciones"></td>' +
+      '<td><button class="btn btn-sm btn-outline-danger js-remove-resource" type="button">Quitar</button></td>' +
+      '</tr>';
+  }
+  add.addEventListener("click", function () {
+    tbody.insertAdjacentHTML("beforeend", rowHtml());
+  });
+  tbody.addEventListener("click", function (event) {
+    if (event.target && event.target.classList.contains("js-remove-resource")) {
+      event.target.closest("tr").remove();
+    }
+  });
 })();
 </script>
 {% endblock %}

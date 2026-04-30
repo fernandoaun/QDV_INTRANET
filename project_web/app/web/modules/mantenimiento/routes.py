@@ -77,7 +77,6 @@ def hub():
         can_view_equipos=_can_view_equipos(u),
         can_view_correctivos=_can_view_correctivos(u),
         can_view_preventivos=_can_view_preventivos(u),
-        can_view_recursos=_can_view_recursos(u),
         can_view_predictivo=_can_view_predictivo(u),
     )
 

@@ -593,13 +593,51 @@ def _apply_order_form(order: MaintenanceOrder, form: Any) -> None:
     order.updated_at_iso = now_operacion_local_iso_seconds()
 
 
+def _form_getlist(form: Any, key: str) -> list[str]:
+    if hasattr(form, "getlist"):
+        return list(form.getlist(key))
+    value = form.get(key)
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def _apply_order_resources_from_form(order: MaintenanceOrder, form: Any) -> None:
+    nombres = _form_getlist(form, "resource_nombre")
+    categorias = _form_getlist(form, "resource_categoria")
+    cantidades = _form_getlist(form, "resource_cantidad")
+    unidades = _form_getlist(form, "resource_unidad")
+    tiempos = _form_getlist(form, "resource_tiempo_estimado_horas")
+    observaciones = _form_getlist(form, "resource_observaciones")
+
+    db.session.query(MaintenanceOrderResource).filter_by(order_id=int(order.id)).delete()
+    now = now_operacion_local_iso_seconds()
+    for idx, raw_nombre in enumerate(nombres):
+        nombre = _clean(raw_nombre)
+        if not nombre:
+            continue
+        db.session.add(
+            MaintenanceOrderResource(
+                order_id=int(order.id),
+                resource_id=None,
+                categoria=_valid_or_default(categorias[idx] if idx < len(categorias) else None, RESOURCE_CATEGORIAS, "personal"),
+                nombre=nombre,
+                cantidad=_parse_float(cantidades[idx] if idx < len(cantidades) else None),
+                unidad=_none_if_empty(unidades[idx] if idx < len(unidades) else None),
+                tiempo_estimado_horas=_parse_float(tiempos[idx] if idx < len(tiempos) else None),
+                observaciones=_none_if_empty(observaciones[idx] if idx < len(observaciones) else None),
+                created_at_iso=now,
+            )
+        )
+
+
 def create_order_from_form(form: Any) -> MaintenanceOrder:
     now = now_operacion_local_iso_seconds()
     order = MaintenanceOrder(created_at_iso=now, updated_at_iso=now, equipo_id=0, fecha_programada=date.today().isoformat())
     _apply_order_form(order, form)
     db.session.add(order)
     db.session.flush()
-    copy_suggested_resources_to_order(order)
+    _apply_order_resources_from_form(order, form)
     return order
 
 
@@ -616,10 +654,6 @@ def create_order_from_plan(plan: MaintenancePlan, fecha_programada: str | None =
         responsable=plan.responsable,
         estado="programado",
         tareas=plan.tareas,
-        recursos_necesarios=plan.recursos_necesarios,
-        repuestos_necesarios=plan.repuestos_necesarios,
-        herramientas_necesarias=plan.herramientas_necesarias,
-        epp_necesarios=plan.epp_necesarios,
         tiempo_estimado_horas=plan.duracion_estimada_horas,
         observaciones=plan.observaciones,
         created_at_iso=now,
@@ -627,12 +661,12 @@ def create_order_from_plan(plan: MaintenancePlan, fecha_programada: str | None =
     )
     db.session.add(order)
     db.session.flush()
-    copy_suggested_resources_to_order(order)
     return order
 
 
 def update_order_from_form(order: MaintenanceOrder, form: Any) -> None:
     _apply_order_form(order, form)
+    _apply_order_resources_from_form(order, form)
     if order.estado == "finalizado" and order.plan_id:
         plan = db.session.get(MaintenancePlan, order.plan_id)
         if plan is not None and plan.frecuencia_dias and order.fecha_programada:
@@ -768,7 +802,6 @@ def create_order_from_prediction(prediction: MaintenancePrediction, fecha_progra
     )
     db.session.add(order)
     db.session.flush()
-    copy_suggested_resources_to_order(order)
     prediction.estado = "programada"
     prediction.updated_at_iso = now
     return order

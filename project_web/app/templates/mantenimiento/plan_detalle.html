@@ -24,10 +24,6 @@
       <datalist id="responsablesList">{% for u in users %}<option value="{{ u.nombre_completo or u.username }}"></option>{% endfor %}</datalist>
       <div class="col-md-2"><label class="form-label">Duración h</label><input type="number" step="0.1" class="form-control" name="duracion_estimada_horas" value="{{ plan.duracion_estimada_horas or '' }}"></div>
       <div class="col-md-6"><label class="form-label">Tareas</label><input class="form-control" name="tareas" value="{{ plan.tareas or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Recursos</label><input class="form-control" name="recursos_necesarios" value="{{ plan.recursos_necesarios or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Repuestos</label><input class="form-control" name="repuestos_necesarios" value="{{ plan.repuestos_necesarios or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Herramientas</label><input class="form-control" name="herramientas_necesarias" value="{{ plan.herramientas_necesarias or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">EPP</label><input class="form-control" name="epp_necesarios" value="{{ plan.epp_necesarios or '' }}"></div>
       <div class="col-12"><label class="form-label">Observaciones</label><textarea class="form-control" name="observaciones" rows="2">{{ plan.observaciones or '' }}</textarea></div>
       <div class="col-12"><button class="btn btn-primary" type="submit">Guardar plan</button></div>
     </form>

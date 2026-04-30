@@ -4,7 +4,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Mantenimiento</h1>
-    <div class="text-muted">Equipos, preventivos, correctivos, recursos y predictivo.</div>
+    <div class="text-muted">Equipos, preventivos, correctivos y predictivo.</div>
   </div>
   <div class="app-page-actions">
     {% if can_view_correctivos %}
@@ -107,16 +107,6 @@
       <div class="app-card-body">
         <h2 class="h5 mb-1">Mantenimientos pendientes</h2>
         <p class="text-muted mb-0">Filtrar, ejecutar, cerrar y exportar órdenes de mantenimiento.</p>
-      </div>
-    </a>
-  </div>
-  {% endif %}
-  {% if can_view_recursos %}
-  <div class="col-md-6">
-    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('mantenimiento.recursos') }}">
-      <div class="app-card-body">
-        <h2 class="h5 mb-1">Recursos / repuestos</h2>
-        <p class="text-muted mb-0">Definir recursos sugeridos para cada equipo y tipo de mantenimiento.</p>
       </div>
     </a>
   </div>

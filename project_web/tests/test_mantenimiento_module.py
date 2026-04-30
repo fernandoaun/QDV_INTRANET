@@ -110,9 +110,9 @@ def test_mantenimiento_component_correctivo_close_and_export(mant_client, app):
     assert export.data[:2] == b"PK"
 
 
-def test_mantenimiento_preventivos_recursos_ordenes_y_predictivo(mant_client, app):
+def test_mantenimiento_preventivos_ordenes_y_predictivo(mant_client, app):
     from app.extensions import db
-    from app.models import MaintenanceFailure, MaintenanceOrder, MaintenancePlan, MaintenancePrediction, MaintenanceResource
+    from app.models import MaintenanceFailure, MaintenanceOrder, MaintenancePlan, MaintenancePrediction
 
     equipo_id = _create_equipo(app)
 
@@ -142,22 +142,6 @@ def test_mantenimiento_preventivos_recursos_ordenes_y_predictivo(mant_client, ap
 
     assert mant_client.get(f"/mantenimiento/preventivos/{plan_id}").status_code == 200
     r = mant_client.post(
-        "/mantenimiento/recursos",
-        data={
-            "equipo_id": str(equipo_id),
-            "tipo_mantenimiento": "preventivo",
-            "categoria": "repuesto",
-            "nombre": "Junta pytest",
-            "cantidad": "2",
-            "unidad": "un",
-        },
-        follow_redirects=False,
-    )
-    assert r.status_code in (302, 303)
-    with app.app_context():
-        assert db.session.query(MaintenanceResource).filter_by(nombre="Junta pytest").count() == 1
-
-    r = mant_client.post(
         f"/mantenimiento/preventivos/{plan_id}",
         data={"action": "program", "fecha_programada": "2026-05-09"},
         follow_redirects=False,
@@ -168,7 +152,7 @@ def test_mantenimiento_preventivos_recursos_ordenes_y_predictivo(mant_client, ap
         order = db.session.query(MaintenanceOrder).filter_by(plan_id=plan_id).one()
         order_id = int(order.id)
         assert order.tipo_mantenimiento == "preventivo"
-        assert len(order.order_resources) == 1
+        assert len(order.order_resources) == 0
 
     assert mant_client.get("/mantenimiento/ordenes").status_code == 200
     assert mant_client.get(f"/mantenimiento/ordenes/{order_id}").status_code == 200
@@ -183,6 +167,12 @@ def test_mantenimiento_preventivos_recursos_ordenes_y_predictivo(mant_client, ap
             "estado": "finalizado",
             "responsable": "Mantenimiento",
             "tareas": "Control general",
+            "resource_categoria": ["repuesto"],
+            "resource_nombre": ["Junta pytest"],
+            "resource_cantidad": ["2"],
+            "resource_unidad": ["un"],
+            "resource_tiempo_estimado_horas": [""],
+            "resource_observaciones": ["Presupuesto real del trabajo"],
             "resultado": "Sin novedades",
         },
         follow_redirects=False,
@@ -193,6 +183,8 @@ def test_mantenimiento_preventivos_recursos_ordenes_y_predictivo(mant_client, ap
         assert order is not None
         assert order.estado == "finalizado"
         assert order.closed_at_iso is not None
+        assert len(order.order_resources) == 1
+        assert order.order_resources[0].nombre == "Junta pytest"
 
     export = mant_client.get("/mantenimiento/ordenes/export.xlsx")
     assert export.status_code == 200
