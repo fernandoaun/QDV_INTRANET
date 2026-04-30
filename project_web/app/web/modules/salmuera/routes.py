@@ -30,6 +30,7 @@ from app.web.modules.produccion.salmuera_helpers import (
     count_consecutive_single_cell_for_electrolizador,
     last_salmuera_row_dict_for_electrolizador_on_date,
     next_salmuera_lote,
+    parse_optional_float,
     parse_voltajes,
     salmuera_row_to_dict,
     salmuera_timer_rows_for_date,
@@ -105,6 +106,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                 sal_conc = float((request.form.get("sal_conc") or "0").replace(",", "."))
                 sal_ph = float((request.form.get("sal_ph") or "0").replace(",", "."))
                 declor_ph = float((request.form.get("declor_ph") or "0").replace(",", "."))
+                orp = parse_optional_float(request.form.get("orp"), "ORP (mV)") if electrolizador == 2 else None
                 obs_raw = (request.form.get("observaciones") or "").strip()
                 op_warnings = evaluate_hipoclorito_operational_warnings(
                     hipo_exceso_soda=hipo_exceso_soda,
@@ -131,6 +133,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                     sal_ph=sal_ph,
                     soda_conc=float((request.form.get("soda_conc") or "0").replace(",", ".")),
                     declor_ph=declor_ph,
+                    orp=orp,
                     operador=operador_auto,
                     lote=lote_auto,
                     observaciones=observaciones_final,

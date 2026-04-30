@@ -150,6 +150,12 @@
                 <label class="form-label">Declor pH</label>
                 <input class="form-control" name="declor_ph" required>
               </div>
+              {% if eid == 2 %}
+              <div class="col-md-4 col-xl-3">
+                <label class="form-label">ORP (mV)</label>
+                <input class="form-control" name="orp" inputmode="decimal">
+              </div>
+              {% endif %}
               <div class="col-md-6">
                 <label class="form-label">Operador</label>
                 <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
@@ -204,6 +210,9 @@
                 <th>Sal pH</th>
                 <th>Soda conc</th>
                 <th>Declor pH</th>
+                {% if eid == 2 %}
+                <th>ORP (mV)</th>
+                {% endif %}
                 <th>Avisos</th>
                 <th>Obs.</th>
                 <th>Motivo atraso</th>
@@ -231,6 +240,9 @@
                 <td>{{ r.sal_ph }}</td>
                 <td>{{ r.soda_conc }}</td>
                 <td>{{ r.declor_ph }}</td>
+                {% if eid == 2 %}
+                <td>{{ r.orp if r.orp is not none else "" }}</td>
+                {% endif %}
                 <td>
                   {% if r.warnings %}
                     {% for w in r.warnings %}
@@ -245,7 +257,7 @@
                 <td>{{ r.created_at_iso }}</td>
               </tr>
               {% else %}
-              <tr><td colspan="22" class="text-center text-muted py-3">Sin registros para este electrolizador.</td></tr>
+              <tr><td colspan="{{ 23 if eid == 2 else 22 }}" class="text-center text-muted py-3">Sin registros para este electrolizador.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -407,6 +419,7 @@
           <td>${esc(registro.sal_ph)}</td>
           <td>${esc(registro.soda_conc)}</td>
           <td>${esc(registro.declor_ph)}</td>
+          ${Number(eid) === 2 ? `<td>${registro.orp == null ? "" : esc(registro.orp)}</td>` : ""}
           <td>${warningsHtml}</td>
           <td title="${esc(registro.observaciones)}"><div class="cell-ellipsis">${esc(registro.observaciones)}</div></td>
           <td title="${esc(registro.atraso_motivo)}"><div class="cell-ellipsis">${esc(registro.atraso_motivo)}</div></td>

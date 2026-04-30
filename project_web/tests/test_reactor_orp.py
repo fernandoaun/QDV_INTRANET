@@ -29,17 +29,13 @@ def test_reactor_orp_negative_history_and_export(app, auth_client):
     from openpyxl import load_workbook
 
     from app.extensions import db
-    from app.models import ReactorRegistro, SalmueraRegistro
+    from app.models import ReactorRegistro
     from app.services.historicos_export_service import build_historicos_workbook
 
     page = auth_client.get("/produccion/reactor?fecha=2026-04-30")
     assert page.status_code == 200
     html = page.get_data(as_text=True)
     assert "ORP (mV)" in html
-
-    salmuera_page = auth_client.get("/produccion/salmuera?fecha=2026-04-30")
-    assert salmuera_page.status_code == 200
-    assert "ORP (mV)" not in salmuera_page.get_data(as_text=True)
 
     resp = auth_client.post(
         "/produccion/reactor?fecha=2026-04-30",
@@ -50,7 +46,6 @@ def test_reactor_orp_negative_history_and_export(app, auth_client):
     with app.app_context():
         row = db.session.query(ReactorRegistro).one()
         assert row.orp == -123.5
-        assert not hasattr(SalmueraRegistro, "orp")
 
     hist = auth_client.get("/produccion/reactor/historial?desde=2026-04-30&hasta=2026-04-30")
     assert hist.status_code == 200

@@ -53,6 +53,7 @@
           <th>Sal pH</th>
           <th>Soda conc</th>
           <th>Declor pH</th>
+          <th>ORP (mV)</th>
           <th>Avisos</th>
           <th>Obs.</th>
           <th>Motivo atraso</th>
@@ -82,6 +83,7 @@
           <td>{{ r.sal_ph }}</td>
           <td>{{ r.soda_conc }}</td>
           <td>{{ r.declor_ph }}</td>
+          <td>{{ r.orp if r.orp is not none else "" }}</td>
           <td>
             {% if r.warnings %}
               {% for w in r.warnings %}
@@ -96,7 +98,7 @@
           <td>{{ r.created_at_iso }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="24" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
+        <tr><td colspan="25" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
