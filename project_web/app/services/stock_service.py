@@ -4,7 +4,7 @@ import math
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 
 from app.extensions import db
 from app.models import ConsumoStock, Equipo, IngresoStock, ProductoCatalogo, StockAjuste
@@ -157,6 +157,61 @@ def stock_actual(cat: str, producto: str, marca: str) -> float:
     return max(float(ing or 0) - float(cons or 0) + float(ajustes or 0), 0.0)
 
 
+def _fecha_hora_lte(model: Any, fecha: str, hora: str):
+    return or_(model.fecha < fecha, and_(model.fecha == fecha, model.hora <= hora))
+
+
+def parse_stock_cutoff(fecha_raw: str | None, hora_raw: str | None) -> dict[str, str] | None:
+    fecha = (fecha_raw or "").strip()
+    hora = (hora_raw or "").strip()
+    if not fecha and not hora:
+        return None
+    if not fecha:
+        raise ValueError("Para filtrar por hora también tenés que indicar el día.")
+    try:
+        datetime.strptime(fecha, "%Y-%m-%d")
+    except ValueError as exc:
+        raise ValueError("Fecha de consulta inválida.") from exc
+    if not hora:
+        hora = "23:59"
+    try:
+        datetime.strptime(hora, "%H:%M")
+    except ValueError as exc:
+        raise ValueError("Hora de consulta inválida.") from exc
+    return {"fecha": fecha, "hora": hora, "display": f"{fecha} {hora}"}
+
+
+def stock_actual_as_of(cat: str, producto: str, marca: str, fecha: str, hora: str) -> float:
+    c = _validate_cat(cat)
+    p = (producto or "").strip()
+    m = (marca or "").strip()
+    ing = db.session.scalar(
+        select(func.coalesce(func.sum(IngresoStock.cantidad), 0.0)).where(
+            IngresoStock.categoria == c,
+            IngresoStock.producto == p,
+            IngresoStock.marca == m,
+            _fecha_hora_lte(IngresoStock, fecha, hora),
+        )
+    )
+    cons = db.session.scalar(
+        select(func.coalesce(func.sum(ConsumoStock.cantidad), 0.0)).where(
+            ConsumoStock.categoria == c,
+            ConsumoStock.producto == p,
+            ConsumoStock.marca == m,
+            _fecha_hora_lte(ConsumoStock, fecha, hora),
+        )
+    )
+    ajustes = db.session.scalar(
+        select(func.coalesce(func.sum(StockAjuste.cantidad), 0.0)).where(
+            StockAjuste.categoria == c,
+            StockAjuste.producto == p,
+            StockAjuste.marca == m,
+            _fecha_hora_lte(StockAjuste, fecha, hora),
+        )
+    )
+    return max(float(ing or 0) - float(cons or 0) + float(ajustes or 0), 0.0)
+
+
 def marcas_con_stock(cat: str, producto: str) -> list[str]:
     c = _validate_cat(cat)
     p = (producto or "").strip()
@@ -194,10 +249,30 @@ def _cantidad_consumida_en_ingreso(ingreso_id: int) -> float:
     return float(v or 0)
 
 
+def _cantidad_consumida_en_ingreso_as_of(ingreso_id: int, fecha: str, hora: str) -> float:
+    v = db.session.scalar(
+        select(func.coalesce(func.sum(ConsumoStock.cantidad), 0.0)).where(
+            ConsumoStock.ingreso_stock_id == int(ingreso_id),
+            _fecha_hora_lte(ConsumoStock, fecha, hora),
+        )
+    )
+    return float(v or 0)
+
+
 def _cantidad_ajustada_en_ingreso(ingreso_id: int) -> float:
     v = db.session.scalar(
         select(func.coalesce(func.sum(StockAjuste.cantidad), 0.0)).where(
             StockAjuste.ingreso_stock_id == int(ingreso_id)
+        )
+    )
+    return float(v or 0)
+
+
+def _cantidad_ajustada_en_ingreso_as_of(ingreso_id: int, fecha: str, hora: str) -> float:
+    v = db.session.scalar(
+        select(func.coalesce(func.sum(StockAjuste.cantidad), 0.0)).where(
+            StockAjuste.ingreso_stock_id == int(ingreso_id),
+            _fecha_hora_lte(StockAjuste, fecha, hora),
         )
     )
     return float(v or 0)
@@ -233,6 +308,56 @@ def lotes_fifo_disponibles(categoria: str, producto: str, marca: str) -> list[di
     for ing in ing_rows:
         linked = _cantidad_consumida_en_ingreso(int(ing.id))
         adjusted = _cantidad_ajustada_en_ingreso(int(ing.id))
+        raw_left = max(float(ing.cantidad or 0) - linked + adjusted, 0.0)
+        take = min(raw_left, rem_global)
+        if take > 0:
+            uid = (getattr(ing, "unidad", None) or "").strip()
+            out.append(
+                {
+                    "ingreso_id": int(ing.id),
+                    "lote": (ing.lote or "").strip(),
+                    "vencimiento": (ing.vencimiento or "").strip(),
+                    "fecha_ingreso": ing.fecha,
+                    "hora_ingreso": ing.hora,
+                    "disponible": take,
+                    "unidad": uid,
+                    "es_fifo_primero": False,
+                }
+            )
+        rem_global -= take
+        if rem_global <= 1e-12:
+            break
+    if out:
+        out[0]["es_fifo_primero"] = True
+    return out
+
+
+def lotes_fifo_disponibles_as_of(categoria: str, producto: str, marca: str, fecha: str, hora: str) -> list[dict[str, Any]]:
+    c = _validate_cat(categoria)
+    p = (producto or "").strip()
+    m = (marca or "").strip()
+    if not p or not m:
+        return []
+    global_s = stock_actual_as_of(c, p, m, fecha, hora)
+    if global_s <= 0:
+        return []
+    ing_rows = list(
+        db.session.scalars(
+            select(IngresoStock)
+            .where(
+                IngresoStock.categoria == c,
+                IngresoStock.producto == p,
+                IngresoStock.marca == m,
+                _fecha_hora_lte(IngresoStock, fecha, hora),
+            )
+            .order_by(IngresoStock.fecha.asc(), IngresoStock.hora.asc(), IngresoStock.id.asc())
+        ).all()
+    )
+    rem_global = float(global_s)
+    out: list[dict[str, Any]] = []
+    for ing in ing_rows:
+        linked = _cantidad_consumida_en_ingreso_as_of(int(ing.id), fecha, hora)
+        adjusted = _cantidad_ajustada_en_ingreso_as_of(int(ing.id), fecha, hora)
         raw_left = max(float(ing.cantidad or 0) - linked + adjusted, 0.0)
         take = min(raw_left, rem_global)
         if take > 0:
@@ -316,6 +441,49 @@ def list_lotes_con_saldo_por_categoria(categoria: str) -> list[dict[str, Any]]:
         except Exception:
             continue
         for lot in lotes_fifo_disponibles(c, p, m):
+            rows_out.append(
+                {
+                    "producto": p,
+                    "marca": m,
+                    "ingreso_id": lot["ingreso_id"],
+                    "lote": lot["lote"],
+                    "vencimiento": lot["vencimiento"],
+                    "fecha_ingreso": lot["fecha_ingreso"],
+                    "hora_ingreso": lot["hora_ingreso"],
+                    "disponible": lot["disponible"],
+                    "unidad": lot.get("unidad") or "",
+                }
+            )
+    rows_out.sort(
+        key=lambda x: (
+            str(x["producto"]).lower(),
+            str(x["marca"]).lower(),
+            str(x["fecha_ingreso"]),
+            int(x["ingreso_id"]),
+        )
+    )
+    return rows_out
+
+
+def list_lotes_con_saldo_por_categoria_as_of(categoria: str, fecha: str, hora: str) -> list[dict[str, Any]]:
+    """Líneas con saldo > 0 en una categoría, calculadas hasta una fecha/hora inclusive."""
+    c = _validate_cat(categoria)
+    pairs = db.session.execute(
+        select(IngresoStock.producto, IngresoStock.marca)
+        .where(IngresoStock.categoria == c, _fecha_hora_lte(IngresoStock, fecha, hora))
+        .distinct()
+    ).all()
+    rows_out: list[dict[str, Any]] = []
+    for prod, marca in pairs:
+        p, m = str(prod or "").strip(), str(marca or "").strip()
+        if not p or not m:
+            continue
+        try:
+            if not producto_es_stockeable(c, p):
+                continue
+        except Exception:
+            continue
+        for lot in lotes_fifo_disponibles_as_of(c, p, m, fecha, hora):
             rows_out.append(
                 {
                     "producto": p,
@@ -575,10 +743,58 @@ def stock_consolidado(cat: str) -> list[dict[str, Any]]:
     return out
 
 
+def _sum_by_producto_as_of(model: Any, categoria: str, fecha: str, hora: str) -> dict[str, float]:
+    rows = db.session.execute(
+        select(model.producto, func.sum(model.cantidad))
+        .where(model.categoria == categoria, _fecha_hora_lte(model, fecha, hora))
+        .group_by(model.producto)
+    ).all()
+    return {str(r[0]): float(r[1] or 0) for r in rows}
+
+
+def stock_consolidado_as_of(cat: str, fecha: str, hora: str) -> list[dict[str, Any]]:
+    c = _validate_cat(cat)
+    ing = _sum_by_producto_as_of(IngresoStock, c, fecha, hora)
+    con = _sum_by_producto_as_of(ConsumoStock, c, fecha, hora)
+    ajustes = _sum_by_producto_as_of(StockAjuste, c, fecha, hora)
+    catalog_map = stock_repo.catalog_is_stockable_map(c)
+    try:
+        catalog_names = set(productos_catalogo(c))
+    except Exception:
+        catalog_names = set()
+    keys = catalog_names | set(ing) | set(con) | set(ajustes) | set(catalog_map)
+    out: list[dict[str, Any]] = []
+    for prod in sorted(keys, key=lambda x: str(x).lower()):
+        is_stockable = bool(catalog_map.get(str(prod), True))
+        s = float(ing.get(prod, 0) or 0) - float(con.get(prod, 0) or 0) + float(ajustes.get(prod, 0) or 0)
+        s = max(s, 0.0)
+        if is_stockable:
+            out.append({"producto": str(prod), "stock": s, "is_stockable": True})
+        else:
+            out.append({"producto": str(prod), "stock": 0.0, "is_stockable": False})
+    return out
+
+
 def stock_consolidado_todas() -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for cat in ("materia_prima", "laboratorio", "producto_terminado"):
         for it in stock_consolidado(cat):
+            out.append(
+                {
+                    "categoria": cat,
+                    "producto": str(it["producto"]),
+                    "stock": float(it["stock"] or 0),
+                    "is_stockable": bool(it.get("is_stockable", True)),
+                }
+            )
+    out.sort(key=lambda x: (str(x["categoria"]), str(x["producto"]).lower()))
+    return out
+
+
+def stock_consolidado_todas_as_of(fecha: str, hora: str) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for cat in ("materia_prima", "laboratorio", "producto_terminado"):
+        for it in stock_consolidado_as_of(cat, fecha, hora):
             out.append(
                 {
                     "categoria": cat,
@@ -986,10 +1202,20 @@ def save_ingreso_from_web_form(
     )
 
 
-def build_stock_ver_template_context(categoria_arg: str) -> dict[str, Any]:
+def build_stock_ver_template_context(
+    categoria_arg: str,
+    *,
+    fecha_consulta: str | None = None,
+    hora_consulta: str | None = None,
+) -> dict[str, Any]:
     cat = (categoria_arg or "todas").strip()
+    cutoff = parse_stock_cutoff(fecha_consulta, hora_consulta)
     try:
-        if cat == "todas":
+        if cutoff is not None and cat == "todas":
+            items = stock_consolidado_todas_as_of(cutoff["fecha"], cutoff["hora"])
+        elif cutoff is not None:
+            items = stock_consolidado_as_of(cat, cutoff["fecha"], cutoff["hora"])
+        elif cat == "todas":
             items = stock_consolidado_todas()
         else:
             items = stock_consolidado(cat)
@@ -997,11 +1223,20 @@ def build_stock_ver_template_context(categoria_arg: str) -> dict[str, Any]:
         items = []
     lotes_items: list[dict[str, Any]] = []
     try:
-        if cat != "todas":
+        if cutoff is not None and cat != "todas":
+            lotes_items = list_lotes_con_saldo_por_categoria_as_of(cat, cutoff["fecha"], cutoff["hora"])
+        elif cat != "todas":
             lotes_items = list_lotes_con_saldo_por_categoria(cat)
     except Exception:
         lotes_items = []
-    return {"categoria": cat, "items": items, "lotes_items": lotes_items}
+    return {
+        "categoria": cat,
+        "items": items,
+        "lotes_items": lotes_items,
+        "fecha_consulta": cutoff["fecha"] if cutoff else "",
+        "hora_consulta": cutoff["hora"] if cutoff else "",
+        "stock_cutoff_display": cutoff["display"] if cutoff else "",
+    }
 
 
 def list_productos_catalogo_rows(categoria: str | None = None) -> list[ProductoCatalogo]:

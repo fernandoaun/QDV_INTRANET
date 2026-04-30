@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+from datetime import datetime
 from io import BytesIO
 import re
 
@@ -172,3 +173,66 @@ def test_stock_ajustes_export(app, auth_client):
 def test_stock_ajustes_non_admin_blocked(mant_client):
     blocked = mant_client.get("/produccion/stock/ajustes", follow_redirects=False)
     assert blocked.status_code in (302, 303)
+
+
+def test_stock_existencias_can_be_queried_by_day_and_time(app, auth_client):
+    from app.extensions import db
+    from app.models import StockAjuste
+    from app.services import stock_service
+
+    with app.app_context():
+        stock_service.save_ingreso(
+            "materia_prima",
+            "Soda historica pytest",
+            "Marca pytest",
+            "2027-12-31",
+            "L-HIST-1",
+            10.0,
+            "admin",
+            unidad="kg",
+            fecha="2026-04-30",
+            hora="08:00",
+        )
+        stock_service.add_consumo_stock_record(
+            "materia_prima",
+            "Soda historica pytest",
+            "Marca pytest",
+            3.0,
+            "admin",
+            fecha_hora=datetime(2026, 4, 30, 10, 0),
+            skip_ledger_availability_check=True,
+        )
+        db.session.add(
+            StockAjuste(
+                categoria="materia_prima",
+                producto="Soda historica pytest",
+                marca="Marca pytest",
+                cantidad=2.0,
+                fecha="2026-04-30",
+                hora="11:00",
+                operador="admin",
+                motivo="Ajuste pytest",
+                created_at_iso="2026-04-30T11:00:00",
+            )
+        )
+        db.session.commit()
+
+        items_09 = stock_service.stock_consolidado_as_of("materia_prima", "2026-04-30", "09:00")
+        item_09 = next(x for x in items_09 if x["producto"] == "Soda historica pytest")
+        assert item_09["stock"] == 10.0
+
+        items_1030 = stock_service.stock_consolidado_as_of("materia_prima", "2026-04-30", "10:30")
+        item_1030 = next(x for x in items_1030 if x["producto"] == "Soda historica pytest")
+        assert item_1030["stock"] == 7.0
+
+        items_12 = stock_service.stock_consolidado_as_of("materia_prima", "2026-04-30", "12:00")
+        item_12 = next(x for x in items_12 if x["producto"] == "Soda historica pytest")
+        assert item_12["stock"] == 9.0
+
+    resp = auth_client.get(
+        "/produccion/stock/ver?categoria=materia_prima&fecha_consulta=2026-04-30&hora_consulta=10:30"
+    )
+    assert resp.status_code == 200
+    html = resp.get_data(as_text=True)
+    assert "Consulta histórica hasta 2026-04-30 10:30" in html
+    assert "Soda historica pytest" in html
