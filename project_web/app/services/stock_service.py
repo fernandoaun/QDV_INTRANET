@@ -608,7 +608,13 @@ def stock_total_producto(cat: str, producto: str) -> float:
             ConsumoStock.producto == p,
         )
     )
-    return max(float(ing or 0) - float(cons or 0), 0.0)
+    ajustes = db.session.scalar(
+        select(func.coalesce(func.sum(StockAjuste.cantidad), 0.0)).where(
+            StockAjuste.categoria == c,
+            StockAjuste.producto == p,
+        )
+    )
+    return max(float(ing or 0) - float(cons or 0) + float(ajustes or 0), 0.0)
 
 
 def _nivel_alerta_panel(stock_actual: float, stock_minimo: float) -> str | None:
@@ -1089,6 +1095,11 @@ def reassign_catalog_product_categoria(producto_id: int, nueva_categoria: str) -
     db.session.execute(
         update(ConsumoStock)
         .where(ConsumoStock.categoria == old_c, ConsumoStock.producto == n)
+        .values(categoria=new_c)
+    )
+    db.session.execute(
+        update(StockAjuste)
+        .where(StockAjuste.categoria == old_c, StockAjuste.producto == n)
         .values(categoria=new_c)
     )
     row.categoria = new_c

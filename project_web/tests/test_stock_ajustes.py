@@ -35,7 +35,7 @@ def _seed_ingreso(app) -> int:
 
 def test_admin_stock_ajuste_changes_stock_without_consumo(app, auth_client):
     from app.extensions import db
-    from app.models import ConsumoStock, StockAjuste
+    from app.models import ConsumoStock, ProductoCatalogo, StockAjuste
     from app.services import stock_service
 
     ingreso_id = _seed_ingreso(app)
@@ -69,6 +69,16 @@ def test_admin_stock_ajuste_changes_stock_without_consumo(app, auth_client):
         assert ajuste.cantidad == -2
         assert stock_service.stock_actual("materia_prima", "Soda ajuste pytest", "Marca pytest") == 8.0
         assert stock_service.consumos_recientes("materia_prima", "Soda ajuste pytest") == []
+        catalogo = db.session.query(ProductoCatalogo).filter_by(
+            categoria="materia_prima",
+            nombre_producto="Soda ajuste pytest",
+        ).one()
+        catalogo.stock_minimo_alerta = 9.0
+        db.session.commit()
+        alertas = stock_service.alertas_bajo_stock(limit=30)
+        alerta = next(a for a in alertas if a["producto"] == "Soda ajuste pytest")
+        assert alerta["stock_actual"] == 8.0
+        assert alerta["nivel_alerta"] == "critico"
 
     page = auth_client.get(
         "/produccion/stock/ajustes?categoria=materia_prima&producto=Soda%20ajuste%20pytest&marca=Marca%20pytest"
