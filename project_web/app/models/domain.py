@@ -32,6 +32,7 @@ class SalmueraRegistro(db.Model):
     sal_ph = db.Column(db.Float, nullable=False)
     soda_conc = db.Column(db.Float, nullable=False)
     declor_ph = db.Column(db.Float, nullable=False)
+    orp = db.Column(db.Float)
     operador = db.Column(db.String(256), nullable=False)
     lote = db.Column(db.String(128))
     observaciones = db.Column(db.Text)

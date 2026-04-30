@@ -104,6 +104,16 @@ def count_consecutive_single_cell_for_electrolizador(
     return count
 
 
+def parse_optional_float(text: str | None, label: str) -> float | None:
+    value = (text or "").strip()
+    if not value:
+        return None
+    try:
+        return float(value.replace(",", "."))
+    except ValueError as exc:
+        raise ValueError(f"{label} debe ser numérico.") from exc
+
+
 def salmuera_row_to_dict(r: SalmueraRegistro) -> dict[str, Any]:
     try:
         vj = json.loads(r.voltajes_json) if r.voltajes_json else []
@@ -128,6 +138,7 @@ def salmuera_row_to_dict(r: SalmueraRegistro) -> dict[str, Any]:
         "sal_ph": r.sal_ph,
         "soda_conc": r.soda_conc,
         "declor_ph": r.declor_ph,
+        "orp": r.orp,
         "operador": r.operador,
         "lote": r.lote or "",
         "observaciones": r.observaciones or "",
