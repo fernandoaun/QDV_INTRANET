@@ -331,24 +331,24 @@ def rango_semana_operacion_actual() -> tuple[date, date]:
 
 
 def get_entregas_visibles_semana_actual() -> list[Entrega]:
-    """Vista principal: semana calendario (lun–dom) en fecha prevista + pendientes de semanas previas.
+    """Vista principal: desde el lunes actual en fecha prevista + pendientes de semanas previas.
 
     Criterio de «hoy»: `now_operacion_naive_local()` (zona APP_TIMEZONE).
     Usa columna real `fecha_prevista` (texto comparable como AAAA-MM-DD).
 
-    - (a) `fecha_prevista` entre el lunes y el domingo de la semana actual, cualquier estado.
+    - (a) `fecha_prevista` desde el lunes de la semana actual en adelante, cualquier estado.
     - (b) `fecha_prevista` anterior al lunes actual y estado distinto de cargada y entregada.
     """
-    lunes, domingo = rango_semana_operacion_actual()
-    lunes_s, domingo_s = lunes.isoformat(), domingo.isoformat()
+    lunes, _domingo = rango_semana_operacion_actual()
+    lunes_s = lunes.isoformat()
     est = func.lower(func.coalesce(Entrega.estado, ""))
-    cond_semana = and_(Entrega.fecha_prevista >= lunes_s, Entrega.fecha_prevista <= domingo_s)
+    cond_desde_lunes = Entrega.fecha_prevista >= lunes_s
     cond_backlog = and_(Entrega.fecha_prevista < lunes_s, not_(est.in_(("cargada", "entregada"))))
     return list(
         db.session.scalars(
             select(Entrega)
             .options(*_entrega_options_query())
-            .where(or_(cond_semana, cond_backlog))
+            .where(or_(cond_desde_lunes, cond_backlog))
             .order_by(Entrega.fecha_prevista.asc(), Entrega.id.asc())
         ).all()
     )

@@ -177,14 +177,13 @@ def gestion():
 
     rows = entregas_service.listar_entregas()
     entregas_kpis = entregas_service.entregas_kpis_rolling()
-    sem_lunes, sem_domingo = entregas_service.rango_semana_operacion_actual()
+    sem_lunes, _sem_domingo = entregas_service.rango_semana_operacion_actual()
     catalog_bundle = ews.form_catalog_bundle(None)
     return render_template(
         "entregas/gestion.html",
         entregas=rows,
         entregas_kpis=entregas_kpis,
         entregas_vista_semana_lunes=sem_lunes,
-        entregas_vista_semana_domingo=sem_domingo,
         quick_fecha=request.args.get("quick_fecha", ""),
         quick_producto_terminado_id=ews.parse_entrega_positive_int(request.args.get("quick_producto_terminado_id")),
         quick_chofer_entrega_id=ews.parse_entrega_positive_int(request.args.get("quick_chofer_entrega_id")),
