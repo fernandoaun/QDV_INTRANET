@@ -145,14 +145,13 @@
     <table class="table table-app table-compact mb-0 align-middle entregas-list-table">
       <colgroup>
         <col style="width: 8%;">
-        <col style="width: 14%;">
-        <col style="width: 13%;">
-        <col style="width: 13%;">
+        <col style="width: 17%;">
+        <col style="width: 16%;">
+        <col style="width: 16%;">
         <col style="width: 10%;">
         <col style="width: 9%;">
         <col style="width: 11%;">
-        <col style="width: 10%;">
-        <col style="width: 12%;">
+        <col style="width: 13%;">
       </colgroup>
       <thead>
         <tr>
@@ -163,7 +162,6 @@
           <th class="text-end">Cantidades</th>
           <th>Estado</th>
           <th>Chofer</th>
-          <th>Observaciones</th>
           <th class="text-end">Acciones</th>
         </tr>
       </thead>
@@ -212,10 +210,6 @@
               {% endfor %}
             </select>
           </td>
-          <td class="entregas-quick-cell--lg">
-            <label class="entregas-quick-label" for="quickObs">Observaciones</label>
-            <input class="form-control entregas-quick-input" id="quickObs" form="entregaQuickForm" name="observaciones" type="text" placeholder="Opcional" autocomplete="off">
-          </td>
           <td class="text-end entregas-list-actions">
             <button type="submit" form="entregaQuickForm" class="btn btn-primary btn-lg fw-semibold px-4">GUARDAR</button>
           </td>
@@ -225,11 +219,6 @@
         {% set st = e.estado or '' %}
         {% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
         {% set cantidad_real = e.cantidad_real_entregada if e.cantidad_real_entregada is not none else (e.cantidad_real_cargada if e.cantidad_real_cargada is not none else none) %}
-        {% set obs_text = e.observaciones or '' %}
-        {% set obs_display = obs_text %}
-        {% if obs_text.startswith('Hora prevista: ') %}
-          {% set obs_display = obs_text.split('\n', 1)[1] if '\n' in obs_text else '' %}
-        {% endif %}
         <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
           <td data-label="Fecha">{{ e.fecha_prevista }}</td>
           <td data-label="Cliente"><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
@@ -261,7 +250,6 @@
             <span class="text-muted">—</span>
             {% endif %}
           </td>
-          <td class="small text-truncate" style="max-width:10rem;" title="{{ obs_display }}" data-label="Observaciones">{{ obs_display[:45] }}{% if obs_display|length > 45 %}…{% endif %}</td>
           <td class="text-end entregas-list-actions" data-label="Acciones">
             {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Editar</a>
@@ -279,7 +267,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas en esta vista (desde el lunes actual + pendientes de fechas anteriores sin entregar).</td></tr>
+        <tr><td colspan="8" class="text-center app-text-secondary py-4">No hay entregas en esta vista (desde el lunes actual + pendientes de fechas anteriores sin entregar).</td></tr>
         {% endfor %}
       </tbody>
     </table>
