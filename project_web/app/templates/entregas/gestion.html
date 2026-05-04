@@ -46,8 +46,12 @@
     table-layout: fixed;
     width: 100%;
   }
-  .entregas-list-table th,
-  .entregas-list-table td {
+  /* Gana a `.table-compact tbody td { white-space: nowrap }` de app.css (evita solape Cantidades/Estado) */
+  .table-app.table-compact.entregas-list-table thead th {
+    white-space: normal;
+  }
+  .table-app.table-compact.entregas-list-table tbody td {
+    vertical-align: top;
     white-space: normal;
     word-break: break-word;
   }
@@ -62,22 +66,28 @@
       overflow-x: auto;
     }
     .entregas-list-table {
-      min-width: 60rem;
+      min-width: 64rem;
       table-layout: fixed;
     }
-    .entregas-list-table th,
-    .entregas-list-table td {
+    /* Columnas con mínimo real al hacer scroll (cantidades en dos líneas + badge de estado) */
+    .table-app.table-compact.entregas-list-table thead th:nth-child(5),
+    .table-app.table-compact.entregas-list-table tbody td:nth-child(5) {
+      box-sizing: border-box;
+      min-width: 10.5rem;
+      padding-right: 1rem;
+      width: 12%;
+    }
+    .table-app.table-compact.entregas-list-table thead th:nth-child(6),
+    .table-app.table-compact.entregas-list-table tbody td:nth-child(6) {
+      box-sizing: border-box;
+      min-width: 7.75rem;
+      padding-left: 1rem;
+      width: 11%;
+    }
+    .table-app.table-compact.entregas-list-table tbody td:nth-child(6) .badge {
+      display: inline-block;
+      max-width: 100%;
       white-space: normal;
-      word-break: normal;
-    }
-    /* Más aire entre «Cantidades» y «Estado» al desplazar horizontalmente */
-    .entregas-list-table thead th:nth-child(5),
-    .entregas-list-table tbody td:nth-child(5) {
-      padding-right: 0.95rem;
-    }
-    .entregas-list-table thead th:nth-child(6),
-    .entregas-list-table tbody td:nth-child(6) {
-      padding-left: 0.95rem;
     }
     .entregas-list-actions {
       white-space: normal !important;
