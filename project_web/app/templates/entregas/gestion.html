@@ -62,13 +62,22 @@
       overflow-x: auto;
     }
     .entregas-list-table {
-      min-width: 58rem;
+      min-width: 60rem;
       table-layout: fixed;
     }
     .entregas-list-table th,
     .entregas-list-table td {
       white-space: normal;
       word-break: normal;
+    }
+    /* Más aire entre «Cantidades» y «Estado» al desplazar horizontalmente */
+    .entregas-list-table thead th:nth-child(5),
+    .entregas-list-table tbody td:nth-child(5) {
+      padding-right: 0.95rem;
+    }
+    .entregas-list-table thead th:nth-child(6),
+    .entregas-list-table tbody td:nth-child(6) {
+      padding-left: 0.95rem;
     }
     .entregas-list-actions {
       white-space: normal !important;
