@@ -13,6 +13,7 @@
   Direcciones que reciben el recordatorio automático de <strong>planificación</strong> (fecha de fin de actividad)
   y <strong>mantenimiento</strong> (fecha programada de la orden), cuando entran en la ventana de aviso configurada en el servidor.
   El envío real sigue dependiendo de SMTP en el proveedor (cron diario <code>send-deadline-reminders</code>).
+  <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; el perfil <strong>Angel</strong> puede ver esta pantalla completa sin modificarla.
 </p>
 
 <div class="app-card mb-3">
@@ -25,7 +26,7 @@
         {% endfor %}
       </ul>
     {% else %}
-      <p class="text-muted mb-2">Todavía no hay correos: agregá abajo (administrador) o definí <code>DEADLINE_ALERT_EMAIL_TO</code> en el servidor.</p>
+      <p class="text-muted mb-2">Todavía no hay correos efectivos: un <strong>administrador</strong> puede cargarlos abajo, o definí <code>DEADLINE_ALERT_EMAIL_TO</code> en el servidor.</p>
     {% endif %}
     {% if env_addresses %}
     <p class="small mb-0"><strong>Solo desde variable de entorno:</strong>
@@ -53,7 +54,13 @@
   </div>
 </div>
 {% else %}
-<div class="alert alert-info mb-4" role="status">Solo un administrador puede agregar o quitar correos en esta lista.</div>
+<div class="alert alert-info mb-4" role="status">
+  {% if user_is_global_read_only() %}
+  <strong>Perfil Angel:</strong> tenés vista completa de los correos configurados. Solo un <strong>administrador</strong> puede agregarlos o quitarlos desde esta pantalla.
+  {% else %}
+  Solo un <strong>administrador</strong> puede agregar o quitar correos en esta lista (modo consulta).
+  {% endif %}
+</div>
 {% endif %}
 
 <div class="app-card">

@@ -128,3 +128,29 @@ def test_angel_planificacion_post_nueva_forbidden(angel_client):
         follow_redirects=False,
     )
     assert r.status_code in (302, 303)
+
+
+def test_angel_avisos_correo_view_ok(angel_client):
+    r = angel_client.get("/admin/avisos-correo", follow_redirects=True)
+    assert r.status_code == 200
+    body = r.get_data(as_text=True)
+    assert "Avisos por correo" in body
+    assert "Agregar correo" not in body
+
+
+def test_angel_cannot_post_avisos_correo_agregar(angel_client, app):
+    lg = angel_client.get("/admin/avisos-correo")
+    assert lg.status_code == 200
+    html = lg.get_data(as_text=True)
+    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+    assert m is not None
+    r = angel_client.post(
+        "/admin/avisos-correo/agregar",
+        data={"csrf_token": m.group(1), "email": "angel-no-debe@example.com"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+    with app.app_context():
+        from app.services.deadline_alert_email_service import list_emails_ordered
+
+        assert not any(row.email == "angel-no-debe@example.com" for row in list_emails_ordered())
