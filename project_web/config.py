@@ -130,6 +130,61 @@ def get_config_dict(base_dir: Path) -> dict:
     # En Render: montar Persistent Disk y apuntar aquí (ver DEPLOY_RENDER.md).
     app_upload_root = (os.environ.get("APP_UPLOAD_ROOT") or "").strip()
 
+    inactivity_raw = (os.environ.get("SESSION_INACTIVITY_MINUTES") or "0").strip()
+    try:
+        session_inactivity_minutes = max(0, int(inactivity_raw))
+    except ValueError:
+        session_inactivity_minutes = 0
+
+    login_ratelimit_enabled = name != "testing"
+    login_rl_raw = (os.environ.get("LOGIN_RATELIMIT_ENABLED") or "").strip().lower()
+    if login_rl_raw in ("0", "false", "no"):
+        login_ratelimit_enabled = False
+    elif login_rl_raw in ("1", "true", "yes"):
+        login_ratelimit_enabled = True
+
+    login_limit_minute = (
+        os.environ.get("LOGIN_RATELIMIT_MINUTE") or ("1000 per minute" if name == "testing" else "12 per minute")
+    ).strip()
+    login_limit_hour = (
+        os.environ.get("LOGIN_RATELIMIT_HOUR") or ("10000 per hour" if name == "testing" else "80 per hour")
+    ).strip()
+
+    sec_headers_raw = (os.environ.get("SECURITY_HEADERS_ENABLED") or "").strip().lower()
+    if sec_headers_raw in ("0", "false", "no"):
+        security_headers_enabled = False
+    elif sec_headers_raw in ("1", "true", "yes"):
+        security_headers_enabled = True
+    else:
+        security_headers_enabled = name != "testing"
+
+    csp = (os.environ.get("CONTENT_SECURITY_POLICY") or "").strip()
+    maintenance_attach_max_raw = (
+        os.environ.get("MAINTENANCE_ATTACHMENT_MAX_BYTES") or str(12 * 1024 * 1024)
+    ).strip()
+    try:
+        maintenance_attachment_max_bytes = int(maintenance_attach_max_raw)
+    except ValueError:
+        maintenance_attachment_max_bytes = 12 * 1024 * 1024
+    if maintenance_attachment_max_bytes < 64 * 1024:
+        maintenance_attachment_max_bytes = 64 * 1024
+
+    analysis_pdf_max_raw = (
+        os.environ.get("ANALYSIS_REF_PDF_MAX_BYTES") or str(15 * 1024 * 1024)
+    ).strip()
+    try:
+        analysis_ref_pdf_max_bytes = int(analysis_pdf_max_raw)
+    except ValueError:
+        analysis_ref_pdf_max_bytes = 15 * 1024 * 1024
+
+    analisis_8hs_max_raw = (
+        os.environ.get("SALMUERA_ANALISIS_8HS_PDF_MAX_BYTES") or ""
+    ).strip() or str(analysis_ref_pdf_max_bytes)
+    try:
+        salmuera_analisis_8hs_pdf_max_bytes = int(analisis_8hs_max_raw)
+    except ValueError:
+        salmuera_analisis_8hs_pdf_max_bytes = analysis_ref_pdf_max_bytes
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
@@ -150,6 +205,15 @@ def get_config_dict(base_dir: Path) -> dict:
         "API_DOCS_REQUIRE_AUTH": api_docs_require_auth,
         "CORS_ORIGINS": cors_origins,
         "APP_UPLOAD_ROOT": app_upload_root,
+        "SESSION_INACTIVITY_MINUTES": session_inactivity_minutes,
+        "LOGIN_RATELIMIT_ENABLED": login_ratelimit_enabled,
+        "LOGIN_RATELIMIT_MINUTE": login_limit_minute,
+        "LOGIN_RATELIMIT_HOUR": login_limit_hour,
+        "SECURITY_HEADERS_ENABLED": security_headers_enabled,
+        "CONTENT_SECURITY_POLICY": csp,
+        "MAINTENANCE_ATTACHMENT_MAX_BYTES": maintenance_attachment_max_bytes,
+        "ANALYSIS_REF_PDF_MAX_BYTES": analysis_ref_pdf_max_bytes,
+        "SALMUERA_ANALISIS_8HS_PDF_MAX_BYTES": salmuera_analisis_8hs_pdf_max_bytes,
     }
     # Desarrollo local: que HTML/CSS/JS se lean de disco en cada request (evita “no veo los cambios”).
     if name not in ("production", "testing"):

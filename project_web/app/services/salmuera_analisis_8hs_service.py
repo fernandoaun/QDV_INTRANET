@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from flask import current_app, has_request_context
 from sqlalchemy import select
 
 from app.extensions import db
@@ -56,13 +57,20 @@ def _safe_original_name(filename: str) -> str:
     return (base or "analisis.pdf")[:200]
 
 
-def _validate_attachment_upload(fs: Any) -> tuple[str, str]:
+def _validate_attachment_upload(fs: Any, max_bytes: int) -> tuple[str, str]:
     if fs is None or not getattr(fs, "filename", None):
         raise ValueError("Seleccioná un archivo PDF.")
     original = _safe_original_name(str(fs.filename or ""))
     ext = Path(original).suffix.lower()
     if ext != ".pdf":
         raise ValueError("Solo se permiten archivos PDF.")
+    if max_bytes <= 0:
+        max_bytes = 15 * 1024 * 1024
+    fs.seek(0)
+    blob = fs.read(max_bytes + 1)
+    fs.seek(0)
+    if len(blob) > max_bytes:
+        raise ValueError("El archivo PDF supera el tamaño máximo permitido.")
     content_type = (getattr(fs, "content_type", None) or "").lower()
     head = fs.read(16)
     fs.seek(0)
@@ -93,7 +101,13 @@ def save_attachment(row: SalmueraAnalisis8hs, field: str, fs: Any) -> None:
         raise ValueError("Campo de adjunto inválido.")
     if fs is None or not getattr(fs, "filename", None):
         return
-    _original, ext = _validate_attachment_upload(fs)
+    mx = 15 * 1024 * 1024
+    if has_request_context():
+        try:
+            mx = int(current_app.config.get("SALMUERA_ANALISIS_8HS_PDF_MAX_BYTES") or mx)
+        except (TypeError, ValueError):
+            mx = 15 * 1024 * 1024
+    _original, ext = _validate_attachment_upload(fs, mx)
     old = attachment_resolve_path(row, field)
     stored = f"{uuid4().hex}{ext}"
     dest = _attachment_storage_dir(int(row.id), field) / stored

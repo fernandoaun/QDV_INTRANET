@@ -45,7 +45,7 @@ def create_app() -> Flask:
 
     @app.errorhandler(429)
     def _rate_limit_429(exc):
-        from flask import jsonify, request
+        from flask import flash, jsonify, redirect, request, url_for
 
         if (request.path or "").startswith("/api/v1"):
             return jsonify(
@@ -54,7 +54,56 @@ def create_app() -> Flask:
                     "message": "Demasiadas solicitudes a la API. Probá más tarde.",
                 }
             ), 429
+        p = (request.path or "").rstrip("/") or "/"
+        if p == "/login" and request.method == "POST":
+            flash(
+                "Demasiados intentos desde esta conexión. Esperá unos minutos o probá desde otra red.",
+                "danger",
+            )
+            return redirect(url_for("auth.login")), 303
         return exc
+
+    @app.after_request
+    def _security_headers(resp):
+        if not app.config.get("SECURITY_HEADERS_ENABLED", True):
+            return resp
+        resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault(
+            "Permissions-Policy",
+            "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()",
+        )
+        csp = (app.config.get("CONTENT_SECURITY_POLICY") or "").strip()
+        if csp:
+            resp.headers.setdefault("Content-Security-Policy", csp)
+        else:
+            default_csp = (
+                "default-src 'self'; "
+                "base-uri 'self'; "
+                "frame-ancestors 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
+                "font-src 'self' https://fonts.gstatic.com data:; "
+                "img-src 'self' data: blob:; "
+                "connect-src 'self'"
+            )
+            if not app.config.get("DEBUG", False):
+                default_csp += "; upgrade-insecure-requests"
+            resp.headers.setdefault("Content-Security-Policy", default_csp)
+        return resp
+
+    if not app.config.get("DEBUG", False) and not app.config.get("TESTING", False):
+
+        @app.errorhandler(500)
+        def _internal_error(_e):
+            from flask import flash, jsonify, redirect, request, url_for
+
+            app.logger.exception("Error HTTP 500 — detalle sólo en registro interno.")
+            if (request.path or "").startswith("/api/v1"):
+                return jsonify({"error": "internal_error", "message": "No se pudo completar la solicitud."}), 500
+            flash("Ocurrió un error interno. Si persiste, avisá al administrador.", "danger")
+            return redirect(url_for("main.index")), 302
 
     from app.api import v1_bp as api_v1_bp
     from app.api.bearer import register_api_bearer
@@ -116,6 +165,49 @@ def create_app() -> Flask:
     app.register_blueprint(admin_bp)
     app.register_blueprint(planificacion_bp)
     app.register_blueprint(mantenimiento_bp)
+
+    @app.before_request
+    def _session_inactivity_touch():
+        import time
+
+        from flask import flash, redirect, request, session, url_for
+
+        from app.security_http import safe_internal_redirect_target
+
+        endpoint = request.endpoint or ""
+        if endpoint == "static":
+            return None
+        if endpoint == "auth.login":
+            return None
+        mins_raw = app.config.get("SESSION_INACTIVITY_MINUTES") or 0
+        try:
+            mins_i = int(mins_raw)
+        except (TypeError, ValueError):
+            mins_i = 0
+        uid = session.get("user_id")
+        if not uid:
+            return None
+        if mins_i <= 0:
+            return None
+
+        now = time.time()
+        ts_key = "_activity_ts"
+        last = session.get(ts_key)
+        if last is not None:
+            try:
+                if now - float(last) > mins_i * 60:
+                    session.clear()
+                    flash("Sesión cerrada por inactividad.", "warning")
+                    login_next = safe_internal_redirect_target(request.path or "")
+                    extra = {}
+                    if login_next:
+                        extra["next"] = login_next
+                    return redirect(url_for("auth.login", **extra))
+            except (TypeError, ValueError):
+                pass
+        session[ts_key] = now
+        session.modified = True
+        return None
 
     @app.before_request
     def _guard_operational_shift_writes():

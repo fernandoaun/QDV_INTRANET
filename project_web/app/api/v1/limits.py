@@ -14,3 +14,6 @@ LIMIT_STOCK_READ = "60 per minute"
 
 # Turno: consultas frecuentes pero baratas
 LIMIT_SHIFT_STATUS = "90 per minute"
+
+# Lecturas públicas mínimas (health, meta sync)
+LIMIT_PUBLIC_LIGHT = "240 per minute"

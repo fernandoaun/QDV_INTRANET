@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from flask import Response, abort, flash, redirect, request, send_file, url_for
+from flask import Response, abort, current_app, flash, redirect, request, send_file, url_for
 
 from app.auth_utils import current_user, user_can
 from app.extensions import db
@@ -31,12 +31,24 @@ def reference_pdf_safe_original_name(filename: str) -> str:
     return base[:200]
 
 
-def validate_pdf_upload(fs: Any) -> str:
+def validate_pdf_upload(fs: Any, max_bytes: int | None = None) -> str:
     if fs is None or not getattr(fs, "filename", None):
         raise ValueError("Seleccioná un archivo PDF.")
     raw = (fs.filename or "").strip()
     if not raw.lower().endswith(".pdf"):
         raise ValueError("Solo se permiten archivos PDF.")
+    mb = max_bytes
+    if mb is None:
+        try:
+            mb = int(current_app.config.get("ANALYSIS_REF_PDF_MAX_BYTES") or (15 * 1024 * 1024))
+        except (TypeError, ValueError):
+            mb = 15 * 1024 * 1024
+    if mb and mb > 0:
+        fs.seek(0)
+        blob = fs.read(mb + 1)
+        fs.seek(0)
+        if len(blob) > mb:
+            raise ValueError("El archivo supera el tamaño máximo permitido para PDF.")
     ct = (getattr(fs, "content_type", None) or "").lower()
     if ct and "pdf" not in ct:
         raise ValueError("El archivo no es un PDF válido (tipo MIME).")

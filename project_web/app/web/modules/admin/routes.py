@@ -10,6 +10,8 @@ from app.auth_utils import admin_required, current_user, login_required, user_ca
 from app.constants import PERMISSION_FORM_KEYS, PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_TREE
 from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
+from app.security_http import truncate_plain_text
+from app.services import security_audit_service as audit_svc
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
@@ -90,6 +92,14 @@ def create_user():
     )
     db.session.add(u)
     db.session.commit()
+    audit_svc.record_event(
+        action="user_create",
+        module="admin",
+        actor=current_user(),
+        entity_type="user",
+        entity_id=int(u.id),
+        detail=truncate_plain_text(username, max_len=220),
+    )
     flash("Usuario creado.", "success")
     return redirect(url_for("admin_users.edit_user", uid=u.id))
 
@@ -149,6 +159,12 @@ def edit_user(uid: int):
                 if int(others or 0) == 0:
                     flash("Tiene que quedar al menos un administrador activo.", "danger")
                     return redirect(url_for("admin_users.edit_user", uid=uid))
+            old_snapshot = {
+                "username": u.username,
+                "rol": u.rol,
+                "activo": u.activo,
+                "is_admin": u.is_admin,
+            }
             u.username = new_username
             u.nombre_completo = ((request.form.get("nombre_completo") or "").strip() or None)
             u.rol = rol
@@ -214,6 +230,21 @@ def edit_user(uid: int):
                     e_dbg,
                     [(r.permiso, r.habilitado, r.puede_editar) for r in rows_dbg],
                 )
+            new_snapshot = {
+                "username": u.username,
+                "rol": u.rol,
+                "activo": u.activo,
+                "is_admin": u.is_admin,
+            }
+            audit_svc.record_event(
+                action="user_permissions_update",
+                module="admin",
+                actor=viewer,
+                entity_type="user",
+                entity_id=u.id,
+                old_value=audit_svc.json_preview(old_snapshot),
+                new_value=audit_svc.json_preview(new_snapshot),
+            )
             flash("Usuario actualizado.", "success")
             return redirect(url_for("admin_users.edit_user", uid=uid))
         if act == "password":
@@ -226,6 +257,13 @@ def edit_user(uid: int):
             else:
                 u.password_hash = generate_password_hash(p1)
                 db.session.commit()
+                audit_svc.record_event(
+                    action="user_password_change",
+                    module="admin",
+                    actor=viewer,
+                    entity_type="user",
+                    entity_id=u.id,
+                )
                 flash("Contraseña actualizada.", "success")
             return redirect(url_for("admin_users.edit_user", uid=uid))
 
@@ -264,8 +302,18 @@ def delete_user(uid: int):
         return redirect(url_for("admin_users.list_users"))
     u = db.session.get(User, uid)
     if u:
+        uname = u.username
+        uid_del = int(u.id)
         db.session.delete(u)
         db.session.commit()
+        audit_svc.record_event(
+            action="user_delete",
+            module="admin",
+            actor=current_user(),
+            entity_type="user",
+            entity_id=uid_del,
+            detail=truncate_plain_text(uname or "", max_len=220),
+        )
         flash("Usuario eliminado.", "info")
     return redirect(url_for("admin_users.list_users"))
 

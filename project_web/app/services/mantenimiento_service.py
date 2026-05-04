@@ -6,7 +6,9 @@ from io import BytesIO
 from pathlib import Path
 from statistics import mean, pstdev
 from typing import Any
+from uuid import uuid4
 
+from flask import current_app
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from werkzeug.datastructures import FileStorage
@@ -35,6 +37,8 @@ EQUIPO_ESTADOS: dict[str, str] = {
     "en_mantenimiento": "En mantenimiento",
     "dado_de_baja": "Dado de baja",
 }
+
+_MAINT_ATTACHMENT_EXT: frozenset[str] = frozenset({".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp"})
 
 FAILURE_ESTADOS: dict[str, str] = {
     "reportado": "Reportado",
@@ -387,13 +391,31 @@ def save_failure_attachment(failure: MaintenanceFailure, fs: FileStorage | None,
     safe = secure_filename(fs.filename)
     if not safe:
         raise ValueError("El nombre del archivo adjunto no es válido.")
+    ext = Path(safe).suffix.lower()
+    if ext not in _MAINT_ATTACHMENT_EXT:
+        raise ValueError("Tipo de archivo no permitido para adjuntos (usá PDF o imagen PNG/JPEG/WebP/GIF).")
+
+    try:
+        max_bytes = int(current_app.config.get("MAINTENANCE_ATTACHMENT_MAX_BYTES") or (12 * 1024 * 1024))
+    except (TypeError, ValueError):
+        max_bytes = 12 * 1024 * 1024
+    if max_bytes <= 0:
+        max_bytes = 12 * 1024 * 1024
+
+    fs.seek(0)
+    blob = fs.read(max_bytes + 1)
+    fs.seek(0)
+    if len(blob) > max_bytes:
+        raise ValueError("El adjunto supera el tamaño máximo permitido.")
+
     now = now_operacion_local_iso_seconds()
     rel_dir = Path("maintenance") / "failures" / str(failure.id)
     target_dir = uploads_workspace_root() / rel_dir
     target_dir.mkdir(parents=True, exist_ok=True)
-    stored_name = f"{now.replace(':', '').replace('-', '').replace('T', '_')}_{safe}"
+    stored_name = f"{uuid4().hex}{ext}"
     rel_path = rel_dir / stored_name
-    fs.save(target_dir / stored_name)
+    dest = target_dir / stored_name
+    fs.save(str(dest))
     attachment = MaintenanceAttachment(
         failure_id=int(failure.id),
         equipo_id=int(failure.equipo_id),

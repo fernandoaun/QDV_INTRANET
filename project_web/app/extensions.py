@@ -34,7 +34,13 @@ def _rate_limit_exempt_non_api_v1() -> bool:
     p = request.path or ""
     if p in ("/api/v1/openapi.json", "/api/v1/docs"):
         return True
-    return not p.startswith("/api/v1")
+    if p.startswith("/api/v1"):
+        return False
+    if request.method == "POST":
+        path = p.rstrip("/") or "/"
+        if path == "/login":
+            return False
+    return True
 
 
 db = SQLAlchemy()
