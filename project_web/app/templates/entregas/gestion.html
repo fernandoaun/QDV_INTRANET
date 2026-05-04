@@ -246,7 +246,6 @@
           </td>
           <td class="small text-truncate" style="max-width:10rem;" title="{{ obs_display }}">{{ obs_display[:45] }}{% if obs_display|length > 45 %}…{% endif %}</td>
           <td class="text-end entregas-list-actions">
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entregas.historial', eid=e.id) }}" title="Historial"><i class="bi bi-clock-history" aria-hidden="true"></i></a>
             {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Editar</a>
             {% endif %}
