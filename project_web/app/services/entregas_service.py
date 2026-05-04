@@ -337,13 +337,13 @@ def get_entregas_visibles_semana_actual() -> list[Entrega]:
     Usa columna real `fecha_prevista` (texto comparable como AAAA-MM-DD).
 
     - (a) `fecha_prevista` desde el lunes de la semana actual en adelante, cualquier estado.
-    - (b) `fecha_prevista` anterior al lunes actual y estado distinto de cargada y entregada.
+    - (b) `fecha_prevista` anterior al lunes actual y estado distinto de entregada.
     """
     lunes, _domingo = rango_semana_operacion_actual()
     lunes_s = lunes.isoformat()
     est = func.lower(func.coalesce(Entrega.estado, ""))
     cond_desde_lunes = Entrega.fecha_prevista >= lunes_s
-    cond_backlog = and_(Entrega.fecha_prevista < lunes_s, not_(est.in_(("cargada", "entregada"))))
+    cond_backlog = and_(Entrega.fecha_prevista < lunes_s, est != "entregada")
     return list(
         db.session.scalars(
             select(Entrega)

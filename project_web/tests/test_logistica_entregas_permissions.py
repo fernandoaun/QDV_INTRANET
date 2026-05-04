@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 
 
 def test_logistica_can_operate_entregas_even_with_stale_session(app):
@@ -91,3 +92,68 @@ def test_quick_entry_creates_programada(auth_client, app):
         assert ent.fecha_prevista == "2026-04-25"
         assert ent.chofer_previsto == "Chofer Pytest"
         assert ent.observaciones == "Hora prevista: 09:30\nAlta rapida"
+
+
+def test_gestion_includes_previous_week_cargada_pending_delivery(app, monkeypatch):
+    from app.extensions import db
+    from app.models import Entrega
+    from app.services import entregas_service
+
+    monkeypatch.setattr(entregas_service, "now_operacion_naive_local", lambda: datetime(2026, 5, 6, 12, 0, 0))
+    now = "2026-05-06T12:00:00"
+
+    with app.app_context():
+        old_programada = Entrega(
+            cliente="Cliente programada",
+            lugar_entrega="Lugar",
+            producto="Producto",
+            cantidad=100.0,
+            cantidad_programada=100.0,
+            fecha_prevista="2026-04-30",
+            estado="programada",
+            created_at_iso=now,
+            updated_at_iso=now,
+        )
+        old_cargada = Entrega(
+            cliente="Cliente cargada",
+            lugar_entrega="Lugar",
+            producto="Producto",
+            cantidad=200.0,
+            cantidad_programada=200.0,
+            cantidad_real_cargada=200.0,
+            fecha_prevista="2026-04-30",
+            estado="cargada",
+            cargada_at_iso="2026-04-30T10:00:00",
+            created_at_iso=now,
+            updated_at_iso=now,
+        )
+        old_entregada = Entrega(
+            cliente="Cliente entregada",
+            lugar_entrega="Lugar",
+            producto="Producto",
+            cantidad=300.0,
+            cantidad_programada=300.0,
+            fecha_prevista="2026-04-30",
+            estado="entregada",
+            entregada_at_iso="2026-04-30T11:00:00",
+            created_at_iso=now,
+            updated_at_iso=now,
+        )
+        current_entregada = Entrega(
+            cliente="Cliente semana actual",
+            lugar_entrega="Lugar",
+            producto="Producto",
+            cantidad=400.0,
+            cantidad_programada=400.0,
+            fecha_prevista="2026-05-04",
+            estado="entregada",
+            entregada_at_iso="2026-05-04T11:00:00",
+            created_at_iso=now,
+            updated_at_iso=now,
+        )
+        db.session.add_all([old_programada, old_cargada, old_entregada, current_entregada])
+        db.session.commit()
+
+        visible_clientes = [e.cliente for e in entregas_service.listar_entregas()]
+
+    assert visible_clientes == ["Cliente programada", "Cliente cargada", "Cliente semana actual"]

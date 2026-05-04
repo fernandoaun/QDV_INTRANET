@@ -89,7 +89,7 @@
   Criterio temporal: <strong>últimos {{ entregas_kpis.periodo_dias }} días corridos</strong> hasta el momento actual (zona horaria de operación). Los títulos dicen «último mes» en sentido operativo; el cálculo es la ventana móvil de {{ entregas_kpis.periodo_dias }} días, no el mes calendario.
 </p>
 <p class="small app-text-secondary mb-3 mb-md-2">
-  <strong>Listado principal:</strong> entregas desde <strong>lun {{ entregas_vista_semana_lunes.strftime('%Y-%m-%d') }}</strong> en adelante, más entregas de fechas anteriores cuyo estado aún no es cargada ni entregada. El resto del historial está en <a href="{{ url_for('entregas.historial_entregas_lista') }}">Ver historial de entregas</a>.
+  <strong>Listado principal:</strong> entregas desde <strong>lun {{ entregas_vista_semana_lunes.strftime('%Y-%m-%d') }}</strong> en adelante, más entregas de fechas anteriores cuyo estado aún no es entregada. El resto del historial está en <a href="{{ url_for('entregas.historial_entregas_lista') }}">Ver historial de entregas</a>.
 </p>
 
 <div class="app-card">
@@ -232,7 +232,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas en esta vista (desde el lunes actual + pendientes de fechas anteriores sin cargar ni entregar).</td></tr>
+        <tr><td colspan="9" class="text-center app-text-secondary py-4">No hay entregas en esta vista (desde el lunes actual + pendientes de fechas anteriores sin entregar).</td></tr>
         {% endfor %}
       </tbody>
     </table>
