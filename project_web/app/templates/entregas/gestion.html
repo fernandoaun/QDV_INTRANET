@@ -9,20 +9,22 @@
     padding: .35rem;
   }
   .entregas-quick-cell {
-    min-width: 9rem;
+    min-width: 0;
   }
   .entregas-quick-cell--sm {
-    min-width: 6.8rem;
+    min-width: 0;
   }
   .entregas-quick-cell--lg {
-    min-width: 13rem;
+    min-width: 0;
   }
   .entregas-quick-input {
     border: 1px solid rgba(33, 37, 41, 0.18);
     border-radius: .35rem;
     font-size: .95rem;
     min-height: 2.75rem;
+    min-width: 0;
     padding: .45rem .55rem;
+    width: 100%;
   }
   .entregas-quick-input:focus {
     border-color: #0d6efd;
@@ -36,6 +38,24 @@
     letter-spacing: .04em;
     margin-bottom: .15rem;
     text-transform: uppercase;
+  }
+  .table-responsive.app-table-scroll.entregas-list-wrap {
+    overflow-x: hidden;
+  }
+  .entregas-list-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+  .entregas-list-table th,
+  .entregas-list-table td {
+    white-space: normal;
+    word-break: break-word;
+  }
+  .entregas-list-actions {
+    white-space: normal !important;
+  }
+  .entregas-list-actions .btn {
+    margin-bottom: .2rem;
   }
 </style>
 {% endblock %}
@@ -97,7 +117,7 @@
     <span>Listado</span>
     <span class="small app-text-secondary">{{ entregas|length }} registro(s)</span>
   </div>
-  <div class="app-card-body--flush table-responsive app-table-scroll">
+  <div class="app-card-body--flush table-responsive app-table-scroll entregas-list-wrap">
     {% if user_can_entregas_programar() %}
     <form id="entregaQuickForm" method="post" action="{{ url_for('entregas.gestion') }}">
       {% include "_csrf.html" %}
@@ -105,7 +125,18 @@
       <input type="hidden" name="hora_prevista" value="">
     </form>
     {% endif %}
-    <table class="table table-app table-compact mb-0 align-middle">
+    <table class="table table-app table-compact mb-0 align-middle entregas-list-table">
+      <colgroup>
+        <col style="width: 8%;">
+        <col style="width: 14%;">
+        <col style="width: 13%;">
+        <col style="width: 13%;">
+        <col style="width: 10%;">
+        <col style="width: 9%;">
+        <col style="width: 11%;">
+        <col style="width: 10%;">
+        <col style="width: 12%;">
+      </colgroup>
       <thead>
         <tr>
           <th>Fecha</th>
@@ -168,7 +199,7 @@
             <label class="entregas-quick-label" for="quickObs">Observaciones</label>
             <input class="form-control entregas-quick-input" id="quickObs" form="entregaQuickForm" name="observaciones" type="text" placeholder="Opcional" autocomplete="off">
           </td>
-          <td class="text-end text-nowrap">
+          <td class="text-end entregas-list-actions">
             <button type="submit" form="entregaQuickForm" class="btn btn-primary btn-lg fw-semibold px-4">GUARDAR</button>
           </td>
         </tr>
@@ -214,7 +245,7 @@
             {% endif %}
           </td>
           <td class="small text-truncate" style="max-width:10rem;" title="{{ obs_display }}">{{ obs_display[:45] }}{% if obs_display|length > 45 %}…{% endif %}</td>
-          <td class="text-end text-nowrap">
+          <td class="text-end entregas-list-actions">
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('entregas.historial', eid=e.id) }}" title="Historial"><i class="bi bi-clock-history" aria-hidden="true"></i></a>
             {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Editar</a>
