@@ -29,6 +29,7 @@ from app.models.shift import ShiftHandover, ShiftHandoverWarningAction, ShiftSes
 from app.models.lab_reagent import LaboratoryReagent, LaboratoryReagentUsage
 from app.models.planificacion import PlanificacionActividad, PlanificacionDependencia
 from app.models.security_audit import SecurityAuditLog
+from app.models.deadline_alert_email import DeadlineAlertEmail
 from app.models.deadline_reminder_sent import DeadlineReminderSent
 from app.models.user import PermisoUsuario, User
 
@@ -72,4 +73,5 @@ __all__ = [
     "PlanificacionDependencia",
     "SecurityAuditLog",
     "DeadlineReminderSent",
+    "DeadlineAlertEmail",
 ]

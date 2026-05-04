@@ -78,7 +78,21 @@ Si tenés una copia del árbol `uploads` anterior (misma estructura):
 
 **Primera vez después de configurar el disco**: subir de nuevo los PDFs desde un usuario administrador, o restaurar copia de archivos como arriba.
 
-## 7) Si el deploy falla
+## 7) Avisos por correo (planificación y mantenimiento)
+
+Los destinatarios se pueden cargar en **Administración → Avisos por correo** (administrador) y/o con la variable **`DEADLINE_ALERT_EMAIL_TO`** en el servidor; la app **une ambas fuentes** sin duplicar. El servidor SMTP sigue siendo por variables de entorno (`SMTP_HOST`, `MAIL_FROM`, etc.; ver `project_web/.env.example`).
+
+1. En Render → **Environment** del servicio web: SMTP obligatorio para enviar; **`DEADLINE_ALERT_EMAIL_TO`** opcional si ya cargás correos desde el panel.
+
+2. Ejecutá una vez al día el comando (cron en tu PC, **Cron Job** en Render con el mismo `rootDir` que `project_web` y las mismas variables de correo y `DATABASE_URL`):
+
+```bash
+python -m flask --app run send-deadline-reminders
+```
+
+Referencia local: bloque «Avisos por correo» al final de `project_web/.env.example`.
+
+## 8) Si el deploy falla
 
 Revisá en Render -> **Logs**:
 

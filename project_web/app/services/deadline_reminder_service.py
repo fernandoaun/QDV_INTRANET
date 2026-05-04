@@ -20,7 +20,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.extensions import db
-from app.models import DeadlineReminderSent, Equipo, MaintenanceOrder, PlanificacionActividad
+from app.models import DeadlineReminderSent, MaintenanceOrder, PlanificacionActividad
+from app.services.deadline_alert_email_service import merged_recipient_addresses
 from app.services.planificacion_service import actividad_display_codigo
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -191,7 +192,6 @@ def _smtp_settings(app: Any) -> dict[str, Any]:
         "password": (app.config.get("SMTP_PASSWORD") or "").strip(),
         "use_tls": bool(app.config.get("SMTP_USE_TLS", True)),
         "mail_from": (app.config.get("MAIL_FROM") or "").strip(),
-        "mail_to": app.config.get("DEADLINE_ALERT_EMAIL_TO") or [],
     }
 
 
@@ -241,7 +241,7 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
     plans = collect_planificacion_reminders(today=today, days_before=days_before)
     orders = collect_mantenimiento_reminders(today=today, days_before=days_before)
 
-    recipients = list(app.config.get("DEADLINE_ALERT_EMAIL_TO") or [])
+    recipients = merged_recipient_addresses(app)
     smtp_host = (app.config.get("SMTP_HOST") or "").strip()
 
     result: dict[str, Any] = {
@@ -259,7 +259,10 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
         return result
 
     if not recipients:
-        result["message"] = "Hay ítems pero falta DEADLINE_ALERT_EMAIL_TO (lista de correos)."
+        result["message"] = (
+            "Hay ítems pero no hay destinatarios: cargá correos en Administración → Avisos por correo "
+            "y/o variable DEADLINE_ALERT_EMAIL_TO en el servidor."
+        )
         return result
 
     if not smtp_host:

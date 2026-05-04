@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Avisos por correo · Admin{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Avisos por correo</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_users.list_users') }}">← Usuarios</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Panel</a>
+  </div>
+</div>
+
+<p class="small app-text-secondary mb-3">
+  Direcciones que reciben el recordatorio automático de <strong>planificación</strong> (fecha de fin de actividad)
+  y <strong>mantenimiento</strong> (fecha programada de la orden), cuando entran en la ventana de aviso configurada en el servidor.
+  El envío real sigue dependiendo de SMTP en el proveedor (cron diario <code>send-deadline-reminders</code>).
+</p>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Destinatarios efectivos (unión base de datos + variable de entorno)</div>
+  <div class="app-card-body">
+    {% if merged_recipients %}
+      <ul class="mb-2 ps-3">
+        {% for m in merged_recipients %}
+        <li><code>{{ m }}</code></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted mb-2">Todavía no hay correos: agregá abajo (administrador) o definí <code>DEADLINE_ALERT_EMAIL_TO</code> en el servidor.</p>
+    {% endif %}
+    {% if env_addresses %}
+    <p class="small mb-0"><strong>Solo desde variable de entorno:</strong>
+      {% for e in env_addresses %}<code class="me-1">{{ e }}</code>{% endfor %}
+      <span class="text-muted">(se combinan con los de la lista guardada)</span>
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+{% if viewer_may_edit_deadline_mails|default(false) %}
+<div class="app-card mb-4">
+  <div class="app-card-header">Agregar correo</div>
+  <div class="app-card-body">
+    <form method="post" action="{{ url_for('admin_users.deadline_alert_email_add') }}" class="row g-2 align-items-end">
+    {% include "_csrf.html" %}
+      <div class="col-md-6">
+        <label class="form-label">Correo electrónico</label>
+        <input type="email" class="form-control" name="email" required maxlength="254" placeholder="ejemplo@dominio.com" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info mb-4" role="status">Solo un administrador puede agregar o quitar correos en esta lista.</div>
+{% endif %}
+
+<div class="app-card">
+  <div class="app-card-header">Guardados en la aplicación</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>ID</th><th>Correo</th><th></th></tr></thead>
+      <tbody>
+      {% for row in db_rows %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>{{ row.email }}</td>
+        <td>
+          {% if viewer_may_edit_deadline_mails|default(false) %}
+          <form method="post" action="{{ url_for('admin_users.deadline_alert_email_delete', eid=row.id) }}" class="d-inline"
+                onsubmit="return confirm('¿Eliminar este correo de la lista?');">
+          {% include "_csrf.html" %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+          </form>
+          {% else %}
+          <span class="text-muted small">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="3" class="text-muted text-center py-3">No hay correos guardados en base de datos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

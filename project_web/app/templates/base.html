@@ -71,6 +71,10 @@
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
              data-filter-text="equipos" title="Equipos"><i class="bi bi-cpu" aria-hidden="true"></i></a>
         </li>
+        <li>
+          <a href="{{ url_for('admin_users.deadline_alert_emails') }}" class="app-sidenav-link {% if ep == 'admin_users.deadline_alert_emails' %}is-active{% endif %}"
+             data-filter-text="avisos correo email notificaciones" title="Avisos por correo"><i class="bi bi-envelope-at" aria-hidden="true"></i></a>
+        </li>
         {% endif %}
       </ul>
     </nav>
@@ -119,6 +123,7 @@
             {% endif %}
             {% if user_can_view_admin_configuration() %}
             <li><a class="dropdown-item" href="{{ url_for('admin_users.list_users') }}"><i class="bi bi-people me-2" aria-hidden="true"></i>Usuarios</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin_users.deadline_alert_emails') }}"><i class="bi bi-envelope-at me-2" aria-hidden="true"></i>Avisos por correo</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
             {% if user_can_production_hub %}

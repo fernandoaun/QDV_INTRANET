@@ -12,6 +12,7 @@ from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
 from app.security_http import truncate_plain_text
 from app.services import security_audit_service as audit_svc
+from app.services.deadline_alert_email_service import add_email, delete_email_row, list_emails_ordered, merged_recipient_addresses
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
@@ -359,3 +360,58 @@ def equipo_toggle(eid: int):
         db.session.commit()
         flash("Estado actualizado.", "info")
     return redirect(url_for("admin_users.equipos_list"))
+
+
+@bp.get("/avisos-correo")
+@login_required
+def deadline_alert_emails():
+    u = current_user()
+    if u is None or not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a esta configuración.", "warning")
+        return redirect(url_for("main.dashboard"))
+    rows = list_emails_ordered()
+    merged = merged_recipient_addresses(current_app)
+    env_addrs = [str(x).strip() for x in (current_app.config.get("DEADLINE_ALERT_EMAIL_TO") or []) if str(x).strip()]
+    return render_template(
+        "admin/avisos_correo.html",
+        db_rows=rows,
+        merged_recipients=merged,
+        env_addresses=env_addrs,
+        viewer_may_edit_deadline_mails=bool(u.is_admin),
+    )
+
+
+@bp.post("/avisos-correo/agregar")
+@login_required
+@admin_required
+def deadline_alert_email_add():
+    ok, msg = add_email(request.form.get("email"))
+    flash(msg, "success" if ok else "danger")
+    if ok:
+        audit_svc.record_event(
+            action="deadline_alert_email_add",
+            module="admin",
+            actor=current_user(),
+            entity_type="deadline_alert_email",
+            detail=truncate_plain_text((request.form.get("email") or "").strip().lower(), max_len=220),
+        )
+    return redirect(url_for("admin_users.deadline_alert_emails"))
+
+
+@bp.post("/avisos-correo/<int:eid>/eliminar")
+@login_required
+@admin_required
+def deadline_alert_email_delete(eid: int):
+    removed = delete_email_row(eid)
+    if removed is None:
+        flash("Correo no encontrado.", "warning")
+        return redirect(url_for("admin_users.deadline_alert_emails"))
+    audit_svc.record_event(
+        action="deadline_alert_email_delete",
+        module="admin",
+        actor=current_user(),
+        entity_type="deadline_alert_email",
+        detail=truncate_plain_text(removed or "", max_len=220),
+    )
+    flash("Correo eliminado.", "info")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
