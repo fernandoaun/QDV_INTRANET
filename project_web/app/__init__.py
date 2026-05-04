@@ -84,7 +84,7 @@ def create_app() -> Flask:
                 "frame-ancestors 'self'; "
                 "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com; "
-                "font-src 'self' https://fonts.gstatic.com data:; "
+                "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:; "
                 "img-src 'self' data: blob:; "
                 "connect-src 'self'"
             )
