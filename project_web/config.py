@@ -185,6 +185,25 @@ def get_config_dict(base_dir: Path) -> dict:
     except ValueError:
         salmuera_analisis_8hs_pdf_max_bytes = analysis_ref_pdf_max_bytes
 
+    smtp_host = (os.environ.get("SMTP_HOST") or "").strip()
+    smtp_port_raw = (os.environ.get("SMTP_PORT") or "587").strip()
+    try:
+        smtp_port = int(smtp_port_raw)
+    except ValueError:
+        smtp_port = 587
+    smtp_user = (os.environ.get("SMTP_USER") or "").strip()
+    smtp_password = (os.environ.get("SMTP_PASSWORD") or "").strip()
+    smtp_use_tls = (os.environ.get("SMTP_USE_TLS") or "true").strip().lower() in ("1", "true", "yes")
+    mail_from = (os.environ.get("MAIL_FROM") or "").strip()
+    deadline_mail_raw = (os.environ.get("DEADLINE_ALERT_EMAIL_TO") or "").strip()
+    deadline_alert_email_to = [e.strip() for e in deadline_mail_raw.split(",") if e.strip()]
+    deadline_days_raw = (os.environ.get("DEADLINE_REMINDER_DAYS_BEFORE") or "30").strip()
+    try:
+        deadline_reminder_days_before = int(deadline_days_raw)
+    except ValueError:
+        deadline_reminder_days_before = 30
+    deadline_reminder_days_before = max(1, min(deadline_reminder_days_before, 366))
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
@@ -214,6 +233,14 @@ def get_config_dict(base_dir: Path) -> dict:
         "MAINTENANCE_ATTACHMENT_MAX_BYTES": maintenance_attachment_max_bytes,
         "ANALYSIS_REF_PDF_MAX_BYTES": analysis_ref_pdf_max_bytes,
         "SALMUERA_ANALISIS_8HS_PDF_MAX_BYTES": salmuera_analisis_8hs_pdf_max_bytes,
+        "SMTP_HOST": smtp_host,
+        "SMTP_PORT": smtp_port,
+        "SMTP_USER": smtp_user,
+        "SMTP_PASSWORD": smtp_password,
+        "SMTP_USE_TLS": smtp_use_tls,
+        "MAIL_FROM": mail_from,
+        "DEADLINE_ALERT_EMAIL_TO": deadline_alert_email_to,
+        "DEADLINE_REMINDER_DAYS_BEFORE": deadline_reminder_days_before,
     }
     # Desarrollo local: que HTML/CSS/JS se lean de disco en cada request (evita “no veo los cambios”).
     if name not in ("production", "testing"):
