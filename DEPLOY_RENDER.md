@@ -90,9 +90,9 @@ El archivo **`render.yaml`** de la raíz del repo incluye un **Cron Job** diario
 
 - **Horario:** `13:00 UTC` todos los días (aprox. mañana en Argentina; podés cambiar el campo `schedule` en el YAML en formato cron UTC).
 - **Coste:** Render cobra ese cron como **otro servicio** (plan `starter`, como el web).
-Los valores SMTP en el Blueprint vienen con **cadenas vacías** para que existan las claves (Render no puede crear el Cron si copia variables que aún no están definidas en el web). Completá **`SMTP_HOST`**, **`MAIL_FROM`**, usuario y contraseña **en el servicio web** en el dashboard; el Cron las hereda automáticamente.
+- **Variables (importante):** el Cron **no** hereda SMTP ni `SECRET_KEY` del web (`fromService` suele dar error de sync). En el Dashboard cargá **`SECRET_KEY`**, **`SMTP_HOST`**, **`MAIL_FROM`**, usuario y contraseña **en `qdv-salmuera-web` y también en `qdv-salmuera-deadline-reminders`** (mismos valores, copiar y pegar). Los placeholders vacíos ya vienen en el Blueprint; vos completás valores reales. Opcional en el Cron: `DEADLINE_ALERT_EMAIL_TO` (si no está, siguen aplicando los correos cargados en **Administración** en la BD).
 
-**Si tu proyecto ya estaba en Render antes de este cron:** entrá al **Blueprint** del repo en el dashboard y usá **Apply** / sincronizar para que se cree el servicio Cron. Revisá que en el web estén cargadas las variables SMTP del Blueprint.
+**Si tu proyecto ya estaba en Render antes de este cron:** sincronizá el Blueprint y **Approve** la creación del Cron. Después abrí Environment del **Cron** y cargá `SECRET_KEY` + SMTP (no alcanza solo con el web).
 
 **Comprobar envío:** en el servicio Cron de Render → **Logs** después de la hora programada, o ejecutá el mismo comando una vez a mano desde tu PC con `.env` de producción (solo para prueba).
 
@@ -110,7 +110,7 @@ Referencia local: bloque «Avisos por correo» al final de `project_web/.env.exa
 
 Revisá en Render -> **Logs**:
 
-- Error de `SECRET_KEY` faltante: agregarla en Environment.
+- Error de `SECRET_KEY` faltante: agregarla en Environment (en el **web** y también en el **Cron** de avisos, si usás el Blueprint).
 - Error de DB/migración: verificar que PostgreSQL esté creada y enlazada.
 - Error de imports: revisar que el deploy use la rama correcta.
 

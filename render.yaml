@@ -45,8 +45,7 @@ services:
       # Definí este valor en el dashboard (Environment) la primera vez; no lo pongas en Git.
       - key: SECRET_KEY
         sync: false
-      # Placeholder vacío: Render exige que existan para que el Cron pueda copiarlas con fromService.
-      # Cargá valores reales en Dashboard → qdv-salmuera-web → Environment (sin commitear secretos).
+      # Correo saliente (vacío hasta que cargues datos reales en Dashboard). El Cron no hereda del web: copiá mismos valores también en el servicio Cron si usás mail.
       - key: SMTP_HOST
         value: ""
       - key: SMTP_USER
@@ -60,8 +59,9 @@ services:
       - key: SMTP_USE_TLS
         value: "true"
 
-  # Avisos diarios por mail (planificación + mantenimiento). Reutiliza SMTP y secreto del servicio web.
-  # Horario UTC: 13:00 ≈ mañana en Argentina · Ver: DEPLOY_RENDER.md §7.
+  # Avisos diarios por mail. Sin fromService (Render rechaza refs si marca variables como no definidas).
+  # Igual secreto SMTP en web y Cron: cargá ENV en ambos servicios en el Dashboard.
+  # Horario UTC: 13:00 · Ver DEPLOY_RENDER.md §7.
   - type: cron
     name: qdv-salmuera-deadline-reminders
     runtime: python
@@ -80,39 +80,18 @@ services:
         fromDatabase:
           name: qdv-postgres
           property: connectionString
+      # Mismo valor que qdv-salmuera-web (copiar/pegar desde Environment del web).
       - key: SECRET_KEY
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: SECRET_KEY
-      # Mismas claves que configurás en el servicio web (Environment). Si no existen aún, crealas en el web con los valores de tu proveedor SMTP.
+        sync: false
       - key: SMTP_HOST
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: SMTP_HOST
+        value: ""
       - key: SMTP_USER
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: SMTP_USER
+        value: ""
       - key: SMTP_PASSWORD
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: SMTP_PASSWORD
+        value: ""
       - key: MAIL_FROM
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: MAIL_FROM
+        value: ""
       - key: SMTP_PORT
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: SMTP_PORT
+        value: "587"
       - key: SMTP_USE_TLS
-        fromService:
-          name: qdv-salmuera-web
-          type: web
-          envVarKey: SMTP_USE_TLS
+        value: "true"
