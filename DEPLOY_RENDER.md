@@ -90,7 +90,7 @@ El archivo **`render.yaml`** de la raíz del repo incluye un **Cron Job** diario
 
 - **Horario:** `13:00 UTC` todos los días (aprox. mañana en Argentina; podés cambiar el campo `schedule` en el YAML en formato cron UTC).
 - **Coste:** Render cobra ese cron como **otro servicio** (plan `starter`, como el web).
-- **Variables:** el Cron usa la misma `DATABASE_URL` (Postgres del Blueprint) que el web, y **hereda** `SECRET_KEY` y las variables `SMTP_*` / `MAIL_FROM` del servicio web (`fromService`). En el Blueprint, esas variables SMTP también están declaradas en el **servicio web** con `sync: false`: cargalas una sola vez en **Environment → qdv-salmuera-web**. Podés configurar opcionales solo en el web: `SMTP_PORT`, `SMTP_USE_TLS`, `DEADLINE_ALERT_EMAIL_TO`, `DEADLINE_REMINDER_DAYS_BEFORE` (el proceso las lee si existen en el entorno del Cron; si no, el código aplica valores por defecto donde aplica).
+Los valores SMTP en el Blueprint vienen con **cadenas vacías** para que existan las claves (Render no puede crear el Cron si copia variables que aún no están definidas en el web). Completá **`SMTP_HOST`**, **`MAIL_FROM`**, usuario y contraseña **en el servicio web** en el dashboard; el Cron las hereda automáticamente.
 
 **Si tu proyecto ya estaba en Render antes de este cron:** entrá al **Blueprint** del repo en el dashboard y usá **Apply** / sincronizar para que se cree el servicio Cron. Revisá que en el web estén cargadas las variables SMTP del Blueprint.
 

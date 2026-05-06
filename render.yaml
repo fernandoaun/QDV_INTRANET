@@ -45,16 +45,16 @@ services:
       # Definí este valor en el dashboard (Environment) la primera vez; no lo pongas en Git.
       - key: SECRET_KEY
         sync: false
-      # Opcional hasta que configures avisos por mail. Si vacío, los avisos automáticos no podrán conectar al SMTP.
-      # Las mismas variables son las que hereda el Cron `qdv-salmuera-deadline-reminders`.
+      # Placeholder vacío: Render exige que existan para que el Cron pueda copiarlas con fromService.
+      # Cargá valores reales en Dashboard → qdv-salmuera-web → Environment (sin commitear secretos).
       - key: SMTP_HOST
-        sync: false
+        value: ""
       - key: SMTP_USER
-        sync: false
+        value: ""
       - key: SMTP_PASSWORD
-        sync: false
+        value: ""
       - key: MAIL_FROM
-        sync: false
+        value: ""
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USE_TLS
