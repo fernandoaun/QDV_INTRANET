@@ -33,7 +33,7 @@ def _migration_database_uri() -> str:
             "DATABASE_URL no está definida en el entorno del proceso. "
             "En Render (servicio Docker o Cron): Environment → agregá DATABASE_URL con la URL interna "
             "de PostgreSQL (la misma que usa tu base qdv-postgres). Los servicios Docker no heredan "
-            "sola la variable del blueprint: copiala desde el recurso Postgres o desde el servicio web."
+            "automáticamente esa variable del blueprint: copiala desde el recurso Postgres o desde el servicio web."
         )
     return build_sqlalchemy_uri(ROOT)
 
