@@ -61,7 +61,8 @@ services:
 
   # Avisos diarios por mail. Sin fromService (Render rechaza refs si marca variables como no definidas).
   # Igual secreto SMTP en web y Cron: cargá ENV en ambos servicios en el Dashboard.
-  # Horario UTC: 13:00 · Ver DEPLOY_RENDER.md §7.
+  # Horario UTC: 13:00 · Ver DEPLOY_RENDER.md §7 y §9.
+  # Si en el Dashboard el Cron quedó en modo Docker: Start Command debe ser flask send-deadline-reminders, no el CMD del Dockerfile.
   - type: cron
     name: qdv-salmuera-deadline-reminders
     runtime: python

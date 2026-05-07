@@ -113,4 +113,15 @@ Revisá en Render -> **Logs**:
 - Error de `SECRET_KEY` faltante: agregarla en Environment (en el **web** y también en el **Cron** de avisos, si usás el Blueprint).
 - Error de DB/migración: verificar que PostgreSQL esté creada y enlazada.
 - Error de imports: revisar que el deploy use la rama correcta.
+- **`open Dockerfile: no such file or directory`:** el repo debe tener un **`Dockerfile` en la raíz** (junto a `render.yaml`). Si el servicio está en **modo Docker**, el build usa ese archivo; el de `project_web/Dockerfile` sirve para `docker build -f project_web/Dockerfile .` desde la raíz.
+- **Alembic + `SECRET_KEY` al arrancar el contenedor:** si usás imagen Docker cuyo `CMD` corre `alembic` antes de Gunicorn, hace falta **`SECRET_KEY` real** en el Environment del servicio (Gunicorn la necesita). El código permite que **solo la pasada de migraciones** no falle si falta temporalmente; **sin `SECRET_KEY` en Render el sitio no queda sano**: definila siempre.
+
+## 9) Python nativo vs Docker en Render (web y cron)
+
+El **`render.yaml`** declara **`runtime: python`** (build con `pip`, sin Docker). A veces en el Dashboard un servicio queda en **Docker** por un deploy manual o un cambio viejo; ahí Render busca `Dockerfile` en la raíz del repo.
+
+- **Recomendado:** en **Settings** del servicio, usá **entorno Python / Native** (no Docker), con **Root Directory** = `project_web`, **Build** = `pip install -r requirements.txt`, y el **Start Command** del blueprint (`gunicorn ...` en el web; comando `flask send-deadline-reminders` en el cron).
+- **Si dejás Docker:** debe existir el **`Dockerfile` en la raíz**. El **web** puede usar el `CMD` por defecto (migraciones + Gunicorn). El **cron de avisos** no debe usar ese `CMD` (levantaría Gunicorn): en Render definí **Start Command** explícito:
+  `python -m flask --app run send-deadline-reminders`
+- En **web** y **cron**, cargá **`SECRET_KEY`** (y SMTP en ambos si usás correo), como en la §3 y §7.
 
