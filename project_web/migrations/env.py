@@ -26,6 +26,10 @@ logger = logging.getLogger("alembic.env")
 
 def _get_app():
     os.environ["SKIP_SEED_DATA"] = "1"
+    # create_app() exige SECRET_KEY en FLASK_ENV=production; Alembic solo usa DATABASE_URL y metadata.
+    # Sin esto, el CMD Docker (alembic antes de gunicorn) falla si falta la variable en el entorno.
+    if not (os.environ.get("SECRET_KEY") or "").strip():
+        os.environ["SECRET_KEY"] = "_alembic_migration_placeholder_not_for_runtime"
     return create_app()
 
 
