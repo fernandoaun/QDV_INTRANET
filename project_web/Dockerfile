@@ -1,6 +1,8 @@
 # Imagen opcional para VPS, Fly.io, u otro host con Docker.
+# También hay Dockerfile en la raíz del repo (mismo contenido) para `docker build .` / Render.
 # Build (desde la raíz del repo):
 #   docker build -f project_web/Dockerfile -t qdv-web .
+#   o: docker build -t qdv-web .
 # Run (pasá SECRET_KEY y DATABASE_URL de PostgreSQL):
 #   docker run -e FLASK_ENV=production -e SECRET_KEY=... -e DATABASE_URL=postgresql://... -e PORT=8000 -p 8000:8000 qdv-web
 #
