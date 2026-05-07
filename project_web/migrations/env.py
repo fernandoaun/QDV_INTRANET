@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import build_sqlalchemy_uri
+from config import build_sqlalchemy_uri, raw_database_url_from_environ
 from app.extensions import db
 
 config = context.config
@@ -27,13 +27,12 @@ logger = logging.getLogger("alembic.env")
 
 def _migration_database_uri() -> str:
     """Solo migraciones: no pasar por get_config_dict (Docker / SECRET_KEY / resto de la app)."""
-    raw = (os.environ.get("DATABASE_URL") or "").strip()
-    if not raw:
+    if not raw_database_url_from_environ():
         raise RuntimeError(
-            "DATABASE_URL no está definida en el entorno del proceso. "
-            "En Render (servicio Docker o Cron): Environment → agregá DATABASE_URL con la URL interna "
-            "de PostgreSQL (la misma que usa tu base qdv-postgres). Los servicios Docker no heredan "
-            "automáticamente esa variable del blueprint: copiala desde el recurso Postgres o desde el servicio web."
+            "No hay URL de base de datos en el entorno: definí DATABASE_URL (recomendado en Render: "
+            "Internal Database URL de Postgres), o las variables PGHOST, PGUSER, PGPASSWORD, PGDATABASE "
+            "(y opcional PGPORT). En servicios Docker de Render, agregalas en Environment del servicio "
+            "que está desplegando y guardá cambios antes de redeployar."
         )
     return build_sqlalchemy_uri(ROOT)
 

@@ -33,12 +33,41 @@ def _default_sqlite_uri(base_dir: Path) -> str:
     return f"sqlite:///{db_path.as_posix()}"
 
 
+def _postgres_url_from_split_env() -> str:
+    """
+    Algunos despliegues Docker / Compose exponen Postgres en variables sueltas, no en DATABASE_URL.
+    """
+    host = (os.environ.get("PGHOST") or os.environ.get("POSTGRES_HOST") or "").strip()
+    user = (os.environ.get("PGUSER") or os.environ.get("POSTGRES_USER") or "").strip()
+    password = (os.environ.get("PGPASSWORD") or os.environ.get("POSTGRES_PASSWORD") or "").strip()
+    database = (os.environ.get("PGDATABASE") or os.environ.get("POSTGRES_DB") or "").strip()
+    port = (os.environ.get("PGPORT") or os.environ.get("POSTGRES_PORT") or "5432").strip()
+    if not (host and user and database):
+        return ""
+    from urllib.parse import quote, quote_plus
+
+    if password:
+        auth = f"{quote_plus(user)}:{quote_plus(password)}@"
+    else:
+        auth = f"{quote_plus(user)}@"
+    db_path = quote(database, safe="")
+    return f"postgresql://{auth}{host}:{port}/{db_path}"
+
+
+def raw_database_url_from_environ() -> str:
+    """Primera URL Postgres disponible (cadena sin normalizar a +psycopg2)."""
+    u = (os.environ.get("DATABASE_URL") or "").strip()
+    if u:
+        return u
+    return _postgres_url_from_split_env()
+
+
 def build_sqlalchemy_uri(base_dir: Path) -> str:
     """
-    Prioridad: DATABASE_URL en entorno.
+    Prioridad: DATABASE_URL o variables PG*/POSTGRES_* en entorno.
     Si no está, SQLite en instance/qdv_web.db bajo project_web.
     """
-    url = (os.environ.get("DATABASE_URL") or "").strip()
+    url = raw_database_url_from_environ()
     if url:
         # Heroku-style postgres:// -> sqlalchemy
         if url.startswith("postgres://"):
@@ -72,7 +101,7 @@ def get_config_dict(base_dir: Path) -> dict:
     elif not secret_key:
         secret_key = "dev-only-change-me"
 
-    db_url_env = (os.environ.get("DATABASE_URL") or "").strip()
+    db_url_env = raw_database_url_from_environ()
     if name == "testing" and not db_url_env:
         uri = TestingConfig.SQLALCHEMY_DATABASE_URI
     elif name == "production":
