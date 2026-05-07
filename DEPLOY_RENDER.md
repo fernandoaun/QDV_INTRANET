@@ -115,6 +115,7 @@ Revisá en Render -> **Logs**:
 - Error de imports: revisar que el deploy use la rama correcta.
 - **`open Dockerfile: no such file or directory`:** el repo debe tener un **`Dockerfile` en la raíz** (junto a `render.yaml`). Si el servicio está en **modo Docker**, el build usa ese archivo; el de `project_web/Dockerfile` sirve para `docker build -f project_web/Dockerfile .` desde la raíz.
 - **Alembic + `SECRET_KEY` al arrancar el contenedor:** si usás imagen Docker cuyo `CMD` corre `alembic` antes de Gunicorn, hace falta **`SECRET_KEY` real** en el Environment del servicio (Gunicorn la necesita). El código permite que **solo la pasada de migraciones** no falle si falta temporalmente; **sin `SECRET_KEY` en Render el sitio no queda sano**: definila siempre.
+- **`DATABASE_URL es obligatorio` en el deploy Docker:** en servicios **Docker**, Render **no siempre** inyecta la URL de Postgres sola (a diferencia del web nativo del Blueprint). Entrá a tu base **PostgreSQL** en Render → copiá **Internal Database URL** (o la connection string que muestre) → en el servicio **web** (y en el **Cron**) → **Environment** → variable **`DATABASE_URL`** con ese valor. Sin eso, `alembic` y la app no pueden conectar a la base.
 
 ## 9) Python nativo vs Docker en Render (web y cron)
 
