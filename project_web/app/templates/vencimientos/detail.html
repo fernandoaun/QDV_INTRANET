@@ -34,7 +34,23 @@
           <dt class="col-sm-4">Adjunto</dt>
           <dd class="col-sm-8">
             {% if v.archivo_path %}
-            <a href="{{ url_for('vencimientos.adjunto_descargar', vid=v.id) }}">Descargar</a>
+            {% set ap = v.archivo_path.replace('\\', '/') %}
+            {% set adj_name = ap.split('/')[-1] %}
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <a class="btn btn-outline-primary btn-sm" href="{{ url_for('vencimientos.adjunto_descargar', vid=v.id) }}"><i class="bi bi-download me-1"></i>Descargar</a>
+              {% set adj_l = adj_name.lower() %}
+              {% if adj_l.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')) %}
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('vencimientos.adjunto_descargar', vid=v.id, inline=1) }}" target="_blank" rel="noopener">Ver imagen</a>
+              {% elif adj_l.endswith('.pdf') %}
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('vencimientos.adjunto_descargar', vid=v.id, inline=1) }}" target="_blank" rel="noopener">Ver PDF</a>
+              {% endif %}
+            </div>
+            <div class="small text-muted mt-1">{{ adj_name }}</div>
+            {% if adj_l.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')) %}
+            <div class="mt-2 border rounded p-2 bg-body-secondary">
+              <img src="{{ url_for('vencimientos.adjunto_descargar', vid=v.id, inline=1) }}" alt="Vista previa del adjunto" class="img-fluid rounded" style="max-height: 22rem; width: auto;">
+            </div>
+            {% endif %}
             {% else %}—{% endif %}
           </dd>
         </dl>
@@ -46,11 +62,12 @@
 
     {% if puede_gestionar and v.activo %}
     <div class="app-card mb-3">
-      <div class="app-card-header">Adjuntar archivo</div>
+      <div class="app-card-header">Adjuntar o reemplazar archivo</div>
       <div class="app-card-body">
         <form method="post" action="{{ url_for('vencimientos.adjunto_subir', vid=v.id) }}" enctype="multipart/form-data">
           {% include "_csrf.html" %}
-          <input type="file" class="form-control" name="archivo" required>
+          <input type="file" class="form-control" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf" required>
+          <div class="form-text">PDF o imagen (JPG, PNG, GIF, WEBP). Si ya había un archivo, este lo reemplaza.</div>
           <button type="submit" class="btn btn-primary btn-sm mt-2">Subir</button>
         </form>
       </div>

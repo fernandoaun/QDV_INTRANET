@@ -40,6 +40,8 @@ ACCION_BAJA = "baja"
 ACCION_MAIL_ENVIADO = "mail_enviado"
 ACCION_MAIL_ERROR = "mail_error"
 
+ALLOWED_ATTACHMENT_EXTENSIONS = frozenset({".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp"})
+
 
 def _today_local() -> date:
     return now_operacion_naive_local().date()
@@ -431,12 +433,28 @@ def _upload_max_bytes() -> int:
     return int(current_app.config.get("MAINTENANCE_ATTACHMENT_MAX_BYTES") or (12 * 1024 * 1024))
 
 
+def allowed_attachment_suffix(filename: str) -> tuple[bool, str | None]:
+    fn = (filename or "").strip()
+    if not fn:
+        return False, None
+    safe = secure_filename(fn)
+    if not safe:
+        return False, "Nombre de archivo inválido."
+    suffix = Path(safe).suffix.lower()
+    if suffix not in ALLOWED_ATTACHMENT_EXTENSIONS:
+        return False, "Solo se permiten PDF o imágenes (JPG, PNG, GIF, WEBP)."
+    return True, None
+
+
 def save_attachment(vid: int, storage: FileStorage, user_id: int | None, actor_label: str) -> tuple[bool, str]:
     v = db.session.get(Vencimiento, int(vid))
     if v is None or not v.activo:
         return False, "Registro no encontrado o inactivo."
     if not storage or not (storage.filename or "").strip():
         return False, "No se seleccionó ningún archivo."
+    ok_fn, fn_err = allowed_attachment_suffix(storage.filename or "")
+    if not ok_fn:
+        return False, fn_err or "Archivo no permitido."
     data = storage.read()
     size = len(data)
     if size > _upload_max_bytes():

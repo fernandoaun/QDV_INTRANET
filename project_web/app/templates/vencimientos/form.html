@@ -10,7 +10,7 @@
 
 <div class="app-card">
   <div class="app-card-body">
-    <form method="post" action="{{ url_for('vencimientos.nuevo') if modo == 'nuevo' else url_for('vencimientos.editar', vid=v.id) }}">
+    <form method="post" action="{{ url_for('vencimientos.nuevo') if modo == 'nuevo' else url_for('vencimientos.editar', vid=v.id) }}" enctype="multipart/form-data">
       {% include "_csrf.html" %}
       <div class="row g-3">
         <div class="col-md-4">
@@ -42,8 +42,9 @@
           <input type="email" class="form-control" name="email_aviso" required maxlength="254" value="{{ (form.email_aviso if form else '') }}">
         </div>
         <div class="col-12">
-          <label class="form-label">Observaciones</label>
-          <textarea class="form-control" name="observaciones" rows="3">{{ (form.observaciones if form else '') }}</textarea>
+          <label class="form-label">Foto o PDF del ítem / certificado (opcional)</label>
+          <input type="file" class="form-control" name="archivo" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,image/*,application/pdf">
+          <div class="form-text">Formatos permitidos: PDF, JPG, PNG, GIF o WEBP. Tamaño máximo similar a otros adjuntos del sistema (≈12&nbsp;MB). {% if modo == 'editar' and v.archivo_path %}Ya hay un archivo guardado: podés subir otro para reemplazarlo.{% endif %}</div>
         </div>
       </div>
       <div class="mt-4 d-flex gap-2">

@@ -103,3 +103,14 @@ def test_authenticated_mail_roundtrip(monkeypatch, app):
         app.config["MAIL_FROM"] = "noreply@example.test"
         enviar_mail_texto_plano(app, ["x@test.example"], "Hola", "cuerpo")
     assert "subject" in sent
+
+
+def test_allowed_attachment_suffix_types():
+    from app.services.vencimiento_service import allowed_attachment_suffix
+
+    ok, err = allowed_attachment_suffix("certificado.PDF")
+    assert ok is True and err is None
+    ok, err = allowed_attachment_suffix("foto.JPEG")
+    assert ok is True
+    ok, err = allowed_attachment_suffix("evil.exe")
+    assert ok is False and err

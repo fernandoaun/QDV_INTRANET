@@ -94,6 +94,10 @@ def nuevo():
             flash(err, "danger")
             return render_template("vencimientos/form.html", modo="nuevo", sectores=sectores, form=request.form)
         flash("Vencimiento creado.", "success")
+        f = request.files.get("archivo")
+        if f and (f.filename or "").strip():
+            ok_att, msg_att = vs.save_attachment(row.id, f, u.id, user_display_name(u))
+            flash(msg_att, "success" if ok_att else "warning")
         return redirect(url_for("vencimientos.detalle", vid=row.id))
     return render_template("vencimientos/form.html", modo="nuevo", sectores=sectores, form=None)
 
@@ -115,6 +119,10 @@ def editar(vid: int):
         ok, msg = vs.update_vencimiento(vid, dict(request.form), u.id, user_display_name(u))
         flash(msg, "success" if ok else "danger")
         if ok:
+            f = request.files.get("archivo")
+            if f and (f.filename or "").strip():
+                ok_att, msg_att = vs.save_attachment(vid, f, u.id, user_display_name(u))
+                flash(msg_att, "success" if ok_att else "warning")
             return redirect(url_for("vencimientos.detalle", vid=vid))
     form_prefill = {
         "sector_id": str(v.sector_id),
@@ -148,7 +156,7 @@ def detalle(vid: int):
     if v.continuacion_de_id:
         predecesor = db.session.get(Vencimiento, int(v.continuacion_de_id))
     return render_template(
-        "vencimientos/detalle.html",
+        "vencimientos/detail.html",
         v=v,
         hist=hist,
         predecesor=predecesor,
@@ -217,7 +225,9 @@ def adjunto_descargar(vid: int):
     path = vs.attachment_absolute_path(v.archivo_path)
     if path is None:
         abort(404)
-    return send_file(path, as_attachment=True, max_age=0)
+    dl = path.name
+    inline = request.args.get("inline", "").strip().lower() in ("1", "true", "yes")
+    return send_file(path, as_attachment=not inline, download_name=dl if not inline else None, max_age=0)
 
 
 @bp.route("/sectores", methods=["GET", "POST"])
