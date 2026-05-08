@@ -1391,3 +1391,23 @@ body.app-body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ——— Vencimientos (semáforo en tabla) ——— */
+.table-app tbody tr.venc-row-vigente td {
+  box-shadow: inset 3px 0 0 0 #198754;
+  background: rgba(25, 135, 84, 0.06);
+}
+.table-app tbody tr.venc-row-proximo td {
+  box-shadow: inset 3px 0 0 0 #ffc107;
+  background: rgba(255, 193, 7, 0.12);
+}
+.table-app tbody tr.venc-row-vencido td {
+  box-shadow: inset 3px 0 0 0 #dc3545;
+  background: rgba(220, 53, 69, 0.07);
+}
+.table-app tbody tr.venc-row-inactivo td,
+.table-app tbody tr.venc-row-renovado td {
+  box-shadow: inset 3px 0 0 0 #6c757d;
+  background: rgba(108, 117, 125, 0.08);
+  color: var(--app-text-muted);
+}

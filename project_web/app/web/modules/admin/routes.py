@@ -12,7 +12,14 @@ from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
 from app.security_http import truncate_plain_text
 from app.services import security_audit_service as audit_svc
-from app.services.deadline_alert_email_service import add_email, delete_email_row, list_emails_ordered, merged_recipient_addresses
+from app.services.deadline_alert_email_service import (
+    add_email,
+    delete_email_row,
+    list_emails_ordered,
+    merged_recipient_addresses,
+    normalize_validate_email,
+)
+from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
@@ -378,7 +385,33 @@ def deadline_alert_emails():
         merged_recipients=merged,
         env_addresses=env_addrs,
         viewer_may_edit_deadline_mails=bool(u.is_admin),
+        smtp_configured=is_mail_fully_configured(current_app),
     )
+
+
+@bp.post("/avisos-correo/probar-envio")
+@login_required
+@admin_required
+def smtp_probe_send():
+    addr = normalize_validate_email(request.form.get("test_email"))
+    if addr is None:
+        flash("Ingresá un correo electrónico válido para la prueba.", "danger")
+        return redirect(url_for("admin_users.deadline_alert_emails"))
+    if not is_mail_fully_configured(current_app):
+        flash("SMTP no configurado: revisá SMTP_HOST y MAIL_FROM en el servidor.", "warning")
+        return redirect(url_for("admin_users.deadline_alert_emails"))
+    try:
+        enviar_mail(
+            current_app,
+            destinatarios=[addr],
+            asunto="QDV — Prueba de envío SMTP",
+            cuerpo_html="<p>Mensaje de prueba. La infraestructura SMTP está operativa.</p>",
+            cuerpo_texto="Mensaje de prueba. La infraestructura SMTP está operativa.",
+        )
+        flash(f"Correo de prueba enviado a {addr}.", "success")
+    except Exception as exc:
+        flash(f"No se pudo enviar la prueba: {exc}", "danger")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
 
 
 @bp.post("/avisos-correo/agregar")

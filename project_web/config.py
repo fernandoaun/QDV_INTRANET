@@ -233,6 +233,10 @@ def get_config_dict(base_dir: Path) -> dict:
         deadline_reminder_days_before = 30
     deadline_reminder_days_before = max(1, min(deadline_reminder_days_before, 366))
 
+    venc_cc_raw = (os.environ.get("VENCIMIENTO_MAIL_CC_PANEL") or "true").strip().lower()
+    vencimiento_mail_cc_panel = venc_cc_raw in ("1", "true", "yes")
+    app_public_base_url = (os.environ.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
@@ -270,6 +274,8 @@ def get_config_dict(base_dir: Path) -> dict:
         "MAIL_FROM": mail_from,
         "DEADLINE_ALERT_EMAIL_TO": deadline_alert_email_to,
         "DEADLINE_REMINDER_DAYS_BEFORE": deadline_reminder_days_before,
+        "VENCIMIENTO_MAIL_CC_PANEL": vencimiento_mail_cc_panel,
+        "APP_PUBLIC_BASE_URL": app_public_base_url,
     }
     # Desarrollo local: que HTML/CSS/JS se lean de disco en cada request (evita “no veo los cambios”).
     if name not in ("production", "testing"):

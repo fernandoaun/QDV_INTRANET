@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}{% if modo == 'nuevo' %}Nuevo vencimiento{% else %}Editar vencimiento{% endif %} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">{% if modo == 'nuevo' %}Nuevo vencimiento{% else %}Editar vencimiento{% endif %}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('vencimientos.listado') }}">← Listado</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body">
+    <form method="post" action="{{ url_for('vencimientos.nuevo') if modo == 'nuevo' else url_for('vencimientos.editar', vid=v.id) }}">
+      {% include "_csrf.html" %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label">Sector</label>
+          <select class="form-select" name="sector_id" required>
+            {% for s in sectores %}
+            <option value="{{ s.id }}" {% if form and form.sector_id|string == s.id|string %}selected{% endif %}>{{ s.nombre }}{% if not s.activo %} (inactivo){% endif %}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label">Nombre del vencimiento</label>
+          <input class="form-control" name="nombre" required maxlength="256" value="{{ (form.nombre if form else '') }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Descripción</label>
+          <textarea class="form-control" name="descripcion" rows="3">{{ (form.descripcion if form else '') }}</textarea>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Fecha de vencimiento</label>
+          <input type="date" class="form-control" name="fecha_vencimiento" required value="{{ (form.fecha_vencimiento if form else '') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Responsable</label>
+          <input class="form-control" name="responsable" maxlength="256" value="{{ (form.responsable if form else '') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Email de aviso</label>
+          <input type="email" class="form-control" name="email_aviso" required maxlength="254" value="{{ (form.email_aviso if form else '') }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observaciones</label>
+          <textarea class="form-control" name="observaciones" rows="3">{{ (form.observaciones if form else '') }}</textarea>
+        </div>
+      </div>
+      <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('vencimientos.listado') }}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

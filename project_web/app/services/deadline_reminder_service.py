@@ -5,15 +5,13 @@ Avisos por correo: ventana de «unos 30 días antes» del vencimiento.
 - Mantenimiento: `MaintenanceOrder.fecha_programada` (órdenes no finalizadas ni canceladas).
 
 Se envía como mucho un correo por ítem (deduplicación en `DeadlineReminderSent`).
-Ejecutar una vez al día: `python -m flask --app run send-deadline-reminders`.
+Ejecutar una vez al día: `python -m flask --app run send-deadline-reminders` (incluye avisos del módulo Vencimientos).
 """
 from __future__ import annotations
 
 import os
-import smtplib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
-from email.message import EmailMessage
 from typing import Any
 
 from sqlalchemy import select
@@ -22,6 +20,7 @@ from sqlalchemy.orm import joinedload
 from app.extensions import db
 from app.models import DeadlineReminderSent, MaintenanceOrder, PlanificacionActividad
 from app.services.deadline_alert_email_service import merged_recipient_addresses
+from app.services.mail_service import enviar_mail_texto_plano
 from app.services.planificacion_service import actividad_display_codigo
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -184,56 +183,6 @@ def _build_body(plans: list[PlanReminderItem], orders: list[OrderReminderItem], 
     return "\n".join(lines)
 
 
-def _smtp_settings(app: Any) -> dict[str, Any]:
-    return {
-        "host": (app.config.get("SMTP_HOST") or "").strip(),
-        "port": int(app.config.get("SMTP_PORT") or 587),
-        "user": (app.config.get("SMTP_USER") or "").strip(),
-        "password": (app.config.get("SMTP_PASSWORD") or "").strip(),
-        "use_tls": bool(app.config.get("SMTP_USE_TLS", True)),
-        "mail_from": (app.config.get("MAIL_FROM") or "").strip(),
-    }
-
-
-def send_smtp_email(app: Any, subject: str, body: str, recipients: list[str]) -> None:
-    cfg = _smtp_settings(app)
-    host = cfg["host"]
-    if not host:
-        raise RuntimeError("Falta SMTP_HOST en configuración.")
-    mail_from = cfg["mail_from"]
-    if not mail_from:
-        raise RuntimeError("Falta MAIL_FROM en configuración.")
-    if not recipients:
-        raise RuntimeError("No hay destinatarios.")
-
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = mail_from
-    msg["To"] = ", ".join(recipients)
-    msg.set_content(body)
-
-    port = cfg["port"]
-    user = cfg["user"]
-    password = cfg["password"]
-    use_tls = cfg["use_tls"]
-
-    if port == 465:
-        with smtplib.SMTP_SSL(host, port, timeout=60) as smtp:
-            if user:
-                smtp.login(user, password)
-            smtp.send_message(msg)
-        return
-
-    with smtplib.SMTP(host, port, timeout=60) as smtp:
-        smtp.ehlo()
-        if use_tls:
-            smtp.starttls()
-            smtp.ehlo()
-        if user:
-            smtp.login(user, password)
-        smtp.send_message(msg)
-
-
 def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]:
     """Recolecta ítems, envía un solo correo si hay algo nuevo y registra envíos."""
     days_before = _days_before(app)
@@ -278,7 +227,7 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
         result["preview_body"] = body
         return result
 
-    send_smtp_email(app, subject, body, recipients)
+    enviar_mail_texto_plano(app, recipients, subject, body)
     now = datetime.now(timezone.utc)
     for p in plans:
         db.session.add(DeadlineReminderSent(domain=DOMAIN_PLANIFICACION, entity_id=p.id, sent_at=now))

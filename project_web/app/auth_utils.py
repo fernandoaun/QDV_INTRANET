@@ -8,7 +8,7 @@ from flask import flash, g, has_request_context, redirect, request, session, url
 from app.extensions import db
 from app.models import PermisoUsuario, User
 from app.constants import PERMISSION_KEYS
-from app.user_roles import ROLE_LOGISTICA, compute_session_perm_lists, normalize_stored_rol, user_is_global_read_only
+from app.user_roles import ROLE_LOGISTICA, ROLE_SOLO_LECTURA_TOTAL, compute_session_perm_lists, normalize_stored_rol, user_is_global_read_only
 
 from sqlalchemy import select
 
@@ -74,6 +74,20 @@ def user_can_view_admin_configuration(user: User | None) -> bool:
     if user.is_admin:
         return True
     return user_can(user, "admin_usuarios")
+
+
+def user_can_access_vencimientos(user: User | None) -> bool:
+    """Solo administrador o perfil Angel (solo lectura total)."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_SOLO_LECTURA_TOTAL
+
+
+def user_can_manage_vencimientos(user: User | None) -> bool:
+    """Alta/edición/baja: únicamente administrador."""
+    return user is not None and bool(user.is_admin)
 
 
 def user_can_access_planificacion(user: User | None) -> bool:
@@ -419,6 +433,8 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_entregas_programar_effective(user)
     if ep.startswith("entregas."):
         return user_can_edit_entregas_any_action(user)
+    if ep.startswith("vencimientos."):
+        return user_can_manage_vencimientos(user)
     if ep.startswith("planificacion."):
         return user_can_edit(user, "planificacion")
     if ep.startswith("mantenimiento.equipos") or ep.startswith("mantenimiento.equipo") or ep.startswith(

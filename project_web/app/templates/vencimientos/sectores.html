@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Sectores · Vencimientos{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Sectores de vencimientos</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('vencimientos.listado') }}">← Vencimientos</a>
+  </div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-header">Nuevo sector</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="crear">
+      <div class="col-md-4">
+        <label class="form-label">Nombre</label>
+        <input class="form-control" name="nombre" required maxlength="128">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Descripción</label>
+        <input class="form-control" name="descripcion" maxlength="512">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">Crear</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Listado</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>ID</th><th>Nombre</th><th>Descripción</th><th>Activo</th><th></th></tr></thead>
+      <tbody>
+      {% for s in sectores %}
+      <tr>
+        <td class="text-muted">{{ s.id }}</td>
+        <td colspan="4">
+          <form method="post" class="row g-2 align-items-center py-1">
+            {% include "_csrf.html" %}
+            <input type="hidden" name="action" value="editar">
+            <input type="hidden" name="sector_id" value="{{ s.id }}">
+            <div class="col-md-3">
+              <input class="form-control form-control-sm" name="nombre" value="{{ s.nombre }}" required maxlength="128">
+            </div>
+            <div class="col-md-5">
+              <input class="form-control form-control-sm" name="descripcion" value="{{ s.descripcion or '' }}" maxlength="512">
+            </div>
+            <div class="col-md-2">
+              <div class="form-check m-0">
+                <input class="form-check-input" type="checkbox" name="activo" value="1" id="act{{ s.id }}" {% if s.activo %}checked{% endif %}>
+                <label class="form-check-label small" for="act{{ s.id }}">Activo</label>
+              </div>
+            </div>
+            <div class="col-md-2 text-end">
+              <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+            </div>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-muted py-3">No hay sectores.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

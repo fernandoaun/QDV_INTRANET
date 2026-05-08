@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash
 from app.extensions import db
 from app.models import User
 from app.services.deadline_reminder_service import run_deadline_reminders
+from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.user_roles import ROLE_ADMINISTRADOR
 
 
@@ -91,20 +92,26 @@ def register_cli(app: Flask) -> None:
         help="Mostrar ítems y cuerpo del correo sin enviar ni registrar.",
     )
     def send_deadline_reminders(dry_run: bool) -> None:
-        """Avisos por mail: planificación (fecha fin) y mantenimiento (fecha programada de orden).
+        """Avisos por mail: planificación, mantenimiento y módulo Vencimientos (ventana 30 días).
 
-        Configurar SMTP_* , MAIL_FROM y DEADLINE_ALERT_EMAIL_TO. Cron diario recomendado.
-        Opcional: DEADLINE_REMINDER_DAYS_BEFORE (por defecto 30).
+        Configurar SMTP_* , MAIL_FROM y destinatarios en Administración → Avisos por correo / DEADLINE_ALERT_EMAIL_TO.
+        Cron diario recomendado. Opcional: DEADLINE_REMINDER_DAYS_BEFORE (planificación/mantenimiento; por defecto 30).
         """
         with app.app_context():
             out = run_deadline_reminders(app, dry_run=dry_run)
+            out_v = run_vencimiento_reminders(app, dry_run=dry_run)
         click.echo(out.get("message") or "")
         click.echo(
             f"Fecha operación: {out.get('today')} · Días de anticipación: {out.get('days_before')} · "
             f"Planificación: {out.get('planificacion_count')} · Mantenimiento: {out.get('mantenimiento_count')}"
         )
+        click.echo(out_v.get("message") or "")
+        click.echo(
+            f"Vencimientos · candidatos aviso: {out_v.get('candidates')} · "
+            f"intentados: {out_v.get('emails_attempted')} · enviados: {out_v.get('emails_sent')}"
+        )
         if dry_run and out.get("preview_body"):
-            click.echo("--- Asunto ---")
+            click.echo("--- Planificación/Mantenimiento: asunto ---")
             click.echo(out.get("preview_subject") or "")
-            click.echo("--- Cuerpo ---")
+            click.echo("--- Planificación/Mantenimiento: cuerpo ---")
             click.echo(out.get("preview_body"))

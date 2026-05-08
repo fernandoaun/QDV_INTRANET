@@ -66,6 +66,14 @@
              title="MANTENIMIENTO"><i class="bi bi-tools" aria-hidden="true"></i></a>
         </li>
         {% endif %}
+        {% if user_can_access_vencimientos() %}
+        <li>
+          <a href="{{ url_for('vencimientos.listado') }}"
+             class="app-sidenav-link {% if ep and ep.startswith('vencimientos.') %}is-active{% endif %}"
+             data-filter-text="vencimientos plazos habilitaciones vencimiento caducidad"
+             title="Vencimientos"><i class="bi bi-calendar-event" aria-hidden="true"></i></a>
+        </li>
+        {% endif %}
         {% if user_can_view_admin_configuration() %}
         <li>
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
@@ -107,6 +115,9 @@
             {% endif %}
             {% if user_can_entregas_hub %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('entregas.hub') }}"><i class="bi bi-truck me-2 opacity-50" aria-hidden="true"></i>ENTREGAS</a></li>
+            {% endif %}
+            {% if user_can_access_vencimientos() %}
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('vencimientos.listado') }}"><i class="bi bi-calendar-event me-2 opacity-50" aria-hidden="true"></i>VENCIMIENTOS</a></li>
             {% endif %}
             {% if user_can_planificacion %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('planificacion.hub') }}"><i class="bi bi-calendar-range me-2 opacity-50" aria-hidden="true"></i>PLANIFICACIÓN</a></li>

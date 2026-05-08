@@ -155,6 +155,7 @@ def create_app() -> Flask:
     from app.web.modules.produccion import bp as produccion_bp
     from app.web.modules.shift import bp as shift_bp
     from app.web.modules.planificacion import bp as planificacion_bp
+    from app.web.modules.vencimientos import bp as vencimientos_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -165,6 +166,7 @@ def create_app() -> Flask:
     app.register_blueprint(admin_bp)
     app.register_blueprint(planificacion_bp)
     app.register_blueprint(mantenimiento_bp)
+    app.register_blueprint(vencimientos_bp)
 
     @app.before_request
     def _session_inactivity_touch():
@@ -255,6 +257,7 @@ def create_app() -> Flask:
         from app.auth_utils import user_can_access_mantenimiento
         from app.auth_utils import user_can_access_planificacion
         from app.auth_utils import user_can_access_production_hub
+        from app.auth_utils import user_can_access_vencimientos as _user_can_access_vencimientos
         from app.auth_utils import (
             user_can_entregas_cargar_effective,
             user_can_entregas_entregar_effective,
@@ -298,6 +301,7 @@ def create_app() -> Flask:
             "user_can_stock_existencias": user_can_view_stock_existencias(u),
             "user_can_stock_historial": user_can_view_stock_historial(u),
             "user_can_stock_catalogo_alta": user_can_edit_stock_catalogo_alta(u),
+            "user_can_access_vencimientos": lambda: _user_can_access_vencimientos(u),
             "module_labels": MODULE_LABELS,
             "user_roles_ordered": USER_ROLES_ORDERED,
             "role_labels": ROLE_LABELS,

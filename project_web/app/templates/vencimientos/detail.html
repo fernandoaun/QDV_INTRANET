@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}{{ v.nombre }} · Vencimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">{{ v.nombre }}</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('vencimientos.listado') }}">← Listado</a>
+    {% if puede_gestionar and v.activo %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('vencimientos.editar', vid=v.id) }}">Editar</a>
+    <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#modalRenovar">Renovar</button>
+    <form method="post" action="{{ url_for('vencimientos.desactivar', vid=v.id) }}" class="d-inline" onsubmit="return confirm('¿Desactivar este vencimiento?');">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-outline-danger btn-sm">Desactivar</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="app-card mb-3">
+      <div class="app-card-header">Datos</div>
+      <div class="app-card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Sector</dt><dd class="col-sm-8">{{ v.sector.nombre if v.sector else '—' }}</dd>
+          <dt class="col-sm-4">Descripción</dt><dd class="col-sm-8">{{ v.descripcion or '—' }}</dd>
+          <dt class="col-sm-4">Fecha vencimiento</dt><dd class="col-sm-8">{{ v.fecha_vencimiento.strftime('%d/%m/%Y') }}</dd>
+          <dt class="col-sm-4">Días restantes</dt><dd class="col-sm-8">{{ dias_restantes(v.fecha_vencimiento) }}</dd>
+          <dt class="col-sm-4">Responsable</dt><dd class="col-sm-8">{{ v.responsable or '—' }}</dd>
+          <dt class="col-sm-4">Email aviso</dt><dd class="col-sm-8">{{ v.email_aviso or '—' }}</dd>
+          <dt class="col-sm-4">Estado</dt><dd class="col-sm-8">{{ estados_labels.get(v.estado, v.estado) }}</dd>
+          <dt class="col-sm-4">Observaciones</dt><dd class="col-sm-8">{{ v.observaciones or '—' }}</dd>
+          <dt class="col-sm-4">Aviso 30 días enviado</dt><dd class="col-sm-8">{% if v.aviso_30_dias_enviado %}Sí{% else %}No{% endif %} {% if v.fecha_aviso_30_dias %}({{ v.fecha_aviso_30_dias.strftime('%d/%m/%Y %H:%M') }} UTC){% endif %}</dd>
+          <dt class="col-sm-4">Adjunto</dt>
+          <dd class="col-sm-8">
+            {% if v.archivo_path %}
+            <a href="{{ url_for('vencimientos.adjunto_descargar', vid=v.id) }}">Descargar</a>
+            {% else %}—{% endif %}
+          </dd>
+        </dl>
+        {% if predecesor %}
+        <p class="small text-muted mb-0 mt-2">Continúa desde el registro #{{ predecesor.id }} ({{ predecesor.nombre }}, {{ predecesor.fecha_vencimiento.strftime('%d/%m/%Y') }}).</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if puede_gestionar and v.activo %}
+    <div class="app-card mb-3">
+      <div class="app-card-header">Adjuntar archivo</div>
+      <div class="app-card-body">
+        <form method="post" action="{{ url_for('vencimientos.adjunto_subir', vid=v.id) }}" enctype="multipart/form-data">
+          {% include "_csrf.html" %}
+          <input type="file" class="form-control" name="archivo" required>
+          <button type="submit" class="btn btn-primary btn-sm mt-2">Subir</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-5">
+    <div class="app-card">
+      <div class="app-card-header">Historial</div>
+      <div class="app-card-body" style="max-height:28rem;overflow:auto;">
+        {% for h in hist %}
+        <div class="border-bottom pb-2 mb-2">
+          <div class="small text-muted">{{ h.fecha.strftime('%d/%m/%Y %H:%M') }} UTC · {{ h.usuario or '—' }}</div>
+          <div class="fw-semibold">{{ h.accion }}</div>
+          <div class="small">{{ h.detalle or '' }}</div>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Sin movimientos registrados.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if puede_gestionar and v.activo %}
+<div class="modal fade" id="modalRenovar" tabindex="-1" aria-labelledby="modalRenovarLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('vencimientos.renovar', vid=v.id) }}">
+        {% include "_csrf.html" %}
+        <div class="modal-header">
+          <h2 class="modal-title fs-5" id="modalRenovarLabel">Renovar vencimiento</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">Nueva fecha de vencimiento</label>
+          <input type="date" name="nueva_fecha_vencimiento" class="form-control" required>
+          <p class="small text-muted mt-2 mb-0">El registro actual pasará a estado «Renovado» e inactivo; se creará uno nuevo con la nueva fecha y sin aviso enviado.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning">Confirmar renovación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

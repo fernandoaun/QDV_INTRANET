@@ -32,6 +32,7 @@ from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
 from app.models.deadline_reminder_sent import DeadlineReminderSent
 from app.models.user import PermisoUsuario, User
+from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHistorial
 
 __all__ = [
     "AppUploadedDocument",
@@ -74,4 +75,7 @@ __all__ = [
     "SecurityAuditLog",
     "DeadlineReminderSent",
     "DeadlineAlertEmail",
+    "SectorVencimiento",
+    "Vencimiento",
+    "VencimientoHistorial",
 ]

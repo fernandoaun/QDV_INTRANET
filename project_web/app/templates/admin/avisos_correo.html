@@ -12,9 +12,16 @@
 <p class="small app-text-secondary mb-3">
   Direcciones que reciben el recordatorio automático de <strong>planificación</strong> (fecha de fin de actividad)
   y <strong>mantenimiento</strong> (fecha programada de la orden), cuando entran en la ventana de aviso configurada en el servidor.
+  La misma configuración SMTP sirve para los avisos del módulo <strong>Vencimientos</strong> (un correo por ítem en ventana de 30 días; opcional copia a esta lista según <code>VENCIMIENTO_MAIL_CC_PANEL</code>).
   El envío real sigue dependiendo de SMTP en el proveedor (cron diario <code>send-deadline-reminders</code>).
   <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; el perfil <strong>Angel</strong> puede ver esta pantalla completa sin modificarla.
 </p>
+
+{% if smtp_configured is defined and not smtp_configured %}
+<div class="alert alert-warning" role="status">
+  <strong>SMTP incompleto.</strong> Definí al menos <code>SMTP_HOST</code> y <code>MAIL_FROM</code> en el servidor: sin eso no se envían los recordatorios automáticos ni las pruebas.
+</div>
+{% endif %}
 
 <div class="app-card mb-3">
   <div class="app-card-header">Destinatarios efectivos (unión base de datos + variable de entorno)</div>
@@ -36,6 +43,25 @@
     {% endif %}
   </div>
 </div>
+
+{% if viewer_may_edit_deadline_mails|default(false) %}
+<div class="app-card mb-4">
+  <div class="app-card-header">Probar envío SMTP</div>
+  <div class="app-card-body">
+    <form method="post" action="{{ url_for('admin_users.smtp_probe_send') }}" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
+      <div class="col-md-6">
+        <label class="form-label">Enviar correo de prueba a</label>
+        <input type="email" class="form-control" name="test_email" required maxlength="254" placeholder="tu-correo@dominio.com" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-outline-primary">Enviar prueba</button>
+      </div>
+    </form>
+    <p class="small text-muted mb-0 mt-2">Usa la función centralizada <code>enviar_mail</code> con la misma configuración que planificación, mantenimiento y vencimientos.</p>
+  </div>
+</div>
+{% endif %}
 
 {% if viewer_may_edit_deadline_mails|default(false) %}
 <div class="app-card mb-4">

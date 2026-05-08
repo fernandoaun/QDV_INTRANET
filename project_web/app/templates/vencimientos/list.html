@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Gestión de Vencimientos · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Gestión de Vencimientos</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_gestionar %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('vencimientos.nuevo') }}"><i class="bi bi-plus-lg me-1"></i>Nuevo vencimiento</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('vencimientos.sectores') }}"><i class="bi bi-diagram-3 me-1"></i>Gestionar sectores</a>
+    {% endif %}
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('vencimientos.export_xlsx', **request.args) }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Exportar Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Panel</a>
+  </div>
+</div>
+
+{% if mail_inactivo_alert %}
+<div class="alert alert-warning d-flex align-items-start gap-2" role="alert">
+  <i class="bi bi-envelope-exclamation fs-5"></i>
+  <div>
+    <strong>Correo no configurado.</strong> El sistema de correos no está configurado (SMTP). No se podrán enviar avisos automáticos de vencimientos.
+    Configurá <code>SMTP_HOST</code>, <code>MAIL_FROM</code>, etc. en el servidor y probá el envío desde
+    <a href="{{ url_for('admin_users.deadline_alert_emails') }}">Avisos por correo</a>.
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Filtros</div>
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Sector</label>
+        <select class="form-select" name="sector_id">
+          <option value="">Todos</option>
+          {% for s in sectores %}
+          <option value="{{ s.id }}" {% if filtros.sector_id|string == s.id|string %}selected{% endif %}>{{ s.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Todos</option>
+          {% for k, lab in estados_labels.items() %}
+          <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lab }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Responsable</label>
+        <input type="text" class="form-control" name="responsable" value="{{ filtros.responsable or '' }}" placeholder="Contiene…">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Desde</label>
+        <input type="date" class="form-control" name="fecha_desde" value="{{ filtros.fecha_desde or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Hasta</label>
+        <input type="date" class="form-control" name="fecha_hasta" value="{{ filtros.fecha_hasta or '' }}">
+      </div>
+      <div class="col-md-3 col-lg-2">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="proximos" value="1" id="fProx" {% if filtros.proximos %}checked{% endif %}>
+          <label class="form-check-label" for="fProx">Próximos a vencer</label>
+        </div>
+      </div>
+      <div class="col-md-3 col-lg-2">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="vencidos" value="1" id="fVen" {% if filtros.vencidos %}checked{% endif %}>
+          <label class="form-check-label" for="fVen">Vencidos</label>
+        </div>
+      </div>
+      <div class="col-md-3 col-lg-2">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="solo_activos" value="0" id="fInact" {% if filtros.solo_activos == '0' %}checked{% endif %}>
+          <label class="form-check-label" for="fInact">Incluir inactivos</label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary mt-4">Aplicar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Sector</th>
+          <th>Nombre</th>
+          <th>Fecha venc.</th>
+          <th>Días rest.</th>
+          <th>Responsable</th>
+          <th>Estado</th>
+          <th>Email aviso</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+      <tr class="{{ estado_visual_row(r) }}">
+        <td>{{ r.sector.nombre if r.sector else '—' }}</td>
+        <td>{{ r.nombre }}</td>
+        <td>{{ r.fecha_vencimiento.strftime('%d/%m/%Y') }}</td>
+        <td>{{ dias_restantes(r.fecha_vencimiento) }}</td>
+        <td>{{ r.responsable or '—' }}</td>
+        <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
+        <td><small>{{ r.email_aviso or '—' }}</small></td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('vencimientos.detalle', vid=r.id) }}">Ver</a>
+          {% if puede_gestionar %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('vencimientos.editar', vid=r.id) }}">Editar</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="text-center text-muted py-4">No hay registros con los filtros actuales.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
