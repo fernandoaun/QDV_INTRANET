@@ -159,6 +159,7 @@ def parse_iso_date(raw: str | None) -> date | None:
 def filter_args_from_request(values: Any) -> dict[str, Any]:
     return {
         "sector_id": values.get("sector_id"),
+        "sector_nombre": values.get("sector_nombre"),
         "estado": values.get("estado"),
         "responsable": values.get("responsable"),
         "fecha_desde": values.get("fecha_desde"),
@@ -171,6 +172,7 @@ def filter_args_from_request(values: Any) -> dict[str, Any]:
 
 def build_filtered_query(args: dict[str, Any]) -> Select[Any]:
     sector_id = args.get("sector_id")
+    sector_nombre = (args.get("sector_nombre") or "").strip()
     estado = (args.get("estado") or "").strip()
     responsable = (args.get("responsable") or "").strip()
     fd = parse_iso_date(args.get("fecha_desde"))
@@ -180,6 +182,9 @@ def build_filtered_query(args: dict[str, Any]) -> Select[Any]:
     solo_activos = str(args.get("solo_activos") or "1").strip().lower() not in ("0", "false", "no")
 
     q = select(Vencimiento).options(joinedload(Vencimiento.sector)).order_by(Vencimiento.fecha_vencimiento, Vencimiento.id)
+
+    if sector_nombre:
+        q = q.join(Vencimiento.sector).where(SectorVencimiento.nombre.ilike(f"%{sector_nombre}%"))
 
     if solo_activos:
         q = q.where(Vencimiento.activo.is_(True))

@@ -31,11 +31,19 @@
       <div class="col-md-3">
         <label class="form-label">Sector</label>
         <select class="form-select" name="sector_id">
-          <option value="">Todos</option>
+          <option value="">Todos los sectores</option>
           {% for s in sectores %}
-          <option value="{{ s.id }}" {% if filtros.sector_id|string == s.id|string %}selected{% endif %}>{{ s.nombre }}</option>
+          <option value="{{ s.id }}" {% if (filtros.sector_id or '')|string == s.id|string %}selected{% endif %}>
+            {{ s.nombre }}{% if not s.activo %} (inactivo){% endif %}
+          </option>
           {% endfor %}
         </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Sector (buscar por texto)</label>
+        <input type="text" class="form-control" name="sector_nombre" value="{{ filtros.sector_nombre or '' }}"
+               placeholder="Ej.: Producción, Logística…" autocomplete="off">
+        <div class="form-text small text-muted">Opcional: coincide con parte del nombre del sector.</div>
       </div>
       <div class="col-md-2">
         <label class="form-label">Estado</label>

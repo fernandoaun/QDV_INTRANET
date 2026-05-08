@@ -45,7 +45,7 @@ def listado():
         return redir
     args = vs.filter_args_from_request(request.args)
     rows = vs.fetch_list_sync_estados(args)
-    sectores = vs.list_sectores(solo_activos=True)
+    sectores = vs.list_sectores(solo_activos=False)
     mail_ok = is_mail_fully_configured(current_app)
     show_mail_alert = bool(user_can_manage_vencimientos(u)) and not mail_ok
     return render_template(
