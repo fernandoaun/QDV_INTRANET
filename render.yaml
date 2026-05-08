@@ -45,15 +45,16 @@ services:
       # Definí este valor en el dashboard (Environment) la primera vez; no lo pongas en Git.
       - key: SECRET_KEY
         sync: false
-      # Correo saliente (vacío hasta que cargues datos reales en Dashboard). El Cron no hereda del web: copiá mismos valores también en el servicio Cron si usás mail.
+      # Correo: NO usar value: "" aquí — Render puede pisar lo que cargás en Environment al sincronizar el Blueprint.
+      # Definí SMTP_* y MAIL_FROM solo en el Dashboard (o Secret Files). sync: false = el YAML no las sobrescribe.
       - key: SMTP_HOST
-        value: ""
+        sync: false
       - key: SMTP_USER
-        value: ""
+        sync: false
       - key: SMTP_PASSWORD
-        value: ""
+        sync: false
       - key: MAIL_FROM
-        value: ""
+        sync: false
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USE_TLS
@@ -85,13 +86,13 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: SMTP_HOST
-        value: ""
+        sync: false
       - key: SMTP_USER
-        value: ""
+        sync: false
       - key: SMTP_PASSWORD
-        value: ""
+        sync: false
       - key: MAIL_FROM
-        value: ""
+        sync: false
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USE_TLS
