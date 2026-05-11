@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
 from datetime import datetime
 from io import BytesIO
 import re
@@ -155,11 +154,14 @@ def test_stock_ajustes_export(app, auth_client):
     )
     assert resp.status_code in (302, 303)
 
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
     with app.app_context():
+        export_day = now_operacion_naive_local().date()
         bio, err = build_historicos_workbook(
             ["stock_ajustes"],
-            date.fromisoformat("2026-04-30"),
-            date.fromisoformat("2026-04-30"),
+            export_day,
+            export_day,
         )
     assert err is None
     assert bio is not None
