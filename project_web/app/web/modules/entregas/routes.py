@@ -352,6 +352,20 @@ def editar(eid: int):
 
     if request.method == "POST":
         estado = str(ent.estado or "")
+        act = (request.form.get("action") or "").strip()
+
+        if act == "eliminar":
+            if not entregas_service.puede_eliminar_entrega(ent):
+                flash("No se puede eliminar esta entrega en su estado actual.", "warning")
+                return redirect(url_for("entregas.editar", eid=eid))
+            try:
+                entregas_service.ejecutar_eliminar_entrega(ent)
+                db.session.commit()
+                flash("Entrega eliminada.", "success")
+            except ValueError as ex:
+                db.session.rollback()
+                flash(str(ex), "danger")
+            return redirect(url_for("entregas.gestion"))
 
         if estado == "entregada":
             obs_new = (request.form.get("observaciones") or "").strip()

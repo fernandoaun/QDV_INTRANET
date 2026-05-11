@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.extensions import db
 from app.constants import ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA, ENTREGAS_STOCK_CATEGORIA
-from app.models import Entrega, EntregaEvento, User
+from app.models import ConsumoStock, Entrega, EntregaEvento, User
 from app.services import operational_informed_stock as informed_stock
 from app.services import stock_service
 from app.utils.hipoclorito_producto import nombre_ledger_canonico_hipoclorito
@@ -181,6 +181,24 @@ def puede_editar_campos_completos(entrega: Entrega) -> bool:
 
 def puede_editar_logistica_tras_carga(entrega: Entrega) -> bool:
     return str(entrega.estado or "") == "cargada"
+
+
+def puede_eliminar_entrega(entrega: Entrega) -> bool:
+    return str(entrega.estado or "") in ("programada", "cargada")
+
+
+def ejecutar_eliminar_entrega(entrega: Entrega) -> None:
+    """Elimina la entrega y, si aplica, revierte el consumo de stock ligado a la carga."""
+    if not puede_eliminar_entrega(entrega):
+        raise ValueError("Solo se pueden eliminar entregas programadas o cargadas sin cerrar.")
+    cid = entrega.consumo_stock_id
+    entrega.consumo_stock_id = None
+    db.session.flush()
+    if cid is not None:
+        rec = db.session.get(ConsumoStock, int(cid))
+        if rec is not None:
+            db.session.delete(rec)
+    db.session.delete(entrega)
 
 
 def puede_marcar_cargada(entrega: Entrega) -> bool:

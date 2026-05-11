@@ -156,6 +156,14 @@
         {% endif %}
       </div>
     </form>
+    {% if entrega and st != 'entregada' and page_can_edit_current %}
+    <form method="post" class="border-top mt-3 pt-3 app-text-secondary small" action="{{ url_for('entregas.editar', eid=entrega.id) }}" onsubmit='return confirm("{% if st == 'cargada' %}Si la entrega estaba cargada, se revertirá el consumo de stock asociado. {% endif %}¿Eliminar definitivamente esta entrega?");'>
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="eliminar">
+      <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar entrega</button>
+      <span class="ms-2">Solo para entregas no cerradas (<strong>{{ st }}</strong>).</span>
+    </form>
+    {% endif %}
     {% endif %}
   </div>
 </div>
