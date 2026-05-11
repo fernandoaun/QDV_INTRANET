@@ -62,6 +62,7 @@ def ultimos_hipoclorito_por_rectificador(limit: int = 20) -> list[dict[str, Any]
                 "soda_conc": r.soda_conc,
                 "declor_ph": r.declor_ph,
                 "observaciones": (r.observaciones or "").strip(),
+                "fecha_iso": (r.fecha_iso or "").strip(),
             }
         )
     return out
@@ -84,6 +85,7 @@ def ultimo_registro_salmuera() -> dict[str, Any] | None:
         "exceso_soda": r.exceso_naoh,
         "exceso_carbonato_sodio": r.exceso_na2co3,
         "observaciones": (r.observaciones or "").strip(),
+        "fecha_iso": (r.fecha_iso or "").strip(),
     }
 
 
@@ -122,6 +124,7 @@ def ultimo_registro_agua() -> dict[str, Any] | None:
         "temperatura": r.temperatura,
         "estado_columnas": _latest_columnas_estado_text(),
         "observaciones": (r.observaciones or "").strip(),
+        "fecha_iso": (r.fecha_iso or "").strip(),
     }
 
 
@@ -165,6 +168,7 @@ def ultimos_consumos_por_materia_prima(limit: int = 30) -> list[dict[str, Any]]:
                 "equipo": eq_name,
                 "operador": r.operador,
                 "observaciones": (r.observaciones or "").strip(),
+                "marca": (r.marca or "").strip(),
             }
         )
     return out

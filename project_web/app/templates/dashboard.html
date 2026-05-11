@@ -89,14 +89,17 @@
 <div class="app-card mt-3">
   <div class="app-card-header app-card-header--split">
     <span>Alertas de bajo stock</span>
-    <span class="small app-text-secondary">{{ alertas_stock|length }} alerta(s)</span>
+    <span class="small app-text-secondary">{{ alertas_stock|length }} alerta(s) · clic en la fila → existencias</span>
   </div>
   <div class="app-card-body--flush table-responsive app-table-scroll">
-    <table class="table table-app table-compact mb-0">
+    <table class="table table-app table-compact table-hover mb-0">
       <thead><tr><th>Categoría</th><th>Producto</th><th>Actual</th><th>Mínimo</th><th>Faltante</th><th>Estado</th></tr></thead>
       <tbody>
         {% for a in alertas_stock %}
-        <tr>
+        <tr class="dashboard-nav-row"
+            data-nav="{{ url_for('produccion.stock_ver', categoria=a.categoria) }}"
+            tabindex="0"
+            title="Ir a existencias ({{ a.categoria | replace('_', ' ') }})">
           <td>{% if a.categoria == 'materia_prima' %}Materia prima{% elif a.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
           <td>{{ a.producto }}</td>
           <td>
@@ -119,7 +122,7 @@
 <div class="app-card mt-3">
   <div class="app-card-header app-card-header--split">
     <span>Últimos registros</span>
-    <span class="small app-text-secondary">Resumen operativo</span>
+    <span class="small app-text-secondary">Clic en una fila para abrir el módulo (misma fecha donde aplica)</span>
   </div>
   <div class="app-card-body">
     <div class="row g-3">
@@ -131,7 +134,7 @@
           </div>
           {% if ultimos_hipoclorito %}
           <div class="app-card-body--flush table-responsive app-table-scroll">
-            <table class="table table-app table-compact mb-0">
+            <table class="table table-app table-compact table-hover mb-0">
               <thead>
                 <tr>
                   <th>Rectif.</th>
@@ -156,7 +159,10 @@
               </thead>
               <tbody>
                 {% for r in ultimos_hipoclorito %}
-                <tr>
+                <tr class="dashboard-nav-row"
+                    data-nav="{{ url_for('produccion.salmuera', fecha=r.fecha_iso, _anchor='salmuera-e' ~ (r.rectificador | string)) }}"
+                    tabindex="0"
+                    title="Ir a Salmuera / hipoclorito (rectificador {{ r.rectificador }}, {{ r.fecha_iso }})">
                   <td><strong>#{{ r.rectificador }}</strong></td>
                   <td>{{ r.fecha_hora }}</td>
                   <td>{{ r.turno or '-' }}</td>
@@ -196,7 +202,7 @@
           </div>
           {% if ultimo_salmuera %}
           <div class="app-card-body--flush table-responsive app-table-scroll">
-            <table class="table table-app table-compact mb-0">
+            <table class="table table-app table-compact table-hover mb-0">
               <thead>
                 <tr>
                   <th>Fecha/Hora</th>
@@ -212,7 +218,10 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
+                <tr class="dashboard-nav-row"
+                    data-nav="{{ url_for('produccion.reactor', fecha=ultimo_salmuera.fecha_iso, _anchor='reactor-registros-dia') }}"
+                    title="Ir a Reactor (salmuera) · registros del día"
+                    tabindex="0">
                   <td>{{ ultimo_salmuera.fecha_hora }}</td>
                   <td>{{ ultimo_salmuera.operador or '-' }}</td>
                   <td>{{ ultimo_salmuera.lote or '-' }}</td>
@@ -243,7 +252,7 @@
           </div>
           {% if ultimo_agua %}
           <div class="app-card-body--flush table-responsive app-table-scroll">
-            <table class="table table-app table-compact mb-0">
+            <table class="table table-app table-compact table-hover mb-0">
               <thead>
                 <tr>
                   <th>Fecha/Hora</th>
@@ -257,7 +266,10 @@
                 </tr>
               </thead>
               <tbody>
-                <tr>
+                <tr class="dashboard-nav-row"
+                    data-nav="{{ url_for('produccion.agua', fecha=ultimo_agua.fecha_iso, _anchor='agua-registros-dia') }}"
+                    title="Ir a Agua · registros del día"
+                    tabindex="0">
                   <td>{{ ultimo_agua.fecha_hora }}</td>
                   <td>{{ ultimo_agua.turno or '-' }}</td>
                   <td>{{ ultimo_agua.operador or '-' }}</td>
@@ -286,7 +298,7 @@
           </div>
           {% if ultimos_consumos_mp %}
           <div class="app-card-body--flush table-responsive app-table-scroll">
-            <table class="table table-app table-compact mb-0">
+            <table class="table table-app table-compact table-hover mb-0">
               <thead>
                 <tr>
                   <th>Producto</th>
@@ -300,7 +312,10 @@
               </thead>
               <tbody>
                 {% for c in ultimos_consumos_mp %}
-                <tr>
+                <tr class="dashboard-nav-row"
+                    data-nav="{{ url_for('produccion.stock_consumo', categoria='materia_prima', producto=c.producto, marca=c.marca) }}"
+                    title="Ir a consumos de stock (materia prima)"
+                    tabindex="0">
                   <td>{{ c.producto }}</td>
                   <td>{{ c.fecha_hora }}</td>
                   <td>{{ c.cantidad | round(3) }}</td>
@@ -323,4 +338,34 @@
     </div>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  function navigateRow(tr, ev) {
+    if (!tr) return;
+    if (ev) {
+      if (ev.type === "keydown") {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+      }
+    }
+    var u = tr.getAttribute("data-nav");
+    if (u) window.location.href = u;
+  }
+  function wire() {
+    document.querySelectorAll("tr.dashboard-nav-row[data-nav]").forEach(function (tr) {
+      tr.style.cursor = "pointer";
+      tr.addEventListener("click", function (e) {
+        navigateRow(tr, e);
+      });
+      tr.addEventListener("keydown", function (e) {
+        navigateRow(tr, e);
+      });
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
+  else wire();
+})();
+</script>
 {% endblock %}
