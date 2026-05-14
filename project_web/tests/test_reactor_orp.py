@@ -68,7 +68,7 @@ def test_reactor_orp_negative_history_and_export(app, auth_client):
     assert ws.cell(row=2, column=orp_col).value == -123.5
 
 
-def test_reactor_orp_empty_does_not_block_and_invalid_is_rejected(app, auth_client):
+def test_reactor_orp_empty_and_invalid_are_rejected(app, auth_client):
     from app.extensions import db
     from app.models import ReactorRegistro
 
@@ -79,10 +79,10 @@ def test_reactor_orp_empty_does_not_block_and_invalid_is_rejected(app, auth_clie
         "/produccion/reactor?fecha=2026-04-30",
         data=_valid_reactor_payload(_csrf(page.get_data(as_text=True)), orp=""),
     )
-    assert blank.status_code in (302, 303)
+    assert blank.status_code == 200
+    assert "ORP (mV) es obligatorio" in blank.get_data(as_text=True)
     with app.app_context():
-        row = db.session.query(ReactorRegistro).one()
-        assert row.orp is None
+        assert db.session.query(ReactorRegistro).count() == 0
 
     page = auth_client.get("/produccion/reactor?fecha=2026-04-30")
     invalid = auth_client.post(
@@ -92,4 +92,4 @@ def test_reactor_orp_empty_does_not_block_and_invalid_is_rejected(app, auth_clie
     assert invalid.status_code == 200
     assert "ORP (mV) debe ser numérico" in invalid.get_data(as_text=True)
     with app.app_context():
-        assert db.session.query(ReactorRegistro).count() == 1
+        assert db.session.query(ReactorRegistro).count() == 0

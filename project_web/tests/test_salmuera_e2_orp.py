@@ -84,3 +84,20 @@ def test_salmuera_orp_rejects_non_numeric_for_electrolizador_2(auth_client):
     )
     assert resp.status_code == 400
     assert "ORP (mV) debe ser numérico" in resp.get_json()["error"]
+
+
+def test_salmuera_orp_requires_value_for_electrolizador_2(app, auth_client):
+    from app.extensions import db
+    from app.models import SalmueraRegistro
+
+    page = auth_client.get("/produccion/salmuera?fecha=2026-04-30")
+    assert page.status_code == 200
+    resp = auth_client.post(
+        "/produccion/salmuera?fecha=2026-04-30",
+        data=_valid_salmuera_payload(_csrf(page.get_data(as_text=True)), electrolizador="2", orp=""),
+        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert "ORP (mV) es obligatorio" in resp.get_json()["error"]
+    with app.app_context():
+        assert db.session.query(SalmueraRegistro).filter_by(electrolizador=2).count() == 0
