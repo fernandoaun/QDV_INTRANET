@@ -19,7 +19,8 @@ from app.web.modules.produccion.operativa_context import now_local
 HIPO_OPTIONS: list[dict[str, str]] = [
     {"key": "hipo_conc", "label": "Hipo conc"},
     {"key": "amperaje", "label": "Amperaje"},
-    {"key": "voltaje_total", "label": "Voltaje total"},
+    {"key": "voltaje_total", "label": "Voltaje Σ celdas"},
+    {"key": "voltaje_total_trafo", "label": "Voltaje trafo"},
     {"key": "caudal_agua_l_h", "label": "Caudal agua (L/h)"},
     {"key": "caudal_salmuera_l_h", "label": "Caudal salmuera (L/h)"},
     {"key": "hipo_exceso_soda", "label": "Exceso soda"},

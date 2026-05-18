@@ -42,7 +42,8 @@
           <th>Electrolizador</th>
           <th>Celdas</th>
           <th scope="col" class="app-th-voltajes-celdas" title="Valores por celda: V1, V2, … hasta Vn según cantidad de celdas">Voltajes (V1…Vn)</th>
-          <th scope="col" class="app-th-voltaje-total">V total</th>
+          <th scope="col" class="app-th-voltaje-total" title="Suma aritmética de los voltajes por celda">V Σ celdas</th>
+          <th scope="col" title="Lectura en el trafo">V trafo</th>
           <th>Amperaje</th>
           <th>Caudal agua</th>
           <th>Caudal salmuera</th>
@@ -73,6 +74,7 @@
           <td>{{ r.cantidad_celdas }}</td>
           <td class="app-table-voltajes-td">{{ render_voltajes_celdas(r.voltajes_celdas) }}</td>
           <td class="app-table-voltaje-total-td"><span class="voltaje-total-value">{{ r.voltaje_total | round(2) }}</span></td>
+          <td>{% if r.voltaje_total_trafo is not none %}{{ r.voltaje_total_trafo | round(2) }}{% endif %}</td>
           <td>{{ r.amperaje }}</td>
           <td>{{ r.caudal_agua_l_h }}</td>
           <td>{{ r.caudal_salmuera_l_h }}</td>
@@ -98,7 +100,7 @@
           <td>{{ r.created_at_iso }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="25" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
+        <tr><td colspan="26" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
         {% endfor %}
       </tbody>
     </table>

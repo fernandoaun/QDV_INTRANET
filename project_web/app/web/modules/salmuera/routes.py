@@ -84,6 +84,10 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                         raw_parts.append((request.form.get(f"voltaje_{i}") or "").strip())
                     volts_text = ",".join(raw_parts)
                 volts = parse_voltajes(volts_text, n)
+                voltaje_suma_celdas = float(sum(volts))
+                voltaje_total_trafo = parse_required_float(
+                    request.form.get("voltaje_total_trafo"), "V total trafo (lectura)"
+                )
                 if n == 1:
                     v = float(volts[0])
                     if v <= 0:
@@ -122,7 +126,8 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                     cantidad_celdas=n,
                     turno=turno_auto,
                     voltajes_json=json.dumps(volts, ensure_ascii=False),
-                    voltaje_total=float(sum(volts)),
+                    voltaje_total=voltaje_suma_celdas,
+                    voltaje_total_trafo=voltaje_total_trafo,
                     amperaje=float((request.form.get("amperaje") or "0").replace(",", ".")),
                     caudal_agua_l_h=caudal_agua,
                     caudal_salmuera_l_h=caudal_salmuera,

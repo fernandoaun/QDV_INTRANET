@@ -22,6 +22,7 @@ class SalmueraRegistro(db.Model):
     turno = db.Column(db.String(64), nullable=False)
     voltajes_json = db.Column(db.Text, nullable=False)
     voltaje_total = db.Column(db.Float, nullable=False)
+    voltaje_total_trafo = db.Column(db.Float)
     amperaje = db.Column(db.Float, nullable=False)
     caudal_agua_l_h = db.Column(db.Float, nullable=False)
     caudal_salmuera_l_h = db.Column(db.Float, nullable=False)

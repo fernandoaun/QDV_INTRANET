@@ -16,6 +16,7 @@ def _valid_salmuera_payload(csrf_token: str, *, electrolizador: str, orp: str) -
         "electrolizador": electrolizador,
         "cantidad_celdas": "2",
         "voltajes": "3.0, 3.1",
+        "voltaje_total_trafo": "18,7",
         "amperaje": "120",
         "caudal_agua_l_h": "10",
         "caudal_salmuera_l_h": "20",
@@ -49,10 +50,13 @@ def test_salmuera_orp_only_shows_and_saves_for_electrolizador_2(app, auth_client
     )
     assert e2.status_code == 200
     assert e2.get_json()["registro"]["orp"] == -123.5
+    assert e2.get_json()["registro"]["voltaje_total_trafo"] == 18.7
 
     with app.app_context():
         row = db.session.query(SalmueraRegistro).filter_by(electrolizador=2).one()
         assert row.orp == -123.5
+        assert row.voltaje_total == 6.1
+        assert row.voltaje_total_trafo == 18.7
 
 
 def test_salmuera_orp_is_ignored_for_other_electrolizadores(app, auth_client):
@@ -101,3 +105,23 @@ def test_salmuera_orp_requires_value_for_electrolizador_2(app, auth_client):
     assert "ORP (mV) es obligatorio" in resp.get_json()["error"]
     with app.app_context():
         assert db.session.query(SalmueraRegistro).filter_by(electrolizador=2).count() == 0
+
+
+def test_salmuera_voltaje_trafo_required(app, auth_client):
+    from app.extensions import db
+    from app.models import SalmueraRegistro
+
+    page = auth_client.get("/produccion/salmuera?fecha=2026-04-30")
+    tok = _csrf(page.get_data(as_text=True))
+    payload = _valid_salmuera_payload(tok, electrolizador="2", orp="100")
+    del payload["voltaje_total_trafo"]
+    resp = auth_client.post(
+        "/produccion/salmuera?fecha=2026-04-30",
+        data=payload,
+        headers={"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"},
+    )
+    assert resp.status_code == 400
+    assert "V total trafo" in resp.get_json()["error"]
+    assert "obligatorio" in resp.get_json()["error"]
+    with app.app_context():
+        assert db.session.query(SalmueraRegistro).count() == 0

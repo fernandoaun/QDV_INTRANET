@@ -139,6 +139,7 @@ def salmuera_row_to_dict(r: SalmueraRegistro) -> dict[str, Any]:
         "turno": r.turno,
         "voltajes_celdas": vj,
         "voltaje_total": r.voltaje_total,
+        "voltaje_total_trafo": r.voltaje_total_trafo,
         "amperaje": r.amperaje,
         "caudal_agua_l_h": r.caudal_agua_l_h,
         "caudal_salmuera_l_h": r.caudal_salmuera_l_h,

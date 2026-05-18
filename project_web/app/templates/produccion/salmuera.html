@@ -89,6 +89,11 @@
                 </noscript>
               </div>
               <div class="col-md-4 col-xl-3">
+                <label class="form-label">V total trafo (lectura)</label>
+                <input class="form-control" name="voltaje_total_trafo" inputmode="decimal" required>
+                <div class="form-text">Valor leído en el transformador; distinto de la suma de V1…Vn.</div>
+              </div>
+              <div class="col-md-4 col-xl-3">
                 <label class="form-label">Turno</label>
                 <input class="form-control" value="{{ turno_sugerido }}" readonly aria-readonly="true">
                 <input type="hidden" name="turno" value="{{ turno_sugerido }}">
@@ -199,7 +204,8 @@
                 <th>Lote</th>
                 <th>Celdas</th>
                 <th scope="col" class="app-th-voltajes-celdas" title="Valores por celda: V1, V2, … hasta Vn según cantidad de celdas">Voltajes (V1…Vn)</th>
-                <th scope="col" class="app-th-voltaje-total">V total</th>
+                <th scope="col" class="app-th-voltaje-total" title="Suma aritmética de los voltajes por celda">V Σ celdas</th>
+                <th scope="col" title="Lectura en el trafo">V trafo</th>
                 <th>Amperaje</th>
                 <th>Caudal agua</th>
                 <th>Caudal salmuera</th>
@@ -230,6 +236,7 @@
                 <td>{{ r.cantidad_celdas }}</td>
                 <td class="app-table-voltajes-td">{{ render_voltajes_celdas(r.voltajes_celdas) }}</td>
                 <td class="app-table-voltaje-total-td"><span class="voltaje-total-value">{{ r.voltaje_total | round(2) }}</span></td>
+                <td>{% if r.voltaje_total_trafo is not none %}{{ r.voltaje_total_trafo | round(2) }}{% endif %}</td>
                 <td>{{ r.amperaje }}</td>
                 <td>{{ r.caudal_agua_l_h }}</td>
                 <td>{{ r.caudal_salmuera_l_h }}</td>
@@ -257,7 +264,7 @@
                 <td>{{ r.created_at_iso }}</td>
               </tr>
               {% else %}
-              <tr><td colspan="{{ 23 if eid == 2 else 22 }}" class="text-center text-muted py-3">Sin registros para este electrolizador.</td></tr>
+              <tr><td colspan="{{ 24 if eid == 2 else 23 }}" class="text-center text-muted py-3">Sin registros para este electrolizador.</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -399,6 +406,10 @@
       const voltajeTotal = Number.isFinite(Number(registro.voltaje_total))
         ? Number(registro.voltaje_total).toFixed(2)
         : esc(registro.voltaje_total || "");
+      const voltajeTrafo =
+        registro.voltaje_total_trafo == null ? "" : Number.isFinite(Number(registro.voltaje_total_trafo))
+          ? Number(registro.voltaje_total_trafo).toFixed(2)
+          : esc(registro.voltaje_total_trafo);
       return `
         <tr>
           <td>${esc(registro.id)}</td>
@@ -409,6 +420,7 @@
           <td>${esc(registro.cantidad_celdas)}</td>
           <td class="app-table-voltajes-td">${voltajesHtml}</td>
           <td class="app-table-voltaje-total-td"><span class="voltaje-total-value">${voltajeTotal}</span></td>
+          <td>${voltajeTrafo}</td>
           <td>${esc(registro.amperaje)}</td>
           <td>${esc(registro.caudal_agua_l_h)}</td>
           <td>${esc(registro.caudal_salmuera_l_h)}</td>

@@ -51,6 +51,7 @@ def ultimos_hipoclorito_por_rectificador(limit: int = 20) -> list[dict[str, Any]
                 "lote": (r.lote or "").strip(),
                 "cantidad_celdas": r.cantidad_celdas,
                 "voltaje_total": r.voltaje_total,
+                "voltaje_total_trafo": r.voltaje_total_trafo,
                 "amperaje": r.amperaje,
                 "caudal_agua_l_h": r.caudal_agua_l_h,
                 "caudal_salmuera_l_h": r.caudal_salmuera_l_h,

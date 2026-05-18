@@ -143,7 +143,8 @@
                   <th>Operador</th>
                   <th>Lote</th>
                   <th>Celdas</th>
-                  <th>V total</th>
+                  <th title="Suma de voltajes por celda">V Σ celdas</th>
+                  <th title="Lectura en el trafo">V trafo</th>
                   <th>A</th>
                   <th>Q Agua</th>
                   <th>Q Salmuera</th>
@@ -170,6 +171,7 @@
                   <td>{{ r.lote or '—' }}</td>
                   <td>{{ r.cantidad_celdas }}</td>
                   <td>{{ r.voltaje_total | round(2) }}</td>
+                  <td>{% if r.voltaje_total_trafo is not none %}{{ r.voltaje_total_trafo | round(2) }}{% else %}—{% endif %}</td>
                   <td>{{ r.amperaje | round(2) }}</td>
                   <td>{{ r.caudal_agua_l_h | round(2) }}</td>
                   <td>{{ r.caudal_salmuera_l_h | round(2) }}</td>
