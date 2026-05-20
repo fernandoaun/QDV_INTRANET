@@ -40,7 +40,7 @@ Aplicación Flask en la carpeta `project_web/`, separada de la app de escritorio
 | Elemento | Estado |
 |----------|--------|
 | `requirements.txt` | Flask, Flask-SQLAlchemy, Alembic, psycopg2-binary, gunicorn, python-dotenv |
-| `config.py` | Dev/prod; en prod: `SECRET_KEY` + `DATABASE_URL` (Postgres) obligatorios |
+| `config.py` | Dev/prod; en prod: `SECRET_KEY` + `DATABASE_URL` (Postgres) obligatorios; con Postgres activa `pool_pre_ping`, `pool_recycle` y `connect_timeout` (ver `DEPLOY_RENDER.md` §10) |
 | `run.py` / `wsgi.py` | App para desarrollo y gunicorn |
 | `alembic.ini` + `migrations/` | Alembic enlazado a `db.metadata` vía `create_app()` |
 | `Procfile` | `gunicorn` para PaaS |

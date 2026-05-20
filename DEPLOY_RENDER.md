@@ -126,3 +126,24 @@ El **`render.yaml`** declara **`runtime: python`** (build con `pip`, sin Docker)
   `python -m flask --app run send-deadline-reminders`
 - En **web** y **cron**, cargá **`SECRET_KEY`** (y SMTP en ambos si usás correo), como en la §3 y §7.
 
+## 10) PostgreSQL: `SSL SYSCALL error: EOF detected` (conexión cortada)
+
+A veces en los logs aparece `psycopg2.OperationalError: SSL SYSCALL error: EOF detected` al hacer un `SELECT` normal. Suele ser el **pool reutilizando un socket que el servidor o la red ya cerraron** (idle, reinicio de nodo, límites del plan), no un bug de la consulta.
+
+La app ya configura por defecto (solo si la URL es PostgreSQL):
+
+- **`pool_pre_ping`**: prueba la conexión antes de usarla y abre otra si está muerta.
+- **`pool_recycle`**: recicla conexiones periódicamente (por defecto **280** segundos).
+- **`connect_timeout`** en `connect_args` (por defecto **15** s) para no colgar si la red falla.
+
+Variables **opcionales** en **Environment** del servicio web (no hace falta tocarlas salvo ajuste fino):
+
+| Variable | Efecto |
+|----------|--------|
+| `SQLALCHEMY_POOL_RECYCLE` | Segundos entre reciclado de conexiones del pool (rango acotado en código: 120–86400; por defecto 280). |
+| `SQLALCHEMY_POOL_PRE_PING` | `false` / `0` / `no` desactiva el pre-ping (no recomendado en Render). |
+| `PG_CONNECT_TIMEOUT` | Segundos para abrir conexión TCP (5–120; por defecto 15). |
+| `SQLALCHEMY_POOL_TIMEOUT` | Segundos máximos esperando un conexión libre del pool (5–120; por defecto el de SQLAlchemy). |
+
+Tras cambiar código de `config.py`, **redeploy** del web service. Si el error sigue muy seguido, revisá en Render el estado y el plan de **PostgreSQL** (conexiones máximas, logs de la base).
+

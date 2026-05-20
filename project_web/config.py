@@ -237,6 +237,38 @@ def get_config_dict(base_dir: Path) -> dict:
     vencimiento_mail_cc_panel = venc_cc_raw in ("1", "true", "yes")
     app_public_base_url = (os.environ.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
+    # Postgres (p. ej. Render): evitar OperationalError SSL SYSCALL EOF al reutilizar
+    # conexiones cerradas por el servidor o timeouts. pool_pre_ping valida antes de usar;
+    # pool_recycle descarta sockets antes del idle timeout típico del proveedor cloud.
+    sql_engine_options: dict[str, object] = {}
+    if "postgresql" in (uri or "").lower():
+        pre_ping_raw = (os.environ.get("SQLALCHEMY_POOL_PRE_PING") or "true").strip().lower()
+        if pre_ping_raw not in ("0", "false", "no"):
+            sql_engine_options["pool_pre_ping"] = True
+
+        recycle_raw = (os.environ.get("SQLALCHEMY_POOL_RECYCLE") or "280").strip()
+        try:
+            recycle_sec = max(120, min(int(recycle_raw), 86_400))
+        except ValueError:
+            recycle_sec = 280
+        sql_engine_options["pool_recycle"] = recycle_sec
+
+        # Fallar antes por red/capa intermedia cortada en vez de esperar indefinido.
+        timeout_raw = (os.environ.get("PG_CONNECT_TIMEOUT") or "15").strip()
+        try:
+            connect_timeout_sec = max(5, min(int(timeout_raw), 120))
+        except ValueError:
+            connect_timeout_sec = 15
+        sql_engine_options["connect_args"] = {"connect_timeout": connect_timeout_sec}
+
+        pt_raw = (os.environ.get("SQLALCHEMY_POOL_TIMEOUT") or "").strip()
+        if pt_raw:
+            try:
+                pt = max(5, min(int(pt_raw), 120))
+                sql_engine_options["pool_timeout"] = pt
+            except ValueError:
+                pass
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
@@ -277,6 +309,8 @@ def get_config_dict(base_dir: Path) -> dict:
         "VENCIMIENTO_MAIL_CC_PANEL": vencimiento_mail_cc_panel,
         "APP_PUBLIC_BASE_URL": app_public_base_url,
     }
+    if sql_engine_options:
+        out["SQLALCHEMY_ENGINE_OPTIONS"] = sql_engine_options
     # Desarrollo local: que HTML/CSS/JS se lean de disco en cada request (evita “no veo los cambios”).
     if name not in ("production", "testing"):
         out["TEMPLATES_AUTO_RELOAD"] = True
