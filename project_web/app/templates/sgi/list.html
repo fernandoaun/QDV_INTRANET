@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ tipo_label }} · SGI · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">{{ tipo_label }}</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.nuevo', slug=slug) }}"><i class="bi bi-plus-lg me-1"></i>Nuevo documento</a>
+    {% endif %}
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('sgi.export_xlsx', slug=slug, **request.args) }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Exportar Excel</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGI</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Filtros y búsqueda</div>
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Buscar</label>
+        <input type="text" class="form-control" name="q" value="{{ filtros.q or '' }}"
+               placeholder="Código, título o tipo…" autocomplete="off">
+        <div class="form-text small text-muted">Busca por código, título o tipo de documento.</div>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Todos</option>
+          {% for k, lab in estados_labels.items() %}
+          <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lab }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Desde</label>
+        <input type="date" class="form-control" name="fecha_desde" value="{{ filtros.fecha_desde or '' }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Hasta</label>
+        <input type="date" class="form-control" name="fecha_hasta" value="{{ filtros.fecha_hasta or '' }}">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary mt-4">Aplicar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Título</th>
+          <th>Revisión</th>
+          <th>F. creación</th>
+          <th>F. últ. revisión</th>
+          <th>Resp. elaboración</th>
+          <th>Estado</th>
+          <th>PDF</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+      <tr class="{{ estado_visual_row(r) }}">
+        <td><strong>{{ r.codigo }}</strong></td>
+        <td>{{ r.titulo }}</td>
+        <td>{{ r.revision or '—' }}</td>
+        <td>{{ r.fecha_creacion_doc.strftime('%d/%m/%Y') if r.fecha_creacion_doc else '—' }}</td>
+        <td>{{ r.fecha_ultima_revision.strftime('%d/%m/%Y') if r.fecha_ultima_revision else '—' }}</td>
+        <td>{{ r.responsable_elaboracion or '—' }}</td>
+        <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
+        <td>{% if r.archivo_path %}<i class="bi bi-file-earmark-pdf text-danger" title="PDF adjunto"></i>{% else %}—{% endif %}</td>
+        <td class="text-end text-nowrap">
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.detalle', slug=slug, doc_id=r.id) }}">Ver</a>
+          {% if puede_editar %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('sgi.editar', slug=slug, doc_id=r.id) }}">Editar</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-muted py-4">No hay documentos con los filtros actuales.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

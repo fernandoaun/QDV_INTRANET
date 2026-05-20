@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.codigo }} · {{ tipo_label }} · SGI{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">{{ doc.codigo }} — {{ doc.titulo }}</h1>
+    <div class="text-muted">{{ tipo_label }} · {{ estados_labels.get(doc.estado, doc.estado) }}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado', slug=slug) }}">← Listado</a>
+    {% if puede_editar %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.editar', slug=slug, doc_id=doc.id) }}">Editar</a>
+    {% endif %}
+    {% if puede_eliminar %}
+    <form method="post" action="{{ url_for('sgi.eliminar', slug=slug, doc_id=doc.id) }}" class="d-inline"
+          onsubmit="return confirm('¿Eliminar permanentemente este documento?');">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="app-card mb-3">
+      <div class="app-card-header">Datos del documento</div>
+      <div class="app-card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Tipo</dt><dd class="col-sm-8">{{ doc.tipo }}</dd>
+          <dt class="col-sm-4">Código</dt><dd class="col-sm-8"><strong>{{ doc.codigo }}</strong></dd>
+          <dt class="col-sm-4">Título</dt><dd class="col-sm-8">{{ doc.titulo }}</dd>
+          <dt class="col-sm-4">Revisión / versión</dt><dd class="col-sm-8">{{ doc.revision or '—' }}</dd>
+          <dt class="col-sm-4">Fecha de creación (doc.)</dt>
+          <dd class="col-sm-8">{{ doc.fecha_creacion_doc.strftime('%d/%m/%Y') if doc.fecha_creacion_doc else '—' }}</dd>
+          <dt class="col-sm-4">Fecha última revisión</dt>
+          <dd class="col-sm-8">{{ doc.fecha_ultima_revision.strftime('%d/%m/%Y') if doc.fecha_ultima_revision else '—' }}</dd>
+          <dt class="col-sm-4">Resp. elaboración</dt><dd class="col-sm-8">{{ doc.responsable_elaboracion or '—' }}</dd>
+          <dt class="col-sm-4">Resp. aprobación</dt><dd class="col-sm-8">{{ doc.responsable_aprobacion or '—' }}</dd>
+          <dt class="col-sm-4">Estado</dt>
+          <dd class="col-sm-8"><span class="badge text-bg-secondary">{{ estados_labels.get(doc.estado, doc.estado) }}</span></dd>
+          <dt class="col-sm-4">Observaciones</dt>
+          <dd class="col-sm-8"><pre class="mb-0 small text-muted" style="white-space:pre-wrap;font-family:inherit;">{{ doc.observaciones or '—' }}</pre></dd>
+        </dl>
+      </div>
+    </div>
+
+    {% if doc.archivo_path %}
+    <div class="app-card mb-3">
+      <div class="app-card-header">Archivo PDF</div>
+      <div class="app-card-body">
+        <div class="d-flex flex-wrap gap-2">
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.adjunto_descargar', slug=slug, doc_id=doc.id) }}">
+            <i class="bi bi-download me-1"></i>Descargar PDF
+          </a>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.adjunto_descargar', slug=slug, doc_id=doc.id, inline=1) }}" target="_blank" rel="noopener">
+            <i class="bi bi-eye me-1"></i>Ver PDF
+          </a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="app-card mb-3">
+      <div class="app-card-header">Auditoría del sistema</div>
+      <div class="app-card-body small">
+        <div class="mb-2">
+          <strong>Creado por:</strong>
+          {{ (doc.created_by.nombre_completo or doc.created_by.username) if doc.created_by else '—' }}
+        </div>
+        <div class="mb-2">
+          <strong>Fecha/hora creación:</strong>
+          {{ doc.created_at.strftime('%d/%m/%Y %H:%M') if doc.created_at else '—' }}
+        </div>
+        <div class="mb-2">
+          <strong>Modificado por:</strong>
+          {{ (doc.updated_by.nombre_completo or doc.updated_by.username) if doc.updated_by else '—' }}
+        </div>
+        <div>
+          <strong>Última modificación:</strong>
+          {{ doc.updated_at.strftime('%d/%m/%Y %H:%M') if doc.updated_at else '—' }}
+        </div>
+      </div>
+    </div>
+
+    <div class="app-card">
+      <div class="app-card-header">Historial de cambios</div>
+      <div class="app-card-body p-0">
+        <ul class="list-group list-group-flush small">
+          {% for h in hist %}
+          <li class="list-group-item">
+            <div class="fw-semibold">{{ h.accion }}</div>
+            <div class="text-muted">{{ h.fecha.strftime('%d/%m/%Y %H:%M') if h.fecha else '' }} · {{ h.usuario }}</div>
+            {% if h.detalle %}<div class="mt-1">{{ h.detalle }}</div>{% endif %}
+          </li>
+          {% else %}
+          <li class="list-group-item text-muted">Sin movimientos registrados.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

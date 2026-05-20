@@ -96,6 +96,31 @@ def user_can_manage_vencimientos(user: User | None) -> bool:
     return user is not None and bool(user.is_admin)
 
 
+def user_can_access_sgi(user: User | None) -> bool:
+    """Administrador, perfiles Angel/SGI o usuarios con permiso sgi_hub."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    if normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None))):
+        return True
+    return user_can(user, "sgi_hub")
+
+
+def user_can_edit_sgi_documentos(user: User | None) -> bool:
+    """Crear/editar documentos: administrador o permiso sgi_documentos_edit (no Angel/SGI)."""
+    if user is None or user_is_global_read_only(user):
+        return False
+    if user.is_admin:
+        return True
+    return user_can_edit(user, "sgi_documentos_edit")
+
+
+def user_can_delete_sgi_documentos(user: User | None) -> bool:
+    """Eliminar documentos: únicamente administrador."""
+    return user is not None and bool(user.is_admin)
+
+
 def user_can_access_planificacion(user: User | None) -> bool:
     if user is None:
         return False
@@ -441,6 +466,8 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_edit_entregas_any_action(user)
     if ep.startswith("vencimientos."):
         return user_can_manage_vencimientos(user)
+    if ep.startswith("sgi."):
+        return user_can_edit_sgi_documentos(user)
     if ep.startswith("planificacion."):
         return user_can_edit(user, "planificacion")
     if ep.startswith("mantenimiento.equipos") or ep.startswith("mantenimiento.equipo") or ep.startswith(

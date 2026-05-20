@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{% if modo == 'nuevo' %}Nuevo documento{% else %}Editar documento{% endif %} · {{ tipo_label }} · SGI{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">{% if modo == 'nuevo' %}Nuevo documento{% else %}Editar documento{% endif %}</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado', slug=slug) }}">← Listado</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body">
+    <form method="post"
+          action="{{ url_for('sgi.nuevo', slug=slug) if modo == 'nuevo' else url_for('sgi.editar', slug=slug, doc_id=doc.id) }}"
+          enctype="multipart/form-data">
+      {% include "_csrf.html" %}
+      <div class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label">Tipo</label>
+          <input class="form-control" value="{{ tipo }}" readonly disabled>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Código</label>
+          <input class="form-control" name="codigo" required maxlength="64"
+                 value="{{ (form.codigo if form else '') }}" {% if modo == 'editar' %}readonly{% endif %}>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label">Título</label>
+          <input class="form-control" name="titulo" required maxlength="512"
+                 value="{{ (form.titulo if form else '') }}">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Revisión / versión</label>
+          <input class="form-control" name="revision" maxlength="32"
+                 value="{{ (form.revision if form else '') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Estado</label>
+          <select class="form-select" name="estado" required>
+            {% for k, lab in estados_labels.items() %}
+            <option value="{{ k }}" {% if form and form.estado == k %}selected{% elif not form and k == 'borrador' %}selected{% endif %}>{{ lab }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Fecha de creación (documento)</label>
+          <input type="date" class="form-control" name="fecha_creacion_doc"
+                 value="{{ (form.fecha_creacion_doc if form else '') }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Fecha de última revisión</label>
+          <input type="date" class="form-control" name="fecha_ultima_revision"
+                 value="{{ (form.fecha_ultima_revision if form else '') }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Responsable de elaboración</label>
+          <input class="form-control" name="responsable_elaboracion" maxlength="256"
+                 value="{{ (form.responsable_elaboracion if form else '') }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Responsable de aprobación</label>
+          <input class="form-control" name="responsable_aprobacion" maxlength="256"
+                 value="{{ (form.responsable_aprobacion if form else '') }}">
+        </div>
+        <div class="col-12">
+          <label class="form-label">Observaciones</label>
+          <textarea class="form-control" name="observaciones" rows="3">{{ (form.observaciones if form else '') }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label">Archivo PDF adjunto (opcional)</label>
+          <input type="file" class="form-control" name="archivo" accept=".pdf,application/pdf">
+          <div class="form-text">
+            Solo PDF. Tamaño máximo similar a otros adjuntos del sistema (≈12&nbsp;MB).
+            {% if modo == 'editar' and doc.archivo_path %}
+            Ya hay un PDF guardado: podés subir otro para reemplazarlo.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('sgi.listado', slug=slug) }}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

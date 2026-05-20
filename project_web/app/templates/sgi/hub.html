@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}SGI – Sistema de Gestión Integrado · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">SGI – Sistema de Gestión Integrado</h1>
+    <div class="text-muted">Control documental: procedimientos, manuales y documentación del sistema de gestión.</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Panel</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for tipo_key, label in tipo_labels.items() %}
+  {% set slug = {'PG': 'pg', 'PO': 'po', 'MSGI': 'msgi'}[tipo_key] %}
+  <div class="col-md-4">
+    <div class="app-card h-100">
+      <div class="app-card-body d-flex flex-column">
+        <div class="text-muted small mb-1">{{ tipo_key }}</div>
+        <h2 class="h5 mb-2">{{ label.split(' – ', 1)[-1] if ' – ' in label else label }}</h2>
+        <div class="fs-4 fw-semibold mb-3">{{ counts.get(tipo_key, 0) }} <span class="fs-6 fw-normal text-muted">documento(s)</span></div>
+        <div class="mt-auto d-flex flex-wrap gap-2">
+          <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.listado', slug=slug) }}">Ver listado</a>
+          {% if puede_editar %}
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.nuevo', slug=slug) }}"><i class="bi bi-plus-lg me-1"></i>Nuevo</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Próximas funcionalidades</div>
+  <div class="app-card-body">
+    <p class="text-muted mb-2">La estructura del módulo está preparada para incorporar:</p>
+    <ul class="text-muted mb-0">
+      <li>Difusión documental</li>
+      <li>Registro de lectura por usuario</li>
+      <li>Organigrama</li>
+      <li>Control de cambios</li>
+      <li>Matriz documental</li>
+      <li>Documentos externos</li>
+      <li>Vencimientos / revisión periódica de documentos</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

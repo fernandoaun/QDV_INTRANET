@@ -1411,3 +1411,18 @@ body.app-body {
   background: rgba(108, 117, 125, 0.08);
   color: var(--app-text-muted);
 }
+
+/* ——— SGI (estados documentales) ——— */
+.table-app tbody tr.sgi-row-vigente td {
+  box-shadow: inset 3px 0 0 0 #198754;
+  background: rgba(25, 135, 84, 0.06);
+}
+.table-app tbody tr.sgi-row-borrador td {
+  box-shadow: inset 3px 0 0 0 #0dcaf0;
+  background: rgba(13, 202, 240, 0.08);
+}
+.table-app tbody tr.sgi-row-obsoleto td {
+  box-shadow: inset 3px 0 0 0 #6c757d;
+  background: rgba(108, 117, 125, 0.08);
+  color: var(--app-text-muted);
+}

@@ -31,6 +31,8 @@ PERMISSION_KEYS: list[str] = [
     "mantenimiento_preventivos",
     "mantenimiento_recursos",
     "mantenimiento_predictivo",
+    "sgi_hub",
+    "sgi_documentos_edit",
 ]
 
 # Nombre del producto en catálogo de stock (producto terminado / ingresos / consumos).
@@ -88,6 +90,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "mantenimiento_preventivos": "Mantenimiento · Preventivos y órdenes",
     "mantenimiento_recursos": "Mantenimiento · Recursos y repuestos",
     "mantenimiento_predictivo": "Mantenimiento · Predictivo",
+    "sgi_hub": "SGI – Sistema de Gestión Integrado (acceso)",
+    "sgi_documentos_edit": "SGI · Crear y editar documentos",
 }
 
 PERMISSION_TREE: list[dict[str, object]] = [
@@ -139,6 +143,13 @@ PERMISSION_TREE: list[dict[str, object]] = [
             {"key": "mantenimiento_preventivos", "label": "Preventivos y órdenes"},
             {"key": "mantenimiento_recursos", "label": "Recursos y repuestos"},
             {"key": "mantenimiento_predictivo", "label": "Predictivo"},
+        ],
+    },
+    {
+        "key": "sgi_hub",
+        "label": "SGI – Sistema de Gestión Integrado",
+        "children": [
+            {"key": "sgi_documentos_edit", "label": "Crear y editar documentos"},
         ],
     },
 ]
