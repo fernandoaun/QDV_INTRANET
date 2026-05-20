@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from app.user_roles import ROLE_SOLO_LECTURA_TOTAL
+from app.user_roles import ROLE_SGI, ROLE_SOLO_LECTURA_TOTAL
 
 
 @pytest.fixture
@@ -154,3 +154,36 @@ def test_angel_cannot_post_avisos_correo_agregar(angel_client, app):
         from app.services.deadline_alert_email_service import list_emails_ordered
 
         assert not any(row.email == "angel-no-debe@example.com" for row in list_emails_ordered())
+
+
+def test_sgi_post_salmuera_forbidden(app, client):
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import User
+
+    with app.app_context():
+        db.session.add(
+            User(
+                username="pytest_sgi",
+                password_hash=generate_password_hash("sgi-test-pw"),
+                is_admin=False,
+                activo=True,
+                rol=ROLE_SGI,
+            )
+        )
+        db.session.commit()
+    lg = client.get("/login")
+    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', lg.get_data(as_text=True))
+    assert m is not None
+    assert client.post(
+        "/login",
+        data={"username": "pytest_sgi", "password": "sgi-test-pw", "csrf_token": m.group(1)},
+        follow_redirects=False,
+    ).status_code in (302, 303)
+
+    lg2 = client.get("/produccion/salmuera")
+    m2 = re.search(r'name="csrf_token"\s+value="([^"]+)"', lg2.get_data(as_text=True))
+    assert m2 is not None
+    r = client.post("/produccion/salmuera", data={"csrf_token": m2.group(1)}, follow_redirects=False)
+    assert r.status_code in (302, 303)

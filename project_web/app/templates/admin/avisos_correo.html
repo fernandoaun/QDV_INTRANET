@@ -14,7 +14,7 @@
   y <strong>mantenimiento</strong> (fecha programada de la orden), cuando entran en la ventana de aviso configurada en el servidor.
   La misma configuración SMTP sirve para los avisos del módulo <strong>Vencimientos</strong> (un correo por ítem en ventana de 30 días; opcional copia a esta lista según <code>VENCIMIENTO_MAIL_CC_PANEL</code>).
   El envío real sigue dependiendo de SMTP en el proveedor (cron diario <code>send-deadline-reminders</code>).
-  <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; el perfil <strong>Angel</strong> puede ver esta pantalla completa sin modificarla.
+  <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; los perfiles <strong>Angel</strong> y <strong>SGI</strong> pueden ver esta pantalla completa sin modificarla.
 </p>
 
 {% if smtp_configured is defined and not smtp_configured %}
@@ -82,7 +82,7 @@
 {% else %}
 <div class="alert alert-info mb-4" role="status">
   {% if user_is_global_read_only() %}
-  <strong>Perfil Angel:</strong> tenés vista completa de los correos configurados. Solo un <strong>administrador</strong> puede agregarlos o quitarlos desde esta pantalla.
+  <strong>Perfil solo lectura total (Angel / SGI):</strong> tenés vista completa de los correos configurados. Solo un <strong>administrador</strong> puede agregarlos o quitarlos desde esta pantalla.
   {% else %}
   Solo un <strong>administrador</strong> puede agregar o quitar correos en esta lista (modo consulta).
   {% endif %}

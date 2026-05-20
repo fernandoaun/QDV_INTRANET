@@ -98,7 +98,7 @@
       </div>
       <div class="app-topbar-end d-flex align-items-center gap-2">
         {% if user_is_global_read_only() %}
-        <span class="badge rounded-pill text-bg-info app-badge-soft d-none d-md-inline" title="Perfil Angel: acceso de solo lectura en todo el sistema.">Modo solo lectura</span>
+        <span class="badge rounded-pill text-bg-info app-badge-soft d-none d-md-inline" title="Perfiles Angel y SGI: acceso de solo lectura en todo el sistema.">Modo solo lectura</span>
         {% elif shift_nav and shift_nav.show_readonly_pill %}
         <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
         {% endif %}

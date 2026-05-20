@@ -8,7 +8,13 @@ from flask import flash, g, has_request_context, redirect, request, session, url
 from app.extensions import db
 from app.models import PermisoUsuario, User
 from app.constants import PERMISSION_KEYS
-from app.user_roles import ROLE_LOGISTICA, ROLE_SOLO_LECTURA_TOTAL, compute_session_perm_lists, normalize_stored_rol, user_is_global_read_only
+from app.user_roles import (
+    ROLE_LOGISTICA,
+    compute_session_perm_lists,
+    normalize_stored_rol,
+    normalized_role_is_global_read_only,
+    user_is_global_read_only,
+)
 
 from sqlalchemy import select
 
@@ -67,7 +73,7 @@ def user_can_access_production_hub(user: User | None) -> bool:
 def user_can_view_admin_configuration(user: User | None) -> bool:
     """
     Pantallas de administración en modo consulta (usuarios, equipos, catálogos de entregas).
-    Administrador o quien tenga permiso de vista «admin_usuarios» (p. ej. perfil Angel).
+    Administrador o quien tenga permiso de vista «admin_usuarios» (p. ej. perfiles Angel o SGI).
     """
     if user is None:
         return False
@@ -77,12 +83,12 @@ def user_can_view_admin_configuration(user: User | None) -> bool:
 
 
 def user_can_access_vencimientos(user: User | None) -> bool:
-    """Solo administrador o perfil Angel (solo lectura total)."""
+    """Solo administrador o perfiles solo lectura total (Angel, SGI)."""
     if user is None:
         return False
     if user.is_admin:
         return True
-    return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_SOLO_LECTURA_TOTAL
+    return normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None)))
 
 
 def user_can_manage_vencimientos(user: User | None) -> bool:

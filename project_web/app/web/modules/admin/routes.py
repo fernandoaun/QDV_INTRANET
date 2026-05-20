@@ -25,6 +25,7 @@ from app.user_roles import (
     ROLE_ADMINISTRADOR,
     ROLE_LABORATORISTA,
     ROLE_LABELS,
+    ROLE_SGI,
     ROLE_SOLO_LECTURA_TOTAL,
     USER_ROLES_ORDERED,
     compute_session_perm_lists,
@@ -182,6 +183,7 @@ def edit_user(uid: int):
             if not u.is_admin and normalize_stored_rol(u.rol) not in (
                 ROLE_LABORATORISTA,
                 ROLE_SOLO_LECTURA_TOTAL,
+                ROLE_SGI,
             ):
                 bv, be = role_template_perm_sets(u.rol)
                 for key in PERMISSION_FORM_KEYS:
@@ -285,6 +287,7 @@ def edit_user(uid: int):
     hide_perm_grid = (not u.is_admin) and normalize_stored_rol(u.rol) in (
         ROLE_LABORATORISTA,
         ROLE_SOLO_LECTURA_TOTAL,
+        ROLE_SGI,
     )
     return render_template(
         "admin/user_edit.html",

@@ -2,6 +2,7 @@
 Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 
 - «solo_lectura_total» (Angel): ve todos los módulos y datos; no puede mutar nada (vista completa, edición vacía en sesión).
+- «sgi»: mismo comportamiento que Angel (solo lectura total), con otra etiqueta de perfil.
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
 - Los permisos finales = plantilla del rol efectivo, aplicando filas en `permisos_usuario` como overrides:
@@ -23,6 +24,7 @@ ROLE_OPERACIONES = "operaciones"
 ROLE_LOGISTICA = "logistica"
 ROLE_MANTENIMIENTO = "mantenimiento"
 ROLE_SOLO_LECTURA_TOTAL = "solo_lectura_total"
+ROLE_SGI = "sgi"
 ROLE_LABORATORISTA = "laboratorista"
 
 USER_ROLES_ORDERED: tuple[str, ...] = (
@@ -31,6 +33,7 @@ USER_ROLES_ORDERED: tuple[str, ...] = (
     ROLE_LOGISTICA,
     ROLE_MANTENIMIENTO,
     ROLE_SOLO_LECTURA_TOTAL,
+    ROLE_SGI,
     ROLE_LABORATORISTA,
 )
 
@@ -40,6 +43,7 @@ ROLE_LABELS: dict[str, str] = {
     ROLE_LOGISTICA: "Logística",
     ROLE_MANTENIMIENTO: "Mantenimiento",
     ROLE_SOLO_LECTURA_TOTAL: "Angel",
+    ROLE_SGI: "SGI",
     ROLE_LABORATORISTA: "Laboratorista",
 }
 
@@ -146,11 +150,16 @@ def normalize_stored_rol(raw: str | None) -> str:
     return ROLE_OPERACIONES
 
 
+def normalized_role_is_global_read_only(normalized_stored_rol: str) -> bool:
+    """Perfiles con vista total y sin permisos de edición en ningún módulo (Angel, SGI)."""
+    return normalized_stored_rol in (ROLE_SOLO_LECTURA_TOTAL, ROLE_SGI)
+
+
 def user_is_global_read_only(user: object | None) -> bool:
-    """True si el perfil es Angel (solo lectura total en todo el sistema)."""
+    """True si el perfil es Angel o SGI (solo lectura total en todo el sistema)."""
     if user is None or bool(getattr(user, "is_admin", False)):
         return False
-    return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_SOLO_LECTURA_TOTAL
+    return normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None)))
 
 
 def effective_role_for_permissions(stored_rol: str | None) -> str:
@@ -182,7 +191,7 @@ def _base_view_edit_for_effective_role(effective: str) -> tuple[set[str], set[st
     if effective == ROLE_MANTENIMIENTO:
         v = set(_BASE_MANTENIMIENTO) & keys
         return v, set(v)
-    if effective == ROLE_SOLO_LECTURA_TOTAL:
+    if normalized_role_is_global_read_only(effective):
         return set(_ALL_PERM_KEYS), set()
     if effective == ROLE_LABORATORISTA:
         return set(), set()
@@ -235,7 +244,7 @@ def compute_session_perm_lists(stored_rol: str | None, rows: list[PermisoUsuario
     Plantilla(rol_efectivo) + overrides en `permisos_usuario` (incluye revocaciones habilitado=False).
     """
     eff = effective_role_for_permissions(stored_rol)
-    if eff == ROLE_SOLO_LECTURA_TOTAL:
+    if normalized_role_is_global_read_only(eff):
         # Vista total fija; sin edición aunque existan filas en permisos_usuario.
         return sorted(_ALL_PERM_KEYS), []
     bv, be = _base_view_edit_for_effective_role(eff)
