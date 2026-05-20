@@ -7,7 +7,15 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 
 from app.auth_utils import current_user, login_required, user_can, user_can_access_mantenimiento, user_can_edit
 from app.extensions import db
-from app.models import Equipo, MaintenanceAttachment, MaintenanceOrder, MaintenancePlan, MaintenancePrediction, MaintenanceFailure
+from app.models import (
+    Equipo,
+    MaintenanceAttachment,
+    MaintenanceComponent,
+    MaintenanceFailure,
+    MaintenanceOrder,
+    MaintenancePlan,
+    MaintenancePrediction,
+)
 from app.services import mantenimiento_service as ms
 
 bp = Blueprint("mantenimiento", __name__, url_prefix="/mantenimiento")
@@ -118,6 +126,14 @@ def equipo_detalle(equipo_id: int):
                 ms.create_component_from_form(equipo, request.form)
                 db.session.commit()
                 flash("Componente asociado creado.", "success")
+            elif action == "component_update":
+                component_id = ms._parse_int(request.form.get("component_id"))
+                component = db.session.get(MaintenanceComponent, component_id) if component_id else None
+                if component is None or not ms._component_belongs_to_equipo(component_id, equipo_id):
+                    raise ValueError("El componente indicado no existe o no pertenece a este equipo.")
+                ms.update_component_from_form(component, request.form)
+                db.session.commit()
+                flash("Componente actualizado.", "success")
             else:
                 flash("Acción no reconocida.", "warning")
         except ValueError as exc:

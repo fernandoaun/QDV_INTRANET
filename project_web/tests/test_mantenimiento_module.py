@@ -55,6 +55,29 @@ def test_mantenimiento_component_correctivo_close_and_export(mant_client, app):
         component_id = int(component.id)
 
     r = mant_client.post(
+        f"/mantenimiento/equipos/{equipo_id}",
+        data={
+            "action": "component_update",
+            "component_id": str(component_id),
+            "codigo_interno": "BOM-PY-02",
+            "nombre": "Bomba de salmuera pytest actualizada",
+            "tipo_componente": "Bomba centrífuga",
+            "estado": "en_mantenimiento",
+            "marca": "Marca test",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        component = db.session.get(MaintenanceComponent, component_id)
+        assert component.codigo_interno == "BOM-PY-02"
+        assert component.nombre == "Bomba de salmuera pytest actualizada"
+        assert component.tipo_componente == "Bomba centrífuga"
+        assert component.estado == "en_mantenimiento"
+        assert component.marca == "Marca test"
+
+    r = mant_client.post(
         "/mantenimiento/reportar-falla",
         data={
             "detected_at_iso": "2026-04-29T08:30",

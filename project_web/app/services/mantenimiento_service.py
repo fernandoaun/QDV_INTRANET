@@ -281,6 +281,20 @@ def create_component_from_form(equipo: Equipo, form: Any) -> MaintenanceComponen
     return component
 
 
+def update_component_from_form(component: MaintenanceComponent, form: Any) -> None:
+    component.codigo_interno = _none_if_empty(form.get("codigo_interno"))
+    component.nombre = _clean(form.get("nombre"))
+    component.tipo_componente = _none_if_empty(form.get("tipo_componente"))
+    component.marca = _none_if_empty(form.get("marca"))
+    component.modelo = _none_if_empty(form.get("modelo"))
+    component.numero_serie = _none_if_empty(form.get("numero_serie"))
+    component.estado = _valid_or_default(form.get("estado"), EQUIPO_ESTADOS, "operativo")
+    component.observaciones = _none_if_empty(form.get("observaciones"))
+    if not component.nombre:
+        raise ValueError("El nombre del componente es obligatorio.")
+    component.updated_at_iso = now_operacion_local_iso_seconds()
+
+
 def parse_correctivo_filtros(args: Any) -> CorrectivoFiltros:
     return CorrectivoFiltros(
         desde=_clean(args.get("desde")),

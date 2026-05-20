@@ -79,12 +79,44 @@
       <div class="app-card-header">Componentes</div>
       <div class="app-card-body--flush table-responsive">
         <table class="table table-app table-compact mb-0">
-          <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
           <tbody>
           {% for c in components %}
-            <tr><td>{{ c.codigo_interno or "—" }}</td><td>{{ c.nombre }}</td><td>{{ c.tipo_componente or "—" }}</td><td>{{ equipo_estados.get(c.estado, c.estado) }}</td></tr>
+            <tr>
+              <td>{{ c.codigo_interno or "—" }}</td>
+              <td>{{ c.nombre }}</td>
+              <td>{{ c.tipo_componente or "—" }}</td>
+              <td>{{ equipo_estados.get(c.estado, c.estado) }}</td>
+              <td class="text-end">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-component-{{ c.id }}" aria-expanded="false" aria-controls="edit-component-{{ c.id }}">Editar</button>
+              </td>
+            </tr>
+            <tr class="collapse" id="edit-component-{{ c.id }}">
+              <td colspan="5" class="bg-light">
+                <form method="post" class="row g-2 py-2">
+                  {% include "_csrf.html" %}
+                  <input type="hidden" name="action" value="component_update">
+                  <input type="hidden" name="component_id" value="{{ c.id }}">
+                  <div class="col-md-4"><label class="form-label small mb-0">Código</label><input class="form-control form-control-sm" name="codigo_interno" value="{{ c.codigo_interno or '' }}"></div>
+                  <div class="col-md-8"><label class="form-label small mb-0">Nombre</label><input class="form-control form-control-sm" name="nombre" value="{{ c.nombre }}" required></div>
+                  <div class="col-md-6"><label class="form-label small mb-0">Tipo</label><input class="form-control form-control-sm" name="tipo_componente" value="{{ c.tipo_componente or '' }}"></div>
+                  <div class="col-md-6"><label class="form-label small mb-0">Estado</label>
+                    <select class="form-select form-select-sm" name="estado">
+                      {% for key, label in equipo_estados.items() %}
+                      <option value="{{ key }}" {% if c.estado == key %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-md-4"><label class="form-label small mb-0">Marca</label><input class="form-control form-control-sm" name="marca" value="{{ c.marca or '' }}"></div>
+                  <div class="col-md-4"><label class="form-label small mb-0">Modelo</label><input class="form-control form-control-sm" name="modelo" value="{{ c.modelo or '' }}"></div>
+                  <div class="col-md-4"><label class="form-label small mb-0">N° serie</label><input class="form-control form-control-sm" name="numero_serie" value="{{ c.numero_serie or '' }}"></div>
+                  <div class="col-12"><label class="form-label small mb-0">Observaciones</label><textarea class="form-control form-control-sm" name="observaciones" rows="2">{{ c.observaciones or '' }}</textarea></div>
+                  <div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Guardar componente</button></div>
+                </form>
+              </td>
+            </tr>
           {% else %}
-            <tr><td colspan="4" class="text-muted text-center py-3">Sin componentes asociados.</td></tr>
+            <tr><td colspan="5" class="text-muted text-center py-3">Sin componentes asociados.</td></tr>
           {% endfor %}
           </tbody>
         </table>
