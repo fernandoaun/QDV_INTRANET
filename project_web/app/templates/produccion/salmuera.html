@@ -533,6 +533,20 @@
           }
         }
       }
+      const trafoInp = form.querySelector('input[name="voltaje_total_trafo"]');
+      if (trafoInp) {
+        const trafoRaw = (trafoInp.value || "").trim();
+        if (!trafoRaw) {
+          alert(`[Electrolizador ${eid}] Completá V total trafo (lectura).`);
+          trafoInp.focus();
+          return false;
+        }
+        if (toFloatFlexible(trafoRaw) === null) {
+          alert(`[Electrolizador ${eid}] V total trafo debe ser numérico.`);
+          trafoInp.focus();
+          return false;
+        }
+      }
       const qAgua = toFloatFlexible(caudalAgua ? caudalAgua.value : "");
       const qSal = toFloatFlexible(caudalSal ? caudalSal.value : "");
       if (qAgua === null || qSal === null) return true;
@@ -548,6 +562,10 @@
       const n = parseInt((nInput && nInput.value) ? nInput.value : "1", 10) || 1;
       writeSerialized(n);
       if (!validateClientSide()) {
+        ev.preventDefault();
+        return;
+      }
+      if (!form.reportValidity()) {
         ev.preventDefault();
         return;
       }
