@@ -1,43 +1,16 @@
-{# Hoja del procedimiento — carátula + cuerpo (formato QDV-PG-01) #}
+{# Hoja del procedimiento — formato QDV-PG-01 Información documentada Rev.00 #}
 <div class="sgi-proc-sheet" id="sgiProcSheet">
   <section class="sgi-proc-caratula" data-section="caratula">
-    <table class="sgi-proc-brand-table" role="presentation">
-      <tr>
-        <td class="sgi-proc-brand-logo">
-          {% include "sgi/_procedure_logo.html" %}
-        </td>
-        <td class="sgi-proc-brand-text">
-          <div class="sgi-proc-empresa">QUÍMICA DEL VALLE S.R.L.</div>
-          <div class="sgi-proc-sistema">Sistema de Gestión Integrado</div>
-        </td>
-      </tr>
-    </table>
+    <div class="sgi-proc-cover-logo-wrap">
+      {% include "sgi/_procedure_logo.html" %}
+    </div>
+    <div class="sgi-proc-cover-empresa">QUÍMICA DEL VALLE S.R.L.</div>
 
-    <div class="sgi-proc-tipo-banner">{{ tipo_caratula|default('PROCEDIMIENTO') }}</div>
+    <h1 class="sgi-proc-cover-titulo" id="procTituloDisplay">{{ doc.titulo }}</h1>
+    <div class="sgi-proc-cover-codigo" id="procCodigoDisplay">{{ doc.codigo }}</div>
+    <div class="sgi-proc-cover-revision" id="procRevisionCover">{{ rev.revision_label }}</div>
 
-    <div class="sgi-proc-caratula-titulo" id="procTituloDisplay">{{ doc.titulo }}</div>
-
-    <table class="sgi-proc-table sgi-proc-id-table">
-      <tbody>
-        <tr>
-          <th class="sgi-proc-id-label">Código del documento</th>
-          <td><strong>{{ doc.codigo }}</strong></td>
-          <th class="sgi-proc-id-label">Revisión</th>
-          <td><strong id="procRevisionDisplay">{{ rev.revision_label }}</strong></td>
-        </tr>
-        <tr>
-          <th class="sgi-proc-id-label">Fecha de vigencia / aprobación</th>
-          <td colspan="3">
-            <input type="date" class="form-control form-control-sm d-inline-block w-auto sgi-proc-no-print"
-                   id="procFechaVigencia" value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}"
-                   {% if solo_lectura|default(false) %}readonly{% endif %}>
-            <span class="sgi-proc-print-only">{{ rev.fecha_vigencia.strftime('%d/%m/%Y') if rev.fecha_vigencia else '—' }}</span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-
-    <table class="sgi-proc-table">
+    <table class="sgi-proc-table sgi-proc-firmas-table">
       <thead>
         <tr>
           <th>Elaboró</th>
@@ -47,39 +20,49 @@
       </thead>
       <tbody>
         <tr>
-          <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre y apellido" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre y apellido" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre y apellido" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-        </tr>
-        <tr>
-          <th class="sgi-proc-subhead">Fecha</th>
-          <th class="sgi-proc-subhead">Fecha</th>
-          <th class="sgi-proc-subhead">Fecha</th>
-        </tr>
-        <tr>
-          <td><input type="date" id="procFechaElab" value="{{ rev.fecha_elaboracion.isoformat() if rev.fecha_elaboracion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="date" id="procFechaRev" value="{{ rev.fecha_revision.isoformat() if rev.fecha_revision else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="date" id="procFechaAprob" value="{{ rev.fecha_aprobacion.isoformat() if rev.fecha_aprobacion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
         </tr>
       </tbody>
     </table>
+
+    <div class="sgi-proc-cover-meta sgi-proc-no-print row g-2 mb-2">
+      <div class="col-md-6">
+        <label class="form-label small mb-0">Fecha de vigencia / aprobación</label>
+        <input type="date" class="form-control form-control-sm" id="procFechaVigencia"
+               value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}"
+               {% if solo_lectura|default(false) %}readonly{% endif %}>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small mb-0">Fechas elaboración / revisión / aprobación</label>
+        <div class="d-flex gap-1 flex-wrap">
+          <input type="date" class="form-control form-control-sm" id="procFechaElab" title="Elaboración"
+                 value="{{ rev.fecha_elaboracion.isoformat() if rev.fecha_elaboracion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
+          <input type="date" class="form-control form-control-sm" id="procFechaRev" title="Revisión"
+                 value="{{ rev.fecha_revision.isoformat() if rev.fecha_revision else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
+          <input type="date" class="form-control form-control-sm" id="procFechaAprob" title="Aprobación"
+                 value="{{ rev.fecha_aprobacion.isoformat() if rev.fecha_aprobacion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
+        </div>
+      </div>
+    </div>
 
     <p class="sgi-proc-section-label">Control de cambios</p>
     <table class="sgi-proc-table" id="procTablaCambios">
       <thead>
         <tr>
-          <th style="width:12%">Revisión</th>
-          <th>Descripción de cambios</th>
-          <th style="width:18%">Fecha de aprobación</th>
+          <th style="width:14%">REVISIÓN</th>
+          <th>DESCRIPCIÓN DE CAMBIOS</th>
+          <th style="width:20%">FECHA DE APROBACIÓN</th>
           {% if not solo_lectura|default(false) %}
-          <th style="width:5%" class="sgi-proc-no-print"></th>
+          <th style="width:4%" class="sgi-proc-no-print"></th>
           {% endif %}
         </tr>
       </thead>
       <tbody id="procCambiosBody"></tbody>
     </table>
     {% if not solo_lectura|default(false) %}
-    <button type="button" class="btn btn-sm btn-outline-secondary sgi-proc-no-print" id="btnAddCambio">
+    <button type="button" class="btn btn-sm btn-outline-secondary sgi-proc-no-print mb-4" id="btnAddCambio">
       <i class="bi bi-plus"></i> Fila de control de cambios
     </button>
     {% endif %}

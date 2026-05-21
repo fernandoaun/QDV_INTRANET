@@ -1,53 +1,41 @@
 <div class="sgi-proc-sheet">
   <section class="sgi-proc-caratula">
-    <table class="sgi-proc-brand-table" role="presentation">
-      <tr>
-        <td class="sgi-proc-brand-logo">{% include "sgi/_procedure_logo.html" %}</td>
-        <td class="sgi-proc-brand-text">
-          <div class="sgi-proc-empresa">QUÍMICA DEL VALLE S.R.L.</div>
-          <div class="sgi-proc-sistema">Sistema de Gestión Integrado</div>
-        </td>
-      </tr>
-    </table>
-    <div class="sgi-proc-tipo-banner">{{ tipo_caratula|default('PROCEDIMIENTO') }}</div>
-    <div class="sgi-proc-caratula-titulo">{{ payload.titulo or doc.titulo }}</div>
-    <table class="sgi-proc-table sgi-proc-id-table">
-      <tbody>
-        <tr>
-          <th class="sgi-proc-id-label">Código del documento</th>
-          <td><strong>{{ doc.codigo }}</strong></td>
-          <th class="sgi-proc-id-label">Revisión</th>
-          <td><strong>{{ rev.revision_label }}</strong></td>
-        </tr>
-        <tr>
-          <th class="sgi-proc-id-label">Fecha de vigencia / aprobación</th>
-          <td colspan="3">{{ rev.fecha_vigencia.strftime('%d/%m/%Y') if rev.fecha_vigencia else '—' }}</td>
-        </tr>
-      </tbody>
-    </table>
-    <table class="sgi-proc-table">
-      <thead><tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr></thead>
+    <div class="sgi-proc-cover-logo-wrap">
+      {% include "sgi/_procedure_logo.html" %}
+    </div>
+    <div class="sgi-proc-cover-empresa">QUÍMICA DEL VALLE S.R.L.</div>
+    <h1 class="sgi-proc-cover-titulo">{{ payload.titulo or doc.titulo }}</h1>
+    <div class="sgi-proc-cover-codigo">{{ doc.codigo }}</div>
+    <div class="sgi-proc-cover-revision">{{ rev.revision_label }}</div>
+
+    <table class="sgi-proc-table sgi-proc-firmas-table">
+      <thead>
+        <tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr>
+      </thead>
       <tbody>
         <tr>
           <td>{{ rev.elaboro or '—' }}</td>
           <td>{{ rev.reviso or '—' }}</td>
           <td>{{ rev.aprobo or '—' }}</td>
         </tr>
-        <tr>
-          <th class="sgi-proc-subhead">Fecha</th>
-          <th class="sgi-proc-subhead">Fecha</th>
-          <th class="sgi-proc-subhead">Fecha</th>
-        </tr>
-        <tr>
-          <td>{{ rev.fecha_elaboracion.strftime('%d/%m/%Y') if rev.fecha_elaboracion else '—' }}</td>
-          <td>{{ rev.fecha_revision.strftime('%d/%m/%Y') if rev.fecha_revision else '—' }}</td>
-          <td>{{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</td>
-        </tr>
       </tbody>
     </table>
+
+    {% if rev.fecha_vigencia %}
+    <p class="sgi-proc-cover-fecha text-center small mb-3">
+      Fecha de vigencia / aprobación: {{ rev.fecha_vigencia.strftime('%d/%m/%Y') }}
+    </p>
+    {% endif %}
+
     <p class="sgi-proc-section-label">Control de cambios</p>
     <table class="sgi-proc-table">
-      <thead><tr><th>Revisión</th><th>Descripción de cambios</th><th>Fecha de aprobación</th></tr></thead>
+      <thead>
+        <tr>
+          <th style="width:14%">REVISIÓN</th>
+          <th>DESCRIPCIÓN DE CAMBIOS</th>
+          <th style="width:20%">FECHA DE APROBACIÓN</th>
+        </tr>
+      </thead>
       <tbody>
         {% for c in payload.control_cambios or [] %}
         <tr>
@@ -59,9 +47,12 @@
       </tbody>
     </table>
   </section>
+
   <div class="sgi-proc-page-break sgi-proc-header-block">
+    {% set header_titulo = payload.titulo or doc.titulo %}
     {% include "sgi/_procedure_page_header.html" %}
   </div>
+
   <section class="sgi-proc-cuerpo">
     {% for key, label in secciones %}
     {% if key not in ('control_registros', 'anexos') %}
@@ -87,7 +78,7 @@
             <td>{{ rg.tiempo_guarda }}</td><td>{{ rg.usuarios }}</td><td>{{ rg.disposicion_final }}</td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="text-muted text-center">—</td></tr>
+          <tr><td colspan="7" class="text-center text-muted">—</td></tr>
           {% endfor %}
         </tbody>
       </table>

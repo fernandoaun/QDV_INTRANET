@@ -1,4 +1,4 @@
-/* Generador visual de procedimientos SGI — formato QDV-PG-01 */
+/* Procedimientos SGI — formato QDV-PG-01 (Información documentada Rev.00) */
 .sgi-proc-workspace {
   background: #e8eaed;
   min-height: calc(100vh - 120px);
@@ -27,109 +27,70 @@
   max-width: 100%;
   min-height: 297mm;
   margin: 0 auto 2rem;
-  padding: 15mm 18mm 20mm;
+  padding: 18mm 20mm 22mm;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
 }
 
-/* —— Logo —— */
-.sgi-proc-logo-svg,
+/* —— Logo (extraído de QDV-PG-01) —— */
 .sgi-proc-logo-img {
   display: block;
-  width: 100%;
-  max-width: 280px;
+  max-width: 100%;
   height: auto;
   object-fit: contain;
 }
 
-.sgi-proc-header-logo-cell .sgi-proc-logo-img {
-  max-width: 110px;
-  max-height: 42px;
+.sgi-proc-cover-logo-wrap {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.sgi-proc-cover-logo-wrap .sgi-proc-logo-img {
+  max-width: 320px;
+  max-height: 90px;
   margin: 0 auto;
 }
 
-.sgi-proc-brand-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 0.75rem;
-  border: 2px solid #1a5276;
-}
-
-.sgi-proc-brand-table td {
-  vertical-align: middle;
-  padding: 10px 12px;
-  border: 1px solid #1a5276;
-}
-
-.sgi-proc-brand-logo {
-  width: 42%;
-  background: #f8fbfd;
+.sgi-proc-cover-empresa {
   text-align: center;
-}
-
-.sgi-proc-brand-logo .sgi-proc-logo-svg {
-  max-width: 240px;
-  margin: 0 auto;
-}
-
-.sgi-proc-brand-text {
-  width: 58%;
-  text-align: center;
-  background: #fff;
-}
-
-.sgi-proc-empresa {
-  font-size: 14pt;
+  font-size: 11pt;
   font-weight: 700;
-  color: #1a5276;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  color: #000;
+  margin-bottom: 1.25rem;
 }
 
-.sgi-proc-sistema {
-  font-size: 10pt;
-  font-weight: 600;
-  color: #2c3e50;
-  margin-top: 4px;
-}
-
-.sgi-proc-tipo-banner {
+.sgi-proc-cover-titulo {
   text-align: center;
-  font-size: 12pt;
+  font-size: 16pt;
   font-weight: 700;
   text-transform: uppercase;
-  color: #fff;
-  background: #1a5276;
-  padding: 8px 12px;
-  margin: 0 0 1rem;
-  border: 1px solid #154360;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: none;
+  color: #000;
 }
 
-.sgi-proc-caratula-titulo {
+.sgi-proc-cover-codigo {
   text-align: center;
   font-size: 13pt;
   font-weight: 700;
-  margin: 0.5rem 0 1rem;
-  padding: 10px 8px;
-  border: 2px solid #333;
-  text-transform: uppercase;
-  min-height: 2.5em;
+  margin-bottom: 0.25rem;
+}
+
+.sgi-proc-cover-revision {
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
 }
 
 .sgi-proc-section-label {
   font-weight: 700;
   font-size: 10pt;
-  text-transform: uppercase;
-  margin: 1rem 0 0.35rem;
+  margin: 1.25rem 0 0.35rem;
 }
 
-.sgi-proc-id-table .sgi-proc-id-label {
-  width: 22%;
-  background: #f0f0f0;
-  font-weight: 700;
-  text-align: left;
-}
-
+/* —— Tablas —— */
 .sgi-proc-table {
   width: 100%;
   border-collapse: collapse;
@@ -139,23 +100,20 @@
 
 .sgi-proc-table th,
 .sgi-proc-table td {
-  border: 1px solid #333;
+  border: 1px solid #000;
   padding: 6px 8px;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .sgi-proc-table thead th {
-  background: #d9e2e8;
+  background: #fff;
   font-weight: 700;
   text-align: center;
-  color: #1a5276;
 }
 
-.sgi-proc-subhead {
-  background: #f5f5f5 !important;
-  font-size: 9pt;
-  font-weight: 600;
-  text-align: center !important;
+.sgi-proc-firmas-table {
+  max-width: 100%;
+  margin: 1rem auto 1.5rem;
 }
 
 .sgi-proc-table input,
@@ -163,11 +121,12 @@
   width: 100%;
   border: none;
   background: transparent;
-  font-family: inherit;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: inherit;
   padding: 2px;
   resize: vertical;
   min-height: 1.4em;
+  text-align: center;
 }
 
 .sgi-proc-table input:focus,
@@ -176,10 +135,9 @@
   background: #f8fbff;
 }
 
-/* —— Encabezado páginas interiores —— */
+/* —— Encabezado interiores (3 columnas como Word header1) —— */
 .sgi-proc-header-block {
-  margin-top: 1.5rem;
-  margin-bottom: 1.25rem;
+  margin: 1.5rem 0 1.25rem;
 }
 
 .sgi-proc-page-break {
@@ -190,86 +148,81 @@
 .sgi-proc-header-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 9pt;
-  border: 2px solid #1a5276;
-}
-
-.sgi-proc-header-table th {
-  background: #1a5276;
-  color: #fff;
-  font-weight: 700;
-  text-align: center;
-  padding: 4px 6px;
-  border: 1px solid #154360;
-  font-size: 8pt;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  border: 1px solid #000;
 }
 
 .sgi-proc-header-table td {
-  border: 1px solid #333;
-  padding: 6px 8px;
+  border: 1px solid #000;
+  padding: 4px 8px;
   vertical-align: middle;
 }
 
-.sgi-proc-col-logo { width: 18%; }
-.sgi-proc-col-titulo { width: 42%; }
-.sgi-proc-col-codigo { width: 14%; }
-.sgi-proc-col-rev { width: 12%; }
-.sgi-proc-col-pag { width: 14%; }
-
 .sgi-proc-header-logo-cell {
+  width: 28%;
   text-align: center;
-  background: #f8fbfd;
-  padding: 4px !important;
+  background: #fff;
 }
 
-.sgi-proc-header-logo-cell .sgi-proc-logo-svg {
-  max-width: 120px;
-  max-height: 44px;
+.sgi-proc-header-logo-cell .sgi-proc-logo-img {
+  max-width: 140px;
+  max-height: 52px;
+  margin: 4px auto;
 }
 
 .sgi-proc-header-titulo-cell {
-  font-size: 10pt;
-  line-height: 1.3;
+  width: 42%;
+  font-size: 11pt;
+  font-weight: 700;
+  text-align: left;
+  vertical-align: bottom;
 }
 
-.sgi-proc-header-meta-cell {
+.sgi-proc-header-codigo-cell {
+  width: 30%;
+  font-size: 11pt;
+  font-weight: 700;
   text-align: center;
-  font-size: 10pt;
 }
 
-.sgi-proc-header-sub-cell {
-  font-size: 8pt;
+.sgi-proc-header-spacer {
+  background: #fff;
+}
+
+.sgi-proc-header-rev-cell {
+  font-size: 10pt;
+  font-weight: 700;
   text-align: center;
-  background: #f5f5f5;
+}
+
+.sgi-proc-header-pag-cell {
+  font-size: 10pt;
+  text-align: center;
 }
 
 /* —— Cuerpo —— */
 .sgi-proc-seccion {
-  margin-top: 1.25rem;
+  margin-top: 1rem;
   page-break-inside: avoid;
 }
 
 .sgi-proc-seccion-titulo {
   font-size: 11pt;
   font-weight: 700;
-  margin-bottom: 0.35rem;
-  padding: 4px 8px;
-  background: #d9e2e8;
-  border: 1px solid #333;
-  color: #1a5276;
+  margin-bottom: 0.25rem;
 }
 
 .sgi-proc-seccion-cuerpo {
-  min-height: 3em;
-  padding: 8px 10px;
-  border: 1px solid #333;
-  border-top: none;
+  min-height: 2.5em;
+  padding: 4px 2px 8px;
+  text-align: justify;
 }
 
 .sgi-proc-seccion-cuerpo:focus {
   outline: none;
   background: #fafcff;
-  box-shadow: inset 0 0 0 2px #2980b9;
+  box-shadow: inset 0 0 0 1px #2980b9;
 }
 
 .sgi-proc-seccion-cuerpo[contenteditable="false"] {
@@ -277,22 +230,14 @@
 }
 
 .sgi-proc-anexo-card {
-  border: 1px solid #333;
+  border: 1px solid #000;
   padding: 0.75rem;
   margin-bottom: 0.75rem;
-  background: #fafafa;
-}
-
-.sgi-proc-print-only {
-  display: none;
 }
 
 @media print {
   .sgi-proc-no-print {
     display: none !important;
-  }
-  .sgi-proc-print-only {
-    display: inline !important;
   }
   .sgi-proc-workspace {
     background: #fff;
@@ -303,9 +248,6 @@
     margin: 0;
     width: 100%;
     max-width: none;
-  }
-  .sgi-proc-header-block {
-    display: table-header-group;
   }
 }
 

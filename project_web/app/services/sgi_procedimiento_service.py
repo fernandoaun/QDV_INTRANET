@@ -278,7 +278,7 @@ def create_procedimiento_visual(
     user_id: int,
     actor_label: str,
     *,
-    titulo: str = "Nuevo procedimiento",
+    titulo: str = "Título del procedimiento",
     actor: User | None = None,
 ) -> tuple[SgiDocumento | None, SgiProcedimientoRevision | None, str | None]:
     if not tipo_soporta_visual(tipo):

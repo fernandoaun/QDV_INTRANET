@@ -52,9 +52,15 @@
         fecha_vigencia: card.querySelector(".ax-fecha")?.value || "",
       });
     });
-    const titulo = qs("#procTituloInput")?.value || qs("#procTituloDisplay")?.textContent || "";
+    const tituloEl = qs("#procTituloInput") || qs("#procTituloDisplay");
+    const titulo =
+      (qs("#procTituloInput")?.value ||
+        tituloEl?.textContent ||
+        tituloEl?.value ||
+        "") + "";
+    const tituloClean = titulo.trim();
     return {
-      titulo: titulo.trim(),
+      titulo: tituloClean,
       secciones,
       control_cambios,
       registros,
@@ -183,7 +189,11 @@
     const res = await postJson(cfg.urls.guardar, data);
     if (res.ok) {
       flashMsg("success", res.message || "Guardado.");
-      if (qs("#procTituloDisplay")) qs("#procTituloDisplay").textContent = data.titulo;
+      const el = qs("#procTituloDisplay");
+      if (el) {
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = data.titulo;
+        else el.textContent = data.titulo;
+      }
       if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = data.titulo;
     } else {
       flashMsg("danger", res.message || "Error al guardar.");
@@ -223,7 +233,11 @@
   function bind() {
     qs("#procTituloInput")?.addEventListener("input", (e) => {
       const t = e.target.value;
-      if (qs("#procTituloDisplay")) qs("#procTituloDisplay").textContent = t;
+      const el = qs("#procTituloDisplay");
+      if (el) {
+        if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = t;
+        else el.textContent = t;
+      }
       if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = t;
     });
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
