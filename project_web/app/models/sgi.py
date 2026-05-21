@@ -35,6 +35,12 @@ TIPO_LABELS: dict[str, str] = {
     TIPO_MSGI: "MSGI – Manual del Sistema de Gestión Integrado",
 }
 
+TIPO_CARATULA_LABELS: dict[str, str] = {
+    TIPO_PG: "PROCEDIMIENTO DE GESTIÓN",
+    TIPO_PO: "PROCEDIMIENTO OPERATIVO",
+    TIPO_MSGI: "MANUAL DEL SISTEMA DE GESTIÓN INTEGRADO",
+}
+
 ESTADO_BORRADOR = "borrador"
 ESTADO_EN_REVISION = "en_revision"
 ESTADO_APROBADO = "aprobado"

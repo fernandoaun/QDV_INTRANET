@@ -1,25 +1,41 @@
-{# Fragmento reutilizable: hoja del procedimiento (carátula + cuerpo) #}
-{% set logo_url = url_for('static', filename='img/qdv-logo.svg') %}
+{# Hoja del procedimiento — carátula + cuerpo (formato QDV-PG-01) #}
 <div class="sgi-proc-sheet" id="sgiProcSheet">
-  {# —— Carátula —— #}
   <section class="sgi-proc-caratula" data-section="caratula">
-    <img src="{{ logo_url }}" alt="QUÍMICA DEL VALLE S.R.L." class="sgi-proc-logo">
+    <table class="sgi-proc-brand-table" role="presentation">
+      <tr>
+        <td class="sgi-proc-brand-logo">
+          {% include "sgi/_procedure_logo.html" %}
+        </td>
+        <td class="sgi-proc-brand-text">
+          <div class="sgi-proc-empresa">QUÍMICA DEL VALLE S.R.L.</div>
+          <div class="sgi-proc-sistema">Sistema de Gestión Integrado</div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="sgi-proc-tipo-banner">{{ tipo_caratula|default('PROCEDIMIENTO') }}</div>
 
     <div class="sgi-proc-caratula-titulo" id="procTituloDisplay">{{ doc.titulo }}</div>
 
-    <dl class="sgi-proc-meta-grid">
-      <dt>Código del documento</dt>
-      <dd><strong>{{ doc.codigo }}</strong></dd>
-      <dt>Revisión</dt>
-      <dd><strong id="procRevisionDisplay">{{ rev.revision_label }}</strong></dd>
-      <dt>Fecha de vigencia / aprobación</dt>
-      <dd>
-        <input type="date" class="form-control form-control-sm d-inline-block w-auto sgi-proc-no-print"
-               id="procFechaVigencia" value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}"
-               {% if solo_lectura|default(false) %}readonly{% endif %}>
-        <span class="sgi-proc-print-only d-none">{{ rev.fecha_vigencia.strftime('%d/%m/%Y') if rev.fecha_vigencia else '—' }}</span>
-      </dd>
-    </dl>
+    <table class="sgi-proc-table sgi-proc-id-table">
+      <tbody>
+        <tr>
+          <th class="sgi-proc-id-label">Código del documento</th>
+          <td><strong>{{ doc.codigo }}</strong></td>
+          <th class="sgi-proc-id-label">Revisión</th>
+          <td><strong id="procRevisionDisplay">{{ rev.revision_label }}</strong></td>
+        </tr>
+        <tr>
+          <th class="sgi-proc-id-label">Fecha de vigencia / aprobación</th>
+          <td colspan="3">
+            <input type="date" class="form-control form-control-sm d-inline-block w-auto sgi-proc-no-print"
+                   id="procFechaVigencia" value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}"
+                   {% if solo_lectura|default(false) %}readonly{% endif %}>
+            <span class="sgi-proc-print-only">{{ rev.fecha_vigencia.strftime('%d/%m/%Y') if rev.fecha_vigencia else '—' }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
 
     <table class="sgi-proc-table">
       <thead>
@@ -31,9 +47,14 @@
       </thead>
       <tbody>
         <tr>
-          <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre y apellido" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre y apellido" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre y apellido" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+        </tr>
+        <tr>
+          <th class="sgi-proc-subhead">Fecha</th>
+          <th class="sgi-proc-subhead">Fecha</th>
+          <th class="sgi-proc-subhead">Fecha</th>
         </tr>
         <tr>
           <td><input type="date" id="procFechaElab" value="{{ rev.fecha_elaboracion.isoformat() if rev.fecha_elaboracion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
@@ -43,7 +64,7 @@
       </tbody>
     </table>
 
-    <p class="fw-bold mb-1">Control de cambios</p>
+    <p class="sgi-proc-section-label">Control de cambios</p>
     <table class="sgi-proc-table" id="procTablaCambios">
       <thead>
         <tr>
@@ -64,19 +85,10 @@
     {% endif %}
   </section>
 
-  {# —— Encabezado páginas posteriores (preview) —— #}
-  <div class="sgi-proc-page-break">
-    <div class="sgi-proc-header-repeat">
-      <img src="{{ logo_url }}" alt="QDV">
-      <div>
-        <div><strong id="procHeaderTitulo">{{ doc.titulo }}</strong></div>
-        <div>{{ doc.codigo }} · <span id="procHeaderRev">{{ rev.revision_label }}</span></div>
-      </div>
-      <div>Página <span class="proc-pagina">2</span> de <span class="proc-total-pag">2</span></div>
-    </div>
+  <div class="sgi-proc-page-break sgi-proc-header-block">
+    {% include "sgi/_procedure_page_header.html" %}
   </div>
 
-  {# —— Cuerpo —— #}
   <section class="sgi-proc-cuerpo">
     {% for key, label in secciones %}
     {% if key != 'control_registros' and key != 'anexos' %}

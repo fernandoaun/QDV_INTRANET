@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import json
 
-from flask import abort, flash, jsonify, redirect, render_template, request, send_file, url_for
+from pathlib import Path
+
+from flask import abort, current_app, flash, jsonify, redirect, render_template, request, send_file, url_for
 
 from app.auth_utils import (
     current_user,
@@ -12,10 +14,23 @@ from app.auth_utils import (
     user_can_view_sgi_obsoletos,
     user_display_name,
 )
-from app.models.sgi import ESTADO_LABELS, PROCEDIMIENTO_SECCIONES, TIPO_LABELS
+from app.models.sgi import ESTADO_LABELS, PROCEDIMIENTO_SECCIONES, TIPO_CARATULA_LABELS, TIPO_LABELS
 from app.services import sgi_procedimiento_service as proc_svc
 from app.services import sgi_service as doc_svc
 from app.web.modules.sgi.routes import _no_access, _no_mutate, _require_view, _resolve_tipo, bp
+
+
+def _custom_logo_url() -> str | None:
+    """Si existe img/qdv-logo.png (o jpg), usarlo en lugar del SVG embebido."""
+    static_root = Path(current_app.static_folder or "")
+    for name in ("qdv-logo.png", "qdv-logo.jpg", "qdv-logo.jpeg", "qdv-logo.webp"):
+        if (static_root / "img" / name).is_file():
+            return url_for("static", filename=f"img/{name}")
+    return None
+
+
+def _procedure_render_kwargs(**extra: object) -> dict:
+    return {"custom_logo_url": _custom_logo_url(), **extra}
 
 
 def _require_edit():
@@ -140,16 +155,19 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
 
     return render_template(
         "sgi/procedure_editor.html",
-        slug=slug,
-        tipo=tipo,
-        tipo_label=TIPO_LABELS.get(tipo or "", tipo or ""),
-        doc=doc,
-        rev=rev,
-        payload_json=json.dumps(payload, ensure_ascii=False),
-        secciones=PROCEDIMIENTO_SECCIONES,
-        estados_labels=ESTADO_LABELS,
-        solo_lectura=solo_lectura,
-        puede_editar=puede_editar,
+        **_procedure_render_kwargs(
+            slug=slug,
+            tipo=tipo,
+            tipo_label=TIPO_LABELS.get(tipo or "", tipo or ""),
+            tipo_caratula=TIPO_CARATULA_LABELS.get(tipo or "", "PROCEDIMIENTO"),
+            doc=doc,
+            rev=rev,
+            payload_json=json.dumps(payload, ensure_ascii=False),
+            secciones=PROCEDIMIENTO_SECCIONES,
+            estados_labels=ESTADO_LABELS,
+            solo_lectura=solo_lectura,
+            puede_editar=puede_editar,
+        ),
     )
 
 
@@ -178,13 +196,16 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
 
     return render_template(
         "sgi/procedure_view.html",
-        slug=slug,
-        doc=doc,
-        rev=rev,
-        payload=proc_svc.revision_to_payload(rev),
-        secciones=PROCEDIMIENTO_SECCIONES,
-        estados_labels=ESTADO_LABELS,
-        puede_editar=puede_editar,
+        **_procedure_render_kwargs(
+            slug=slug,
+            doc=doc,
+            rev=rev,
+            tipo_caratula=TIPO_CARATULA_LABELS.get(doc.tipo or "", "PROCEDIMIENTO"),
+            payload=proc_svc.revision_to_payload(rev),
+            secciones=PROCEDIMIENTO_SECCIONES,
+            estados_labels=ESTADO_LABELS,
+            puede_editar=puede_editar,
+        ),
     )
 
 
@@ -270,11 +291,14 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
 
     html = render_template(
         "sgi/procedure_print.html",
-        doc=doc,
-        rev=rev,
-        payload=proc_svc.revision_to_payload(rev),
-        secciones=PROCEDIMIENTO_SECCIONES,
-        para_export=True,
+        **_procedure_render_kwargs(
+            doc=doc,
+            rev=rev,
+            tipo_caratula=TIPO_CARATULA_LABELS.get(doc.tipo or "", "PROCEDIMIENTO"),
+            payload=proc_svc.revision_to_payload(rev),
+            secciones=PROCEDIMIENTO_SECCIONES,
+            para_export=True,
+        ),
     )
     safe_name = f"{doc.codigo}_{rev.revision_label}".replace(" ", "_").replace(".", "")
 

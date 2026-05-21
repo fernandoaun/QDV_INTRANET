@@ -1,0 +1,38 @@
+{# Encabezado de páginas interiores (formato QDV) #}
+<table class="sgi-proc-header-table" role="presentation">
+  <colgroup>
+    <col class="sgi-proc-col-logo">
+    <col class="sgi-proc-col-titulo">
+    <col class="sgi-proc-col-codigo">
+    <col class="sgi-proc-col-rev">
+    <col class="sgi-proc-col-pag">
+  </colgroup>
+  <thead>
+    <tr>
+      <th colspan="2">Título del documento</th>
+      <th>Código</th>
+      <th>Revisión</th>
+      <th>Página</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="sgi-proc-header-logo-cell" rowspan="2">
+        {% include "sgi/_procedure_logo.html" %}
+      </td>
+      <td class="sgi-proc-header-titulo-cell" rowspan="2">
+        <strong id="procHeaderTitulo">{{ doc.titulo }}</strong>
+      </td>
+      <td class="sgi-proc-header-meta-cell"><strong>{{ doc.codigo }}</strong></td>
+      <td class="sgi-proc-header-meta-cell"><strong id="procHeaderRev">{{ rev.revision_label }}</strong></td>
+      <td class="sgi-proc-header-meta-cell text-nowrap">
+        <span class="proc-pagina">1</span> de <span class="proc-total-pag">1</span>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="3" class="sgi-proc-header-sub-cell text-muted">
+        {{ tipo_caratula|default('PROCEDIMIENTO') }} · QUÍMICA DEL VALLE S.R.L.
+      </td>
+    </tr>
+  </tbody>
+</table>
