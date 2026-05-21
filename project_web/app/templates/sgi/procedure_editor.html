@@ -61,6 +61,7 @@
     payload: {{ payload_json|safe }},
     soloLectura: {{ 'true' if solo_lectura else 'false' }},
     codigo: {{ doc.codigo|tojson }},
+    revisionRef: {{ '%02d'|format(rev.numero_revision)|tojson }},
     csrf: {{ csrf_token()|tojson }},
     urls: {
       guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},

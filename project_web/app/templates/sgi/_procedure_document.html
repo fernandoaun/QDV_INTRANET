@@ -48,24 +48,19 @@
     </div>
 
     <p class="sgi-proc-section-label">Control de cambios</p>
+    <p class="text-muted small sgi-proc-no-print mb-1" id="procCcHint">
+      Las filas se generan automáticamente al guardar, según las revisiones del documento y los cambios detectados en el contenido.
+    </p>
     <table class="sgi-proc-table" id="procTablaCambios">
       <thead>
         <tr>
           <th style="width:14%">REVISIÓN</th>
           <th>DESCRIPCIÓN DE CAMBIOS</th>
           <th style="width:20%">FECHA DE APROBACIÓN</th>
-          {% if not solo_lectura|default(false) %}
-          <th style="width:4%" class="sgi-proc-no-print"></th>
-          {% endif %}
         </tr>
       </thead>
       <tbody id="procCambiosBody"></tbody>
     </table>
-    {% if not solo_lectura|default(false) %}
-    <button type="button" class="btn btn-sm btn-outline-secondary sgi-proc-no-print mb-4" id="btnAddCambio">
-      <i class="bi bi-plus"></i> Fila de control de cambios
-    </button>
-    {% endif %}
   </section>
 
   <div class="sgi-proc-page-break sgi-proc-header-block">

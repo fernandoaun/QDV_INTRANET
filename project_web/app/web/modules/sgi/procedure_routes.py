@@ -221,8 +221,10 @@ def procedimiento_guardar(slug: str, doc_id: int, rev_id: int):
         return jsonify({"ok": False, "error": "no_encontrado"}), 404
 
     data = request.get_json(silent=True) or {}
-    ok, msg = proc_svc.save_revision_content(rev_id, data, u.id, user_display_name(u), actor=u)
-    return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
+    ok, msg, control_cambios = proc_svc.save_revision_content(
+        rev_id, data, u.id, user_display_name(u), actor=u
+    )
+    return jsonify({"ok": ok, "message": msg, "control_cambios": control_cambios}), (200 if ok else 400)
 
 
 @bp.post("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/workflow")

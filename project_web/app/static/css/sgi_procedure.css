@@ -135,6 +135,16 @@
   background: #f8fbff;
 }
 
+.sgi-proc-table tr.sgi-cc-auto td {
+  background: #f9fafb;
+}
+
+.sgi-proc-table tr.sgi-cc-auto .cc-rev,
+.sgi-proc-table tr.sgi-cc-auto .cc-desc {
+  cursor: default;
+  color: #212529;
+}
+
 /* —— Encabezado interiores (3 columnas como Word header1) —— */
 .sgi-proc-header-block {
   margin: 1.5rem 0 1.25rem;

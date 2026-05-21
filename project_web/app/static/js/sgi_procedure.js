@@ -17,18 +17,18 @@
     return Array.from(document.querySelectorAll(sel));
   }
 
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   function collectPayload() {
     const secciones = {};
     qsa("[data-seccion-body]").forEach((el) => {
       secciones[el.dataset.seccionBody] = el.innerHTML.trim();
-    });
-    const control_cambios = [];
-    qsa("#procCambiosBody tr").forEach((tr) => {
-      control_cambios.push({
-        revision_ref: tr.querySelector(".cc-rev")?.value || "",
-        descripcion: tr.querySelector(".cc-desc")?.value || "",
-        fecha_aprobacion: tr.querySelector(".cc-fecha")?.value || "",
-      });
     });
     const registros = [];
     qsa("#procRegistrosBody tr").forEach((tr) => {
@@ -54,15 +54,10 @@
     });
     const tituloEl = qs("#procTituloInput") || qs("#procTituloDisplay");
     const titulo =
-      (qs("#procTituloInput")?.value ||
-        tituloEl?.textContent ||
-        tituloEl?.value ||
-        "") + "";
-    const tituloClean = titulo.trim();
+      (qs("#procTituloInput")?.value || tituloEl?.textContent || tituloEl?.value || "") + "";
     return {
-      titulo: tituloClean,
+      titulo: titulo.trim(),
       secciones,
-      control_cambios,
       registros,
       anexos,
       fecha_vigencia: qs("#procFechaVigencia")?.value || "",
@@ -75,18 +70,33 @@
     };
   }
 
+  function renderControlCambios(rows) {
+    const tbody = qs("#procCambiosBody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    (rows || []).forEach((row) => addCambioRow(row));
+    if (!(rows || []).length) {
+      addCambioRow({
+        revision_ref: cfg.revisionRef || "00",
+        descripcion: "Emisión inicial del documento.",
+        fecha_aprobacion: "",
+        readonly: true,
+      });
+    }
+  }
+
   function addCambioRow(row) {
     const tbody = qs("#procCambiosBody");
     if (!tbody) return;
+    const ro = soloLectura || !!row?.readonly;
     const tr = document.createElement("tr");
+    if (row?.auto_generado) tr.classList.add("sgi-cc-auto");
     tr.innerHTML = `
-      <td><input type="text" class="cc-rev" value="${row?.revision_ref || ""}" ${soloLectura ? "readonly" : ""}></td>
-      <td><textarea class="cc-desc" rows="2" ${soloLectura ? "readonly" : ""}>${row?.descripcion || ""}</textarea></td>
-      <td><input type="date" class="cc-fecha" value="${row?.fecha_aprobacion || ""}" ${soloLectura ? "readonly" : ""}></td>
-      ${soloLectura ? "" : '<td class="sgi-proc-no-print text-center"><button type="button" class="btn btn-sm btn-link text-danger btn-del-cambio" title="Quitar">×</button></td>'}
+      <td><input type="text" class="cc-rev" value="${escapeHtml(row?.revision_ref || "")}" readonly tabindex="-1"></td>
+      <td><textarea class="cc-desc" rows="2" readonly tabindex="-1">${escapeHtml(row?.descripcion || "")}</textarea></td>
+      <td><input type="date" class="cc-fecha" value="${escapeHtml(row?.fecha_aprobacion || "")}" ${ro ? "readonly" : ""} tabindex="-1"></td>
     `;
     tbody.appendChild(tr);
-    tr.querySelector(".btn-del-cambio")?.addEventListener("click", () => tr.remove());
   }
 
   function addRegistroRow(row) {
@@ -107,7 +117,8 @@
       html += `<td><input type="text" class="${cls}" value="${(val || "").replace(/"/g, "&quot;")}" ${soloLectura ? "readonly" : ""}></td>`;
     });
     if (!soloLectura) {
-      html += '<td class="sgi-proc-no-print text-center"><button type="button" class="btn btn-sm btn-link text-danger btn-del-reg">×</button></td>';
+      html +=
+        '<td class="sgi-proc-no-print text-center"><button type="button" class="btn btn-sm btn-link text-danger btn-del-reg">×</button></td>';
     }
     tr.innerHTML = html;
     tbody.appendChild(tr);
@@ -164,11 +175,32 @@
       el.innerHTML = secs[k] || "";
     });
 
-    (initial.control_cambios || []).forEach((r) => addCambioRow(r));
-    if (!(initial.control_cambios || []).length) addCambioRow({ revision_ref: "00", descripcion: "Emisión inicial.", fecha_aprobacion: "" });
+    renderControlCambios(initial.control_cambios || []);
 
     (initial.registros || []).forEach((r) => addRegistroRow(r));
     (initial.anexos || []).forEach((a, i) => addAnexoCard(a, i));
+
+    qsa("[data-seccion-body]").forEach((el) => {
+      if (!soloLectura) {
+        el.addEventListener("input", scheduleAutoSaveHint);
+        el.addEventListener("blur", scheduleAutoSaveHint);
+      }
+    });
+  }
+
+  let saveHintTimer = null;
+  function scheduleAutoSaveHint() {
+    if (soloLectura) return;
+    const hint = qs("#procCcHint");
+    if (hint) {
+      hint.textContent =
+        "Hay cambios sin guardar. Al guardar el borrador se actualizará automáticamente la descripción de la revisión vigente.";
+      hint.classList.add("text-warning");
+    }
+    clearTimeout(saveHintTimer);
+    saveHintTimer = setTimeout(() => {
+      if (hint) hint.classList.remove("text-warning");
+    }, 8000);
   }
 
   async function postJson(url, body) {
@@ -189,12 +221,19 @@
     const res = await postJson(cfg.urls.guardar, data);
     if (res.ok) {
       flashMsg("success", res.message || "Guardado.");
+      if (res.control_cambios) renderControlCambios(res.control_cambios);
       const el = qs("#procTituloDisplay");
       if (el) {
         if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = data.titulo;
         else el.textContent = data.titulo;
       }
       if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = data.titulo;
+      const hint = qs("#procCcHint");
+      if (hint) {
+        hint.textContent =
+          "Las filas se generan automáticamente al guardar, según las revisiones del documento y los cambios detectados en el contenido.";
+        hint.classList.remove("text-warning");
+      }
     } else {
       flashMsg("danger", res.message || "Error al guardar.");
     }
@@ -239,12 +278,12 @@
         else el.textContent = t;
       }
       if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = t;
+      scheduleAutoSaveHint();
     });
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
     qs("#btnEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
     qs("#btnAprobar")?.addEventListener("click", () => workflow("aprobar"));
     qs("#btnNuevaRevision")?.addEventListener("click", () => workflow("nueva_revision"));
-    qs("#btnAddCambio")?.addEventListener("click", () => addCambioRow({}));
     qs("#btnAddRegistro")?.addEventListener("click", () => addRegistroRow({}));
     qs("#btnAddAnexo")?.addEventListener("click", () => {
       const n = qsa(".sgi-proc-anexo-card").length;
@@ -255,6 +294,9 @@
     });
     qs("#btnExportWord")?.addEventListener("click", () => {
       window.location.href = cfg.urls.exportWord;
+    });
+    qsa("#procRegistrosBody input, .sgi-proc-anexo-card input").forEach((el) => {
+      el.addEventListener("input", scheduleAutoSaveHint);
     });
   }
 

@@ -58,12 +58,132 @@ def _parse_revision_num(label: str) -> int:
     return 0
 
 
+def _normalize_html(text: str) -> str:
+    t = re.sub(r"<[^>]+>", " ", text or "")
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _seccion_label_corta(key: str, label: str) -> str:
+    if ".-" in label:
+        return label.split(".-", 1)[-1].strip()
+    return label
+
+
+def _diff_descripcion_cambios(
+    prev_payload: dict[str, Any] | None,
+    curr_payload: dict[str, Any],
+    *,
+    revision_label: str,
+) -> str:
+    if prev_payload is None:
+        return "Emisión inicial del documento."
+
+    cambios: list[str] = []
+    if (prev_payload.get("titulo") or "").strip() != (curr_payload.get("titulo") or "").strip():
+        cambios.append("título del documento")
+
+    prev_secs = prev_payload.get("secciones") or {}
+    curr_secs = curr_payload.get("secciones") or {}
+    for key, label in PROCEDIMIENTO_SECCIONES:
+        if key in ("control_registros", "anexos"):
+            continue
+        if _normalize_html(prev_secs.get(key, "")) != _normalize_html(curr_secs.get(key, "")):
+            cambios.append(_seccion_label_corta(key, label))
+
+    prev_reg = json.dumps(prev_payload.get("registros") or [], ensure_ascii=False, sort_keys=True)
+    curr_reg = json.dumps(curr_payload.get("registros") or [], ensure_ascii=False, sort_keys=True)
+    if prev_reg != curr_reg:
+        cambios.append("control de registros")
+
+    prev_anx = json.dumps(prev_payload.get("anexos") or [], ensure_ascii=False, sort_keys=True)
+    curr_anx = json.dumps(curr_payload.get("anexos") or [], ensure_ascii=False, sort_keys=True)
+    if prev_anx != curr_anx:
+        cambios.append("anexos")
+
+    if not cambios:
+        return f"{revision_label}: revisión sin cambios detectados en el contenido."
+
+    if len(cambios) == 1:
+        return f"{revision_label}: actualización en {cambios[0]}."
+    return f"{revision_label}: actualización en {', '.join(cambios[:-1])} y {cambios[-1]}."
+
+
+def _payload_para_diff(rev: SgiProcedimientoRevision, doc: SgiDocumento, contenido: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "titulo": (contenido.get("titulo") or doc.titulo or "").strip(),
+        "secciones": contenido.get("secciones") or {},
+        "registros": contenido.get("registros") or [],
+        "anexos": contenido.get("anexos") or [],
+    }
+
+
+def _contenido_from_revision(rev: SgiProcedimientoRevision, doc: SgiDocumento) -> dict[str, Any]:
+    try:
+        data = json.loads(rev.contenido_json or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    return _payload_para_diff(rev, doc, data)
+
+
+def build_control_cambios_automatico(
+    doc: SgiDocumento,
+    rev_actual: SgiProcedimientoRevision,
+    curr_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Arma el cuadro de control de cambios desde el historial de revisiones y el diff de contenido."""
+    revs = list(
+        db.session.scalars(
+            select(SgiProcedimientoRevision)
+            .where(SgiProcedimientoRevision.documento_id == doc.id)
+            .order_by(SgiProcedimientoRevision.numero_revision.asc())
+        ).all()
+    )
+    rows: list[dict[str, Any]] = []
+    prev_snapshot: dict[str, Any] | None = None
+
+    for rev in revs:
+        ref = f"{rev.numero_revision:02d}"
+        if rev.id == rev_actual.id:
+            snap = _payload_para_diff(rev, doc, curr_payload)
+        else:
+            snap = _contenido_from_revision(rev, doc)
+
+        descripcion = _diff_descripcion_cambios(
+            prev_snapshot,
+            snap,
+            revision_label=rev.revision_label,
+        )
+
+        fecha_aprobacion = ""
+        if rev.fecha_aprobacion:
+            fecha_aprobacion = rev.fecha_aprobacion.isoformat()
+        elif rev.id == rev_actual.id:
+            fa = curr_payload.get("fecha_aprobacion")
+            if fa:
+                fecha_aprobacion = str(fa)[:10]
+
+        rows.append(
+            {
+                "revision_ref": ref,
+                "descripcion": descripcion[:4000],
+                "fecha_aprobacion": fecha_aprobacion,
+                "readonly": rev.id != rev_actual.id,
+                "auto_generado": True,
+            }
+        )
+        prev_snapshot = snap
+
+    return rows
+
+
 def default_contenido(titulo: str = "") -> dict[str, Any]:
     secciones = {key: "" for key, _ in PROCEDIMIENTO_SECCIONES}
     return {
         "titulo": titulo,
         "secciones": secciones,
-        "control_cambios": [{"revision_ref": "00", "descripcion": "Emisión inicial del documento.", "fecha_aprobacion": ""}],
+        "control_cambios": [],
         "registros": [],
         "anexos": [],
     }
@@ -239,14 +359,17 @@ def revision_to_payload(rev: SgiProcedimientoRevision) -> dict[str, Any]:
 
     base.setdefault("titulo", rev.documento.titulo if rev.documento else "")
     base.setdefault("secciones", {k: "" for k, _ in PROCEDIMIENTO_SECCIONES})
-    base["control_cambios"] = [
-        {
-            "revision_ref": c.revision_ref,
-            "descripcion": c.descripcion,
-            "fecha_aprobacion": c.fecha_aprobacion.isoformat() if c.fecha_aprobacion else "",
-        }
-        for c in rev.control_cambios.all()
-    ] or base.get("control_cambios") or []
+    snap = {
+        "titulo": base.get("titulo") or (rev.documento.titulo if rev.documento else ""),
+        "secciones": base.get("secciones") or {},
+        "registros": base.get("registros") or [],
+        "anexos": base.get("anexos") or [],
+        "fecha_aprobacion": base.get("fecha_aprobacion") or "",
+    }
+    if rev.documento:
+        base["control_cambios"] = build_control_cambios_automatico(rev.documento, rev, snap)
+    else:
+        base["control_cambios"] = base.get("control_cambios") or []
     base["registros"] = [
         {
             "nombre": r.nombre,
@@ -310,6 +433,8 @@ def create_procedimiento_visual(
     )
     db.session.add(rev)
     db.session.flush()
+    contenido["control_cambios"] = build_control_cambios_automatico(doc, rev, contenido)
+    rev.contenido_json = json.dumps(contenido, ensure_ascii=False)
     _sync_child_rows(rev, contenido)
 
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_ALTA, f"Procedimiento visual {codigo}")
@@ -326,26 +451,27 @@ def save_revision_content(
     actor_label: str,
     *,
     actor: User | None = None,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, list[dict[str, Any]]]:
     rev = get_revision(rev_id)
     if rev is None:
-        return False, "Revisión no encontrada."
+        return False, "Revisión no encontrada.", []
     if rev.estado not in (ESTADO_BORRADOR, ESTADO_EN_REVISION):
-        return False, "Solo se puede editar un borrador o documento en revisión."
+        return False, "Solo se puede editar un borrador o documento en revisión.", []
 
     doc = rev.documento
     titulo = (payload.get("titulo") or doc.titulo or "").strip()
     if len(titulo) < 2:
-        return False, "El título debe tener al menos 2 caracteres."
+        return False, "El título debe tener al menos 2 caracteres.", []
 
     secciones = payload.get("secciones") or {}
     contenido = {
         "titulo": titulo,
         "secciones": {k: (secciones.get(k) or "") for k, _ in PROCEDIMIENTO_SECCIONES},
-        "control_cambios": payload.get("control_cambios") or [],
         "registros": payload.get("registros") or [],
         "anexos": payload.get("anexos") or [],
+        "fecha_aprobacion": payload.get("fecha_aprobacion"),
     }
+    contenido["control_cambios"] = build_control_cambios_automatico(doc, rev, contenido)
     rev.contenido_json = json.dumps(contenido, ensure_ascii=False)
     rev.fecha_vigencia = doc_svc.parse_iso_date(payload.get("fecha_vigencia"))
     rev.elaboro = (payload.get("elaboro") or "")[:256]
@@ -369,7 +495,7 @@ def save_revision_content(
     _sync_child_rows(rev, contenido)
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Guardado {rev.revision_label}")
     db.session.commit()
-    return True, "Borrador guardado."
+    return True, "Borrador guardado.", contenido.get("control_cambios") or []
 
 
 def _log_aprobacion(rev: SgiProcedimientoRevision, accion: str, user_id: int, label: str, detalle: str) -> None:
@@ -428,6 +554,18 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
     doc.updated_by_id = user_id
 
     _log_aprobacion(rev, ACCION_APROBAR, user_id, actor_label, "Documento aprobado")
+
+    try:
+        data = json.loads(rev.contenido_json or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data["fecha_aprobacion"] = rev.fecha_aprobacion.isoformat() if rev.fecha_aprobacion else ""
+    data["control_cambios"] = build_control_cambios_automatico(doc, rev, data)
+    rev.contenido_json = json.dumps(data, ensure_ascii=False)
+    _sync_child_rows(rev, data)
+
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, f"Aprobado {rev.revision_label}")
     db.session.commit()
     return True, "Documento aprobado."
@@ -445,9 +583,6 @@ def crear_nueva_revision(doc_id: int, user_id: int, actor_label: str) -> tuple[S
     label = _revision_label(num)
 
     base_payload = revision_to_payload(ultima) if ultima else default_contenido(doc.titulo)
-    base_payload["control_cambios"].append(
-        {"revision_ref": f"{num:02d}", "descripcion": "", "fecha_aprobacion": ""}
-    )
 
     rev = SgiProcedimientoRevision(
         documento_id=doc.id,
@@ -462,6 +597,8 @@ def crear_nueva_revision(doc_id: int, user_id: int, actor_label: str) -> tuple[S
     )
     db.session.add(rev)
     db.session.flush()
+    base_payload["control_cambios"] = build_control_cambios_automatico(doc, rev, base_payload)
+    rev.contenido_json = json.dumps(base_payload, ensure_ascii=False)
     _sync_child_rows(rev, base_payload)
 
     doc.estado = ESTADO_BORRADOR
