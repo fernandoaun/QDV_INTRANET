@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.codigo }} · {{ doc.titulo }}{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="app-page-head sgi-proc-no-print">
+  <h1 class="app-page-title h5">{{ doc.codigo }}</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Listado</a>
+    {% if puede_editar %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Abrir en editor</a>
+    {% endif %}
+    <a class="btn btn-outline-danger btn-sm" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='pdf') }}" target="_blank">PDF</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='word') }}">Word</a>
+  </div>
+</div>
+<div class="sgi-proc-workspace">
+  {% set solo_lectura = true %}
+  {% set payload = payload %}
+  {% include "sgi/_procedure_document_static.html" %}
+</div>
+{% endblock %}

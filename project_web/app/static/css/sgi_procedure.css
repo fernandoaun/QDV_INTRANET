@@ -1,0 +1,209 @@
+/* Generador visual de procedimientos SGI — hoja tipo Word */
+.sgi-proc-workspace {
+  background: #e8eaed;
+  min-height: calc(100vh - 120px);
+  padding: 1.5rem 1rem 3rem;
+}
+
+.sgi-proc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #dee2e6);
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.sgi-proc-scroll {
+  overflow-y: auto;
+  max-height: none;
+}
+
+.sgi-proc-sheet {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.45;
+  color: #000;
+  background: #fff;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 0 auto 2rem;
+  padding: 18mm 20mm 22mm;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+}
+
+.sgi-proc-sheet h1,
+.sgi-proc-sheet h2,
+.sgi-proc-sheet h3 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  color: #000;
+}
+
+.sgi-proc-logo {
+  max-width: 220px;
+  height: auto;
+  display: block;
+  margin: 0 auto 1rem;
+}
+
+.sgi-proc-caratula-titulo {
+  text-align: center;
+  font-size: 14pt;
+  font-weight: 700;
+  margin: 1rem 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.sgi-proc-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 1rem;
+  margin: 1rem 0;
+  font-size: 10pt;
+}
+
+.sgi-proc-meta-grid dt {
+  font-weight: 700;
+  margin: 0;
+}
+
+.sgi-proc-meta-grid dd {
+  margin: 0;
+}
+
+.sgi-proc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.25rem;
+  font-size: 10pt;
+}
+
+.sgi-proc-table th,
+.sgi-proc-table td {
+  border: 1px solid #333;
+  padding: 6px 8px;
+  vertical-align: top;
+}
+
+.sgi-proc-table th {
+  background: #f0f0f0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-proc-table input,
+.sgi-proc-table textarea {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 2px;
+  resize: vertical;
+  min-height: 1.4em;
+}
+
+.sgi-proc-table input:focus,
+.sgi-proc-table textarea:focus {
+  outline: 2px solid #2980b9;
+  background: #f8fbff;
+}
+
+.sgi-proc-header-repeat {
+  border-bottom: 2px solid #333;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 9pt;
+}
+
+.sgi-proc-header-repeat img {
+  max-height: 36px;
+  width: auto;
+}
+
+.sgi-proc-seccion {
+  margin-top: 1.25rem;
+  page-break-inside: avoid;
+}
+
+.sgi-proc-seccion-titulo {
+  font-size: 11pt;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid #666;
+  padding-bottom: 2px;
+}
+
+.sgi-proc-seccion-cuerpo {
+  min-height: 3em;
+  padding: 4px 2px;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+}
+
+.sgi-proc-seccion-cuerpo:focus {
+  outline: none;
+  border-color: #2980b9;
+  background: #fafcff;
+}
+
+.sgi-proc-seccion-cuerpo[contenteditable="false"] {
+  cursor: default;
+}
+
+.sgi-proc-page-break {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #ccc;
+}
+
+.sgi-proc-anexo-card {
+  border: 1px solid #ccc;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: #fafafa;
+}
+
+.sgi-proc-status-badge {
+  font-size: 0.75rem;
+}
+
+.table-app tbody tr.sgi-row-revision td {
+  box-shadow: inset 3px 0 0 0 #fd7e14;
+  background: rgba(253, 126, 20, 0.08);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .sgi-proc-sheet,
+  .sgi-proc-sheet * {
+    visibility: visible;
+  }
+  .sgi-proc-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    box-shadow: none;
+    margin: 0;
+    padding: 15mm;
+  }
+  .sgi-proc-toolbar,
+  .app-sidebar,
+  .app-topbar,
+  .sgi-proc-no-print {
+    display: none !important;
+  }
+}

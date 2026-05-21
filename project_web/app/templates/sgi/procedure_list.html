@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ tipo_label }} · Procedimientos · SGI{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">{{ tipo_label }}</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.procedimiento_nuevo', slug=slug) }}">
+      <i class="bi bi-file-earmark-plus me-1"></i>Nuevo procedimiento
+    </a>
+    {% endif %}
+    {% if puede_obsoletos %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_obsoletos', slug=slug) }}">Documentos obsoletos</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGI</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Buscar</label>
+        <input type="text" class="form-control" name="q" value="{{ filtros.q or '' }}" placeholder="Código o título…">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Vigentes y en curso</option>
+          {% for k, lab in estados_labels.items() if k != 'obsoleto' %}
+          <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lab }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary mt-4">Filtrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Título</th>
+          <th>Revisión vigente</th>
+          <th>Estado</th>
+          <th>F. aprobación</th>
+          <th>Elaboró</th>
+          <th>Revisó</th>
+          <th>Aprobó</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+      <tr class="{{ estado_visual_row(r) }}">
+        <td><strong>{{ r.codigo }}</strong></td>
+        <td>{{ r.titulo }}</td>
+        <td>{{ r.revision or '—' }}</td>
+        <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
+        <td>{{ r.fecha_aprobacion.strftime('%d/%m/%Y') if r.fecha_aprobacion else '—' }}</td>
+        <td>{{ r.responsable_elaboracion or '—' }}</td>
+        <td>{{ r.responsable_revision or '—' }}</td>
+        <td>{{ r.responsable_aprobacion or '—' }}</td>
+        <td class="text-end text-nowrap">
+          {% if r.estado in ('aprobado', 'vigente') or puede_editar %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=r.id) }}">Ver</a>
+          {% endif %}
+          {% if puede_editar %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('sgi.procedimiento_editor', slug=slug, doc_id=r.id) }}">Editar</a>
+          <a class="btn btn-sm btn-outline-info" href="{{ url_for('sgi.procedimiento_historial', slug=slug, doc_id=r.id) }}" title="Historial / nueva revisión">Rev.</a>
+          {% endif %}
+          {% if row_meta.get(r.id, {}).get('rev_id') %}
+          <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='pdf') }}" target="_blank" rel="noopener" title="Exportar PDF">PDF</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='word') }}" title="Exportar Word">Word</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="text-center text-muted py-4">No hay procedimientos.{% if puede_editar %} Use «Nuevo procedimiento» para comenzar.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mt-2">Los procedimientos en borrador o en revisión solo son visibles para usuarios con permiso de edición SGI.</p>
+{% endblock %}

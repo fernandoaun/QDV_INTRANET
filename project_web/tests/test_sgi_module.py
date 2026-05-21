@@ -195,3 +195,19 @@ def test_sgi_perm_user_cannot_delete(sgi_perm_client):
         follow_redirects=False,
     )
     assert r.status_code in (302, 303)
+
+
+def test_sgi_visual_procedure_create(auth_client):
+    r = auth_client.get("/sgi/pg/procedimientos/nuevo", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    loc = r.headers.get("Location", "")
+    assert "/sgi/pg/procedimientos/" in loc and "/editor" in loc
+
+    r_list = auth_client.get("/sgi/pg/procedimientos/")
+    assert r_list.status_code == 200
+    assert b"QDV-PG-" in r_list.data
+
+
+def test_sgi_visual_procedure_angel_cannot_create(angel_client):
+    r = angel_client.get("/sgi/pg/procedimientos/nuevo", follow_redirects=False)
+    assert r.status_code in (302, 303)

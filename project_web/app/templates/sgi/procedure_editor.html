@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.codigo }} · Editor · {{ tipo_label }}{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+{% block content %}
+<div class="app-page-head sgi-proc-no-print">
+  <div>
+    <h1 class="app-page-title h5 mb-1">Editor de procedimiento</h1>
+    <div class="text-muted small">
+      <strong>{{ doc.codigo }}</strong> · {{ estados_labels.get(rev.estado, rev.estado) }}
+      <span class="badge text-bg-secondary ms-1">{{ rev.revision_label }}</span>
+    </div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Listado</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.procedimiento_historial', slug=slug, doc_id=doc.id) }}">Historial</a>
+    {% if rev.estado in ('aprobado', 'vigente') %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Vista lectura</a>
+    {% endif %}
+  </div>
+</div>
+
+<div id="sgiProcFlash" class="alert d-none sgi-proc-no-print" role="status"></div>
+
+{% if not solo_lectura %}
+<div class="sgi-proc-toolbar sgi-proc-no-print d-flex flex-wrap align-items-center gap-2">
+  <div class="flex-grow-1" style="min-width:200px">
+    <label class="form-label small mb-0 fw-semibold">Título del procedimiento</label>
+    <input type="text" class="form-control form-control-sm" id="procTituloInput" value="{{ doc.titulo }}">
+  </div>
+  <div class="d-flex flex-wrap gap-1 align-items-end">
+    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBorrador"><i class="bi bi-save me-1"></i>Guardar borrador</button>
+    {% if rev.estado == 'borrador' %}
+    <button type="button" class="btn btn-warning btn-sm" id="btnEnviarRevision"><i class="bi bi-send me-1"></i>Enviar a revisión</button>
+    {% endif %}
+    {% if rev.estado == 'en_revision' %}
+    <button type="button" class="btn btn-success btn-sm" id="btnAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
+    {% endif %}
+    {% if rev.estado in ('aprobado', 'vigente') and puede_editar %}
+    <button type="button" class="btn btn-outline-primary btn-sm" id="btnNuevaRevision"><i class="bi bi-files me-1"></i>Crear nueva revisión</button>
+    {% endif %}
+    <button type="button" class="btn btn-outline-danger btn-sm" id="btnExportPdf"><i class="bi bi-file-pdf me-1"></i>Exportar PDF</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnExportWord"><i class="bi bi-file-word me-1"></i>Exportar Word</button>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info sgi-proc-no-print py-2">Modo solo lectura. Solo se muestra el contenido sin edición.</div>
+{% endif %}
+
+<div class="sgi-proc-workspace">
+  <div class="sgi-proc-scroll">
+    {% include "sgi/_procedure_document.html" %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SGI_PROC_CONFIG = {
+    payload: {{ payload_json|safe }},
+    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    codigo: {{ doc.codigo|tojson }},
+    csrf: {{ csrf_token()|tojson }},
+    urls: {
+      guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      editorBase: {{ (url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id) + '/')|tojson }},
+      exportPdf: {{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='pdf')|tojson }},
+      exportWord: {{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='word')|tojson }},
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/sgi_procedure.js') }}"></script>
+{% endblock %}

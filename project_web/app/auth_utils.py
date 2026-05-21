@@ -121,6 +121,15 @@ def user_can_delete_sgi_documentos(user: User | None) -> bool:
     return user is not None and bool(user.is_admin)
 
 
+def user_can_view_sgi_obsoletos(user: User | None) -> bool:
+    """Documentos obsoletos: administrador o perfiles SGI / Angel (solo lectura total)."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    return normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None)))
+
+
 def user_can_access_planificacion(user: User | None) -> bool:
     if user is None:
         return False

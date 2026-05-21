@@ -423,9 +423,13 @@ def attachment_absolute_path(rel: str | None) -> Path | None:
 def estado_visual_row(doc: SgiDocumento) -> str:
     if doc.estado == ESTADO_BORRADOR:
         return "sgi-row-borrador"
+    if doc.estado == "en_revision":
+        return "sgi-row-revision"
     if doc.estado == "obsoleto":
         return "sgi-row-obsoleto"
-    return "sgi-row-vigente"
+    if doc.estado in ("aprobado", ESTADO_VIGENTE):
+        return "sgi-row-vigente"
+    return "sgi-row-borrador"
 
 
 def build_export_xlsx(rows: list[SgiDocumento], *, tipo_label: str = "SGI") -> BytesIO:

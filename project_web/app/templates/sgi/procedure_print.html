@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{{ doc.codigo }} · {{ rev.revision_label }}</title>
+  <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+  <style>
+    body { margin: 0; background: #fff; }
+    @page { size: A4; margin: 15mm; }
+  </style>
+</head>
+<body>
+  {% include "sgi/_procedure_document_static.html" %}
+  {% if para_export %}
+  <script>window.onload = function () { window.print(); };</script>
+  {% endif %}
+</body>
+</html>

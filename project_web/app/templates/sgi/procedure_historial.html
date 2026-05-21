@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Historial · {{ doc.codigo }}{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title h5">Historial de revisiones — {{ doc.codigo }}</h1>
+  <div class="app-page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Listado</a>
+    {% if puede_editar and revisiones %}
+    <button type="button" class="btn btn-primary btn-sm" id="btnCrearRev">Crear nueva revisión</button>
+    {% endif %}
+  </div>
+</div>
+<div class="app-card">
+  <div class="app-card-body table-responsive">
+    <table class="table table-app mb-0">
+      <thead>
+        <tr>
+          <th>Revisión</th>
+          <th>Estado</th>
+          <th>Elaboró</th>
+          <th>Revisó</th>
+          <th>Aprobó</th>
+          <th>F. aprobación</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rev in revisiones %}
+        <tr>
+          <td><strong>{{ rev.revision_label }}</strong></td>
+          <td>{{ estados_labels.get(rev.estado, rev.estado) }}</td>
+          <td>{{ rev.elaboro or '—' }}</td>
+          <td>{{ rev.reviso or '—' }}</td>
+          <td>{{ rev.aprobo or '—' }}</td>
+          <td>{{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Abrir</a>
+            <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='pdf') }}" target="_blank">PDF</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted text-center">Sin revisiones.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if puede_editar and revisiones %}
+<script>
+(function () {
+  const btn = document.getElementById('btnCrearRev');
+  if (!btn) return;
+  btn.addEventListener('click', async function () {
+    const res = await fetch({{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=revisiones[0].id)|tojson }}, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': {{ csrf_token()|tojson }}
+      },
+      body: JSON.stringify({ accion: 'nueva_revision' })
+    });
+    const data = await res.json();
+    if (data.ok && data.rev_id) {
+      window.location.href = {{ (url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id) + '/')|tojson }} + data.rev_id;
+    } else {
+      alert(data.message || 'No se pudo crear la revisión.');
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

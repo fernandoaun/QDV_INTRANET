@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Obsoletos · {{ tipo_label }}{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Documentos obsoletos — {{ tipo_label }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Procedimientos vigentes</a>
+</div>
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app mb-0">
+      <thead>
+        <tr><th>Código</th><th>Título</th><th>Revisión</th><th>F. aprobación</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr class="sgi-row-obsoleto">
+          <td>{{ r.codigo }}</td>
+          <td>{{ r.titulo }}</td>
+          <td>{{ r.revision }}</td>
+          <td>{{ r.fecha_aprobacion.strftime('%d/%m/%Y') if r.fecha_aprobacion else '—' }}</td>
+          <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=r.id) }}">Ver archivo</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">No hay documentos obsoletos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
