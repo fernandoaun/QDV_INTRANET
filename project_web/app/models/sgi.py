@@ -95,7 +95,7 @@ class SgiDocumento(db.Model):
     estado = db.Column(db.String(32), nullable=False, default=ESTADO_BORRADOR, server_default=ESTADO_BORRADOR, index=True)
     observaciones = db.Column(db.String(8000), nullable=False, default="", server_default="")
     archivo_path = db.Column(db.String(512), nullable=True)
-    es_procedimiento_visual = db.Column(db.Boolean, nullable=False, default=False, server_default=db.text("0"))
+    es_procedimiento_visual = db.Column(db.Boolean, nullable=False, default=False)
     fecha_aprobacion = db.Column(db.Date, nullable=True, index=True)
 
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)

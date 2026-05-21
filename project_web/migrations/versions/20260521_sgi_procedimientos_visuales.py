@@ -26,12 +26,22 @@ def upgrade() -> None:
         if "es_procedimiento_visual" not in cols:
             op.add_column(
                 "sgi_documentos",
-                sa.Column("es_procedimiento_visual", sa.Boolean(), server_default=sa.text("0"), nullable=False),
+                sa.Column(
+                    "es_procedimiento_visual",
+                    sa.Boolean(),
+                    nullable=False,
+                    server_default=sa.false(),
+                ),
             )
         if "responsable_revision" not in cols:
             op.add_column(
                 "sgi_documentos",
-                sa.Column("responsable_revision", sa.String(length=256), server_default="", nullable=False),
+                sa.Column(
+                    "responsable_revision",
+                    sa.String(length=256),
+                    nullable=False,
+                    server_default=sa.text("''"),
+                ),
             )
         if "fecha_aprobacion" not in cols:
             op.add_column("sgi_documentos", sa.Column("fecha_aprobacion", sa.Date(), nullable=True))
