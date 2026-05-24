@@ -41,6 +41,32 @@ ACCION_APROBAR = "aprobar"
 ACCION_NUEVA_REVISION = "nueva_revision"
 
 _CODIGO_RE = re.compile(r"^QDV-(PG|PO)-(\d+)$", re.IGNORECASE)
+_STYLE_ATTR_RE = re.compile(r'\sstyle=(["\'])(.*?)\1', re.IGNORECASE | re.DOTALL)
+_FONT_FAMILY_RE = re.compile(r"font-family\s*:\s*[^;\"']+(;|$)", re.IGNORECASE)
+_FONT_SHORT_RE = re.compile(r"(?<![\w-])font\s*:\s*[^;\"']+(;|$)", re.IGNORECASE)
+_FACE_ATTR_RE = re.compile(r'\sface=(["\'])[^"\']*\1', re.IGNORECASE)
+
+
+def normalize_procedure_html(html: str) -> str:
+    """Quita tipografías incrustadas (Word, etc.) del HTML de secciones."""
+    if not html or not html.strip():
+        return html or ""
+
+    def _clean_style(match: re.Match[str]) -> str:
+        quote, style = match.group(1), match.group(2)
+        style = _FONT_FAMILY_RE.sub("", style)
+        style = _FONT_SHORT_RE.sub("", style)
+        style = re.sub(r";\s*;", ";", style).strip().strip(";")
+        if style:
+            return f" style={quote}{style}{quote}"
+        return ""
+
+    result = _STYLE_ATTR_RE.sub(_clean_style, html)
+    return _FACE_ATTR_RE.sub("", result)
+
+
+def normalize_procedure_secciones(secciones: dict[str, Any]) -> dict[str, str]:
+    return {k: normalize_procedure_html(str(secciones.get(k) or "")) for k, _ in PROCEDIMIENTO_SECCIONES}
 
 
 def _utc_now() -> datetime:
@@ -359,6 +385,7 @@ def revision_to_payload(rev: SgiProcedimientoRevision) -> dict[str, Any]:
 
     base.setdefault("titulo", rev.documento.titulo if rev.documento else "")
     base.setdefault("secciones", {k: "" for k, _ in PROCEDIMIENTO_SECCIONES})
+    base["secciones"] = normalize_procedure_secciones(base.get("secciones") or {})
     snap = {
         "titulo": base.get("titulo") or (rev.documento.titulo if rev.documento else ""),
         "secciones": base.get("secciones") or {},
@@ -463,10 +490,10 @@ def save_revision_content(
     if len(titulo) < 2:
         return False, "El título debe tener al menos 2 caracteres.", []
 
-    secciones = payload.get("secciones") or {}
+    secciones = normalize_procedure_secciones(payload.get("secciones") or {})
     contenido = {
         "titulo": titulo,
-        "secciones": {k: (secciones.get(k) or "") for k, _ in PROCEDIMIENTO_SECCIONES},
+        "secciones": secciones,
         "registros": payload.get("registros") or [],
         "anexos": payload.get("anexos") or [],
         "fecha_aprobacion": payload.get("fecha_aprobacion"),

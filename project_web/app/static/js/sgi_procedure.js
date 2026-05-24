@@ -25,10 +25,53 @@
       .replace(/"/g, "&quot;");
   }
 
+  /** Quita font-family / face del HTML para mantener Arial en todo el procedimiento. */
+  function normalizeProcedureHtml(html) {
+    const raw = String(html || "").trim();
+    if (!raw) return "";
+
+    const doc = new DOMParser().parseFromString(`<div id="sgi-proc-root">${raw}</div>`, "text/html");
+    const root = doc.getElementById("sgi-proc-root");
+    if (!root) return raw;
+
+    root.querySelectorAll("[style]").forEach((el) => {
+      el.style.removeProperty("font-family");
+      el.style.removeProperty("font");
+      if (!el.getAttribute("style")?.trim()) el.removeAttribute("style");
+    });
+    root.querySelectorAll("font[face]").forEach((el) => el.removeAttribute("face"));
+
+    return root.innerHTML.trim();
+  }
+
+  function insertHtmlAtCursor(html) {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const frag = range.createContextualFragment(html);
+    range.insertNode(frag);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function handleSectionPaste(e) {
+    e.preventDefault();
+    const html = e.clipboardData?.getData("text/html") || "";
+    const text = e.clipboardData?.getData("text/plain") || "";
+    if (html) {
+      insertHtmlAtCursor(normalizeProcedureHtml(html));
+    } else if (text) {
+      insertHtmlAtCursor(escapeHtml(text).replace(/\n/g, "<br>"));
+    }
+    scheduleAutoSaveHint();
+  }
+
   function collectPayload() {
     const secciones = {};
     qsa("[data-seccion-body]").forEach((el) => {
-      secciones[el.dataset.seccionBody] = el.innerHTML.trim();
+      secciones[el.dataset.seccionBody] = normalizeProcedureHtml(el.innerHTML);
     });
     const registros = [];
     qsa("#procRegistrosBody tr").forEach((tr) => {
@@ -172,7 +215,7 @@
     const secs = initial.secciones || {};
     qsa("[data-seccion-body]").forEach((el) => {
       const k = el.dataset.seccionBody;
-      el.innerHTML = secs[k] || "";
+      el.innerHTML = normalizeProcedureHtml(secs[k] || "");
     });
 
     renderControlCambios(initial.control_cambios || []);
@@ -184,6 +227,7 @@
       if (!soloLectura) {
         el.addEventListener("input", scheduleAutoSaveHint);
         el.addEventListener("blur", scheduleAutoSaveHint);
+        el.addEventListener("paste", handleSectionPaste);
       }
     });
   }

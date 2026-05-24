@@ -227,6 +227,13 @@
   min-height: 2.5em;
   padding: 4px 2px 8px;
   text-align: justify;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Tipografía uniforme: ignora fuentes incrustadas al pegar desde Word u otros orígenes */
+.sgi-proc-sheet .sgi-proc-seccion-cuerpo,
+.sgi-proc-sheet .sgi-proc-seccion-cuerpo * {
+  font-family: Arial, Helvetica, sans-serif !important;
 }
 
 .sgi-proc-seccion-cuerpo:focus {
