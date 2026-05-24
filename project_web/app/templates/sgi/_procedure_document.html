@@ -74,11 +74,23 @@
       <div class="sgi-proc-seccion-heading">
         <div class="sgi-proc-seccion-titulo">{{ label }}</div>
         {% if not solo_lectura|default(false) %}
-        <button type="button"
-                class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-subapartado btn-add-subapartado"
-                title="Agregar subapartado (ej. {{ loop.index }}.1)">
-          <i class="bi bi-list-nested"></i> Subapartado
-        </button>
+        <div class="sgi-proc-seccion-actions">
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-seccion btn-add-subapartado"
+                  title="Agregar subapartado (ej. {{ loop.index }}.1)">
+            <i class="bi bi-list-nested"></i> Subapartado
+          </button>
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-seccion btn-insert-table"
+                  title="Insertar tabla">
+            <i class="bi bi-table"></i> Tabla
+          </button>
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-seccion btn-insert-image"
+                  title="Insertar imagen">
+            <i class="bi bi-image"></i> Imagen
+          </button>
+        </div>
         {% endif %}
       </div>
       <div class="sgi-proc-seccion-cuerpo"

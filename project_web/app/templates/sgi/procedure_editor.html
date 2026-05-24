@@ -49,6 +49,10 @@
 <div class="alert alert-info sgi-proc-no-print py-2">Modo solo lectura. Solo se muestra el contenido sin edición.</div>
 {% endif %}
 
+{% if not solo_lectura|default(false) %}
+<input type="file" id="procImageInput" class="d-none" accept="image/*">
+{% endif %}
+
 <div class="sgi-proc-workspace">
   <div class="sgi-proc-scroll">
     {% include "sgi/_procedure_document.html" %}

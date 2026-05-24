@@ -45,10 +45,14 @@ _STYLE_ATTR_RE = re.compile(r'\sstyle=(["\'])(.*?)\1', re.IGNORECASE | re.DOTALL
 _FONT_FAMILY_RE = re.compile(r"font-family\s*:\s*[^;\"']+(;|$)", re.IGNORECASE)
 _FONT_SHORT_RE = re.compile(r"(?<![\w-])font\s*:\s*[^;\"']+(;|$)", re.IGNORECASE)
 _FACE_ATTR_RE = re.compile(r'\sface=(["\'])[^"\']*\1', re.IGNORECASE)
+_FLOAT_RE = re.compile(r"float\s*:\s*[^;\"']+(;|$)", re.IGNORECASE)
+_POSITION_RE = re.compile(r"position\s*:\s*(?:absolute|fixed)[^;\"']*(;|$)", re.IGNORECASE)
+_ALIGN_ATTR_RE = re.compile(r'\salign=(["\'])[^"\']*\1', re.IGNORECASE)
+_TABLE_DIM_ATTR_RE = re.compile(r'\s(?:width|height)=(["\'])[^"\']*\1', re.IGNORECASE)
 
 
 def normalize_procedure_html(html: str) -> str:
-    """Quita tipografías incrustadas (Word, etc.) del HTML de secciones."""
+    """Quita tipografías y estilos de layout problemáticos del HTML de secciones."""
     if not html or not html.strip():
         return html or ""
 
@@ -56,13 +60,35 @@ def normalize_procedure_html(html: str) -> str:
         quote, style = match.group(1), match.group(2)
         style = _FONT_FAMILY_RE.sub("", style)
         style = _FONT_SHORT_RE.sub("", style)
+        style = _FLOAT_RE.sub("", style)
+        style = _POSITION_RE.sub("", style)
         style = re.sub(r";\s*;", ";", style).strip().strip(";")
         if style:
             return f" style={quote}{style}{quote}"
         return ""
 
     result = _STYLE_ATTR_RE.sub(_clean_style, html)
-    return _FACE_ATTR_RE.sub("", result)
+    result = _FACE_ATTR_RE.sub("", result)
+    result = _ALIGN_ATTR_RE.sub("", result)
+
+    def _normalize_table(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        if "sgi-proc-content-table" not in tag:
+            tag = tag.replace("<table", '<table class="sgi-proc-content-table"', 1)
+        tag = _TABLE_DIM_ATTR_RE.sub("", tag)
+        return tag
+
+    result = re.sub(r"<table\b[^>]*>", _normalize_table, result, flags=re.IGNORECASE)
+
+    def _normalize_img(match: re.Match[str]) -> str:
+        tag = match.group(0)
+        if "sgi-proc-content-img" not in tag:
+            tag = tag.replace("<img", '<img class="sgi-proc-content-img"', 1)
+        tag = _TABLE_DIM_ATTR_RE.sub("", tag)
+        return tag
+
+    result = re.sub(r"<img\b[^>]*>", _normalize_img, result, flags=re.IGNORECASE)
+    return result
 
 
 def normalize_procedure_secciones(secciones: dict[str, Any]) -> dict[str, str]:

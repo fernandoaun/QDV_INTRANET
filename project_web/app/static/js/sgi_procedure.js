@@ -87,7 +87,7 @@
       .replace(/"/g, "&quot;");
   }
 
-  /** Quita font-family / face del HTML para mantener Arial en todo el procedimiento. */
+  /** Normaliza HTML pegado o guardado: fuentes, floats y tablas/imágenes embebidas. */
   function normalizeProcedureHtml(html) {
     const raw = String(html || "").trim();
     if (!raw) return "";
@@ -96,14 +96,106 @@
     const root = doc.getElementById("sgi-proc-root");
     if (!root) return raw;
 
+    const layoutProps = [
+      "font-family",
+      "font",
+      "float",
+      "position",
+      "left",
+      "right",
+      "top",
+      "margin-left",
+      "margin-right",
+    ];
+
     root.querySelectorAll("[style]").forEach((el) => {
-      el.style.removeProperty("font-family");
-      el.style.removeProperty("font");
+      layoutProps.forEach((prop) => el.style.removeProperty(prop));
       if (!el.getAttribute("style")?.trim()) el.removeAttribute("style");
     });
     root.querySelectorAll("font[face]").forEach((el) => el.removeAttribute("face"));
+    root.querySelectorAll("table").forEach((el) => {
+      el.classList.add("sgi-proc-content-table");
+      el.removeAttribute("width");
+      el.removeAttribute("height");
+      el.removeAttribute("align");
+      el.style.width = "100%";
+      el.style.float = "none";
+    });
+    root.querySelectorAll("img").forEach((el) => {
+      el.classList.add("sgi-proc-content-img");
+      el.removeAttribute("width");
+      el.removeAttribute("height");
+      el.removeAttribute("align");
+      el.style.maxWidth = "100%";
+      el.style.height = "auto";
+      el.style.float = "none";
+    });
 
     return root.innerHTML.trim();
+  }
+
+  function buildContentTable(cols, rows) {
+    const c = Math.max(1, cols);
+    const r = Math.max(1, rows);
+    let html = '<table class="sgi-proc-content-table"><tbody>';
+    for (let row = 0; row < r; row += 1) {
+      html += "<tr>";
+      for (let col = 0; col < c; col += 1) {
+        html += row === 0 ? "<th>&nbsp;</th>" : "<td>&nbsp;</td>";
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    return html;
+  }
+
+  function insertContentIntoSection(bodyEl, html) {
+    bodyEl.focus();
+    const sel = window.getSelection();
+    if (sel?.rangeCount && bodyEl.contains(sel.anchorNode)) {
+      insertHtmlAtCursor(html);
+    } else {
+      bodyEl.insertAdjacentHTML("beforeend", html);
+    }
+    bodyEl.innerHTML = normalizeProcedureHtml(bodyEl.innerHTML);
+    scheduleAutoSaveHint();
+  }
+
+  function insertContentTable(bodyEl) {
+    const cols = parseInt(window.prompt("Cantidad de columnas", "4") || "4", 10);
+    const rows = parseInt(window.prompt("Cantidad de filas (incluye encabezado)", "4") || "4", 10);
+    if (!Number.isFinite(cols) || !Number.isFinite(rows) || cols < 1 || rows < 1) return;
+    insertContentIntoSection(bodyEl, buildContentTable(cols, rows));
+  }
+
+  let imageTargetBody = null;
+
+  function insertContentImage(bodyEl) {
+    imageTargetBody = bodyEl;
+    const input = qs("#procImageInput");
+    if (!input) return;
+    input.value = "";
+    input.click();
+  }
+
+  function handleImageSelected(e) {
+    const file = e.target.files?.[0];
+    const bodyEl = imageTargetBody;
+    imageTargetBody = null;
+    if (!file || !bodyEl) return;
+    if (!file.type.startsWith("image/")) {
+      flashMsg("danger", "Seleccioná un archivo de imagen.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = reader.result;
+      insertContentIntoSection(
+        bodyEl,
+        `<img class="sgi-proc-content-img" src="${src}" alt="Imagen">`
+      );
+    };
+    reader.readAsDataURL(file);
   }
 
   function insertHtmlAtCursor(html) {
@@ -119,6 +211,26 @@
   }
 
   function handleSectionPaste(e) {
+    const items = e.clipboardData?.items;
+    if (items) {
+      for (const item of items) {
+        if (item.type?.startsWith("image/")) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (!blob) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            insertHtmlAtCursor(
+              `<img class="sgi-proc-content-img" src="${reader.result}" alt="Imagen">`
+            );
+            scheduleAutoSaveHint();
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    }
+
     e.preventDefault();
     const html = e.clipboardData?.getData("text/html") || "";
     const text = e.clipboardData?.getData("text/plain") || "";
@@ -304,6 +416,22 @@
         if (body) insertSubapartado(body);
       });
     });
+
+    qsa(".btn-insert-table").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const body = btn.closest("[data-seccion]")?.querySelector("[data-seccion-body]");
+        if (body) insertContentTable(body);
+      });
+    });
+
+    qsa(".btn-insert-image").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const body = btn.closest("[data-seccion]")?.querySelector("[data-seccion-body]");
+        if (body) insertContentImage(body);
+      });
+    });
+
+    qs("#procImageInput")?.addEventListener("change", handleImageSelected);
   }
 
   let saveHintTimer = null;

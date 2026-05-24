@@ -215,6 +215,12 @@
 .sgi-proc-seccion {
   margin-top: 1rem;
   page-break-inside: avoid;
+  clear: both;
+  width: 100%;
+}
+
+.sgi-proc-cuerpo {
+  clear: both;
 }
 
 .sgi-proc-seccion-titulo {
@@ -231,9 +237,23 @@
   margin-bottom: 0.25rem;
 }
 
+.sgi-proc-seccion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  align-items: center;
+}
+
 .sgi-proc-seccion-heading .sgi-proc-seccion-titulo {
   margin-bottom: 0;
   flex: 1 1 auto;
+}
+
+.sgi-proc-btn-seccion {
+  font-size: 0.72rem;
+  padding: 0.1rem 0.45rem;
+  line-height: 1.3;
+  white-space: nowrap;
 }
 
 .sgi-proc-btn-subapartado {
@@ -257,6 +277,53 @@
   padding: 4px 2px 8px;
   text-align: justify;
   font-family: Arial, Helvetica, sans-serif;
+  display: flow-root;
+  width: 100%;
+  clear: both;
+}
+
+/* Tablas e imágenes incrustadas en secciones (pegadas o insertadas) */
+.sgi-proc-seccion-cuerpo table,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table {
+  width: 100% !important;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+  font-size: 10pt;
+  float: none !important;
+  display: table !important;
+  table-layout: fixed;
+}
+
+.sgi-proc-seccion-cuerpo table th,
+.sgi-proc-seccion-cuerpo table td,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  vertical-align: middle;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.sgi-proc-seccion-cuerpo table th,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th {
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-proc-seccion-cuerpo img,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.5rem auto;
+  float: none !important;
+}
+
+.sgi-proc-seccion-cuerpo p,
+.sgi-proc-seccion-cuerpo div {
+  float: none !important;
 }
 
 /* Tipografía uniforme: ignora fuentes incrustadas al pegar desde Word u otros orígenes */
