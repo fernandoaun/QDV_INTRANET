@@ -70,8 +70,17 @@
   <section class="sgi-proc-cuerpo">
     {% for key, label in secciones %}
     {% if key != 'control_registros' and key != 'anexos' %}
-    <div class="sgi-proc-seccion" data-seccion="{{ key }}">
-      <div class="sgi-proc-seccion-titulo">{{ label }}</div>
+    <div class="sgi-proc-seccion" data-seccion="{{ key }}" data-seccion-num="{{ loop.index }}">
+      <div class="sgi-proc-seccion-heading">
+        <div class="sgi-proc-seccion-titulo">{{ label }}</div>
+        {% if not solo_lectura|default(false) %}
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-subapartado btn-add-subapartado"
+                title="Agregar subapartado (ej. {{ loop.index }}.1)">
+          <i class="bi bi-list-nested"></i> Subapartado
+        </button>
+        {% endif %}
+      </div>
       <div class="sgi-proc-seccion-cuerpo"
            data-seccion-body="{{ key }}"
            contenteditable="{{ 'false' if solo_lectura|default(false) else 'true' }}"

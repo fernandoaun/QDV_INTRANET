@@ -17,6 +17,68 @@
     return Array.from(document.querySelectorAll(sel));
   }
 
+  const SECCION_NUMERO = {
+    objeto: 1,
+    alcance: 2,
+    definiciones: 3,
+    responsabilidades: 4,
+    desarrollo: 5,
+    referencias: 6,
+  };
+
+  function getSectionNum(bodyEl) {
+    const sec = bodyEl.closest("[data-seccion]");
+    const fromData = parseInt(sec?.dataset.seccionNum || "", 10);
+    if (fromData > 0) return fromData;
+    return SECCION_NUMERO[bodyEl.dataset.seccionBody] || 0;
+  }
+
+  function countSubapartados(bodyEl) {
+    return bodyEl.querySelectorAll(".sgi-proc-subapartado").length;
+  }
+
+  function nextSubapartadoLabel(bodyEl) {
+    const secNum = getSectionNum(bodyEl);
+    return `${secNum}.${countSubapartados(bodyEl) + 1}.`;
+  }
+
+  function renumberSubapartados(bodyEl) {
+    const secNum = getSectionNum(bodyEl);
+    if (!secNum) return;
+    bodyEl.querySelectorAll(".sgi-proc-subapartado").forEach((el, i) => {
+      const numEl = el.querySelector(".sgi-proc-sub-num");
+      if (numEl) numEl.textContent = `${secNum}.${i + 1}.`;
+    });
+  }
+
+  function placeCursorAtEnd(el) {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+
+  function insertSubapartado(bodyEl) {
+    const label = nextSubapartadoLabel(bodyEl);
+    const html = `<p class="sgi-proc-subapartado"><span class="sgi-proc-sub-num">${label}</span>&nbsp;</p>`;
+    bodyEl.focus();
+    const sel = window.getSelection();
+    if (sel?.rangeCount && bodyEl.contains(sel.anchorNode)) {
+      insertHtmlAtCursor(html);
+      const subs = bodyEl.querySelectorAll(".sgi-proc-subapartado");
+      const last = subs[subs.length - 1];
+      if (last) placeCursorAtEnd(last);
+    } else {
+      bodyEl.insertAdjacentHTML("beforeend", html);
+      const subs = bodyEl.querySelectorAll(".sgi-proc-subapartado");
+      const last = subs[subs.length - 1];
+      if (last) placeCursorAtEnd(last);
+    }
+    scheduleAutoSaveHint();
+  }
+
   function escapeHtml(s) {
     return String(s || "")
       .replace(/&/g, "&amp;")
@@ -71,6 +133,7 @@
   function collectPayload() {
     const secciones = {};
     qsa("[data-seccion-body]").forEach((el) => {
+      renumberSubapartados(el);
       secciones[el.dataset.seccionBody] = normalizeProcedureHtml(el.innerHTML);
     });
     const registros = [];
@@ -216,6 +279,7 @@
     qsa("[data-seccion-body]").forEach((el) => {
       const k = el.dataset.seccionBody;
       el.innerHTML = normalizeProcedureHtml(secs[k] || "");
+      renumberSubapartados(el);
     });
 
     renderControlCambios(initial.control_cambios || []);
@@ -226,9 +290,19 @@
     qsa("[data-seccion-body]").forEach((el) => {
       if (!soloLectura) {
         el.addEventListener("input", scheduleAutoSaveHint);
-        el.addEventListener("blur", scheduleAutoSaveHint);
+        el.addEventListener("blur", () => {
+          renumberSubapartados(el);
+          scheduleAutoSaveHint();
+        });
         el.addEventListener("paste", handleSectionPaste);
       }
+    });
+
+    qsa(".btn-add-subapartado").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const body = btn.closest("[data-seccion]")?.querySelector("[data-seccion-body]");
+        if (body) insertSubapartado(body);
+      });
     });
   }
 
