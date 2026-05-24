@@ -76,7 +76,6 @@
           {% endif %}
           {% if row_meta.get(r.id, {}).get('rev_id') %}
           <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='pdf') }}" target="_blank" rel="noopener" title="Exportar PDF">PDF</a>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='word') }}" title="Exportar Word">Word</a>
           {% endif %}
         </td>
       </tr>
