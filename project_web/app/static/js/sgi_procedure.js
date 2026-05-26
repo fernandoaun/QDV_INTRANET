@@ -33,21 +33,164 @@
     return SECCION_NUMERO[bodyEl.dataset.seccionBody] || 0;
   }
 
-  function countSubapartados(bodyEl) {
-    return bodyEl.querySelectorAll(".sgi-proc-subapartado").length;
+  const MAX_SUBAPARTADO_LEVEL = 3;
+
+  /** Parsea "5.2.1." → [2, 1] (sin el número de sección). */
+  function parseSubapartadoParts(text, secNum) {
+    const cleaned = String(text || "")
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/\.+$/, "");
+    if (!cleaned) return null;
+    const nums = cleaned.split(".").map((n) => parseInt(n, 10));
+    if (nums.some((n) => !Number.isFinite(n) || n < 1)) return null;
+    if (nums[0] !== secNum) return null;
+    const parts = nums.slice(1);
+    if (!parts.length || parts.length > MAX_SUBAPARTADO_LEVEL) return null;
+    return parts;
   }
 
-  function nextSubapartadoLabel(bodyEl) {
+  function formatSubapartadoLabel(secNum, parts) {
+    return `${secNum}.${parts.join(".")}.`;
+  }
+
+  function listSubapartados(bodyEl, secNum) {
+    return Array.from(bodyEl.querySelectorAll(".sgi-proc-subapartado"))
+      .map((el) => {
+        const parts = parseSubapartadoParts(
+          el.querySelector(".sgi-proc-sub-num")?.textContent,
+          secNum
+        );
+        return parts ? { el, parts } : null;
+      })
+      .filter(Boolean);
+  }
+
+  function isDescendantOf(childParts, ancestorParts) {
+    return (
+      childParts.length > ancestorParts.length &&
+      ancestorParts.every((v, i) => childParts[i] === v)
+    );
+  }
+
+  function findAnchorSubapartado(bodyEl) {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return null;
+    let node = sel.anchorNode;
+    if (node?.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    const sub = node?.closest?.(".sgi-proc-subapartado");
+    if (!sub || !bodyEl.contains(sub)) return null;
+    return sub;
+  }
+
+  function endOfSubapartadoSubtree(bodyEl, secNum, rootEl) {
+    const all = listSubapartados(bodyEl, secNum);
+    const rootParts = parseSubapartadoParts(
+      rootEl.querySelector(".sgi-proc-sub-num")?.textContent,
+      secNum
+    );
+    if (!rootParts) return rootEl;
+    let last = rootEl;
+    const idx = all.findIndex((x) => x.el === rootEl);
+    for (let i = idx + 1; i < all.length; i += 1) {
+      if (isDescendantOf(all[i].parts, rootParts)) last = all[i].el;
+      else break;
+    }
+    return last;
+  }
+
+  /** Siguiente numeración: max existente + 1 (no rellena huecos al borrar). */
+  function nextSubapartadoParts(bodyEl) {
     const secNum = getSectionNum(bodyEl);
-    return `${secNum}.${countSubapartados(bodyEl) + 1}.`;
+    const all = listSubapartados(bodyEl, secNum);
+    const anchor = findAnchorSubapartado(bodyEl);
+
+    if (!anchor) {
+      const level1 = all.filter((x) => x.parts.length === 1).map((x) => x.parts[0]);
+      return [level1.length ? Math.max(...level1) + 1 : 1];
+    }
+
+    const anchorParts = parseSubapartadoParts(
+      anchor.querySelector(".sgi-proc-sub-num")?.textContent,
+      secNum
+    );
+    if (!anchorParts) {
+      const level1 = all.filter((x) => x.parts.length === 1).map((x) => x.parts[0]);
+      return [level1.length ? Math.max(...level1) + 1 : 1];
+    }
+
+    const level = anchorParts.length;
+    if (level < MAX_SUBAPARTADO_LEVEL) {
+      const children = all
+        .filter(
+          (x) =>
+            x.parts.length === level + 1 &&
+            anchorParts.every((v, i) => x.parts[i] === v)
+        )
+        .map((x) => x.parts[level]);
+      const next = children.length ? Math.max(...children) + 1 : 1;
+      return [...anchorParts, next];
+    }
+
+    const parent = anchorParts.slice(0, 2);
+    const siblings = all
+      .filter(
+        (x) =>
+          x.parts.length === MAX_SUBAPARTADO_LEVEL &&
+          x.parts[0] === parent[0] &&
+          x.parts[1] === parent[1]
+      )
+      .map((x) => x.parts[2]);
+    const next = siblings.length ? Math.max(...siblings) + 1 : anchorParts[2] + 1;
+    return [...parent, next];
   }
 
-  function renumberSubapartados(bodyEl) {
+  function getSubapartadoInsertRef(bodyEl, secNum, newParts, anchor) {
+    const all = listSubapartados(bodyEl, secNum);
+    const newLevel = newParts.length;
+
+    if (!anchor) {
+      const level1 = all.filter((x) => x.parts.length === 1);
+      return level1.length ? level1[level1.length - 1].el : null;
+    }
+
+    const anchorParts = parseSubapartadoParts(
+      anchor.querySelector(".sgi-proc-sub-num")?.textContent,
+      secNum
+    );
+    if (!anchorParts) return null;
+
+    if (newLevel > anchorParts.length) {
+      const children = all.filter(
+        (x) => isDescendantOf(x.parts, anchorParts) && x.parts.length === newLevel
+      );
+      return children.length ? children[children.length - 1].el : anchor;
+    }
+
+    const parent = newParts.slice(0, -1);
+    const siblings = all.filter(
+      (x) =>
+        x.parts.length === MAX_SUBAPARTADO_LEVEL &&
+        x.parts[0] === parent[0] &&
+        x.parts[1] === parent[1]
+    );
+    return siblings.length ? siblings[siblings.length - 1].el : anchor;
+  }
+
+  function buildSubapartadoHtml(label, level) {
+    return `<p class="sgi-proc-subapartado" data-sub-level="${level}"><span class="sgi-proc-sub-num">${escapeHtml(label)}</span>&nbsp;</p>`;
+  }
+
+  function syncSubapartadoLevels(bodyEl) {
     const secNum = getSectionNum(bodyEl);
     if (!secNum) return;
-    bodyEl.querySelectorAll(".sgi-proc-subapartado").forEach((el, i) => {
-      const numEl = el.querySelector(".sgi-proc-sub-num");
-      if (numEl) numEl.textContent = `${secNum}.${i + 1}.`;
+    bodyEl.querySelectorAll(".sgi-proc-subapartado").forEach((el) => {
+      const parts = parseSubapartadoParts(
+        el.querySelector(".sgi-proc-sub-num")?.textContent,
+        secNum
+      );
+      if (parts?.length) el.dataset.subLevel = String(parts.length);
+      else delete el.dataset.subLevel;
     });
   }
 
@@ -62,21 +205,25 @@
 
   function insertSubapartado(bodyEl) {
     flushUndoDebounce();
-    const label = nextSubapartadoLabel(bodyEl);
-    const html = `<p class="sgi-proc-subapartado"><span class="sgi-proc-sub-num">${label}</span>&nbsp;</p>`;
-    bodyEl.focus();
-    const sel = window.getSelection();
-    if (sel?.rangeCount && bodyEl.contains(sel.anchorNode)) {
-      insertHtmlAtCursor(html);
-      const subs = bodyEl.querySelectorAll(".sgi-proc-subapartado");
-      const last = subs[subs.length - 1];
-      if (last) placeCursorAtEnd(last);
+    const secNum = getSectionNum(bodyEl);
+    const parts = nextSubapartadoParts(bodyEl);
+    const label = formatSubapartadoLabel(secNum, parts);
+    const anchor = findAnchorSubapartado(bodyEl);
+    const ref = getSubapartadoInsertRef(bodyEl, secNum, parts, anchor);
+
+    const wrap = document.createElement("div");
+    wrap.innerHTML = buildSubapartadoHtml(label, parts.length);
+    const node = wrap.firstElementChild;
+    if (!node) return;
+
+    if (ref) {
+      endOfSubapartadoSubtree(bodyEl, secNum, ref).after(node);
     } else {
-      bodyEl.insertAdjacentHTML("beforeend", html);
-      const subs = bodyEl.querySelectorAll(".sgi-proc-subapartado");
-      const last = subs[subs.length - 1];
-      if (last) placeCursorAtEnd(last);
+      bodyEl.appendChild(node);
     }
+
+    bodyEl.focus();
+    placeCursorAtEnd(node);
     pushUndoState();
     scheduleAutoSaveHint();
   }
@@ -291,7 +438,7 @@
     qsa("[data-seccion-body]").forEach((el) => {
       const k = el.dataset.seccionBody;
       el.innerHTML = normalizeProcedureHtml(state.secciones[k] || "");
-      renumberSubapartados(el);
+      syncSubapartadoLevels(el);
     });
     const tituloInput = qs("#procTituloInput");
     if (tituloInput && state.titulo !== undefined) {
@@ -379,7 +526,7 @@
   function collectPayload() {
     const secciones = {};
     qsa("[data-seccion-body]").forEach((el) => {
-      renumberSubapartados(el);
+      syncSubapartadoLevels(el);
       secciones[el.dataset.seccionBody] = normalizeProcedureHtml(el.innerHTML);
     });
     const registros = [];
@@ -525,7 +672,7 @@
     qsa("[data-seccion-body]").forEach((el) => {
       const k = el.dataset.seccionBody;
       el.innerHTML = normalizeProcedureHtml(secs[k] || "");
-      renumberSubapartados(el);
+      syncSubapartadoLevels(el);
     });
 
     renderControlCambios(initial.control_cambios || []);
@@ -540,7 +687,7 @@
           scheduleAutoSaveHint();
         });
         el.addEventListener("blur", () => {
-          renumberSubapartados(el);
+          syncSubapartadoLevels(el);
           flushUndoDebounce();
           scheduleAutoSaveHint();
         });

@@ -272,6 +272,14 @@
   font-weight: 700;
 }
 
+.sgi-proc-subapartado[data-sub-level="2"] {
+  margin-left: 1.25rem;
+}
+
+.sgi-proc-subapartado[data-sub-level="3"] {
+  margin-left: 2.5rem;
+}
+
 .sgi-proc-seccion-cuerpo {
   min-height: 2.5em;
   padding: 4px 2px 8px;
