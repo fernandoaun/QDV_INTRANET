@@ -5,6 +5,7 @@ from datetime import timedelta
 from flask import current_app, flash, redirect, render_template, request, send_file, url_for
 
 from app.auth_utils import current_user, login_required
+from app.security_http import request_path_for_login_next
 from app.services.historicos_export_service import (
     MAX_ROWS_PER_SHEET,
     allowed_export_keys_for_user,
@@ -23,7 +24,7 @@ from . import bp
 def index():
     u = current_user()
     if u is None:
-        return redirect(url_for("auth.login", next=request.url))
+        return redirect(url_for("auth.login", next=request_path_for_login_next()))
 
     allowed = allowed_export_keys_for_user(u)
     if not allowed:

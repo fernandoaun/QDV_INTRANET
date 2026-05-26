@@ -9,7 +9,7 @@ from werkzeug.security import check_password_hash
 from app.auth_utils import current_user, set_session_for_user
 from app.extensions import limiter
 from app.repositories.user_repository import user_repo
-from app.security_http import safe_internal_redirect_target
+from app.security_http import request_path_for_login_next, safe_internal_redirect_target
 from app.services import security_audit_service as saudit
 from app.services import shift_handover_service as sh
 from app.user_roles import ROLE_LABORATORISTA, normalize_stored_rol
@@ -49,10 +49,14 @@ def _combined_login_rate_limits() -> str:
 )
 def login():
     if session.get("user_id"):
-        safe_next = safe_internal_redirect_target(request.args.get("next"))
-        if safe_next:
-            return redirect(safe_next)
-        return redirect(url_for("main.dashboard"))
+        u = current_user()
+        if u is None or not u.activo:
+            session.clear()
+        else:
+            safe_next = safe_internal_redirect_target(request.args.get("next"))
+            if safe_next:
+                return redirect(safe_next)
+            return redirect(url_for("main.dashboard"))
 
     error: str | None = None
     safe_next_display = safe_internal_redirect_target(request.args.get("next")) or ""

@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.auth_utils import current_user, login_required, user_can_access_production_hub
 from app.extensions import db
 from app.models import ShiftHandover, ShiftSession, User
+from app.security_http import request_path_for_login_next
 from app.services import shift_handover_service as sh
 
 bp = Blueprint("shift", __name__, url_prefix="/operacion/turno")
@@ -22,7 +23,7 @@ def _shift_eligible_required(view: F) -> F:
     def wrapped(*args: Any, **kwargs: Any):
         u = current_user()
         if u is None:
-            return redirect(url_for("auth.login", next=request.url))
+            return redirect(url_for("auth.login", next=request_path_for_login_next()))
         if not sh.user_participates_operational_shift(u):
             flash("Esta sección es solo para el perfil de operaciones.", "warning")
             return redirect(url_for("main.dashboard"))
@@ -36,7 +37,7 @@ def _shift_notifications_view_required(view: F) -> F:
     def wrapped(*args: Any, **kwargs: Any):
         u = current_user()
         if u is None:
-            return redirect(url_for("auth.login", next=request.url))
+            return redirect(url_for("auth.login", next=request_path_for_login_next()))
         if not sh.user_can_view_shift_handover_notifications(u):
             return "", 403
         return view(*args, **kwargs)

@@ -7,6 +7,18 @@ from typing import Any
 from urllib.parse import urlparse
 
 
+def request_path_for_login_next() -> str:
+    """Ruta relativa (sin host ni esquema) para ?next= tras login. Evita bucles http/https en Render."""
+    from flask import request
+
+    path = (request.path or "/").strip() or "/"
+    if request.query_string:
+        qs = request.query_string.decode("utf-8", errors="replace")
+        if qs:
+            path = f"{path}?{qs}"
+    return safe_internal_redirect_target(path) or path
+
+
 def safe_internal_redirect_target(next_raw: str | None) -> str | None:
     """
     Acepta solo rutas relativas del mismo sitio (/ruta…). Rechaza esquema, host, '//' y '\\\\'.

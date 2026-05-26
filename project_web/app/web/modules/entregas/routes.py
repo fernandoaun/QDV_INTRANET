@@ -19,6 +19,7 @@ from app.auth_utils import (
 )
 from app.extensions import db
 from app.models import Entrega, User
+from app.security_http import request_path_for_login_next
 from app.services import entregas_catalog_service, entregas_service, entregas_web_service as ews, stock_service
 from app.services.entregas_service import FiltroHistorialEntregas
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds, now_operacion_naive_local
@@ -520,7 +521,7 @@ def catalogos_hub():
 def catalogos_productos():
     u = current_user()
     if u is None:
-        return redirect(url_for("auth.login", next=request.url))
+        return redirect(url_for("auth.login", next=request_path_for_login_next()))
     if request.method == "POST":
         if not u.is_admin:
             flash("Solo administradores pueden modificar catálogos.", "warning")
@@ -551,7 +552,7 @@ def catalogos_productos():
 def catalogos_clientes():
     u = current_user()
     if u is None:
-        return redirect(url_for("auth.login", next=request.url))
+        return redirect(url_for("auth.login", next=request_path_for_login_next()))
     if request.method == "POST":
         if not u.is_admin:
             flash("Solo administradores pueden modificar catálogos.", "warning")
@@ -582,7 +583,7 @@ def catalogos_clientes():
 def catalogos_lugares():
     u = current_user()
     if u is None:
-        return redirect(url_for("auth.login", next=request.url))
+        return redirect(url_for("auth.login", next=request_path_for_login_next()))
     if request.method == "POST":
         if not u.is_admin:
             flash("Solo administradores pueden modificar catálogos.", "warning")
@@ -615,7 +616,7 @@ def catalogos_lugares():
 def catalogos_choferes():
     u = current_user()
     if u is None:
-        return redirect(url_for("auth.login", next=request.url))
+        return redirect(url_for("auth.login", next=request_path_for_login_next()))
     if request.method == "POST":
         if not u.is_admin:
             flash("Solo administradores pueden modificar catálogos.", "warning")

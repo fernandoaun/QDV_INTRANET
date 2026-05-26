@@ -32,6 +32,12 @@ def create_app() -> Flask:
     app.config.from_mapping(get_config_dict(base_dir))
     app.config.setdefault("PERMANENT_SESSION_LIFETIME", timedelta(days=14))
 
+    if app.config.get("USE_PROXY_FIX") and not app.config.get("TESTING"):
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        # Render / reverse proxy: respeta X-Forwarded-Proto para evitar bucles http↔https.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     if app.config.get("DEBUG"):
         sk = (app.config.get("SECRET_KEY") or "").strip()
         if sk in ("", "dev-only-change-me"):

@@ -269,10 +269,23 @@ def get_config_dict(base_dir: Path) -> dict:
             except ValueError:
                 pass
 
+    use_proxy_fix = name == "production"
+    proxy_fix_raw = (os.environ.get("USE_PROXY_FIX") or "").strip().lower()
+    if proxy_fix_raw in ("0", "false", "no"):
+        use_proxy_fix = False
+    elif proxy_fix_raw in ("1", "true", "yes"):
+        use_proxy_fix = True
+
+    preferred_scheme = (os.environ.get("PREFERRED_URL_SCHEME") or "").strip().lower()
+    if not preferred_scheme and name == "production":
+        preferred_scheme = "https"
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
         "TESTING": getattr(cfg, "TESTING", False),
+        "USE_PROXY_FIX": use_proxy_fix,
+        "PREFERRED_URL_SCHEME": preferred_scheme or "http",
         "WTF_CSRF_ENABLED": getattr(cfg, "WTF_CSRF_ENABLED", True),
         "SQLALCHEMY_DATABASE_URI": uri,
         "SQLALCHEMY_TRACK_MODIFICATIONS": cfg.SQLALCHEMY_TRACK_MODIFICATIONS,

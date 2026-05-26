@@ -7,6 +7,7 @@ from flask import flash, g, has_request_context, redirect, request, session, url
 
 from app.extensions import db
 from app.models import PermisoUsuario, User
+from app.security_http import request_path_for_login_next
 from app.constants import PERMISSION_KEYS
 from app.user_roles import (
     ROLE_LOGISTICA,
@@ -523,7 +524,9 @@ def login_required(view: F) -> F:
     def wrapped(*args: Any, **kwargs: Any):
         user = current_user()
         if user is None:
-            return redirect(url_for("auth.login", next=request.url))
+            if session.get("user_id"):
+                session.clear()
+            return redirect(url_for("auth.login", next=request_path_for_login_next()))
         if not user.activo:
             session.clear()
             return redirect(url_for("auth.login"))
@@ -537,7 +540,9 @@ def admin_required(view: F) -> F:
     def wrapped(*args: Any, **kwargs: Any):
         user = current_user()
         if user is None:
-            return redirect(url_for("auth.login", next=request.url))
+            if session.get("user_id"):
+                session.clear()
+            return redirect(url_for("auth.login", next=request_path_for_login_next()))
         if not user.activo or not user.is_admin:
             return redirect(url_for("main.dashboard"))
         return view(*args, **kwargs)
@@ -551,7 +556,9 @@ def permission_required(perm: str):
         def wrapped(*args: Any, **kwargs: Any):
             user = current_user()
             if user is None:
-                return redirect(url_for("auth.login", next=request.url))
+                if session.get("user_id"):
+                    session.clear()
+                return redirect(url_for("auth.login", next=request_path_for_login_next()))
             if not user_can(user, perm):
                 flash("No tenés permiso para acceder a esta sección.", "warning")
                 return redirect(url_for("main.dashboard"))
