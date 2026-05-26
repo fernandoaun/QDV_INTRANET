@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 from app.extensions import db
 from app.models import ShiftHandover, ShiftSession, User
 from app.services import shift_handover_service as sh
-from app.user_roles import ROLE_OPERACIONES
+from app.user_roles import ROLE_LOGISTICA, ROLE_OPERACIONES
 
 
 def test_list_shift_observation_notifications_filters_and_orders(app):
@@ -73,26 +73,36 @@ def test_list_shift_observation_notifications_filters_and_orders(app):
         assert "Tomado" in items[0]["reception_notes"]
 
 
-def test_user_can_view_shift_handover_notifications_admin_and_production(app):
+def test_user_can_view_shift_handover_notifications_all_profiles(app):
     with app.app_context():
-        admin = User(
-            username="pytest_notif_admin",
-            password_hash=generate_password_hash("x"),
-            is_admin=True,
-            activo=True,
-            rol="operaciones",
-        )
-        ops = User(
-            username="pytest_notif_ops2",
-            password_hash=generate_password_hash("x"),
-            is_admin=False,
-            activo=True,
-            rol=ROLE_OPERACIONES,
-        )
-        db.session.add_all([admin, ops])
+        users = [
+            User(
+                username="pytest_notif_admin",
+                password_hash=generate_password_hash("x"),
+                is_admin=True,
+                activo=True,
+                rol="operaciones",
+            ),
+            User(
+                username="pytest_notif_ops2",
+                password_hash=generate_password_hash("x"),
+                is_admin=False,
+                activo=True,
+                rol=ROLE_OPERACIONES,
+            ),
+            User(
+                username="pytest_notif_log",
+                password_hash=generate_password_hash("x"),
+                is_admin=False,
+                activo=True,
+                rol=ROLE_LOGISTICA,
+            ),
+        ]
+        db.session.add_all(users)
         db.session.commit()
-        assert sh.user_can_view_shift_handover_notifications(admin) is True
-        assert sh.user_can_view_shift_handover_notifications(ops) is True
+        for u in users:
+            assert sh.user_can_view_shift_handover_notifications(u) is True
+        assert sh.user_can_view_shift_handover_notifications(None) is False
 
 
 def test_mark_shift_observation_notifications_seen_updates_session(app):

@@ -369,12 +369,6 @@ def notifications_mark_seen():
 @bp.route("/historial")
 @login_required
 def historial():
-    u = current_user()
-    if u is None:
-        return redirect(url_for("auth.login"))
-    if not u.is_admin and not user_can_access_production_hub(u):
-        flash("No tenés permiso para ver el historial de cambio de turno.", "warning")
-        return redirect(url_for("main.dashboard"))
     summaries = sh.summarize_handovers_for_history_view()
     return render_template("shift/historial.html", rows=summaries)
 
@@ -383,11 +377,7 @@ def historial():
 @login_required
 def historial_detalle(hid: int):
     u = current_user()
-    if u is None:
-        return redirect(url_for("auth.login"))
-    if not u.is_admin and not user_can_access_production_hub(u):
-        flash("No tenés permiso.", "warning")
-        return redirect(url_for("main.dashboard"))
+    assert u is not None
     ho = db.session.scalar(
         select(ShiftHandover)
         .where(ShiftHandover.id == hid)
