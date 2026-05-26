@@ -112,13 +112,13 @@
         {% endif %}
         {% if shift_notifications %}
         <div class="dropdown app-notifications-dropdown">
-          <button class="app-notifications-btn dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true" id="appNotificationsBtn" title="Observaciones de cambio de turno" aria-label="Notificaciones de cambio de turno{% if shift_notifications.unread_count %} ({{ shift_notifications.unread_count }} sin leer){% endif %}">
+          <button class="app-notifications-btn dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true" id="appNotificationsBtn" title="Observaciones de cambio de turno" aria-label="Notificaciones de cambio de turno{% if shift_notifications['unread_count'] %} ({{ shift_notifications['unread_count'] }} sin leer){% endif %}">
             <i class="bi bi-bell" aria-hidden="true"></i>
-            {% if shift_notifications.unread_count > 0 %}
-            <span class="app-notifications-badge" aria-hidden="true">{{ shift_notifications.unread_count if shift_notifications.unread_count < 10 else '9+' }}</span>
+            {% if shift_notifications['unread_count'] > 0 %}
+            <span class="app-notifications-badge" aria-hidden="true">{{ shift_notifications['unread_count'] if shift_notifications['unread_count'] < 10 else '9+' }}</span>
             {% endif %}
           </button>
-          <div class="dropdown-menu dropdown-menu-end app-notifications-menu" aria-labelledby="appNotificationsBtn" data-mark-seen-url="{{ url_for('shift.notifications_mark_seen') }}" data-mark-seen-up-to="{{ shift_notifications.max_id }}" data-csrf-token="{{ csrf_token() }}">
+          <div class="dropdown-menu dropdown-menu-end app-notifications-menu" aria-labelledby="appNotificationsBtn" data-mark-seen-url="{{ url_for('shift.notifications_mark_seen') }}" data-mark-seen-up-to="{{ shift_notifications['max_id'] }}" data-csrf-token="{{ csrf_token() }}">
             <div class="dropdown-header d-flex justify-content-between align-items-center gap-2 py-2">
               <span class="fw-semibold">Cambio de turno</span>
               <a class="small text-decoration-none" href="{{ url_for('shift.historial') }}">Historial</a>

@@ -40,6 +40,8 @@ def create_app() -> Flask:
 
     @app.before_request
     def _normalize_https_behind_proxy():
+        from flask import request
+
         if app.config.get("TESTING"):
             return None
         if (app.config.get("PREFERRED_URL_SCHEME") or "").lower() != "https":
@@ -119,7 +121,7 @@ def create_app() -> Flask:
             if (request.path or "").startswith("/api/v1"):
                 return jsonify({"error": "internal_error", "message": "No se pudo completar la solicitud."}), 500
             flash("Ocurrió un error interno. Si persiste, avisá al administrador.", "danger")
-            if request.endpoint not in ("main.index", "auth.login"):
+            if request.endpoint not in ("main.index", "auth.login", "main.healthz"):
                 return redirect(url_for("main.index")), 302
             return (
                 "<h1>Error interno</h1><p>No se pudo cargar la página. "
@@ -166,7 +168,10 @@ def create_app() -> Flask:
         from app.bootstrap import ensure_seed_data
 
         if (os.environ.get("SKIP_SEED_DATA") or "").strip().lower() not in ("1", "true", "yes"):
-            ensure_seed_data()
+            try:
+                ensure_seed_data()
+            except Exception:
+                app.logger.exception("ensure_seed_data falló al iniciar la app")
 
     from app.cli import register_cli
     from app.web.modules.admin import bp as admin_bp
@@ -303,7 +308,11 @@ def create_app() -> Flask:
         from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label, user_is_global_read_only
         from flask import request
 
-        u = _current_user()
+        try:
+            u = _current_user()
+        except Exception:
+            app.logger.exception("inject_nav_user: no se pudo cargar el usuario")
+            u = None
         return {
             "nav_user": u,
             "user_can": (lambda perm: _user_can(u, perm)),
