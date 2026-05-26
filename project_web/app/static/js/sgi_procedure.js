@@ -61,6 +61,7 @@
   }
 
   function insertSubapartado(bodyEl) {
+    flushUndoDebounce();
     const label = nextSubapartadoLabel(bodyEl);
     const html = `<p class="sgi-proc-subapartado"><span class="sgi-proc-sub-num">${label}</span>&nbsp;</p>`;
     bodyEl.focus();
@@ -76,6 +77,7 @@
       const last = subs[subs.length - 1];
       if (last) placeCursorAtEnd(last);
     }
+    pushUndoState();
     scheduleAutoSaveHint();
   }
 
@@ -150,6 +152,7 @@
   }
 
   function insertContentIntoSection(bodyEl, html) {
+    flushUndoDebounce();
     bodyEl.focus();
     const sel = window.getSelection();
     if (sel?.rangeCount && bodyEl.contains(sel.anchorNode)) {
@@ -158,6 +161,7 @@
       bodyEl.insertAdjacentHTML("beforeend", html);
     }
     bodyEl.innerHTML = normalizeProcedureHtml(bodyEl.innerHTML);
+    pushUndoState();
     scheduleAutoSaveHint();
   }
 
@@ -220,9 +224,11 @@
           if (!blob) return;
           const reader = new FileReader();
           reader.onload = () => {
+            flushUndoDebounce();
             insertHtmlAtCursor(
               `<img class="sgi-proc-content-img" src="${reader.result}" alt="Imagen">`
             );
+            pushUndoState();
             scheduleAutoSaveHint();
           };
           reader.readAsDataURL(blob);
@@ -232,6 +238,7 @@
     }
 
     e.preventDefault();
+    flushUndoDebounce();
     const html = e.clipboardData?.getData("text/html") || "";
     const text = e.clipboardData?.getData("text/plain") || "";
     if (html) {
@@ -239,7 +246,134 @@
     } else if (text) {
       insertHtmlAtCursor(escapeHtml(text).replace(/\n/g, "<br>"));
     }
+    pushUndoState();
     scheduleAutoSaveHint();
+  }
+
+  const MAX_UNDO = 40;
+  let undoStack = [];
+  let undoIndex = -1;
+  let undoApplying = false;
+  let undoDebounce = null;
+
+  function captureUndoState() {
+    const secciones = {};
+    qsa("[data-seccion-body]").forEach((el) => {
+      secciones[el.dataset.seccionBody] = el.innerHTML;
+    });
+    return { secciones, titulo: (qs("#procTituloInput")?.value || "").trim() };
+  }
+
+  function undoStatesEqual(a, b) {
+    if (!a || !b) return false;
+    if (a.titulo !== b.titulo) return false;
+    const keys = new Set([
+      ...Object.keys(a.secciones || {}),
+      ...Object.keys(b.secciones || {}),
+    ]);
+    for (const k of keys) {
+      if ((a.secciones[k] || "") !== (b.secciones[k] || "")) return false;
+    }
+    return true;
+  }
+
+  function syncTituloFromUndo(titulo) {
+    const el = qs("#procTituloDisplay");
+    if (el) {
+      if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = titulo;
+      else el.textContent = titulo;
+    }
+    if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = titulo;
+  }
+
+  function applyUndoState(state) {
+    undoApplying = true;
+    qsa("[data-seccion-body]").forEach((el) => {
+      const k = el.dataset.seccionBody;
+      el.innerHTML = normalizeProcedureHtml(state.secciones[k] || "");
+      renumberSubapartados(el);
+    });
+    const tituloInput = qs("#procTituloInput");
+    if (tituloInput && state.titulo !== undefined) {
+      tituloInput.value = state.titulo;
+      syncTituloFromUndo(state.titulo);
+    }
+    undoApplying = false;
+    scheduleAutoSaveHint();
+  }
+
+  function pushUndoState() {
+    if (soloLectura || undoApplying) return;
+    const state = captureUndoState();
+    const current = undoStack[undoIndex];
+    if (current && undoStatesEqual(current, state)) return;
+
+    undoStack = undoStack.slice(0, undoIndex + 1);
+    undoStack.push(state);
+    undoIndex = undoStack.length - 1;
+    if (undoStack.length > MAX_UNDO) {
+      undoStack.shift();
+      undoIndex = undoStack.length - 1;
+    }
+  }
+
+  function flushUndoDebounce() {
+    clearTimeout(undoDebounce);
+    undoDebounce = null;
+    pushUndoState();
+  }
+
+  function scheduleUndoSnapshot() {
+    if (soloLectura || undoApplying) return;
+    clearTimeout(undoDebounce);
+    undoDebounce = setTimeout(() => {
+      undoDebounce = null;
+      pushUndoState();
+    }, 400);
+  }
+
+  function undoEdit() {
+    if (undoIndex <= 0) return false;
+    undoIndex -= 1;
+    applyUndoState(undoStack[undoIndex]);
+    return true;
+  }
+
+  function redoEdit() {
+    if (undoIndex >= undoStack.length - 1) return false;
+    undoIndex += 1;
+    applyUndoState(undoStack[undoIndex]);
+    return true;
+  }
+
+  function initUndoStack() {
+    undoStack = [];
+    undoIndex = -1;
+    pushUndoState();
+  }
+
+  function isUndoTarget(el) {
+    if (!el) return false;
+    if (el.id === "procTituloInput") return true;
+    return !!el.closest?.("[data-seccion-body]");
+  }
+
+  function bindUndoShortcuts() {
+    document.addEventListener("keydown", (e) => {
+      if (soloLectura) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== "z" && key !== "y") return;
+      if (!isUndoTarget(e.target)) return;
+
+      const redo = key === "y" || (key === "z" && e.shiftKey);
+      if (!redo && key !== "z") return;
+
+      e.preventDefault();
+      flushUndoDebounce();
+      if (redo) redoEdit();
+      else undoEdit();
+    });
   }
 
   function collectPayload() {
@@ -401,14 +535,20 @@
 
     qsa("[data-seccion-body]").forEach((el) => {
       if (!soloLectura) {
-        el.addEventListener("input", scheduleAutoSaveHint);
+        el.addEventListener("input", () => {
+          scheduleUndoSnapshot();
+          scheduleAutoSaveHint();
+        });
         el.addEventListener("blur", () => {
           renumberSubapartados(el);
+          flushUndoDebounce();
           scheduleAutoSaveHint();
         });
         el.addEventListener("paste", handleSectionPaste);
       }
     });
+
+    if (!soloLectura) initUndoStack();
 
     qsa(".btn-add-subapartado").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -524,8 +664,10 @@
         else el.textContent = t;
       }
       if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = t;
+      scheduleUndoSnapshot();
       scheduleAutoSaveHint();
     });
+    bindUndoShortcuts();
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
     qs("#btnEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
     qs("#btnAprobar")?.addEventListener("click", () => workflow("aprobar"));
