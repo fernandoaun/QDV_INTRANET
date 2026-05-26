@@ -23,7 +23,7 @@ services:
     rootDir: project_web
     buildCommand: pip install -r requirements.txt
     preDeployCommand: python -m alembic upgrade head
-    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT wsgi:app
+    startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT --forwarded-allow-ips='*' wsgi:app
     # PDFs (erlenmeyer) y adjuntos: fuera de esto se pierden al redesplegar (filesystem efímero).
     disk:
       name: qdv-uploads

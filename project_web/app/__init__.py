@@ -36,7 +36,17 @@ def create_app() -> Flask:
         from werkzeug.middleware.proxy_fix import ProxyFix
 
         # Render / reverse proxy: respeta X-Forwarded-Proto para evitar bucles http↔https.
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+    @app.before_request
+    def _normalize_https_behind_proxy():
+        if app.config.get("TESTING"):
+            return None
+        if (app.config.get("PREFERRED_URL_SCHEME") or "").lower() != "https":
+            return None
+        if (request.headers.get("X-Forwarded-Proto") or "").lower() == "https":
+            request.environ["wsgi.url_scheme"] = "https"
+        return None
 
     if app.config.get("DEBUG"):
         sk = (app.config.get("SECRET_KEY") or "").strip()
@@ -109,7 +119,14 @@ def create_app() -> Flask:
             if (request.path or "").startswith("/api/v1"):
                 return jsonify({"error": "internal_error", "message": "No se pudo completar la solicitud."}), 500
             flash("Ocurrió un error interno. Si persiste, avisá al administrador.", "danger")
-            return redirect(url_for("main.index")), 302
+            if request.endpoint not in ("main.index", "auth.login"):
+                return redirect(url_for("main.index")), 302
+            return (
+                "<h1>Error interno</h1><p>No se pudo cargar la página. "
+                "Revisá en Render que la base PostgreSQL esté activa y el deploy haya terminado bien.</p>",
+                500,
+                {"Content-Type": "text/html; charset=utf-8"},
+            )
 
     from app.api import v1_bp as api_v1_bp
     from app.api.bearer import register_api_bearer
@@ -340,62 +357,67 @@ def create_app() -> Flask:
         from app.auth_utils import user_shift_may_write_operational
         from app.services import shift_handover_service as sh
 
-        u = _cu()
-        if u is None:
-            return {"shift_nav": None, "shift_notifications": None}
-        shift_notifications = None
-        if sh.user_can_view_shift_handover_notifications(u):
-            shift_notifications = sh.shift_observation_notifications_nav(session)
-        if not sh.user_participates_operational_shift(u):
-            return {"shift_nav": None, "shift_notifications": shift_notifications}
-        pending = sh.get_pending_handover()
-        open_s = sh.get_open_shift_session()
-        declined = bool(session.get(sh.SESSION_KEY_SHIFT_DECLINED))
-        mine = open_s is not None and int(open_s.user_id) == int(u.id)
-        other = open_s is not None and int(open_s.user_id) != int(u.id)
-        operator_line = sh.format_shift_operator_display(open_s) if open_s is not None else ""
-        other_name = operator_line if (other and open_s is not None) else ""
-        may_write = user_shift_may_write_operational(u, session)
-        ep = (request.endpoint or "").strip()
-        show_readonly_pill = (not may_write) and (not ep.startswith("shift."))
-        banner = None
-        if pending is not None:
-            banner = {
-                "severity": "warning",
-                "text": "Hay una entrega de turno pendiente de recepción.",
-                "href": url_for("shift.take_shift"),
-                "link_label": "Ir a recepcionar",
-            }
-        elif declined:
-            banner = {
-                "severity": "warning",
-                "text": "Modo solo lectura: no tenés turno de planta tomado. Podés navegar y consultar; para cargar datos activá el turno.",
-                "href": url_for("shift.take_shift"),
-                "link_label": "Activar turno de planta",
-            }
-        elif other:
-            banner = {
-                "severity": "info",
-                "text": "Modo solo lectura: el turno operativo lo tiene "
-                + other_name
-                + ". Podés consultar información; no podés registrar hasta que corresponda el cambio de turno.",
-                "href": None,
-                "link_label": None,
-            }
-        if ep.startswith("shift.") and banner and declined:
+        empty = {"shift_nav": None, "shift_notifications": None}
+        try:
+            u = _cu()
+            if u is None:
+                return empty
+            shift_notifications = None
+            if sh.user_can_view_shift_handover_notifications(u):
+                shift_notifications = sh.shift_observation_notifications_nav(session)
+            if not sh.user_participates_operational_shift(u):
+                return {"shift_nav": None, "shift_notifications": shift_notifications}
+            pending = sh.get_pending_handover()
+            open_s = sh.get_open_shift_session()
+            declined = bool(session.get(sh.SESSION_KEY_SHIFT_DECLINED))
+            mine = open_s is not None and int(open_s.user_id) == int(u.id)
+            other = open_s is not None and int(open_s.user_id) != int(u.id)
+            operator_line = sh.format_shift_operator_display(open_s) if open_s is not None else ""
+            other_name = operator_line if (other and open_s is not None) else ""
+            may_write = user_shift_may_write_operational(u, session)
+            ep = (request.endpoint or "").strip()
+            show_readonly_pill = (not may_write) and (not ep.startswith("shift."))
             banner = None
-        return {
-            "shift_nav": {
-                "eligible": True,
-                "open_mine": mine,
-                "pending": pending is not None,
-                "banner": banner,
-                "show_readonly_pill": show_readonly_pill,
-                "may_write_operational": may_write,
-                "operator_line": operator_line if mine else "",
-            },
-            "shift_notifications": shift_notifications,
-        }
+            if pending is not None:
+                banner = {
+                    "severity": "warning",
+                    "text": "Hay una entrega de turno pendiente de recepción.",
+                    "href": url_for("shift.take_shift"),
+                    "link_label": "Ir a recepcionar",
+                }
+            elif declined:
+                banner = {
+                    "severity": "warning",
+                    "text": "Modo solo lectura: no tenés turno de planta tomado. Podés navegar y consultar; para cargar datos activá el turno.",
+                    "href": url_for("shift.take_shift"),
+                    "link_label": "Activar turno de planta",
+                }
+            elif other:
+                banner = {
+                    "severity": "info",
+                    "text": "Modo solo lectura: el turno operativo lo tiene "
+                    + other_name
+                    + ". Podés consultar información; no podés registrar hasta que corresponda el cambio de turno.",
+                    "href": None,
+                    "link_label": None,
+                }
+            if ep.startswith("shift.") and banner and declined:
+                banner = None
+            return {
+                "shift_nav": {
+                    "eligible": True,
+                    "open_mine": mine,
+                    "pending": pending is not None,
+                    "banner": banner,
+                    "show_readonly_pill": show_readonly_pill,
+                    "may_write_operational": may_write,
+                    "operator_line": operator_line if mine else "",
+                },
+                "shift_notifications": shift_notifications,
+            }
+        except Exception:
+            app.logger.exception("inject_shift_nav falló")
+            return empty
 
     @app.context_processor
     def inject_primera_vez():

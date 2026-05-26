@@ -54,6 +54,8 @@ def login():
             session.clear()
         else:
             safe_next = safe_internal_redirect_target(request.args.get("next"))
+            if safe_next in ("/login", url_for("auth.login")):
+                safe_next = None
             if safe_next:
                 return redirect(safe_next)
             return redirect(url_for("main.dashboard"))

@@ -8,6 +8,12 @@ from app.services import dashboard_service
 bp = Blueprint("main", __name__)
 
 
+@bp.get("/healthz")
+def healthz():
+    """Comprobación ligera (sin plantillas ni sesión) para Render y diagnóstico."""
+    return "ok", 200
+
+
 @bp.get("/")
 def index():
     return render_template("index.html")
