@@ -536,6 +536,90 @@ def persist_handover_reception(
     db.session.commit()
 
 
+SESSION_KEY_SHIFT_NOTIF_LAST_SEEN_ID = "shift_handover_notif_last_seen_id"
+
+
+def _truncate_observation_text(text: str, max_len: int = 220) -> str:
+    t = (text or "").strip()
+    if len(t) <= max_len:
+        return t
+    return t[: max_len - 1].rstrip() + "…"
+
+
+def list_shift_observation_notifications(limit: int = 25) -> list[dict[str, Any]]:
+    """
+    Partes de cambio de turno con observaciones de cierre y/o de recepción (más recientes primero).
+    """
+    rows = list_handovers_for_history(max(limit * 4, 40))
+    items: list[dict[str, Any]] = []
+    for h in rows:
+        closing = (h.closing_notes or "").strip()
+        reception = (h.reception_notes or "").strip()
+        if not closing and not reception:
+            continue
+        out_u = db.session.get(User, int(h.outgoing_user_id))
+        in_u = db.session.get(User, int(h.incoming_user_id)) if h.incoming_user_id else None
+        sess_h = h.shift_session
+        outgoing_label = format_shift_operator_display(sess_h) if sess_h else (
+            user_display_name(out_u) or (out_u.username if out_u else "")
+        )
+        incoming_label = user_display_name(in_u) or (in_u.username if in_u else "—")
+        is_pending = h.status == HANDOVER_PENDING
+        items.append(
+            {
+                "id": int(h.id),
+                "handed_over_at_iso": h.handed_over_at_iso,
+                "received_at_iso": h.received_at_iso,
+                "outgoing_label": outgoing_label,
+                "incoming_label": incoming_label,
+                "status": h.status,
+                "is_pending": is_pending,
+                "closing_notes": _truncate_observation_text(closing),
+                "reception_notes": _truncate_observation_text(reception),
+                "has_closing_notes": bool(closing),
+                "has_reception_notes": bool(reception),
+            }
+        )
+        if len(items) >= limit:
+            break
+    return items
+
+
+def shift_observation_notifications_nav(
+    session: Any,
+    *,
+    limit: int = 25,
+) -> dict[str, Any]:
+    """Datos para campana de notificaciones en la barra superior."""
+    items = list_shift_observation_notifications(limit)
+    try:
+        last_seen = int(session.get(SESSION_KEY_SHIFT_NOTIF_LAST_SEEN_ID) or 0)
+    except (TypeError, ValueError):
+        last_seen = 0
+    unread_count = sum(1 for it in items if int(it["id"]) > last_seen)
+    max_id = max((int(it["id"]) for it in items), default=last_seen)
+    return {
+        "items": items,
+        "unread_count": unread_count,
+        "last_seen_id": last_seen,
+        "max_id": max_id,
+    }
+
+
+def mark_shift_observation_notifications_seen(session: Any, up_to_id: int | None = None) -> None:
+    """Marca como vistas las notificaciones hasta el id indicado (o el más reciente en lista)."""
+    if up_to_id is not None:
+        new_id = int(up_to_id)
+    else:
+        items = list_shift_observation_notifications(1)
+        new_id = int(items[0]["id"]) if items else 0
+    try:
+        prev = int(session.get(SESSION_KEY_SHIFT_NOTIF_LAST_SEEN_ID) or 0)
+    except (TypeError, ValueError):
+        prev = 0
+    session[SESSION_KEY_SHIFT_NOTIF_LAST_SEEN_ID] = max(prev, new_id)
+
+
 def summarize_handovers_for_history_view(limit: int = 200) -> list[dict[str, Any]]:
     rows = list_handovers_for_history(limit)
     summaries: list[dict[str, Any]] = []

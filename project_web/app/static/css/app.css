@@ -237,11 +237,121 @@ body.app-body {
   overflow: visible;
 }
 
-.app-topbar .app-user-dropdown {
+.app-topbar .app-user-dropdown,
+.app-topbar .app-notifications-dropdown {
   flex-shrink: 0;
   position: relative;
   z-index: 5;
   overflow: visible;
+}
+
+.app-notifications-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: var(--app-radius-pill);
+  border: 1px solid var(--app-border);
+  background: var(--app-page-bg);
+  color: var(--app-text);
+}
+
+.app-notifications-btn:hover,
+.app-notifications-btn:focus {
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.app-notifications-btn .bi {
+  font-size: 1.15rem;
+  color: var(--app-text-muted);
+}
+
+.app-notifications-btn.dropdown-toggle::after {
+  display: none;
+}
+
+.app-notifications-badge {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #dc3545;
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.app-notifications-menu {
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-width: 22rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.app-notifications-menu .dropdown-header {
+  border-bottom: 1px solid var(--app-border);
+  margin: 0;
+}
+
+.app-notifications-scroll {
+  max-height: min(24rem, 70vh);
+  overflow-y: auto;
+}
+
+.app-notifications-item {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-notifications-item:last-child {
+  border-bottom: none;
+}
+
+.app-notifications-item--pending {
+  background: rgba(255, 193, 7, 0.08);
+}
+
+.app-notifications-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.app-notifications-item-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--app-text-muted);
+}
+
+.app-notifications-obs {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.app-notifications-obs-label {
+  display: inline-block;
+  margin-bottom: 0.15rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--app-text-muted);
+}
+
+.app-notifications-obs p {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .app-user-pill {

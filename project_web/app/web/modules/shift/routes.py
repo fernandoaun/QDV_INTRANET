@@ -338,6 +338,21 @@ def logout_ask_leave_shift():
     return render_template("shift/logout_ask_leave.html")
 
 
+@bp.post("/notificaciones/visto")
+@login_required
+@_shift_eligible_required
+def notifications_mark_seen():
+    raw = (request.form.get("up_to_id") or "").strip()
+    up_to: int | None = None
+    if raw:
+        try:
+            up_to = int(raw)
+        except ValueError:
+            up_to = None
+    sh.mark_shift_observation_notifications_seen(session, up_to_id=up_to)
+    return "", 204
+
+
 @bp.route("/historial")
 @login_required
 def historial():
@@ -372,4 +387,6 @@ def historial_detalle(hid: int):
         flash("Registro no encontrado.", "danger")
         return redirect(url_for("shift.historial"))
     detail = sh.handover_to_detail_dict(ho)
+    if sh.user_participates_operational_shift(u):
+        sh.mark_shift_observation_notifications_seen(session, up_to_id=int(ho.id))
     return render_template("shift/historial_detalle.html", ho=ho, detail=detail)

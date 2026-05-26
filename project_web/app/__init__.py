@@ -336,7 +336,7 @@ def create_app() -> Flask:
 
         u = _cu()
         if u is None or not sh.user_participates_operational_shift(u):
-            return {"shift_nav": None}
+            return {"shift_nav": None, "shift_notifications": None}
         pending = sh.get_pending_handover()
         open_s = sh.get_open_shift_session()
         declined = bool(session.get(sh.SESSION_KEY_SHIFT_DECLINED))
@@ -373,6 +373,7 @@ def create_app() -> Flask:
             }
         if ep.startswith("shift.") and banner and declined:
             banner = None
+        notif = sh.shift_observation_notifications_nav(session)
         return {
             "shift_nav": {
                 "eligible": True,
@@ -382,7 +383,8 @@ def create_app() -> Flask:
                 "show_readonly_pill": show_readonly_pill,
                 "may_write_operational": may_write,
                 "operator_line": operator_line if mine else "",
-            }
+            },
+            "shift_notifications": notif,
         }
 
     @app.context_processor

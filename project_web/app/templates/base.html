@@ -110,6 +110,58 @@
         {% elif shift_nav and shift_nav.show_readonly_pill %}
         <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
         {% endif %}
+        {% if shift_notifications %}
+        <div class="dropdown app-notifications-dropdown">
+          <button class="app-notifications-btn dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true" id="appNotificationsBtn" title="Observaciones de cambio de turno" aria-label="Notificaciones de cambio de turno{% if shift_notifications.unread_count %} ({{ shift_notifications.unread_count }} sin leer){% endif %}">
+            <i class="bi bi-bell" aria-hidden="true"></i>
+            {% if shift_notifications.unread_count > 0 %}
+            <span class="app-notifications-badge" aria-hidden="true">{{ shift_notifications.unread_count if shift_notifications.unread_count < 10 else '9+' }}</span>
+            {% endif %}
+          </button>
+          <div class="dropdown-menu dropdown-menu-end app-notifications-menu" aria-labelledby="appNotificationsBtn" data-mark-seen-url="{{ url_for('shift.notifications_mark_seen') }}" data-mark-seen-up-to="{{ shift_notifications.max_id }}" data-csrf-token="{{ csrf_token() }}">
+            <div class="dropdown-header d-flex justify-content-between align-items-center gap-2 py-2">
+              <span class="fw-semibold">Cambio de turno</span>
+              <a class="small text-decoration-none" href="{{ url_for('shift.historial') }}">Historial</a>
+            </div>
+            {% if shift_notifications.items %}
+            <div class="app-notifications-scroll">
+              {% for n in shift_notifications.items %}
+              <div class="app-notifications-item{% if n.is_pending %} app-notifications-item--pending{% endif %}">
+                <div class="app-notifications-item-head">
+                  <span class="app-notifications-item-date">{{ n.handed_over_at_iso }}</span>
+                  {% if n.is_pending %}
+                  <span class="badge rounded-pill text-bg-warning">Pendiente</span>
+                  {% endif %}
+                </div>
+                <div class="small app-text-secondary mb-1">{{ n.outgoing_label }} → {{ n.incoming_label }}</div>
+                {% if n.has_closing_notes %}
+                <div class="app-notifications-obs">
+                  <span class="app-notifications-obs-label">Cierre</span>
+                  <p class="mb-0">{{ n.closing_notes }}</p>
+                </div>
+                {% endif %}
+                {% if n.has_reception_notes %}
+                <div class="app-notifications-obs">
+                  <span class="app-notifications-obs-label">Recepción</span>
+                  <p class="mb-0">{{ n.reception_notes }}</p>
+                </div>
+                {% endif %}
+                <div class="mt-2">
+                  {% if n.is_pending %}
+                  <a class="btn btn-sm btn-warning" href="{{ url_for('shift.receive_handover', handover_id=n.id) }}">Recepcionar</a>
+                  {% else %}
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('shift.historial_detalle', hid=n.id) }}">Ver detalle</a>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="dropdown-item-text text-muted small px-3 py-3">No hay observaciones recientes en los cambios de turno.</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
         <div class="dropdown app-user-dropdown">
           <button class="app-user-pill dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-haspopup="true" id="appUserMenuBtn">
             <i class="bi bi-person-circle" aria-hidden="true"></i>
@@ -217,23 +269,52 @@
 {% if nav_user %}
 <script>
 (function () {
-  function initTopbarUserDropdown() {
-    var btn = document.getElementById("appUserMenuBtn");
-    if (!btn || typeof bootstrap === "undefined" || !bootstrap.Dropdown) return;
-    bootstrap.Dropdown.getOrCreateInstance(btn, {
-      popperConfig: function (defaultConfig) {
-        var mods = (defaultConfig.modifiers || []).map(function (m) {
-          if (m.name === "computeStyles") {
-            return {
-              name: "computeStyles",
-              options: Object.assign({}, m.options || {}, { gpuAcceleration: false })
-            };
-          }
-          return m;
-        });
-        return Object.assign({}, defaultConfig, { strategy: "fixed", modifiers: mods });
+  function topbarDropdownPopperConfig(defaultConfig) {
+    var mods = (defaultConfig.modifiers || []).map(function (m) {
+      if (m.name === "computeStyles") {
+        return {
+          name: "computeStyles",
+          options: Object.assign({}, m.options || {}, { gpuAcceleration: false })
+        };
       }
+      return m;
     });
+    return Object.assign({}, defaultConfig, { strategy: "fixed", modifiers: mods });
+  }
+  function initTopbarDropdown(btnId) {
+    var btn = document.getElementById(btnId);
+    if (!btn || typeof bootstrap === "undefined" || !bootstrap.Dropdown) return;
+    bootstrap.Dropdown.getOrCreateInstance(btn, { popperConfig: topbarDropdownPopperConfig });
+  }
+  function initShiftNotificationsDropdown() {
+    var menu = document.querySelector(".app-notifications-menu");
+    var btn = document.getElementById("appNotificationsBtn");
+    if (!menu || !btn) return;
+    initTopbarDropdown("appNotificationsBtn");
+    btn.addEventListener("show.bs.dropdown", function () {
+      var url = menu.getAttribute("data-mark-seen-url");
+      var upTo = menu.getAttribute("data-mark-seen-up-to");
+      if (!url || !upTo) return;
+      var body = new URLSearchParams();
+      body.set("up_to_id", upTo);
+      var csrfVal = menu.getAttribute("data-csrf-token");
+      var headers = { "Content-Type": "application/x-www-form-urlencoded" };
+      if (csrfVal) {
+        body.set("csrf_token", csrfVal);
+        headers["X-CSRFToken"] = csrfVal;
+      }
+      fetch(url, { method: "POST", body: body.toString(), headers: headers, credentials: "same-origin" })
+        .then(function () {
+          var badge = btn.querySelector(".app-notifications-badge");
+          if (badge) badge.remove();
+          btn.setAttribute("aria-label", "Notificaciones de cambio de turno");
+        })
+        .catch(function () {});
+    });
+  }
+  function initTopbarUserDropdown() {
+    initTopbarDropdown("appUserMenuBtn");
+    initShiftNotificationsDropdown();
   }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initTopbarUserDropdown);
