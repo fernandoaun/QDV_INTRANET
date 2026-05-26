@@ -604,7 +604,7 @@ def shift_observation_notifications_nav(
     unread_count = sum(1 for it in items if int(it["id"]) > last_seen)
     max_id = max((int(it["id"]) for it in items), default=last_seen)
     return {
-        "items": items,
+        "entries": items,
         "unread_count": unread_count,
         "last_seen_id": last_seen,
         "max_id": max_id,

@@ -123,9 +123,9 @@
               <span class="fw-semibold">Cambio de turno</span>
               <a class="small text-decoration-none" href="{{ url_for('shift.historial') }}">Historial</a>
             </div>
-            {% if shift_notifications.items %}
+            {% if shift_notifications.entries %}
             <div class="app-notifications-scroll">
-              {% for n in shift_notifications.items %}
+              {% for n in shift_notifications.entries %}
               <div class="app-notifications-item{% if n.is_pending %} app-notifications-item--pending{% endif %}">
                 <div class="app-notifications-item-head">
                   <span class="app-notifications-item-date">{{ n.handed_over_at_iso }}</span>
