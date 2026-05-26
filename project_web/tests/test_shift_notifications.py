@@ -73,6 +73,28 @@ def test_list_shift_observation_notifications_filters_and_orders(app):
         assert "Tomado" in items[0]["reception_notes"]
 
 
+def test_user_can_view_shift_handover_notifications_admin_and_production(app):
+    with app.app_context():
+        admin = User(
+            username="pytest_notif_admin",
+            password_hash=generate_password_hash("x"),
+            is_admin=True,
+            activo=True,
+            rol="operaciones",
+        )
+        ops = User(
+            username="pytest_notif_ops2",
+            password_hash=generate_password_hash("x"),
+            is_admin=False,
+            activo=True,
+            rol=ROLE_OPERACIONES,
+        )
+        db.session.add_all([admin, ops])
+        db.session.commit()
+        assert sh.user_can_view_shift_handover_notifications(admin) is True
+        assert sh.user_can_view_shift_handover_notifications(ops) is True
+
+
 def test_mark_shift_observation_notifications_seen_updates_session(app):
     with app.app_context():
         from flask import session

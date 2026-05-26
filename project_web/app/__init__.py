@@ -335,8 +335,13 @@ def create_app() -> Flask:
         from app.services import shift_handover_service as sh
 
         u = _cu()
-        if u is None or not sh.user_participates_operational_shift(u):
+        if u is None:
             return {"shift_nav": None, "shift_notifications": None}
+        shift_notifications = None
+        if sh.user_can_view_shift_handover_notifications(u):
+            shift_notifications = sh.shift_observation_notifications_nav(session)
+        if not sh.user_participates_operational_shift(u):
+            return {"shift_nav": None, "shift_notifications": shift_notifications}
         pending = sh.get_pending_handover()
         open_s = sh.get_open_shift_session()
         declined = bool(session.get(sh.SESSION_KEY_SHIFT_DECLINED))
@@ -373,7 +378,6 @@ def create_app() -> Flask:
             }
         if ep.startswith("shift.") and banner and declined:
             banner = None
-        notif = sh.shift_observation_notifications_nav(session)
         return {
             "shift_nav": {
                 "eligible": True,
@@ -384,7 +388,7 @@ def create_app() -> Flask:
                 "may_write_operational": may_write,
                 "operator_line": operator_line if mine else "",
             },
-            "shift_notifications": notif,
+            "shift_notifications": shift_notifications,
         }
 
     @app.context_processor

@@ -64,6 +64,19 @@ def user_participates_operational_shift(user: User | None) -> bool:
     return r == ROLE_OPERACIONES
 
 
+def user_can_view_shift_handover_notifications(user: User | None) -> bool:
+    """Quién ve la campana de observaciones (misma base que historial de cambio de turno)."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    if user_participates_operational_shift(user):
+        return True
+    from app.auth_utils import user_can_access_production_hub
+
+    return user_can_access_production_hub(user)
+
+
 def operador_matches_user(row_operador: str | None, user: User) -> bool:
     a = (row_operador or "").strip().lower()
     b = (user.username or "").strip().lower()

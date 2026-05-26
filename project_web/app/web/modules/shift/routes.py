@@ -31,6 +31,19 @@ def _shift_eligible_required(view: F) -> F:
     return cast(F, wrapped)
 
 
+def _shift_notifications_view_required(view: F) -> F:
+    @wraps(view)
+    def wrapped(*args: Any, **kwargs: Any):
+        u = current_user()
+        if u is None:
+            return redirect(url_for("auth.login", next=request.url))
+        if not sh.user_can_view_shift_handover_notifications(u):
+            return "", 403
+        return view(*args, **kwargs)
+
+    return cast(F, wrapped)
+
+
 def _redirect_next_or_dashboard() -> Any:
     n = (request.args.get("next") or request.form.get("next") or "").strip()
     if n.startswith("/"):
@@ -340,7 +353,7 @@ def logout_ask_leave_shift():
 
 @bp.post("/notificaciones/visto")
 @login_required
-@_shift_eligible_required
+@_shift_notifications_view_required
 def notifications_mark_seen():
     raw = (request.form.get("up_to_id") or "").strip()
     up_to: int | None = None
@@ -387,6 +400,6 @@ def historial_detalle(hid: int):
         flash("Registro no encontrado.", "danger")
         return redirect(url_for("shift.historial"))
     detail = sh.handover_to_detail_dict(ho)
-    if sh.user_participates_operational_shift(u):
+    if sh.user_can_view_shift_handover_notifications(u):
         sh.mark_shift_observation_notifications_seen(session, up_to_id=int(ho.id))
     return render_template("shift/historial_detalle.html", ho=ho, detail=detail)

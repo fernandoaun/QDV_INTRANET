@@ -147,7 +147,7 @@
                 </div>
                 {% endif %}
                 <div class="mt-2">
-                  {% if n.is_pending %}
+                  {% if n.is_pending and shift_nav %}
                   <a class="btn btn-sm btn-warning" href="{{ url_for('shift.receive_handover', handover_id=n.id) }}">Recepcionar</a>
                   {% else %}
                   <a class="btn btn-sm btn-outline-primary" href="{{ url_for('shift.historial_detalle', hid=n.id) }}">Ver detalle</a>
