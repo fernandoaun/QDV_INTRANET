@@ -957,6 +957,56 @@ def consumos_ultimos_dias(dias: int = 30, limit: int = 300) -> list[dict[str, An
     return _consumo_rows_to_dicts(rows, include_id=False, include_categoria_producto=True)
 
 
+def _ingreso_rows_to_dicts(rows: list[IngresoStock], *, include_categoria: bool) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        out.append(
+            {
+                "id": int(r.id),
+                "fecha": r.fecha,
+                "hora": r.hora,
+                "categoria": r.categoria if include_categoria else None,
+                "producto": r.producto,
+                "marca": r.marca,
+                "lote": r.lote or "",
+                "vencimiento": r.vencimiento or "",
+                "cantidad": r.cantidad,
+                "unidad": (getattr(r, "unidad", None) or "") if getattr(r, "unidad", None) is not None else "",
+                "operador": r.operador,
+                "proveedor": (getattr(r, "proveedor", None) or "") if getattr(r, "proveedor", None) is not None else "",
+                "observaciones": (getattr(r, "observaciones", None) or "")
+                if getattr(r, "observaciones", None) is not None
+                else "",
+                "is_stockable": bool(getattr(r, "is_stockable", True)),
+                "requiere_equipo": bool(getattr(r, "requiere_equipo", False)),
+                "cargado_por_user_id": int(r.cargado_por_user_id) if getattr(r, "cargado_por_user_id", None) else None,
+                "created_at_iso": r.created_at_iso,
+            }
+        )
+    return out
+
+
+def ingresos_ultimos_dias(
+    dias: int = 30, limit: int = 300, *, categoria: str | None = None
+) -> list[dict[str, Any]]:
+    d = int(dias or 30)
+    if d < 1:
+        d = 1
+    if d > 365:
+        d = 365
+    n = int(limit or 300)
+    if n < 1:
+        n = 1
+    if n > 2000:
+        n = 2000
+    cat_f: str | None = None
+    if categoria and str(categoria).strip() and str(categoria).strip() != "todas":
+        cat_f = _validate_cat(str(categoria).strip())
+    cutoff_iso = (now_operacion_naive_local() - timedelta(days=d)).strftime("%Y-%m-%d")
+    rows = stock_repo.list_ingresos_since_fecha(cutoff_iso, n, categoria=cat_f)
+    return _ingreso_rows_to_dicts(rows, include_categoria=cat_f is None)
+
+
 def build_stock_hub_template_context(user: Any) -> dict[str, Any]:
     from app.auth_utils import user_can_view_stock_historial
 
@@ -1207,6 +1257,7 @@ def build_stock_ver_template_context(
     *,
     fecha_consulta: str | None = None,
     hora_consulta: str | None = None,
+    dias_ingresos: int = 30,
 ) -> dict[str, Any]:
     cat = (categoria_arg or "todas").strip()
     cutoff = parse_stock_cutoff(fecha_consulta, hora_consulta)
@@ -1229,10 +1280,26 @@ def build_stock_ver_template_context(
             lotes_items = list_lotes_con_saldo_por_categoria(cat)
     except Exception:
         lotes_items = []
+    ingresos_items: list[dict[str, Any]] = []
+    try:
+        ingresos_items = ingresos_ultimos_dias(
+            dias_ingresos,
+            limit=500,
+            categoria=None if cat == "todas" else cat,
+        )
+    except Exception:
+        ingresos_items = []
+    d_ing = int(dias_ingresos or 30)
+    if d_ing < 1:
+        d_ing = 1
+    if d_ing > 365:
+        d_ing = 365
     return {
         "categoria": cat,
         "items": items,
         "lotes_items": lotes_items,
+        "ingresos_items": ingresos_items,
+        "dias_ingresos": d_ing,
         "fecha_consulta": cutoff["fecha"] if cutoff else "",
         "hora_consulta": cutoff["hora"] if cutoff else "",
         "stock_cutoff_display": cutoff["display"] if cutoff else "",

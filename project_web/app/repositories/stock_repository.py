@@ -91,6 +91,20 @@ class StockRepository(BaseRepository):
             ).all()
         )
 
+    def list_ingresos_since_fecha(
+        self, fecha_min_inclusive: str, limit: int, *, categoria: str | None = None
+    ) -> list[IngresoStock]:
+        q = select(IngresoStock).where(IngresoStock.fecha >= fecha_min_inclusive)
+        if categoria:
+            q = q.where(IngresoStock.categoria == categoria)
+        return list(
+            self.session.scalars(
+                q.order_by(IngresoStock.fecha.desc(), IngresoStock.hora.desc(), IngresoStock.id.desc()).limit(
+                    limit
+                )
+            ).all()
+        )
+
     def list_ajustes_recent(self, limit: int = 100) -> list[StockAjuste]:
         return list(
             self.session.scalars(

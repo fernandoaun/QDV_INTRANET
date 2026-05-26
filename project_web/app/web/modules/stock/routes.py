@@ -179,15 +179,24 @@ def register_stock_routes(bp: Blueprint) -> None:
         if not user_can_view_stock_existencias(u):
             flash("No tenés permiso para ver existencias.", "warning")
             return redirect(url_for("produccion.stock_hub"))
+        dias_ing = 30
+        try:
+            dias_ing = int((request.args.get("dias_ingresos") or "30").strip())
+        except ValueError:
+            dias_ing = 30
         try:
             ctx = stock_service.build_stock_ver_template_context(
                 request.args.get("categoria") or "todas",
                 fecha_consulta=request.args.get("fecha_consulta"),
                 hora_consulta=request.args.get("hora_consulta"),
+                dias_ingresos=dias_ing,
             )
         except ValueError as e:
             flash(str(e), "warning")
-            ctx = stock_service.build_stock_ver_template_context(request.args.get("categoria") or "todas")
+            ctx = stock_service.build_stock_ver_template_context(
+                request.args.get("categoria") or "todas",
+                dias_ingresos=dias_ing,
+            )
         return render_template("produccion/stock_ver.html", **ctx)
 
     @bp.route("/stock/catalogo", methods=["GET"])

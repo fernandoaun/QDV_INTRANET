@@ -31,7 +31,7 @@
     {% if user_can_stock_existencias %}
     <a class="app-module-card" href="{{ url_for('produccion.stock_ver', categoria='todas') }}">
       <h2>Existencias</h2>
-      <p>Listado consolidado de materias primas y laboratorio.</p>
+      <p>Existencias por categoría e historial de ingresos (materia prima, producto terminado y laboratorio).</p>
     </a>
     {% endif %}
     {% if user_can_stock_consumos %}

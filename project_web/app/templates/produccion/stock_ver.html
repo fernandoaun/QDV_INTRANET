@@ -32,9 +32,10 @@
     </div>
     <div class="app-card-body">
       <div class="d-flex flex-wrap gap-2">
-        <a class="btn {% if categoria=='todas' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='todas', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none) }}">Todas</a>
-        <a class="btn {% if categoria=='materia_prima' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='materia_prima', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none) }}">Materia prima</a>
-        <a class="btn {% if categoria=='laboratorio' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='laboratorio', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none) }}">Laboratorio</a>
+        <a class="btn {% if categoria=='todas' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='todas', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none, dias_ingresos=dias_ingresos) }}">Todas</a>
+        <a class="btn {% if categoria=='materia_prima' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='materia_prima', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none, dias_ingresos=dias_ingresos) }}">Materia prima</a>
+        <a class="btn {% if categoria=='producto_terminado' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='producto_terminado', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none, dias_ingresos=dias_ingresos) }}">Producto terminado</a>
+        <a class="btn {% if categoria=='laboratorio' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('produccion.stock_ver', categoria='laboratorio', fecha_consulta=fecha_consulta or none, hora_consulta=hora_consulta or none, dias_ingresos=dias_ingresos) }}">Laboratorio</a>
       </div>
     </div>
   </div>
@@ -47,6 +48,7 @@
     <div class="app-card-body">
       <form class="row g-2 align-items-end" method="get" action="{{ url_for('produccion.stock_ver') }}">
         <input type="hidden" name="categoria" value="{{ categoria }}">
+        <input type="hidden" name="dias_ingresos" value="{{ dias_ingresos }}">
         <div class="col-md-3">
           <label class="form-label" for="fechaConsultaStock">Día</label>
           <input class="form-control" id="fechaConsultaStock" type="date" name="fecha_consulta" value="{{ fecha_consulta }}">
@@ -57,7 +59,7 @@
         </div>
         <div class="col-md-6 d-flex gap-2">
           <button class="btn btn-primary" type="submit">Consultar</button>
-          <a class="btn btn-outline-secondary" href="{{ url_for('produccion.stock_ver', categoria=categoria) }}">Ver stock actual</a>
+          <a class="btn btn-outline-secondary" href="{{ url_for('produccion.stock_ver', categoria=categoria, dias_ingresos=dias_ingresos) }}">Ver stock actual</a>
         </div>
       </form>
     </div>
@@ -111,5 +113,72 @@
     </div>
   </div>
   {% endif %}
+
+  <div class="app-card mt-3">
+    <div class="app-card-header app-card-header--stack">
+      <h2 class="app-card-header-title">Ingresos registrados</h2>
+      <p class="app-card-desc mb-0">
+        {% if categoria == 'materia_prima' %}
+        Entradas de <strong>materia prima</strong> en los últimos {{ dias_ingresos }} días.
+        {% elif categoria == 'producto_terminado' %}
+        Entradas de <strong>producto terminado</strong> en los últimos {{ dias_ingresos }} días.
+        {% elif categoria == 'laboratorio' %}
+        Entradas de <strong>laboratorio</strong> en los últimos {{ dias_ingresos }} días.
+        {% else %}
+        Entradas de materia prima, producto terminado y laboratorio en los últimos {{ dias_ingresos }} días.
+        {% endif %}
+      </p>
+    </div>
+    <div class="app-card-body border-bottom">
+      <form class="row g-2 align-items-end" method="get" action="{{ url_for('produccion.stock_ver') }}">
+        <input type="hidden" name="categoria" value="{{ categoria }}">
+        {% if fecha_consulta %}<input type="hidden" name="fecha_consulta" value="{{ fecha_consulta }}">{% endif %}
+        {% if hora_consulta %}<input type="hidden" name="hora_consulta" value="{{ hora_consulta }}">{% endif %}
+        <div class="col-md-3">
+          <label class="form-label" for="diasIngresosStock">Ventana (días)</label>
+          <input class="form-control" id="diasIngresosStock" type="number" name="dias_ingresos" min="1" max="365" value="{{ dias_ingresos }}">
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-primary" type="submit">Actualizar ingresos</button>
+        </div>
+      </form>
+    </div>
+    <div class="app-card-header app-card-header--split border-top-0 pt-0">
+      <span class="app-card-desc mb-0">{{ ingresos_items|length }} registro(s)</span>
+    </div>
+    <div class="app-card-body--flush table-responsive app-table-scroll">
+      <table class="table table-app table-compact mb-0">
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Hora</th>
+            {% if categoria == 'todas' %}<th>Categoría</th>{% endif %}
+            <th>Producto</th><th>Marca</th><th>Lote</th><th>Venc.</th><th>Cantidad</th><th>Unidad</th><th>Operador</th><th>Proveedor</th><th>Obs.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in ingresos_items %}
+          <tr>
+            <td>{{ r.fecha }}</td>
+            <td>{{ r.hora }}</td>
+            {% if categoria == 'todas' %}
+            <td>{% if r.categoria == 'materia_prima' %}Materia prima{% elif r.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %}</td>
+            {% endif %}
+            <td>{{ r.producto }}</td>
+            <td>{{ r.marca }}</td>
+            <td>{{ r.lote or '—' }}</td>
+            <td>{{ r.vencimiento or '—' }}</td>
+            <td>{{ r.cantidad }}</td>
+            <td>{{ r.unidad or '—' }}</td>
+            <td>{{ r.operador }}</td>
+            <td>{{ r.proveedor or '—' }}</td>
+            <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones or '—' }}</div></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="{% if categoria == 'todas' %}12{% else %}11{% endif %}" class="text-muted text-center py-4">Sin ingresos en el período seleccionado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}
