@@ -58,6 +58,47 @@
     {% include "sgi/_procedure_document.html" %}
   </div>
 </div>
+
+{% if not solo_lectura %}
+<aside class="sgi-proc-format-bar sgi-proc-no-print" id="procFormatBar" role="toolbar" aria-label="Herramientas de edición">
+  <div class="sgi-proc-format-inner">
+    <div class="sgi-proc-format-group" aria-label="Formato de texto">
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtBold" title="Negrita (Ctrl+B)" aria-pressed="false">
+        <i class="bi bi-type-bold"></i>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtItalic" title="Cursiva (Ctrl+I)" aria-pressed="false">
+        <i class="bi bi-type-italic"></i>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtUnderline" title="Subrayado (Ctrl+U)" aria-pressed="false">
+        <i class="bi bi-type-underline"></i>
+      </button>
+    </div>
+    <div class="sgi-proc-format-sep" aria-hidden="true"></div>
+    <div class="sgi-proc-format-group" aria-label="Insertar contenido">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtSubapartado" title="Subapartado numerado (hasta 3 niveles)">
+        <i class="bi bi-list-nested"></i><span class="d-none d-md-inline ms-1">Subapartado</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtTable" title="Insertar tabla">
+        <i class="bi bi-table"></i><span class="d-none d-md-inline ms-1">Tabla</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtImage" title="Insertar imagen">
+        <i class="bi bi-image"></i><span class="d-none d-md-inline ms-1">Imagen</span>
+      </button>
+    </div>
+    <div class="sgi-proc-format-sep" aria-hidden="true"></div>
+    <div class="sgi-proc-format-group sgi-proc-format-table-tools" id="fmtTableTools" hidden>
+      <span class="sgi-proc-format-label">Tabla · col.</span>
+      <select class="form-select form-select-sm sgi-proc-fmt-col-select" id="fmtTableCol" aria-label="Columna a ajustar"></select>
+      <input type="range" class="form-range sgi-proc-fmt-col-range" id="fmtTableColWidth" min="8" max="85" value="25" aria-label="Ancho de columna">
+      <span class="sgi-proc-format-col-pct" id="fmtTableColWidthLbl">25%</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtTableColsEqual" title="Repartir el ancho entre todas las columnas">
+        Igualar
+      </button>
+    </div>
+    <p class="sgi-proc-format-hint mb-0" id="fmtContextHint">Hacé clic en una sección del documento para editar.</p>
+  </div>
+</aside>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script>

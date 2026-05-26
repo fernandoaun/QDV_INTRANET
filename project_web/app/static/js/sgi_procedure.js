@@ -83,20 +83,25 @@
     return sub;
   }
 
-  function endOfSubapartadoSubtree(bodyEl, secNum, rootEl) {
+  /**
+   * Punto de inserción: devolvemos el primer subapartado "no-descendiente"
+   * que aparezca después de `rootEl`.
+   *
+   * Esto permite insertar el nuevo subapartado después del contenido
+   * (tablas, texto, imágenes) que esté entre `rootEl` y el próximo subapartado.
+   */
+  function nextNonDescendantSubapartado(bodyEl, secNum, rootEl) {
     const all = listSubapartados(bodyEl, secNum);
     const rootParts = parseSubapartadoParts(
       rootEl.querySelector(".sgi-proc-sub-num")?.textContent,
       secNum
     );
-    if (!rootParts) return rootEl;
-    let last = rootEl;
+    if (!rootParts) return null;
     const idx = all.findIndex((x) => x.el === rootEl);
     for (let i = idx + 1; i < all.length; i += 1) {
-      if (isDescendantOf(all[i].parts, rootParts)) last = all[i].el;
-      else break;
+      if (!isDescendantOf(all[i].parts, rootParts)) return all[i].el;
     }
-    return last;
+    return null;
   }
 
   /** Siguiente numeración: max existente + 1 (no rellena huecos al borrar). */
@@ -217,7 +222,9 @@
     if (!node) return;
 
     if (ref) {
-      endOfSubapartadoSubtree(bodyEl, secNum, ref).after(node);
+      const stopEl = nextNonDescendantSubapartado(bodyEl, secNum, ref);
+      if (stopEl) stopEl.before(node);
+      else bodyEl.appendChild(node);
     } else {
       bodyEl.appendChild(node);
     }
@@ -262,6 +269,14 @@
       if (!el.getAttribute("style")?.trim()) el.removeAttribute("style");
     });
     root.querySelectorAll("font[face]").forEach((el) => el.removeAttribute("face"));
+    root.querySelectorAll("span").forEach((el) => {
+      const st = el.getAttribute("style") || "";
+      if (/font-weight\s*:\s*(bold|700)/i.test(st) && !el.querySelector("*")) {
+        const strong = doc.createElement("strong");
+        strong.innerHTML = el.innerHTML;
+        el.replaceWith(strong);
+      }
+    });
     root.querySelectorAll("table").forEach((el) => {
       el.classList.add("sgi-proc-content-table");
       el.removeAttribute("width");
@@ -269,6 +284,7 @@
       el.removeAttribute("align");
       el.style.width = "100%";
       el.style.float = "none";
+      el.style.tableLayout = "fixed";
     });
     root.querySelectorAll("img").forEach((el) => {
       el.classList.add("sgi-proc-content-img");
@@ -286,7 +302,12 @@
   function buildContentTable(cols, rows) {
     const c = Math.max(1, cols);
     const r = Math.max(1, rows);
-    let html = '<table class="sgi-proc-content-table"><tbody>';
+    const pct = Math.round(100 / c);
+    let html = '<table class="sgi-proc-content-table"><colgroup>';
+    for (let col = 0; col < c; col += 1) {
+      html += `<col style="width:${pct}%">`;
+    }
+    html += "</colgroup><tbody>";
     for (let row = 0; row < r; row += 1) {
       html += "<tr>";
       for (let col = 0; col < c; col += 1) {
@@ -308,6 +329,7 @@
       bodyEl.insertAdjacentHTML("beforeend", html);
     }
     bodyEl.innerHTML = normalizeProcedureHtml(bodyEl.innerHTML);
+    setupAllContentTables(bodyEl);
     pushUndoState();
     scheduleAutoSaveHint();
   }
@@ -439,6 +461,7 @@
       const k = el.dataset.seccionBody;
       el.innerHTML = normalizeProcedureHtml(state.secciones[k] || "");
       syncSubapartadoLevels(el);
+      if (!soloLectura) setupAllContentTables(el);
     });
     const tituloInput = qs("#procTituloInput");
     if (tituloInput && state.titulo !== undefined) {
@@ -624,6 +647,316 @@
     tr.querySelector(".btn-del-reg")?.addEventListener("click", () => tr.remove());
   }
 
+  let activeSectionBody = null;
+  let tableResizeState = null;
+
+  function getActiveSectionBody() {
+    if (activeSectionBody && document.contains(activeSectionBody)) return activeSectionBody;
+    const sel = window.getSelection();
+    if (sel?.rangeCount) {
+      let node = sel.anchorNode;
+      if (node?.nodeType === Node.TEXT_NODE) node = node.parentElement;
+      const body = node?.closest?.("[data-seccion-body]");
+      if (body) return body;
+    }
+    return qsa("[data-seccion-body]")[0] || null;
+  }
+
+  function getSectionDisplayName(bodyEl) {
+    const sec = bodyEl?.closest?.("[data-seccion]");
+    const titulo = sec?.querySelector(".sgi-proc-seccion-titulo")?.textContent?.trim();
+    return titulo || "Sección";
+  }
+
+  function getActiveTableContext() {
+    const body = getActiveSectionBody();
+    if (!body) return null;
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return null;
+    let node = sel.anchorNode;
+    if (node?.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    const cell = node?.closest?.("td, th");
+    const table = cell?.closest?.("table.sgi-proc-content-table, table");
+    if (!table || !body.contains(table)) return null;
+    return { body, table, cell, colIndex: cell.cellIndex };
+  }
+
+  function getTableColumnCount(table) {
+    const row = table.querySelector("tr");
+    return row ? row.cells.length : 0;
+  }
+
+  function parseColWidthPct(colEl, fallback) {
+    const w = colEl?.style?.width || colEl?.getAttribute("width") || "";
+    const m = String(w).match(/([\d.]+)\s*%/);
+    if (m) return Math.round(parseFloat(m[1]));
+    return fallback;
+  }
+
+  function ensureTableColgroup(table) {
+    const n = getTableColumnCount(table);
+    if (!n) return null;
+    let cg = table.querySelector("colgroup");
+    if (!cg) {
+      cg = document.createElement("colgroup");
+      table.insertBefore(cg, table.firstChild);
+    }
+    while (cg.children.length < n) {
+      const col = document.createElement("col");
+      col.style.width = `${Math.round(100 / n)}%`;
+      cg.appendChild(col);
+    }
+    while (cg.children.length > n) cg.removeChild(cg.lastChild);
+    const pct = Math.round(100 / n);
+    Array.from(cg.children).forEach((col, i) => {
+      if (!col.style.width) col.style.width = `${pct}%`;
+      col.dataset.colIndex = String(i);
+    });
+    return cg;
+  }
+
+  function setTableColumnWidthPct(table, colIndex, pct) {
+    const cg = ensureTableColgroup(table);
+    if (!cg || colIndex < 0 || colIndex >= cg.children.length) return;
+    const clamped = Math.max(8, Math.min(85, Math.round(pct)));
+    cg.children[colIndex].style.width = `${clamped}%`;
+    const lbl = qs("#fmtTableColWidthLbl");
+    const range = qs("#fmtTableColWidth");
+    if (lbl) lbl.textContent = `${clamped}%`;
+    if (range) range.value = String(clamped);
+  }
+
+  function equalizeTableColumns(table) {
+    const n = getTableColumnCount(table);
+    if (!n) return;
+    const cg = ensureTableColgroup(table);
+    const pct = Math.round(100 / n);
+    Array.from(cg.children).forEach((col) => {
+      col.style.width = `${pct}%`;
+    });
+    updateFormatBar();
+  }
+
+  function setupTableColResizers(table) {
+    if (soloLectura || !table) return;
+    table.classList.add("sgi-proc-table-editable");
+    ensureTableColgroup(table);
+    table.querySelectorAll(".sgi-proc-col-resizer").forEach((el) => el.remove());
+    const headerRow = table.querySelector("tr");
+    if (!headerRow) return;
+    Array.from(headerRow.cells).forEach((cell, idx) => {
+      if (idx >= headerRow.cells.length - 1) return;
+      const handle = document.createElement("span");
+      handle.className = "sgi-proc-col-resizer";
+      handle.dataset.colIndex = String(idx);
+      handle.title = "Arrastrá para cambiar el ancho de la columna";
+      cell.appendChild(handle);
+    });
+  }
+
+  function setupAllContentTables(root) {
+    const scope = root || document;
+    scope.querySelectorAll(".sgi-proc-content-table, .sgi-proc-seccion-cuerpo table").forEach((table) => {
+      if (!table.querySelector("colgroup")) ensureTableColgroup(table);
+      setupTableColResizers(table);
+    });
+  }
+
+  function execTextFormat(command) {
+    const body = getActiveSectionBody();
+    if (!body) {
+      flashMsg("warning", "Hacé clic en una sección del documento para aplicar formato.");
+      return;
+    }
+    body.focus();
+    try {
+      document.execCommand(command, false, null);
+    } catch {
+      /* navegador sin soporte */
+    }
+    pushUndoState();
+    scheduleAutoSaveHint();
+    updateFormatBar();
+  }
+
+  function updateFormatBar() {
+    if (soloLectura) return;
+    const hint = qs("#fmtContextHint");
+    const body = getActiveSectionBody();
+    if (hint) {
+      hint.textContent = body
+        ? `Editando: ${getSectionDisplayName(body)}`
+        : "Hacé clic en una sección del documento para editar.";
+    }
+
+    const fmtBold = qs("#fmtBold");
+    const fmtItalic = qs("#fmtItalic");
+    const fmtUnderline = qs("#fmtUnderline");
+    try {
+      if (fmtBold) fmtBold.setAttribute("aria-pressed", document.queryCommandState("bold") ? "true" : "false");
+      if (fmtItalic) fmtItalic.setAttribute("aria-pressed", document.queryCommandState("italic") ? "true" : "false");
+      if (fmtUnderline) {
+        fmtUnderline.setAttribute("aria-pressed", document.queryCommandState("underline") ? "true" : "false");
+      }
+    } catch {
+      /* selection fuera del documento */
+    }
+
+    const ctx = getActiveTableContext();
+    const tools = qs("#fmtTableTools");
+    const colSel = qs("#fmtTableCol");
+    if (!tools || !colSel) return;
+    if (!ctx) {
+      tools.hidden = true;
+      return;
+    }
+    tools.hidden = false;
+    const n = getTableColumnCount(ctx.table);
+    const prev = parseInt(colSel.value || "0", 10);
+    colSel.innerHTML = "";
+    for (let i = 0; i < n; i += 1) {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = String(i + 1);
+      colSel.appendChild(opt);
+    }
+    const colIndex = prev >= 0 && prev < n ? prev : ctx.colIndex;
+    colSel.value = String(colIndex);
+    const cg = ensureTableColgroup(ctx.table);
+    const pct = parseColWidthPct(cg?.children[colIndex], Math.round(100 / n));
+    const range = qs("#fmtTableColWidth");
+    const lbl = qs("#fmtTableColWidthLbl");
+    if (range) range.value = String(pct);
+    if (lbl) lbl.textContent = `${pct}%`;
+  }
+
+  function bindTableColumnResize() {
+    document.addEventListener("mousedown", (e) => {
+      const handle = e.target.closest?.(".sgi-proc-col-resizer");
+      if (!handle || soloLectura) return;
+      e.preventDefault();
+      const table = handle.closest("table");
+      const colIndex = parseInt(handle.dataset.colIndex || "0", 10);
+      const cg = ensureTableColgroup(table);
+      if (!cg) return;
+      tableResizeState = {
+        table,
+        colIndex,
+        startX: e.clientX,
+        startPct: parseColWidthPct(cg.children[colIndex], 25),
+      };
+    });
+
+    document.addEventListener("mousemove", (e) => {
+      if (!tableResizeState) return;
+      const { table, colIndex, startX, startPct } = tableResizeState;
+      const width = table.getBoundingClientRect().width || 1;
+      const deltaPct = ((e.clientX - startX) / width) * 100;
+      setTableColumnWidthPct(table, colIndex, startPct + deltaPct);
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (!tableResizeState) return;
+      tableResizeState = null;
+      pushUndoState();
+      scheduleAutoSaveHint();
+      updateFormatBar();
+    });
+  }
+
+  function bindFormatBar() {
+    qs("#fmtBold")?.addEventListener("click", () => execTextFormat("bold"));
+    qs("#fmtItalic")?.addEventListener("click", () => execTextFormat("italic"));
+    qs("#fmtUnderline")?.addEventListener("click", () => execTextFormat("underline"));
+
+    qs("#fmtSubapartado")?.addEventListener("click", () => {
+      const body = getActiveSectionBody();
+      if (!body) {
+        flashMsg("warning", "Hacé clic en la sección donde querés el subapartado.");
+        return;
+      }
+      insertSubapartado(body);
+      updateFormatBar();
+    });
+
+    qs("#fmtTable")?.addEventListener("click", () => {
+      const body = getActiveSectionBody();
+      if (!body) {
+        flashMsg("warning", "Hacé clic en la sección donde querés la tabla.");
+        return;
+      }
+      insertContentTable(body);
+      updateFormatBar();
+    });
+
+    qs("#fmtImage")?.addEventListener("click", () => {
+      const body = getActiveSectionBody();
+      if (!body) {
+        flashMsg("warning", "Hacé clic en la sección donde querés la imagen.");
+        return;
+      }
+      insertContentImage(body);
+    });
+
+    qs("#fmtTableCol")?.addEventListener("change", (e) => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      const idx = parseInt(e.target.value, 10);
+      const cg = ensureTableColgroup(ctx.table);
+      const pct = parseColWidthPct(cg?.children[idx], 25);
+      const range = qs("#fmtTableColWidth");
+      if (range) range.value = String(pct);
+      updateFormatBar();
+    });
+
+    qs("#fmtTableColWidth")?.addEventListener("input", (e) => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      const colSel = qs("#fmtTableCol");
+      const idx = parseInt(colSel?.value || String(ctx.colIndex), 10);
+      setTableColumnWidthPct(ctx.table, idx, parseInt(e.target.value, 10));
+      scheduleUndoSnapshot();
+      scheduleAutoSaveHint();
+    });
+
+    qs("#fmtTableColsEqual")?.addEventListener("click", () => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      equalizeTableColumns(ctx.table);
+      pushUndoState();
+      scheduleAutoSaveHint();
+    });
+
+    document.addEventListener("focusin", (e) => {
+      const body = e.target.closest?.("[data-seccion-body]");
+      if (!body) return;
+      activeSectionBody = body;
+      qsa("[data-seccion-body]").forEach((el) => {
+        el.classList.toggle("sgi-proc-section-active", el === body);
+      });
+      updateFormatBar();
+    });
+
+    document.addEventListener("selectionchange", () => {
+      if (!soloLectura) updateFormatBar();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (soloLectura) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (!["b", "i", "u"].includes(key)) return;
+      if (!e.target.closest?.("[data-seccion-body]")) return;
+      e.preventDefault();
+      if (key === "b") execTextFormat("bold");
+      else if (key === "i") execTextFormat("italic");
+      else execTextFormat("underline");
+    });
+
+    bindTableColumnResize();
+    updateFormatBar();
+  }
+
   function addAnexoCard(ax, idx) {
     const container = qs("#procAnexosContainer");
     if (!container) return;
@@ -673,6 +1006,7 @@
       const k = el.dataset.seccionBody;
       el.innerHTML = normalizeProcedureHtml(secs[k] || "");
       syncSubapartadoLevels(el);
+      if (!soloLectura) setupAllContentTables(el);
     });
 
     renderControlCambios(initial.control_cambios || []);
@@ -696,27 +1030,6 @@
     });
 
     if (!soloLectura) initUndoStack();
-
-    qsa(".btn-add-subapartado").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const body = btn.closest("[data-seccion]")?.querySelector("[data-seccion-body]");
-        if (body) insertSubapartado(body);
-      });
-    });
-
-    qsa(".btn-insert-table").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const body = btn.closest("[data-seccion]")?.querySelector("[data-seccion-body]");
-        if (body) insertContentTable(body);
-      });
-    });
-
-    qsa(".btn-insert-image").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const body = btn.closest("[data-seccion]")?.querySelector("[data-seccion-body]");
-        if (body) insertContentImage(body);
-      });
-    });
 
     qs("#procImageInput")?.addEventListener("change", handleImageSelected);
   }
@@ -815,6 +1128,7 @@
       scheduleAutoSaveHint();
     });
     bindUndoShortcuts();
+    bindFormatBar();
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
     qs("#btnEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
     qs("#btnAprobar")?.addEventListener("click", () => workflow("aprobar"));

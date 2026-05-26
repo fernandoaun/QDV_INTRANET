@@ -73,25 +73,6 @@
     <div class="sgi-proc-seccion" data-seccion="{{ key }}" data-seccion-num="{{ loop.index }}">
       <div class="sgi-proc-seccion-heading">
         <div class="sgi-proc-seccion-titulo">{{ label }}</div>
-        {% if not solo_lectura|default(false) %}
-        <div class="sgi-proc-seccion-actions">
-          <button type="button"
-                  class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-seccion btn-add-subapartado"
-                  title="Subapartado: {{ loop.index }}.1, {{ loop.index }}.1.1 o {{ loop.index }}.1.1.1 (hasta 3 niveles). El número siguiente usa el máximo existente, aunque haya huecos por borrados.">
-            <i class="bi bi-list-nested"></i> Subapartado
-          </button>
-          <button type="button"
-                  class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-seccion btn-insert-table"
-                  title="Insertar tabla">
-            <i class="bi bi-table"></i> Tabla
-          </button>
-          <button type="button"
-                  class="btn btn-sm btn-outline-secondary sgi-proc-no-print sgi-proc-btn-seccion btn-insert-image"
-                  title="Insertar imagen">
-            <i class="bi bi-image"></i> Imagen
-          </button>
-        </div>
-        {% endif %}
       </div>
       <div class="sgi-proc-seccion-cuerpo"
            data-seccion-body="{{ key }}"
