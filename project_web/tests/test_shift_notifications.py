@@ -105,6 +105,36 @@ def test_user_can_view_shift_handover_notifications_all_profiles(app):
         assert sh.user_can_view_shift_handover_notifications(None) is False
 
 
+def test_index_renders_with_shift_notifications_bell(app, client):
+  from werkzeug.security import generate_password_hash
+
+  from app.extensions import db
+  from app.models import User
+
+  with app.app_context():
+      u = User(
+          username="pytest_bell_render",
+          password_hash=generate_password_hash("x"),
+          is_admin=True,
+          activo=True,
+          rol="administrador",
+      )
+      db.session.add(u)
+      db.session.commit()
+      uid = int(u.id)
+
+  with client.session_transaction() as sess:
+      sess["user_id"] = uid
+      sess["perms"] = list(__import__("app.constants", fromlist=["PERMISSION_KEYS"]).PERMISSION_KEYS)
+      sess["perms_edit"] = sess["perms"]
+
+  r = client.get("/")
+  assert r.status_code == 200
+  body = r.get_data(as_text=True)
+  assert "appNotificationsBtn" in body
+  assert "Error interno" not in body
+
+
 def test_mark_shift_observation_notifications_seen_updates_session(app):
     with app.app_context():
         from flask import session
