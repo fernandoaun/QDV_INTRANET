@@ -150,6 +150,13 @@ def test_candidatos_aviso_mail_30_dias(app):
         assert vs.candidatos_aviso_mail(today=today, days_before=30) == []
 
 
+def test_scheduler_no_arranca_en_testing(app):
+    from app.services.vencimiento_scheduler import should_start_vencimiento_scheduler
+
+    with app.app_context():
+        assert should_start_vencimiento_scheduler(app) is False
+
+
 def test_candidatos_aviso_mail_fuera_de_ventana(app):
     from datetime import date, timedelta
 

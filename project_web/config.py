@@ -235,6 +235,24 @@ def get_config_dict(base_dir: Path) -> dict:
 
     venc_cc_raw = (os.environ.get("VENCIMIENTO_MAIL_CC_PANEL") or "true").strip().lower()
     vencimiento_mail_cc_panel = venc_cc_raw in ("1", "true", "yes")
+    venc_auto_raw = (os.environ.get("VENCIMIENTO_AUTO_MAIL_ENABLED") or "true").strip().lower()
+    vencimiento_auto_mail_enabled = venc_auto_raw in ("1", "true", "yes")
+    venc_sched_raw = (os.environ.get("VENCIMIENTO_AUTO_MAIL_SCHEDULER") or "true").strip().lower()
+    vencimiento_auto_mail_scheduler = venc_sched_raw in ("1", "true", "yes")
+    try:
+        vencimiento_auto_mail_interval_hours = int(
+            (os.environ.get("VENCIMIENTO_AUTO_MAIL_INTERVAL_HOURS") or "6").strip()
+        )
+    except ValueError:
+        vencimiento_auto_mail_interval_hours = 6
+    vencimiento_auto_mail_interval_hours = max(1, min(vencimiento_auto_mail_interval_hours, 168))
+    try:
+        vencimiento_auto_mail_startup_delay_sec = int(
+            (os.environ.get("VENCIMIENTO_AUTO_MAIL_STARTUP_DELAY_SEC") or "30").strip()
+        )
+    except ValueError:
+        vencimiento_auto_mail_startup_delay_sec = 30
+    vencimiento_auto_mail_startup_delay_sec = max(5, min(vencimiento_auto_mail_startup_delay_sec, 600))
     app_public_base_url = (os.environ.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
     # Postgres (p. ej. Render): evitar OperationalError SSL SYSCALL EOF al reutilizar
@@ -320,6 +338,10 @@ def get_config_dict(base_dir: Path) -> dict:
         "DEADLINE_ALERT_EMAIL_TO": deadline_alert_email_to,
         "DEADLINE_REMINDER_DAYS_BEFORE": deadline_reminder_days_before,
         "VENCIMIENTO_MAIL_CC_PANEL": vencimiento_mail_cc_panel,
+        "VENCIMIENTO_AUTO_MAIL_ENABLED": vencimiento_auto_mail_enabled,
+        "VENCIMIENTO_AUTO_MAIL_SCHEDULER": vencimiento_auto_mail_scheduler,
+        "VENCIMIENTO_AUTO_MAIL_INTERVAL_HOURS": vencimiento_auto_mail_interval_hours,
+        "VENCIMIENTO_AUTO_MAIL_STARTUP_DELAY_SEC": vencimiento_auto_mail_startup_delay_sec,
         "APP_PUBLIC_BASE_URL": app_public_base_url,
     }
     if sql_engine_options:

@@ -13,7 +13,8 @@
   Direcciones que reciben el recordatorio automático de <strong>planificación</strong> (fecha de fin de actividad)
   y <strong>mantenimiento</strong> (fecha programada de la orden), cuando entran en la ventana de aviso configurada en el servidor.
   La misma configuración SMTP sirve para los avisos del módulo <strong>Vencimientos</strong>: un correo por ítem al <strong>email de aviso</strong> del registro cuando faltan hasta 30 días (configurable con <code>DEADLINE_REMINDER_DAYS_BEFORE</code>); opcional copia a esta lista según <code>VENCIMIENTO_MAIL_CC_PANEL</code>.
-  El envío diario recomendado es el cron <code>send-deadline-reminders</code>, o el botón de abajo para ejecutarlo ahora.
+  Los avisos de <strong>Vencimientos</strong> se envían solos en segundo plano mientras la app está activa (ventana de 30 días).
+  Planificación y mantenimiento siguen usando el cron <code>send-deadline-reminders</code> o el botón de abajo para vencimientos.
   <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; los perfiles <strong>Angel</strong> y <strong>SGI</strong> pueden ver esta pantalla completa sin modificarla.
 </p>
 

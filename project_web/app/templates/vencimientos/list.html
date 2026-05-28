@@ -28,8 +28,8 @@
   <div class="small mb-0">
     <strong>Aviso automático por correo:</strong> cada vencimiento activo recibe un mail al correo indicado en el ítem
     cuando entra en la ventana de <strong>{{ dias_aviso_mail }} días</strong> antes de la fecha de vencimiento (una sola vez por registro).
-    El envío diario se hace con el cron <code>send-deadline-reminders</code> o desde
-    <a href="{{ url_for('admin_users.deadline_alert_emails') }}">Avisos por correo</a>.
+    El sistema lo envía solo mientras la aplicación está en marcha (revisión periódica en segundo plano).
+    También podés forzar el envío desde <a href="{{ url_for('admin_users.deadline_alert_emails') }}">Avisos por correo</a>.
   </div>
 </div>
 {% endif %}

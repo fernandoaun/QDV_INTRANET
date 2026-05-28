@@ -457,4 +457,8 @@ def create_app() -> Flask:
             "En PaaS seguí definiendo APP_UPLOAD_ROOT apuntando a un volumen persistente; ver DEPLOY_RENDER.md."
         )
 
+    from app.services.vencimiento_scheduler import init_vencimiento_mail_scheduler
+
+    init_vencimiento_mail_scheduler(app)
+
     return app
