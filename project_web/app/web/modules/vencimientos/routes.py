@@ -48,6 +48,7 @@ def listado():
     sectores = vs.list_sectores(solo_activos=False)
     mail_ok = is_mail_fully_configured(current_app)
     show_mail_alert = bool(user_can_manage_vencimientos(u)) and not mail_ok
+    dias_aviso = vs.dias_antes_aviso_mail(current_app)
     return render_template(
         "vencimientos/list.html",
         rows=rows,
@@ -58,6 +59,8 @@ def listado():
         estado_visual_row=vs.estado_visual_row,
         dias_restantes=vs.dias_restantes,
         mail_inactivo_alert=show_mail_alert,
+        mail_configurado=mail_ok,
+        dias_aviso_mail=dias_aviso,
     )
 
 

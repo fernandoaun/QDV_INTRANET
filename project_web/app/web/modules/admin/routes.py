@@ -20,6 +20,7 @@ from app.services.deadline_alert_email_service import (
     normalize_validate_email,
 )
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
+from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
@@ -390,6 +391,24 @@ def deadline_alert_emails():
         viewer_may_edit_deadline_mails=bool(u.is_admin),
         smtp_configured=is_mail_fully_configured(current_app),
     )
+
+
+@bp.post("/avisos-correo/enviar-vencimientos")
+@login_required
+@admin_required
+def vencimientos_reminders_send():
+    if not is_mail_fully_configured(current_app):
+        flash("SMTP no configurado: revisá SMTP_HOST y MAIL_FROM en el servidor.", "warning")
+        return redirect(url_for("admin_users.deadline_alert_emails"))
+    out = run_vencimiento_reminders(current_app, dry_run=False)
+    msg = out.get("message") or "Proceso de avisos de vencimientos finalizado."
+    if out.get("errors"):
+        flash(f"{msg} Hubo {len(out['errors'])} error(es).", "warning")
+    elif int(out.get("emails_sent") or 0) > 0:
+        flash(msg, "success")
+    else:
+        flash(msg, "info")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
 
 
 @bp.post("/avisos-correo/probar-envio")

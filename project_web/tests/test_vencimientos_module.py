@@ -114,3 +114,64 @@ def test_allowed_attachment_suffix_types():
     assert ok is True
     ok, err = allowed_attachment_suffix("evil.exe")
     assert ok is False and err
+
+
+def test_candidatos_aviso_mail_30_dias(app):
+    from datetime import date, timedelta
+
+    from app.extensions import db
+    from app.models import SectorVencimiento, Vencimiento
+    from app.services import vencimiento_service as vs
+
+    fv = date(2026, 8, 1)
+    today = fv - timedelta(days=30)
+    with app.app_context():
+        sec = SectorVencimiento(nombre="Pytest sector", descripcion="", activo=True)
+        db.session.add(sec)
+        db.session.flush()
+        v = Vencimiento(
+            sector_id=sec.id,
+            nombre="Certificado pytest",
+            fecha_vencimiento=fv,
+            email_aviso="aviso@example.test",
+            estado=vs.ESTADO_VIGENTE,
+            activo=True,
+        )
+        db.session.add(v)
+        db.session.commit()
+        vid = v.id
+
+        found = vs.candidatos_aviso_mail(today=today, days_before=30)
+        assert len(found) == 1
+        assert found[0].id == vid
+
+        v.aviso_30_dias_enviado = True
+        db.session.commit()
+        assert vs.candidatos_aviso_mail(today=today, days_before=30) == []
+
+
+def test_candidatos_aviso_mail_fuera_de_ventana(app):
+    from datetime import date, timedelta
+
+    from app.extensions import db
+    from app.models import SectorVencimiento, Vencimiento
+    from app.services import vencimiento_service as vs
+
+    fv = date(2026, 12, 31)
+    today = fv - timedelta(days=31)
+    with app.app_context():
+        sec = SectorVencimiento(nombre="Pytest lejos", descripcion="", activo=True)
+        db.session.add(sec)
+        db.session.flush()
+        db.session.add(
+            Vencimiento(
+                sector_id=sec.id,
+                nombre="Lejos",
+                fecha_vencimiento=fv,
+                email_aviso="aviso@example.test",
+                estado=vs.ESTADO_VIGENTE,
+                activo=True,
+            )
+        )
+        db.session.commit()
+        assert vs.candidatos_aviso_mail(today=today, days_before=30) == []

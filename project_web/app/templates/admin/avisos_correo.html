@@ -12,8 +12,8 @@
 <p class="small app-text-secondary mb-3">
   Direcciones que reciben el recordatorio automático de <strong>planificación</strong> (fecha de fin de actividad)
   y <strong>mantenimiento</strong> (fecha programada de la orden), cuando entran en la ventana de aviso configurada en el servidor.
-  La misma configuración SMTP sirve para los avisos del módulo <strong>Vencimientos</strong> (un correo por ítem en ventana de 30 días; opcional copia a esta lista según <code>VENCIMIENTO_MAIL_CC_PANEL</code>).
-  El envío real sigue dependiendo de SMTP en el proveedor (cron diario <code>send-deadline-reminders</code>).
+  La misma configuración SMTP sirve para los avisos del módulo <strong>Vencimientos</strong>: un correo por ítem al <strong>email de aviso</strong> del registro cuando faltan hasta 30 días (configurable con <code>DEADLINE_REMINDER_DAYS_BEFORE</code>); opcional copia a esta lista según <code>VENCIMIENTO_MAIL_CC_PANEL</code>.
+  El envío diario recomendado es el cron <code>send-deadline-reminders</code>, o el botón de abajo para ejecutarlo ahora.
   <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; los perfiles <strong>Angel</strong> y <strong>SGI</strong> pueden ver esta pantalla completa sin modificarla.
 </p>
 
@@ -45,6 +45,22 @@
 </div>
 
 {% if viewer_may_edit_deadline_mails|default(false) %}
+<div class="app-card mb-4">
+  <div class="app-card-header">Avisos de vencimientos (30 días antes)</div>
+  <div class="app-card-body">
+    <p class="small text-muted mb-3">
+      Envía ahora los correos pendientes del módulo <strong>Vencimientos</strong> (ítems en ventana de anticipación que aún no recibieron aviso).
+      Usa el mismo SMTP y el correo cargado en cada vencimiento.
+    </p>
+    <form method="post" action="{{ url_for('admin_users.vencimientos_reminders_send') }}" class="d-inline"
+          onsubmit="return confirm('¿Enviar ahora los avisos de vencimientos pendientes?');">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-primary" {% if smtp_configured is defined and not smtp_configured %}disabled{% endif %}>
+        Enviar avisos de vencimientos
+      </button>
+    </form>
+  </div>
+</div>
 <div class="app-card mb-4">
   <div class="app-card-header">Probar envío SMTP</div>
   <div class="app-card-body">

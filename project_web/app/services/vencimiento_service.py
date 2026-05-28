@@ -539,10 +539,27 @@ def build_export_xlsx(rows: list[Vencimiento]) -> BytesIO:
     return bio
 
 
-def candidatos_aviso_mail() -> list[Vencimiento]:
-    """Vencimientos activos, no renovados, con ventana 0..30 días y aviso no enviado."""
-    t = _today_local()
-    lim_sup = date.fromordinal(t.toordinal() + 30)
+def dias_antes_aviso_mail(app: Any | None = None) -> int:
+    """Días de anticipación del aviso (misma variable que planificación/mantenimiento)."""
+    cfg_app = app if app is not None else current_app
+    try:
+        v = cfg_app.config.get("DEADLINE_REMINDER_DAYS_BEFORE")
+        if isinstance(v, int) and v > 0:
+            return max(1, min(v, 366))
+    except RuntimeError:
+        pass
+    return 30
+
+
+def candidatos_aviso_mail(
+    *,
+    today: date | None = None,
+    days_before: int | None = None,
+) -> list[Vencimiento]:
+    """Vencimientos activos en ventana de aviso (p. ej. 30 días antes) sin correo enviado aún."""
+    t = today or _today_local()
+    db_days = days_before if days_before is not None else dias_antes_aviso_mail()
+    lim_sup = date.fromordinal(t.toordinal() + int(db_days))
     q = (
         select(Vencimiento)
         .options(joinedload(Vencimiento.sector))

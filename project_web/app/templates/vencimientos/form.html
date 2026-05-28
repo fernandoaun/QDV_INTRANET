@@ -40,6 +40,7 @@
         <div class="col-md-4">
           <label class="form-label">Email de aviso</label>
           <input type="email" class="form-control" name="email_aviso" required maxlength="254" value="{{ (form.email_aviso if form else '') }}">
+          <div class="form-text">Se enviará un aviso automático a esta dirección cuando falten hasta 30 días para el vencimiento (si el correo del servidor está configurado).</div>
         </div>
         <div class="col-12">
           <label class="form-label">Foto o PDF del ítem / certificado (opcional)</label>

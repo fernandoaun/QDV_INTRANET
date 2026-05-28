@@ -22,6 +22,16 @@
     <a href="{{ url_for('admin_users.deadline_alert_emails') }}">Avisos por correo</a>.
   </div>
 </div>
+{% elif mail_configurado|default(false) %}
+<div class="alert alert-info d-flex align-items-start gap-2 py-2" role="status">
+  <i class="bi bi-envelope-check fs-5"></i>
+  <div class="small mb-0">
+    <strong>Aviso automático por correo:</strong> cada vencimiento activo recibe un mail al correo indicado en el ítem
+    cuando entra en la ventana de <strong>{{ dias_aviso_mail }} días</strong> antes de la fecha de vencimiento (una sola vez por registro).
+    El envío diario se hace con el cron <code>send-deadline-reminders</code> o desde
+    <a href="{{ url_for('admin_users.deadline_alert_emails') }}">Avisos por correo</a>.
+  </div>
+</div>
 {% endif %}
 
 <div class="app-card mb-3">

@@ -1,8 +1,12 @@
 """
-Avisos automáticos del módulo Vencimientos (30 días o menos antes del vencimiento).
+Avisos automáticos del módulo Vencimientos (correo al entrar en la ventana de anticipación).
+
+Por defecto se avisa cuando faltan hasta 30 días para el vencimiento (variable
+`DEADLINE_REMINDER_DAYS_BEFORE`), una vez por registro, al correo del ítem (`email_aviso`).
 
 Usa la misma configuración SMTP que el panel «Avisos por correo» (variables SMTP_* / MAIL_FROM).
-Ejecutar una vez al día junto con `send-deadline-reminders`.
+Ejecutar una vez al día: `python -m flask --app run send-deadline-reminders`
+(o el botón «Enviar avisos de vencimientos» en Administración → Avisos por correo).
 """
 
 from __future__ import annotations
@@ -71,13 +75,15 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
 
 def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]:
     today = now_operacion_naive_local().date()
-    rows = vs.candidatos_aviso_mail()
+    days_before = vs.dias_antes_aviso_mail(app)
+    rows = vs.candidatos_aviso_mail(today=today, days_before=days_before)
 
     cc_panel = bool(app.config.get("VENCIMIENTO_MAIL_CC_PANEL", True))
     cc_list: list[str] = merged_recipient_addresses(app) if cc_panel else []
 
     result: dict[str, Any] = {
         "today": today.isoformat(),
+        "days_before": days_before,
         "candidates": len(rows),
         "dry_run": dry_run,
         "smtp_configured": is_mail_fully_configured(app),
@@ -87,7 +93,9 @@ def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, A
     }
 
     if not rows:
-        result["message"] = "No hay vencimientos pendientes de aviso en la ventana de 30 días."
+        result["message"] = (
+            f"No hay vencimientos pendientes de aviso en la ventana de {days_before} días."
+        )
         return result
 
     if not is_mail_fully_configured(app):
@@ -104,7 +112,12 @@ def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, A
         if not to_addr:
             continue
 
-        subject = f"Aviso de vencimiento próximo — {v.nombre}"
+        dias = vs.dias_restantes(v.fecha_vencimiento, today)
+        if dias == 1:
+            dias_txt = "1 día"
+        else:
+            dias_txt = f"{dias} días"
+        subject = f"Aviso de vencimiento — {v.nombre} (vence en {dias_txt})"
         plain, html_body = _build_html_body(app, v)
 
         cc_use = [c for c in cc_list if c.lower() != to_addr.lower()]

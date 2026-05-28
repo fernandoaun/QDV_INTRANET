@@ -107,7 +107,7 @@ def register_cli(app: Flask) -> None:
         )
         click.echo(out_v.get("message") or "")
         click.echo(
-            f"Vencimientos · candidatos aviso: {out_v.get('candidates')} · "
+            f"Vencimientos · anticipación: {out_v.get('days_before')} días · candidatos: {out_v.get('candidates')} · "
             f"intentados: {out_v.get('emails_attempted')} · enviados: {out_v.get('emails_sent')}"
         )
         if dry_run and out.get("preview_body"):
