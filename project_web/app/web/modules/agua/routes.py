@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import select
 
 from app.auth_utils import current_user, login_required, permission_required
@@ -28,6 +28,12 @@ from app.web.modules.produccion.operativa_context import (
 
 
 def register_agua_routes(bp: Blueprint) -> None:
+    def _is_ajax_request() -> bool:
+        return (
+            request.headers.get("X-Requested-With", "").lower() == "xmlhttprequest"
+            or "application/json" in request.headers.get("Accept", "").lower()
+        )
+
     @bp.route("/agua", methods=["GET", "POST"])
     @login_required
     @permission_required("agua")
@@ -68,10 +74,14 @@ def register_agua_routes(bp: Blueprint) -> None:
                         )
                     )
                     db.session.commit()
+                    if _is_ajax_request():
+                        return jsonify({"ok": True, "message": "Registro de agua guardado."}), 200
                     flash("Registro de agua guardado.", "success")
                     return redirect(url_for("produccion.agua", fecha=fecha))
                 except Exception as e:
                     db.session.rollback()
+                    if _is_ajax_request():
+                        return jsonify({"ok": False, "error": str(e)}), 400
                     flash(str(e), "danger")
 
         rows = db.session.scalars(

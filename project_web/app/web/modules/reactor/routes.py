@@ -101,10 +101,14 @@ def register_reactor_routes(bp: Blueprint) -> None:
                     )
                 )
                 db.session.commit()
+                if _is_ajax_request():
+                    return jsonify({"ok": True, "message": "Registro reactor guardado."}), 200
                 flash("Registro reactor guardado.", "success")
                 return redirect(url_for("produccion.reactor", fecha=fecha))
             except Exception as e:
                 db.session.rollback()
+                if _is_ajax_request():
+                    return jsonify({"ok": False, "error": str(e)}), 400
                 flash(str(e), "danger")
 
         rows = db.session.scalars(

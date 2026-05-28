@@ -118,8 +118,9 @@
 <div class="app-card mb-4">
   <div class="app-card-header">Nuevo registro (lote automático)</div>
   <div class="app-card-body">
-    <form method="post" class="row g-2">
+    <form method="post" class="row g-2" id="reactorMainForm" novalidate>
     {% include "_csrf.html" %}
+      <div id="reactorMainFormMessage" class="col-12 alert py-2 px-3 d-none" role="status" aria-live="polite"></div>
       <div class="col-md-3"><label class="form-label">Operador</label>
         <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
         <input type="hidden" name="operador" value="{{ operador_sugerido or username }}">
@@ -339,6 +340,49 @@
 </script>
 <script>
 (() => {
+  const mainForm = document.getElementById("reactorMainForm");
+  const mainFormMsg = document.getElementById("reactorMainFormMessage");
+
+  function showMainFormMessage(text, kind) {
+    if (!mainFormMsg) return;
+    mainFormMsg.classList.remove("d-none", "alert-success", "alert-danger", "alert-warning", "alert-info");
+    mainFormMsg.classList.add(kind || "alert-info");
+    mainFormMsg.textContent = text || "";
+  }
+
+  if (mainForm) {
+    mainForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if (!mainForm.reportValidity()) {
+        return;
+      }
+      const submitBtn = mainForm.querySelector("button[type='submit']");
+      if (submitBtn) submitBtn.disabled = true;
+      showMainFormMessage("Guardando registro...", "alert-info");
+      try {
+        const resp = await fetch(mainForm.getAttribute("action") || window.location.href, {
+          method: "POST",
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept": "application/json",
+          },
+          body: new FormData(mainForm),
+          credentials: "same-origin",
+        });
+        const payload = await resp.json().catch(() => null);
+        if (!resp.ok || !payload || payload.ok !== true) {
+          throw new Error((payload && (payload.error || payload.message)) || "No se pudo guardar el registro.");
+        }
+        showMainFormMessage(payload.message || "Registro guardado.", "alert-success");
+        window.location.reload();
+      } catch (err) {
+        showMainFormMessage((err && err.message) ? err.message : "No se pudo guardar el registro.", "alert-danger");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
   const timerText = document.getElementById("timerText");
   const timerSub = document.getElementById("timerSub");
   const timerState = document.getElementById("timerState");

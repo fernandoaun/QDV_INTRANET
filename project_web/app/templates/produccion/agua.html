@@ -54,10 +54,11 @@
 <div class="app-card mb-4">
   <div class="app-card-header">Nuevo análisis</div>
   <div class="app-card-body">
-    <form method="post" class="row g-2">
+    <form method="post" class="row g-2" id="aguaForm" novalidate>
     {% include "_csrf.html" %}
       <input type="hidden" name="form_action" value="agua_analisis">
       <input type="hidden" name="fecha" value="{{ fecha }}">
+      <div id="aguaFormMessage" class="col-12 alert py-2 px-3 d-none" role="status" aria-live="polite"></div>
       <div class="col-md-2">
         <label class="form-label">Turno</label>
         <input class="form-control" value="{{ turno_sugerido }}" readonly aria-readonly="true">
@@ -185,6 +186,51 @@
   inp.addEventListener("input", refreshDurezaWarn);
   inp.addEventListener("change", refreshDurezaWarn);
   refreshDurezaWarn();
+})();
+</script>
+
+<script>
+(function () {
+  const form = document.getElementById("aguaForm");
+  const formMsg = document.getElementById("aguaFormMessage");
+  if (!form || !formMsg) return;
+
+  function showFormMessage(text, kind) {
+    formMsg.classList.remove("d-none", "alert-success", "alert-danger", "alert-warning", "alert-info");
+    formMsg.classList.add(kind || "alert-info");
+    formMsg.textContent = text || "";
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    if (!form.reportValidity()) {
+      return;
+    }
+    const submitBtn = form.querySelector("button[type='submit']");
+    if (submitBtn) submitBtn.disabled = true;
+    showFormMessage("Guardando registro...", "alert-info");
+    try {
+      const resp = await fetch(form.getAttribute("action") || window.location.href, {
+        method: "POST",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "Accept": "application/json",
+        },
+        body: new FormData(form),
+        credentials: "same-origin",
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok || !payload || payload.ok !== true) {
+        throw new Error((payload && (payload.error || payload.message)) || "No se pudo guardar el registro.");
+      }
+      showFormMessage(payload.message || "Registro guardado.", "alert-success");
+      window.location.reload();
+    } catch (err) {
+      showFormMessage((err && err.message) ? err.message : "No se pudo guardar el registro.", "alert-danger");
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
+    }
+  });
 })();
 </script>
 {% endblock %}
