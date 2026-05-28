@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% from "produccion/_analysis_ref_flask.html" import analysis_ref_flask_button %}
 {% block title %}Historial análisis 8 hs · {{ module_title }} · QDV{% endblock %}
 {% block content %}
 {% set hist_export_endpoint = history_export_endpoint | default('produccion.salmuera_analisis_8hs_export_xlsx') %}
@@ -61,9 +60,23 @@
           <td class="text-end">{{ r.dureza_salmuera }}</td>
           <td class="text-end">{{ r.cloro_libre_salmuera }}</td>
           <td>
-            <div class="d-flex gap-1 align-items-center">
-              {{ analysis_ref_flask_button('salmuera_analisis_8hs_dureza_' ~ r.id, r.file_dureza_present, 'analisis8HistDureza-' ~ r.id, 'Dureza de salmuera') }}
-              {{ analysis_ref_flask_button('salmuera_analisis_8hs_cloro_' ~ r.id, r.file_cloro_libre_present, 'analisis8HistCloro-' ~ r.id, 'Cloro libre en salmuera') }}
+            <div class="d-flex gap-1 align-items-center flex-wrap">
+              <button type="button"
+                      class="btn btn-outline-secondary btn-sm"
+                      data-analysis-ref-open="analisis8HistDureza-{{ r.id }}"
+                      aria-haspopup="dialog"
+                      aria-controls="analisis8HistDureza-{{ r.id }}"
+                      title="{% if r.file_dureza_present %}PDF de dureza cargado{% else %}Sin PDF de dureza{% endif %}">
+                Dureza
+              </button>
+              <button type="button"
+                      class="btn btn-outline-secondary btn-sm"
+                      data-analysis-ref-open="analisis8HistCloro-{{ r.id }}"
+                      aria-haspopup="dialog"
+                      aria-controls="analisis8HistCloro-{{ r.id }}"
+                      title="{% if r.file_cloro_libre_present %}PDF de cloro cargado{% else %}Sin PDF de cloro{% endif %}">
+                Cloro
+              </button>
               {% if r.file_dureza_missing or r.file_cloro_libre_missing %}
               <span class="badge text-bg-warning app-badge-soft">archivo faltante</span>
               {% endif %}
