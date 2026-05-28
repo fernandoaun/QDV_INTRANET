@@ -46,7 +46,6 @@
           <th>Operador</th>
           <th class="text-end">Dureza</th>
           <th class="text-end">Cloro libre</th>
-          <th>Archivos</th>
           <th>Observaciones</th>
         </tr>
       </thead>
@@ -59,33 +58,10 @@
           <td>{{ r.operador }}</td>
           <td class="text-end">{{ r.dureza_salmuera }}</td>
           <td class="text-end">{{ r.cloro_libre_salmuera }}</td>
-          <td>
-            <div class="d-flex gap-1 align-items-center flex-wrap">
-              <button type="button"
-                      class="btn btn-outline-secondary btn-sm"
-                      data-analysis-ref-open="analisis8HistDureza-{{ r.id }}"
-                      aria-haspopup="dialog"
-                      aria-controls="analisis8HistDureza-{{ r.id }}"
-                      title="{% if r.file_dureza_present %}PDF de dureza cargado{% else %}Sin PDF de dureza{% endif %}">
-                Dureza
-              </button>
-              <button type="button"
-                      class="btn btn-outline-secondary btn-sm"
-                      data-analysis-ref-open="analisis8HistCloro-{{ r.id }}"
-                      aria-haspopup="dialog"
-                      aria-controls="analisis8HistCloro-{{ r.id }}"
-                      title="{% if r.file_cloro_libre_present %}PDF de cloro cargado{% else %}Sin PDF de cloro{% endif %}">
-                Cloro
-              </button>
-              {% if r.file_dureza_missing or r.file_cloro_libre_missing %}
-              <span class="badge text-bg-warning app-badge-soft">archivo faltante</span>
-              {% endif %}
-            </div>
-          </td>
           <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
+        <tr><td colspan="7" class="text-center text-muted py-3">Sin registros para el rango seleccionado.</td></tr>
         {% endfor %}
       </tbody>
     </table>
