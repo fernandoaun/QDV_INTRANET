@@ -348,6 +348,12 @@ def create_app() -> Flask:
         }
 
     @app.context_processor
+    def inject_fecha_operativa_hoy():
+        from app.services.plant_stop_service import today_operacion_iso
+
+        return {"fecha_operativa_hoy": today_operacion_iso()}
+
+    @app.context_processor
     def inject_header_operational_indicators():
         from app.services.operational_informed_stock import header_operational_indicators_dict
 

@@ -308,7 +308,7 @@
     const due = parseIsoLocal(status.next_due_iso);
     const now = new Date(Date.now() + clockOffsetMs);
     const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec > 0) {
+    if (diffSec >= 0) {
       timerText.textContent = fmt(diffSec);
       state.className = "badge app-badge-soft text-bg-success";
       state.textContent = "En tiempo";

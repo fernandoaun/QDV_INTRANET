@@ -97,9 +97,56 @@ def test_reactor_stop_sets_analisis8_frozen(app):
         overlay = ps.analisis8_plant_stop_overlay(
             last_fecha_hora_iso="2026-05-29T08:00:00",
             interval_sec=8 * 3600,
+            fecha_iso="2026-05-29",
         )
         assert overlay["active"] is True
         assert overlay["frozen_remaining_sec"] == ev.frozen_remaining_sec_analisis8
+
+
+def test_analisis8_overlay_ignores_stop_on_historical_fecha(app):
+    with app.app_context():
+        u = User(
+            username="pytest_plant_stop_hist",
+            password_hash=generate_password_hash("x"),
+            is_admin=False,
+            activo=True,
+            rol=ROLE_OPERACIONES,
+        )
+        db.session.add(u)
+        db.session.commit()
+
+        with patch.object(ps, "now_local_iso", return_value="2026-05-29T11:00:00"), patch.object(
+            ps, "today_operacion_iso", return_value="2026-05-29"
+        ):
+            ps.start_plant_stop(
+                app,
+                circuit_key=ps.CIRCUIT_REACTOR,
+                user=u,
+                operador="Op",
+                last_created_iso="2026-05-29T09:00:00",
+                interval_sec=int(ANALYSIS_INTERVAL_SECONDS),
+            )
+
+        overlay_hoy = ps.analisis8_plant_stop_overlay(
+            last_fecha_hora_iso="2026-05-28T08:00:00",
+            interval_sec=8 * 3600,
+            fecha_iso="2026-05-29",
+        )
+        overlay_ayer = ps.analisis8_plant_stop_overlay(
+            last_fecha_hora_iso="2026-05-28T08:00:00",
+            interval_sec=8 * 3600,
+            fecha_iso="2026-05-28",
+        )
+        assert overlay_hoy["active"] is True
+        assert overlay_ayer["active"] is False
+
+        state_ayer = ps.timer_ui_state(
+            ps.CIRCUIT_REACTOR,
+            "2026-05-28T10:00:00",
+            int(ANALYSIS_INTERVAL_SECONDS),
+            fecha_iso="2026-05-28",
+        )
+        assert state_ayer["active"] is False
 
 
 def test_list_stops_in_interval(app):

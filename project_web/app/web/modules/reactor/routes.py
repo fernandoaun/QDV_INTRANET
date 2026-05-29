@@ -51,7 +51,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
                     operador=operador_display_line() or default_operador_for_salmuera(),
                 )
                 db.session.commit()
-                status = analisis8_svc.build_status(now_local())
+                status = analisis8_svc.build_status(now_local(), fecha_iso=fecha)
                 if _is_ajax_request():
                     return (
                         jsonify(
@@ -135,7 +135,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),
             analysis_ref_rows_reactor=analysis_ref_rows_reactor,
             analysis_ref_map_reactor=analysis_ref_map_reactor,
-            analisis8_status=analisis8_svc.build_status(now_local()),
+            analisis8_status=analisis8_svc.build_status(now_local(), fecha_iso=fecha),
             analisis8_interval_seconds=analisis8_svc.ANALISIS_8HS_INTERVAL_SECONDS,
             plant_stop=plant_stop_svc.timer_ui_state(
                 plant_stop_svc.CIRCUIT_REACTOR,

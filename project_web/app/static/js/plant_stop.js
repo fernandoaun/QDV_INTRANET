@@ -190,6 +190,12 @@
         }
         btn.disabled = true;
         try {
+          const fechaHoy = wrap && wrap.dataset.fechaHoy ? String(wrap.dataset.fechaHoy).trim() : "";
+          if (fechaHoy && fechaIso && fechaIso !== fechaHoy) {
+            throw new Error(
+              "La parada de planta solo puede declararse o reanudarse en la fecha operativa de hoy."
+            );
+          }
           if (!active && !window.confirm("¿Declarar parada de planta? El cronómetro se detendrá.")) {
             return;
           }

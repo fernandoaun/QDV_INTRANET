@@ -61,6 +61,17 @@ def register_plant_stop_routes(bp: Blueprint) -> None:
         if action not in ("start", "end"):
             return jsonify({"ok": False, "error": "Acción no válida."}), 400
 
+        if not ps.is_fecha_operativa_actual(fecha_iso):
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "La parada de planta solo puede declararse o reanudarse en la fecha operativa de hoy.",
+                    }
+                ),
+                400,
+            )
+
         last_created = _last_created_for_circuit(circuit_key, fecha_iso)
         interval_sec = _interval_for_circuit(circuit_key)
 
@@ -104,6 +115,7 @@ def register_plant_stop_routes(bp: Blueprint) -> None:
             payload["analisis8_plant_stop"] = ps.analisis8_plant_stop_overlay(
                 last_fecha_hora_iso=anchor_8h,
                 interval_sec=int(ANALISIS_8HS_INTERVAL_SECONDS),
+                fecha_iso=fecha_iso,
             )
-            payload["analisis8_status"] = build_status(now_local())
+            payload["analisis8_status"] = build_status(now_local(), fecha_iso=fecha_iso)
         return jsonify(payload), 200

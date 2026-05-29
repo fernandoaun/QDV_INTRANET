@@ -199,7 +199,7 @@ def latest_row() -> SalmueraAnalisis8hs | None:
     )
 
 
-def build_status(now: datetime) -> dict[str, Any]:
+def build_status(now: datetime, *, fecha_iso: str | None = None) -> dict[str, Any]:
     from app.services import plant_stop_service as ps
 
     row = latest_row()
@@ -207,6 +207,7 @@ def build_status(now: datetime) -> dict[str, Any]:
         plant_stop = ps.analisis8_plant_stop_overlay(
             last_fecha_hora_iso=None,
             interval_sec=int(ANALISIS_8HS_INTERVAL_SECONDS),
+            fecha_iso=fecha_iso,
         )
         if plant_stop.get("active"):
             frozen = int(plant_stop.get("frozen_remaining_sec") or 0)
@@ -239,6 +240,7 @@ def build_status(now: datetime) -> dict[str, Any]:
     plant_stop = ps.analisis8_plant_stop_overlay(
         last_fecha_hora_iso=anchor_iso,
         interval_sec=int(ANALISIS_8HS_INTERVAL_SECONDS),
+        fecha_iso=fecha_iso,
     )
     if plant_stop.get("active"):
         frozen = int(plant_stop.get("frozen_remaining_sec") or max(0, remaining))

@@ -1,7 +1,8 @@
 {# Parada de planta: botón operador; destino de mail solo en administración. #}
 {% set _plant_stop_scope = plant_stop_scope | default('main') %}
+{% set parada_en_fecha_hoy = (fecha_iso == fecha_operativa_hoy) %}
 {% if page_can_edit_current|default(false) %}
-<div class="plant-stop-controls mt-2 pt-2 border-top" data-plant-stop-wrap="{{ circuit_key }}" data-plant-stop-scope="{{ _plant_stop_scope }}">
+<div class="plant-stop-controls mt-2 pt-2 border-top" data-plant-stop-wrap="{{ circuit_key }}" data-plant-stop-scope="{{ _plant_stop_scope }}" data-fecha-hoy="{{ fecha_operativa_hoy }}">
   <div class="mb-2 js-plant-stop-motivo-wrap {% if plant_stop.active %}d-none{% endif %}">
     <label class="form-label small mb-1" for="plantStopMotivo-{{ circuit_key }}-{{ _plant_stop_scope }}">Motivo de parada (opcional)</label>
     <input type="text"
@@ -19,11 +20,14 @@
           data-circuit-key="{{ circuit_key }}"
           data-fecha-iso="{{ fecha_iso }}"
           data-active="{{ '1' if plant_stop.active else '0' }}"
-          aria-pressed="{{ 'true' if plant_stop.active else 'false' }}">
+          aria-pressed="{{ 'true' if plant_stop.active else 'false' }}"
+          {% if not parada_en_fecha_hoy %}disabled title="Solo disponible en la fecha operativa de hoy"{% endif %}>
     {% if plant_stop.active %}Reanudar análisis{% else %}Parada de planta{% endif %}
   </button>
   <div class="small app-text-secondary mt-1 js-plant-stop-hint">
-    {% if plant_stop.active %}
+    {% if not parada_en_fecha_hoy %}
+    Para declarar o reanudar parada de planta, volvé a la fecha de hoy ({{ fecha_operativa_hoy }}). Los cronómetros de días anteriores siguen contando solo para consulta.
+    {% elif plant_stop.active %}
     Cronómetro detenido por parada desde {{ plant_stop.started_at_iso }}.
     {% if circuit_key == 'reactor' and _plant_stop_scope == 'analisis8' %} También se detiene el cronómetro del registro principal.
     {% elif circuit_key == 'reactor' %} También se detiene el cronómetro del análisis 8 hs.

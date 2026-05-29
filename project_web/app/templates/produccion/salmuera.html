@@ -690,9 +690,7 @@
       timerContextsByCircuit[ck] = ctx;
     } else {
       ctx.lastCreatedIso = row.last_created_at_iso;
-      if (!ctx.plantStop || !ctx.plantStop.active) {
-        ctx.plantStop = ps;
-      }
+      ctx.plantStop = ps;
     }
     if (window.QdvPlantStop) {
       QdvPlantStop.applyTimerState(ctx, ctx.plantStop);

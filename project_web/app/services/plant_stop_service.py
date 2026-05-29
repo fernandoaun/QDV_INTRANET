@@ -44,6 +44,11 @@ def today_operacion_iso() -> str:
     return now_operacion_naive_local().date().isoformat()
 
 
+def is_fecha_operativa_actual(fecha_iso: str | None) -> bool:
+    """True si la fecha de planilla coincide con el día operativo actual."""
+    return (fecha_iso or today_operacion_iso()).strip() == today_operacion_iso()
+
+
 def circuit_key_for_electrolizador(electrolizador: int) -> str:
     e = int(electrolizador)
     if e == 2:
@@ -177,7 +182,7 @@ def timer_ui_state(
 ) -> dict[str, Any]:
     """Estado para el cronómetro en pantalla (incluye parada activa solo en fecha operativa actual)."""
     fecha = (fecha_iso or today_operacion_iso()).strip()
-    active_ev = get_active_stop(circuit_key) if fecha == today_operacion_iso() else None
+    active_ev = get_active_stop(circuit_key) if is_fecha_operativa_actual(fecha) else None
     pause_extra = pause_seconds_after_anchor(last_created_iso, circuit_key)
     remaining = compute_remaining_seconds(
         last_created_iso,
@@ -333,10 +338,11 @@ def analisis8_plant_stop_overlay(
     *,
     last_fecha_hora_iso: str | None,
     interval_sec: int,
+    fecha_iso: str | None = None,
 ) -> dict[str, Any]:
     """Estado de parada para el cronómetro de análisis 8 hs (sigue la parada del circuito reactor)."""
     pause_extra = pause_seconds_after_anchor(last_fecha_hora_iso, CIRCUIT_REACTOR)
-    active_ev = get_active_stop(CIRCUIT_REACTOR)
+    active_ev = get_active_stop(CIRCUIT_REACTOR) if is_fecha_operativa_actual(fecha_iso) else None
     if active_ev is None:
         return {
             "active": False,
