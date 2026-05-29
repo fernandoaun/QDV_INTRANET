@@ -9,6 +9,7 @@ from app.auth_utils import current_user, login_required, permission_required
 from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS
 from app.extensions import db
 from app.models import ReactorRegistro, SalmueraAnalisis8hs
+from app.services import plant_stop_service as plant_stop_svc
 from app.services import salmuera_analisis_8hs_service as analisis8_svc
 from app.services.analysis_ref_pdf import REACTOR_ANALYSIS_REF_SPECS, analysis_ref_ui_rows
 from app.web.modules.produccion.operadores_query import list_operadores_planta
@@ -118,6 +119,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
         ).all()
         analysis_ref_rows_reactor = analysis_ref_ui_rows(REACTOR_ANALYSIS_REF_SPECS)
         analysis_ref_map_reactor = {r["doc_key"]: r for r in analysis_ref_rows_reactor}
+        active_parada = plant_stop_svc.get_active_stop(plant_stop_svc.CIRCUIT_REACTOR)
         return render_template(
             "produccion/reactor.html",
             fecha=fecha,
@@ -135,6 +137,13 @@ def register_reactor_routes(bp: Blueprint) -> None:
             analysis_ref_map_reactor=analysis_ref_map_reactor,
             analisis8_status=analisis8_svc.build_status(now_local()),
             analisis8_interval_seconds=analisis8_svc.ANALISIS_8HS_INTERVAL_SECONDS,
+            plant_stop=plant_stop_svc.timer_ui_state(
+                plant_stop_svc.CIRCUIT_REACTOR,
+                last_reactor_created_at_iso_for_date(fecha),
+                int(ANALYSIS_INTERVAL_SECONDS),
+                fecha_iso=fecha,
+            ),
+            plant_stop_motivo=((active_parada.observaciones or "").strip() if active_parada else ""),
         )
 
     @bp.get("/reactor/historial")

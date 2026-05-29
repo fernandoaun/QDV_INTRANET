@@ -33,6 +33,7 @@ from app.services.operational_warnings import (
     warnings_for_reactor_registro,
     warnings_for_salmuera_registro,
 )
+from app.services import plant_stop_service as plant_stop_svc
 from app.user_roles import ROLE_LABORATORISTA, ROLE_OPERACIONES, normalize_stored_rol
 
 SESSION_KEY_SHIFT_DECLINED = "shift_operational_declined"
@@ -376,6 +377,7 @@ def handover_to_detail_dict(h: ShiftHandover) -> dict[str, Any]:
         user_display_name(outgoing) or (outgoing.username if outgoing else "")
     )
     consumos = consumos_en_intervalo(h.shift_started_at_iso, h.handed_over_at_iso)
+    plant_stops = plant_stop_svc.list_stops_in_interval(h.shift_started_at_iso, h.handed_over_at_iso)
     actions = list(h.warning_actions) if h.warning_actions else []
     actions_sorted = sorted(
         actions,
@@ -397,6 +399,7 @@ def handover_to_detail_dict(h: ShiftHandover) -> dict[str, Any]:
         "reception_notes": h.reception_notes or "",
         "status": h.status,
         "consumos": consumos,
+        "plant_stops": plant_stops,
         "warning_actions": [
             {
                 "source_type": a.source_type,

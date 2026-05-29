@@ -9,6 +9,7 @@ from app.auth_utils import current_user, login_required, permission_required
 from app.constants import AGUA_ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS
 from app.extensions import db
 from app.models import AguaRegistro
+from app.services import plant_stop_service as plant_stop_svc
 from app.services.analysis_ref_pdf import AGUA_ANALYSIS_REF_SPECS, analysis_ref_ui_rows
 from app.web.modules.produccion.agua_helpers import (
     agua_row_to_dict,
@@ -109,6 +110,12 @@ def register_agua_routes(bp: Blueprint) -> None:
             columnas_reg_hora=now_for_defaults.strftime("%H:%M"),
             analysis_ref_rows_agua=analysis_ref_rows_agua,
             analysis_ref_map_agua=analysis_ref_map_agua,
+            plant_stop=plant_stop_svc.timer_ui_state(
+                plant_stop_svc.CIRCUIT_AGUA,
+                last_agua_created_at_iso_for_date(fecha),
+                int(AGUA_ANALYSIS_INTERVAL_SECONDS),
+                fecha_iso=fecha,
+            ),
         )
 
     @bp.get("/agua/historial")

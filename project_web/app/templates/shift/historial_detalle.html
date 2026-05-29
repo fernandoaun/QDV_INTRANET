@@ -57,6 +57,24 @@
   </div>
 </div>
 
+{% if detail.plant_stops %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Paradas de planta</div>
+  <div class="app-card-body">
+    <ul class="mb-0 ps-3">
+      {% for p in detail.plant_stops %}
+      <li class="mb-2">
+        <strong>{{ p.circuit_label }}</strong> · {{ p.started_at_iso }}
+        {% if p.ended_at_iso %} → {{ p.ended_at_iso }}{% else %}<span class="badge text-bg-warning ms-1">En curso al cierre</span>{% endif %}
+        · {{ p.operador or '—' }}
+        {% if p.observaciones %}<div class="small text-muted">{{ p.observaciones }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
 <div class="app-card">
   <div class="app-card-header">Avisos y acciones</div>
   <div class="app-card-body">

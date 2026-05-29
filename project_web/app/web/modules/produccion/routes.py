@@ -11,6 +11,7 @@ from app.web.modules.bolson.routes import register_bolson_routes
 from app.web.modules.lab.routes import register_lab_reagents_routes
 from app.web.modules.produccion.hub_routes import register_produccion_hub_routes
 from app.web.modules.produccion.operativa_context import now_local
+from app.web.modules.produccion.plant_stop_routes import register_plant_stop_routes
 from app.web.modules.reactor.routes import register_reactor_routes
 from app.web.modules.salmuera.routes import register_salmuera_routes
 from app.web.modules.stock.routes import register_stock_routes
@@ -38,6 +39,7 @@ def graficos():
 
 
 register_produccion_hub_routes(bp)
+register_plant_stop_routes(bp)
 register_stock_routes(bp)
 register_salmuera_routes(bp)
 register_agua_routes(bp)

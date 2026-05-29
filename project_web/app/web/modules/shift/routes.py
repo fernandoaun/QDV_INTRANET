@@ -255,6 +255,9 @@ def handover_form():
     now_iso = sh.now_local_iso()
     warn_items = sh.collect_warning_items_for_user(u, sess.started_at_iso, now_iso)
     consumos = sh.consumos_en_intervalo(sess.started_at_iso, now_iso)
+    from app.services import plant_stop_service as plant_stop_svc
+
+    plant_stops = plant_stop_svc.list_stops_in_interval(sess.started_at_iso, now_iso)
     from_logout = (request.args.get("from_logout") or request.form.get("from_logout") or "").strip() == "1"
 
     if request.method == "POST":
@@ -276,6 +279,7 @@ def handover_form():
         shift_session=sess,
         consumos=consumos,
         warn_items=warn_items,
+        plant_stops=plant_stops,
         from_logout=from_logout,
     )
 

@@ -1,0 +1,37 @@
+{# Parada de planta: botón operador; destino de mail solo en administración. #}
+{% if page_can_edit_current|default(false) %}
+<div class="plant-stop-controls mt-2 pt-2 border-top" data-plant-stop-wrap="{{ circuit_key }}">
+  <div class="mb-2 js-plant-stop-motivo-wrap {% if plant_stop.active %}d-none{% endif %}">
+    <label class="form-label small mb-1" for="plantStopMotivo-{{ circuit_key }}">Motivo de parada (opcional)</label>
+    <input type="text"
+           class="form-control form-control-sm js-plant-stop-motivo"
+           id="plantStopMotivo-{{ circuit_key }}"
+           maxlength="500"
+           placeholder="Ej.: parada programada, falla de servicios, etc."
+           autocomplete="off">
+  </div>
+  <p class="small text-muted mb-2 js-plant-stop-motivo-shown {% if not plant_stop.active or not (plant_stop_motivo|default('')) %}d-none{% endif %}">
+    <strong>Motivo:</strong> <span class="js-plant-stop-motivo-text">{{ plant_stop_motivo|default('') }}</span>
+  </p>
+  <button type="button"
+          class="btn btn-sm js-plant-stop-toggle {% if plant_stop.active %}btn-outline-success{% else %}btn-outline-warning{% endif %}"
+          data-circuit-key="{{ circuit_key }}"
+          data-fecha-iso="{{ fecha_iso }}"
+          data-active="{{ '1' if plant_stop.active else '0' }}"
+          aria-pressed="{{ 'true' if plant_stop.active else 'false' }}">
+    {% if plant_stop.active %}Reanudar análisis{% else %}Parada de planta{% endif %}
+  </button>
+  <div class="small app-text-secondary mt-1 js-plant-stop-hint">
+    {% if plant_stop.active %}
+    Cronómetro detenido por parada desde {{ plant_stop.started_at_iso }}.
+    {% if circuit_key == 'reactor' %} También se detiene el cronómetro del análisis 8 hs.
+    {% endif %}
+    {% else %}
+    Usá este botón cuando la planta esté detenida y no puedas registrar análisis.
+    {% if circuit_key == 'reactor' %} Incluye el cronómetro del análisis 8 hs.
+    {% endif %}
+    {% endif %}
+  </div>
+  <div class="small text-danger mt-1 d-none js-plant-stop-error" role="alert"></div>
+</div>
+{% endif %}

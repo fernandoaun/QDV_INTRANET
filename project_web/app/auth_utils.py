@@ -378,6 +378,7 @@ def endpoint_requires_operational_shift_for_post(endpoint: str | None) -> bool:
     if ep.startswith("admin_users."):
         return False
     prefixes = (
+        "produccion.parada_planta",
         "produccion.salmuera",
         "produccion.reactor",
         "produccion.agua",

@@ -200,8 +200,25 @@ def latest_row() -> SalmueraAnalisis8hs | None:
 
 
 def build_status(now: datetime) -> dict[str, Any]:
+    from app.services import plant_stop_service as ps
+
     row = latest_row()
     if row is None:
+        plant_stop = ps.analisis8_plant_stop_overlay(
+            last_fecha_hora_iso=None,
+            interval_sec=int(ANALISIS_8HS_INTERVAL_SECONDS),
+        )
+        if plant_stop.get("active"):
+            frozen = int(plant_stop.get("frozen_remaining_sec") or 0)
+            return {
+                "has_records": False,
+                "last": None,
+                "next_due_iso": None,
+                "remaining_seconds": frozen,
+                "is_due": False,
+                "message": f"Parada de planta desde {plant_stop.get('started_at_iso') or '—'}.",
+                "plant_stop": plant_stop,
+            }
         return {
             "has_records": False,
             "last": None,
@@ -209,13 +226,31 @@ def build_status(now: datetime) -> dict[str, Any]:
             "remaining_seconds": None,
             "is_due": True,
             "message": "No hay análisis registrados. Realizar primer análisis.",
+            "plant_stop": plant_stop,
         }
     try:
         last_dt = datetime.fromisoformat(str(row.fecha_hora_iso))
     except ValueError:
         last_dt = now
-    next_due = last_dt + timedelta(seconds=ANALISIS_8HS_INTERVAL_SECONDS)
+    anchor_iso = str(row.fecha_hora_iso or row.created_at_iso or "")
+    pause_extra = ps.pause_seconds_after_anchor(anchor_iso, ps.CIRCUIT_REACTOR, now_iso=now.isoformat(timespec="seconds"))
+    next_due = last_dt + timedelta(seconds=ANALISIS_8HS_INTERVAL_SECONDS) + timedelta(seconds=pause_extra)
     remaining = int((next_due - now).total_seconds())
+    plant_stop = ps.analisis8_plant_stop_overlay(
+        last_fecha_hora_iso=anchor_iso,
+        interval_sec=int(ANALISIS_8HS_INTERVAL_SECONDS),
+    )
+    if plant_stop.get("active"):
+        frozen = int(plant_stop.get("frozen_remaining_sec") or max(0, remaining))
+        return {
+            "has_records": True,
+            "last": row_to_dict(row),
+            "next_due_iso": next_due.isoformat(timespec="seconds"),
+            "remaining_seconds": frozen,
+            "is_due": False,
+            "message": f"Parada de planta: cronómetro detenido desde {plant_stop.get('started_at_iso') or '—'}.",
+            "plant_stop": plant_stop,
+        }
     return {
         "has_records": True,
         "last": row_to_dict(row),
@@ -227,6 +262,7 @@ def build_status(now: datetime) -> dict[str, Any]:
             if remaining <= 0
             else "Próximo análisis programado."
         ),
+        "plant_stop": plant_stop,
     }
 
 

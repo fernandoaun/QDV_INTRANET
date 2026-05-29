@@ -32,8 +32,11 @@
       <div class="app-timer-display mb-0" id="timerText">--:--:--</div>
       <div class="small app-text-secondary" id="timerSub">Calculando…</div>
     </div>
-    <div class="d-flex flex-wrap gap-2">
+    <div class="d-flex flex-wrap gap-2 align-items-start flex-column">
       <span class="badge text-bg-secondary app-badge-soft" id="timerState">Estado</span>
+      {% with plant_stop=plant_stop, circuit_key=plant_stop.circuit_key, fecha_iso=fecha %}
+      {% include "produccion/_plant_stop_controls.html" %}
+      {% endwith %}
     </div>
   </div>
 </div>
@@ -112,6 +115,7 @@
 {% for ar in analysis_ref_rows_agua %}
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
+<script src="{{ url_for('static', filename='js/plant_stop.js') }}"></script>
 <script>
 (function () {
   const timerText = document.getElementById("timerText");
@@ -121,6 +125,7 @@
   const serverNowIso = {{ (server_now_iso | tojson) }};
   const lastCreatedIso = {{ (last_created_at_iso | tojson) }};
   const intervalSec = {{ analysis_interval_seconds | int }};
+  const plantStopState = {{ (plant_stop | tojson) }};
 
   function parseIsoLocal(iso) {
     const d = new Date(iso);
@@ -128,46 +133,33 @@
     return new Date((iso || "").replace(" ", "T"));
   }
 
-  function fmtHhmmss(totalSeconds) {
-    const s = Math.max(0, Math.floor(totalSeconds));
-    const h = String(Math.floor(s / 3600)).padStart(2, "0");
-    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
-    const ss = String(s % 60).padStart(2, "0");
-    return `${h}:${m}:${ss}`;
-  }
-
   const clientNow = new Date();
   const serverNow = parseIsoLocal(serverNowIso);
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
 
+  const timerCtx = {
+    timerText,
+    timerSub,
+    timerState,
+    intervalSec,
+    lastCreatedIso,
+    clockOffsetMs,
+    emptySub: "Sin registros hoy: contando desde ahora.",
+    plantStop: plantStopState,
+  };
+  const timerContextsByCircuit = { [plantStopState.circuit_key]: timerCtx };
+
   function tick() {
-    if (!timerText || !timerSub || !timerState) return;
-    if (!lastCreatedIso) {
-      timerText.textContent = fmtHhmmss(intervalSec);
-      timerSub.textContent = "Sin registros hoy: contando desde ahora.";
-      timerState.className = "badge text-bg-secondary app-badge-soft";
-      timerState.textContent = "En tiempo";
-      return;
-    }
-    const last = parseIsoLocal(lastCreatedIso);
-    const due = new Date(last.getTime() + intervalSec * 1000);
-    const now = new Date(Date.now() + clockOffsetMs);
-    const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec >= 0) {
-      timerText.textContent = fmtHhmmss(diffSec);
-      timerSub.textContent = `Último registro: ${lastCreatedIso}`;
-      timerState.className = "badge text-bg-success app-badge-soft";
-      timerState.textContent = "En tiempo";
-    } else {
-      timerText.textContent = fmtHhmmss(-diffSec);
-      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0,19).replace("T"," ")}`;
-      timerState.className = "badge text-bg-danger app-badge-soft";
-      timerState.textContent = "Atrasado";
+    if (window.QdvPlantStop) {
+      QdvPlantStop.applyTimerState(timerCtx, timerCtx.plantStop);
     }
   }
 
   tick();
   setInterval(tick, 1000);
+  if (window.QdvPlantStop) {
+    QdvPlantStop.bindToggleButtons(timerContextsByCircuit);
+  }
 })();
 
 (function () {

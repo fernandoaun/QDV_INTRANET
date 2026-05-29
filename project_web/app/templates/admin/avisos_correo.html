@@ -106,6 +106,63 @@
 </div>
 {% endif %}
 
+{% if viewer_is_admin|default(false) %}
+<div class="app-card mb-4 border-warning">
+  <div class="app-card-header">Paradas de planta — correo de aviso (solo administrador)</div>
+  <div class="app-card-body">
+    <p class="small text-muted mb-3">
+      Cuando un operador declara <strong>parada de planta</strong> en electrolizador 2, 3, circuito de salmuera o de agua,
+      se envía un correo automático a estas direcciones. <strong>No se muestra al operador</strong> en pantalla de producción.
+      También podés usar <code>PLANT_STOP_ALERT_EMAIL_TO</code> en el servidor.
+    </p>
+    {% if plant_stop_merged %}
+    <ul class="mb-3 ps-3">
+      {% for m in plant_stop_merged %}<li><code>{{ m }}</code></li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-3">Sin destinatarios configurados: agregá un correo abajo o la variable de entorno.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin_users.plant_stop_alert_email_add') }}" class="row g-2 align-items-end mb-3">
+      {% include "_csrf.html" %}
+      <div class="col-md-6">
+        <label class="form-label">Correo electrónico</label>
+        <input type="email" class="form-control" name="email" required maxlength="254" placeholder="supervision@dominio.com" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-warning">Guardar</button>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-app table-compact mb-0">
+        <thead><tr><th>ID</th><th>Correo</th><th></th></tr></thead>
+        <tbody>
+        {% for row in plant_stop_db_rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.email }}</td>
+          <td>
+            <form method="post" action="{{ url_for('admin_users.plant_stop_alert_email_delete', eid=row.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Eliminar este correo?');">
+            {% include "_csrf.html" %}
+              <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-muted text-center py-2">Ninguno guardado en base de datos.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if plant_stop_env_addresses %}
+    <p class="small mb-0 mt-2 text-muted"><strong>Desde entorno:</strong>
+      {% for e in plant_stop_env_addresses %}<code class="me-1">{{ e }}</code>{% endfor %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <div class="app-card">
   <div class="app-card-header">Guardados en la aplicación</div>
   <div class="app-card-body--flush table-responsive app-table-scroll">

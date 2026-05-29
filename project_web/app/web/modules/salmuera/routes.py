@@ -18,6 +18,7 @@ from app.services.hipoclorito_warnings import (
     evaluate_hipoclorito_operational_warnings,
     hipoclorito_operational_warning_rules_for_js,
 )
+from app.services import plant_stop_service as plant_stop_svc
 from app.web.modules.produccion.analysis_ref_handlers import handle_analysis_ref_pdf_request
 from app.web.modules.produccion.operadores_query import list_operadores_planta
 from app.web.modules.produccion.operativa_context import (
@@ -149,11 +150,26 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                 db.session.commit()
                 registro_dict = salmuera_row_to_dict(data)
                 ultimo_panel = last_salmuera_row_dict_for_electrolizador_on_date(fecha, electrolizador)
-                timer_rows = salmuera_timer_rows_for_date(fecha)
+                timer_rows = plant_stop_svc.enrich_salmuera_timer_rows(
+                    salmuera_timer_rows_for_date(fecha),
+                    fecha,
+                    int(ANALYSIS_INTERVAL_SECONDS),
+                )
                 panel_timer = next(
                     (row for row in timer_rows if int(row.get("electrolizador", 0)) == int(electrolizador)),
-                    {"electrolizador": electrolizador, "last_created_at_iso": data.created_at_iso},
+                    None,
                 )
+                if panel_timer is None:
+                    panel_timer = {
+                        "electrolizador": electrolizador,
+                        "last_created_at_iso": data.created_at_iso,
+                        "plant_stop": plant_stop_svc.timer_ui_state(
+                            plant_stop_svc.circuit_key_for_electrolizador(int(electrolizador)),
+                            data.created_at_iso,
+                            int(ANALYSIS_INTERVAL_SECONDS),
+                            fecha_iso=fecha,
+                        ),
+                    }
                 if _is_ajax_request():
                     return (
                         jsonify(
@@ -217,7 +233,11 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             module_title=MODULE_LABELS["salmuera"],
             username=current_user().username if current_user() else "",
             server_now_iso=now_local().isoformat(timespec="seconds"),
-            salmuera_timer_rows=salmuera_timer_rows_for_date(fecha),
+            salmuera_timer_rows=plant_stop_svc.enrich_salmuera_timer_rows(
+                salmuera_timer_rows_for_date(fecha),
+                fecha,
+                int(ANALYSIS_INTERVAL_SECONDS),
+            ),
             salmuera_panel_electrolizadores=list(SALMUERA_PANEL_ELECTROLIZADORES),
             salmuera_ultimo_por_electrolizador=salmuera_ultimo_por_electrolizador,
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),

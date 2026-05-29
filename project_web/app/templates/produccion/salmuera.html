@@ -54,6 +54,9 @@
             </div>
             <div class="app-timer-display mb-1" id="timerText-{{ eid }}">--:--:--</div>
             <div class="small app-text-secondary app-timer-e-sub" id="timerSub-{{ eid }}">Calculando…</div>
+            {% with plant_stop=t.plant_stop, circuit_key=t.plant_stop.circuit_key, fecha_iso=fecha %}
+            {% include "produccion/_plant_stop_controls.html" %}
+            {% endwith %}
           </div>
           {% else %}
           <p class="mb-0 text-muted small">Cronómetro no disponible para este panel.</p>
@@ -279,6 +282,7 @@
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
 
+<script src="{{ url_for('static', filename='js/plant_stop.js') }}"></script>
 <script>
 (() => {
   const SALMUERA_PANEL_IDS = {{ salmuera_panel_electrolizadores | tojson }};
@@ -661,35 +665,37 @@
   const serverNow = parseIsoLocal(serverNowIso);
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
 
+  const timerContextsByCircuit = {};
   function tickElectrolizador(row) {
     const e = row.electrolizador;
     const timerText = document.getElementById(`timerText-${e}`);
     const timerSub = document.getElementById(`timerSub-${e}`);
     const timerState = document.getElementById(`timerState-${e}`);
     if (!timerText || !timerSub || !timerState) return;
-
-    const lastCreatedIso = row.last_created_at_iso;
-    if (!lastCreatedIso) {
-      timerText.textContent = fmtHhmmss(intervalSec);
-      timerSub.textContent = "Sin análisis registrados para este electrolizador en esta fecha.";
-      timerState.className = "badge text-bg-secondary app-badge-soft";
-      timerState.textContent = "En tiempo";
-      return;
-    }
-    const last = parseIsoLocal(lastCreatedIso);
-    const due = new Date(last.getTime() + intervalSec * 1000);
-    const now = new Date(Date.now() + clockOffsetMs);
-    const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec >= 0) {
-      timerText.textContent = fmtHhmmss(diffSec);
-      timerSub.textContent = `Último registro: ${lastCreatedIso}`;
-      timerState.className = "badge text-bg-success app-badge-soft";
-      timerState.textContent = "En tiempo";
+    const ps = row.plant_stop || { active: false, pause_extra_seconds: 0 };
+    const ck = ps.circuit_key || (`salmuera_e${e}`);
+    let ctx = timerContextsByCircuit[ck];
+    if (!ctx) {
+      ctx = {
+        timerText,
+        timerSub,
+        timerState,
+        intervalSec,
+        lastCreatedIso: row.last_created_at_iso,
+        clockOffsetMs,
+        plantStop: ps,
+        emptySub: "Sin análisis registrados para este electrolizador en esta fecha.",
+        timerRow: row,
+      };
+      timerContextsByCircuit[ck] = ctx;
     } else {
-      timerText.textContent = fmtHhmmss(-diffSec);
-      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
-      timerState.className = "badge text-bg-danger app-badge-soft";
-      timerState.textContent = "Atrasado";
+      ctx.lastCreatedIso = row.last_created_at_iso;
+      if (!ctx.plantStop || !ctx.plantStop.active) {
+        ctx.plantStop = ps;
+      }
+    }
+    if (window.QdvPlantStop) {
+      QdvPlantStop.applyTimerState(ctx, ctx.plantStop);
     }
   }
 
@@ -700,6 +706,9 @@
 
   tickAllTimers();
   setInterval(tickAllTimers, 1000);
+  if (window.QdvPlantStop) {
+    QdvPlantStop.bindToggleButtons(timerContextsByCircuit);
+  }
 })();
 </script>
 {% endblock %}
