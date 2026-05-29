@@ -45,6 +45,9 @@
           {% else %}
           <div class="small mt-3 text-muted" id="analisis8LastBox">Sin valores previos.</div>
           {% endif %}
+          {% with plant_stop=plant_stop, circuit_key=plant_stop.circuit_key, fecha_iso=fecha, plant_stop_motivo=plant_stop_motivo|default(''), plant_stop_scope='analisis8' %}
+          {% include "produccion/_plant_stop_controls.html" %}
+          {% endwith %}
         </div>
       </div>
       <div class="col-12 col-lg-8">

@@ -1,11 +1,12 @@
 {# Parada de planta: botón operador; destino de mail solo en administración. #}
+{% set _plant_stop_scope = plant_stop_scope | default('main') %}
 {% if page_can_edit_current|default(false) %}
-<div class="plant-stop-controls mt-2 pt-2 border-top" data-plant-stop-wrap="{{ circuit_key }}">
+<div class="plant-stop-controls mt-2 pt-2 border-top" data-plant-stop-wrap="{{ circuit_key }}" data-plant-stop-scope="{{ _plant_stop_scope }}">
   <div class="mb-2 js-plant-stop-motivo-wrap {% if plant_stop.active %}d-none{% endif %}">
-    <label class="form-label small mb-1" for="plantStopMotivo-{{ circuit_key }}">Motivo de parada (opcional)</label>
+    <label class="form-label small mb-1" for="plantStopMotivo-{{ circuit_key }}-{{ _plant_stop_scope }}">Motivo de parada (opcional)</label>
     <input type="text"
            class="form-control form-control-sm js-plant-stop-motivo"
-           id="plantStopMotivo-{{ circuit_key }}"
+           id="plantStopMotivo-{{ circuit_key }}-{{ _plant_stop_scope }}"
            maxlength="500"
            placeholder="Ej.: parada programada, falla de servicios, etc."
            autocomplete="off">
@@ -24,11 +25,13 @@
   <div class="small app-text-secondary mt-1 js-plant-stop-hint">
     {% if plant_stop.active %}
     Cronómetro detenido por parada desde {{ plant_stop.started_at_iso }}.
-    {% if circuit_key == 'reactor' %} También se detiene el cronómetro del análisis 8 hs.
+    {% if circuit_key == 'reactor' and _plant_stop_scope == 'analisis8' %} También se detiene el cronómetro del registro principal.
+    {% elif circuit_key == 'reactor' %} También se detiene el cronómetro del análisis 8 hs.
     {% endif %}
     {% else %}
     Usá este botón cuando la planta esté detenida y no puedas registrar análisis.
-    {% if circuit_key == 'reactor' %} Incluye el cronómetro del análisis 8 hs.
+    {% if circuit_key == 'reactor' and _plant_stop_scope == 'analisis8' %} Detiene este cronómetro y el del registro principal.
+    {% elif circuit_key == 'reactor' %} Incluye el cronómetro del análisis 8 hs.
     {% endif %}
     {% endif %}
   </div>

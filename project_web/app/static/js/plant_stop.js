@@ -78,14 +78,21 @@
     const motivoText = wrap ? wrap.querySelector(".js-plant-stop-motivo-text") : null;
     const motivoInp = wrap ? wrap.querySelector(".js-plant-stop-motivo") : null;
     const isReactor = btn.dataset.circuitKey === "reactor";
+    const scope = wrap && wrap.dataset.plantStopScope ? wrap.dataset.plantStopScope : "main";
     if (hint) {
       let base = active
         ? `Cronómetro detenido por parada desde ${plantStop.started_at_iso || "—"}.`
         : "Usá este botón cuando la planta esté detenida y no puedas registrar análisis.";
       if (isReactor) {
-        base += active
-          ? " También se detiene el cronómetro del análisis 8 hs."
-          : " Incluye el cronómetro del análisis 8 hs.";
+        if (scope === "analisis8") {
+          base += active
+            ? " También se detiene el cronómetro del registro principal."
+            : " Detiene este cronómetro y el del registro principal.";
+        } else {
+          base += active
+            ? " También se detiene el cronómetro del análisis 8 hs."
+            : " Incluye el cronómetro del análisis 8 hs.";
+        }
       }
       hint.textContent = base;
     }
@@ -113,6 +120,18 @@
     if (!wrap) return "";
     const inp = wrap.querySelector(".js-plant-stop-motivo");
     return inp ? String(inp.value || "").trim() : "";
+  }
+
+  function motivoForCircuit(circuitKey, preferredWrap) {
+    const fromPreferred = motivoFromWrap(preferredWrap);
+    if (fromPreferred) return fromPreferred;
+    const key = String(circuitKey || "");
+    if (!key) return "";
+    for (const w of document.querySelectorAll(`[data-plant-stop-wrap="${key}"]`)) {
+      const m = motivoFromWrap(w);
+      if (m) return m;
+    }
+    return "";
   }
 
   async function postToggle(circuitKey, fechaIso, action, observaciones) {
@@ -174,10 +193,12 @@
           if (!active && !window.confirm("¿Declarar parada de planta? El cronómetro se detendrá.")) {
             return;
           }
-          const motivo = !active ? motivoFromWrap(wrap) : "";
+          const motivo = !active ? motivoForCircuit(circuitKey, wrap) : "";
           const payload = await postToggle(circuitKey, fechaIso, action, motivo);
           const ps = payload.plant_stop;
-          updateToggleButton(btn, ps, payload);
+          document
+            .querySelectorAll(`.js-plant-stop-toggle[data-circuit-key="${CSS.escape(circuitKey)}"]`)
+            .forEach((b) => updateToggleButton(b, ps, payload));
           const ctx = timerContextsByCircuit[circuitKey];
           if (ctx) {
             ctx.plantStop = ps;
