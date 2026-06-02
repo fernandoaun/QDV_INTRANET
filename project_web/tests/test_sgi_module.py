@@ -253,6 +253,35 @@ def test_sgi_perm_user_cannot_delete(sgi_perm_client):
     assert r.status_code in (302, 303)
 
 
+def test_sgi_role_can_delete(sgi_role_client):
+    r_form = sgi_role_client.get("/sgi/msgi/nuevo")
+    csrf = _csrf_from_html(r_form.get_data(as_text=True))
+    sgi_role_client.post(
+        "/sgi/msgi/nuevo",
+        data={
+            "csrf_token": csrf,
+            "codigo": "MSGI-SGI-DEL-01",
+            "titulo": "Eliminar como SGI",
+            "estado": "borrador",
+        },
+        follow_redirects=True,
+    )
+    r_list = sgi_role_client.get("/sgi/msgi/?q=MSGI-SGI-DEL-01")
+    html = r_list.get_data(as_text=True)
+    m = re.search(r"/sgi/msgi/(\d+)", html)
+    assert m is not None
+    doc_id = m.group(1)
+
+    lg = sgi_role_client.get("/sgi/msgi/")
+    csrf2 = _csrf_from_html(lg.get_data(as_text=True))
+    r = sgi_role_client.post(
+        f"/sgi/msgi/{doc_id}/eliminar",
+        data={"csrf_token": csrf2},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+
 def test_sgi_visual_procedure_create(auth_client):
     r = auth_client.get("/sgi/pg/procedimientos/nuevo", follow_redirects=False)
     assert r.status_code in (302, 303)

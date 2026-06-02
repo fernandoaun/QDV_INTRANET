@@ -29,7 +29,7 @@ def _no_mutate():
 
 
 def _no_delete():
-    flash("Solo un administrador puede eliminar documentos.", "warning")
+    flash("No tenés permiso para eliminar documentos SGI.", "warning")
     return redirect(request.referrer or url_for("sgi.hub"))
 
 

@@ -11,6 +11,7 @@ from app.security_http import request_path_for_login_next
 from app.constants import PERMISSION_KEYS
 from app.user_roles import (
     ROLE_LOGISTICA,
+    ROLE_SGI,
     compute_session_perm_lists,
     normalized_role_has_global_view,
     normalize_stored_rol,
@@ -119,8 +120,12 @@ def user_can_edit_sgi_documentos(user: User | None) -> bool:
 
 
 def user_can_delete_sgi_documentos(user: User | None) -> bool:
-    """Eliminar documentos: únicamente administrador."""
-    return user is not None and bool(user.is_admin)
+    """Eliminar documentos SGI: administrador o perfil SGI."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_SGI
 
 
 def user_can_view_sgi_obsoletos(user: User | None) -> bool:
