@@ -130,36 +130,6 @@
     sel?.addRange(range);
   }
 
-  function chooseSubapartadoMode(bodyEl, secNum, anchor) {
-    if (!anchor) return "continuo";
-    const all = listSubapartados(bodyEl, secNum);
-    const idx = all.findIndex((x) => x.el === anchor);
-    const anchorParts = parseSubapartadoParts(
-      anchor.querySelector(".sgi-proc-sub-num")?.textContent,
-      secNum
-    );
-    const prev = idx > 0 ? all[idx - 1] : null;
-    const actual = anchorParts ? formatSubapartadoLabel(secNum, anchorParts) : "(sin detectar)";
-    const anterior = prev ? formatSubapartadoLabel(secNum, prev.parts) : "No hay";
-    const suggestion = anchorParts?.length >= MAX_SUBAPARTADO_LEVEL ? "s" : "c";
-    const answer = (window.prompt(
-      [
-        `Subapartado actual: ${actual}`,
-        `Subapartado anterior: ${anterior}`,
-        "",
-        "Elegí cómo insertar el nuevo subapartado:",
-        "a = anterior (antes del actual, mismo nivel)",
-        "s = siguiente (después del actual, mismo nivel)",
-        "c = continuo (como hijo del actual)",
-      ].join("\n"),
-      suggestion
-    ) || "").trim().toLowerCase();
-    if (answer === "a") return "anterior";
-    if (answer === "s") return "siguiente";
-    if (answer === "c") return "continuo";
-    return null;
-  }
-
   function shiftSiblingNumbering(bodyEl, secNum, parentParts, fromNumber) {
     const level = parentParts.length + 1;
     listSubapartados(bodyEl, secNum).forEach((item) => {
@@ -172,6 +142,98 @@
       if (numEl) numEl.textContent = formatSubapartadoLabel(secNum, moved);
       item.el.dataset.subLevel = String(moved.length);
     });
+  }
+
+  function findSubapartadoByParts(bodyEl, secNum, parts) {
+    return (
+      listSubapartados(bodyEl, secNum).find(
+        (x) =>
+          x.parts.length === parts.length &&
+          x.parts.every((v, i) => v === parts[i])
+      )?.el || null
+    );
+  }
+
+  function sameParts(a, b) {
+    return a.length === b.length && a.every((v, i) => v === b[i]);
+  }
+
+  function collectBlockNodes(rootEl, stopEl) {
+    const nodes = [];
+    let cur = rootEl;
+    while (cur && cur !== stopEl) {
+      nodes.push(cur);
+      cur = cur.nextSibling;
+    }
+    return nodes;
+  }
+
+  function renumberSiblingBranches(bodyEl, secNum, parentParts) {
+    const all = listSubapartados(bodyEl, secNum);
+    const siblings = all.filter(
+      (x) =>
+        x.parts.length === parentParts.length + 1 &&
+        parentParts.every((v, i) => x.parts[i] === v)
+    );
+    const maps = siblings.map((x, idx) => ({
+      from: x.parts,
+      to: [...parentParts, idx + 1],
+    }));
+
+    maps.forEach(({ from, to }) => {
+      if (sameParts(from, to)) return;
+      all.forEach((item) => {
+        if (item.parts.length < from.length) return;
+        if (!from.every((v, i) => item.parts[i] === v)) return;
+        const moved = [...to, ...item.parts.slice(from.length)];
+        const numEl = item.el.querySelector(".sgi-proc-sub-num");
+        if (numEl) numEl.textContent = formatSubapartadoLabel(secNum, moved);
+        item.el.dataset.subLevel = String(moved.length);
+      });
+    });
+  }
+
+  function moveCurrentSubapartado(bodyEl, direction) {
+    const secNum = getSectionNum(bodyEl);
+    const anchor = findAnchorSubapartado(bodyEl);
+    if (!anchor) {
+      flashMsg("warning", "Seleccioná primero el subapartado que querés mover.");
+      return;
+    }
+    const all = listSubapartados(bodyEl, secNum);
+    const anchorItem = all.find((x) => x.el === anchor);
+    if (!anchorItem) return;
+    const parentParts = anchorItem.parts.slice(0, -1);
+    const siblings = all.filter(
+      (x) =>
+        x.parts.length === anchorItem.parts.length &&
+        parentParts.every((v, i) => x.parts[i] === v)
+    );
+    const idx = siblings.findIndex((x) => x.el === anchor);
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= siblings.length) {
+      flashMsg("warning", "No se puede mover mas en esa direccion.");
+      return;
+    }
+
+    const targetEl = siblings[targetIdx].el;
+    const anchorStop = nextNonDescendantSubapartado(bodyEl, secNum, anchor);
+    const anchorNodes = collectBlockNodes(anchor, anchorStop);
+    const frag = document.createDocumentFragment();
+    anchorNodes.forEach((n) => frag.appendChild(n));
+
+    if (direction < 0) {
+      targetEl.before(frag);
+    } else {
+      const targetStop = nextNonDescendantSubapartado(bodyEl, secNum, targetEl);
+      if (targetStop) targetStop.before(frag);
+      else bodyEl.appendChild(frag);
+    }
+
+    renumberSiblingBranches(bodyEl, secNum, parentParts);
+    placeCursorAtEnd(anchor);
+    pushUndoState();
+    scheduleAutoSaveHint();
   }
 
   function buildNewSubapartado(bodyEl, secNum, anchor, mode) {
@@ -212,6 +274,27 @@
       return { parts: [...anchorParts, next], ref: nextNonDescendantSubapartado(bodyEl, secNum, anchor) };
     }
 
+    if (mode === "ascender") {
+      if (anchorParts.length === 1) {
+        const target = anchorParts[0] + 1;
+        shiftSiblingNumbering(bodyEl, secNum, [], target);
+        return {
+          parts: [target],
+          ref: nextNonDescendantSubapartado(bodyEl, secNum, anchor),
+        };
+      }
+      const parentParts = anchorParts.slice(0, -1);
+      const grandParent = anchorParts.slice(0, -2);
+      const target = parentParts[parentParts.length - 1] + 1;
+      shiftSiblingNumbering(bodyEl, secNum, grandParent, target);
+      const parentEl = findSubapartadoByParts(bodyEl, secNum, parentParts);
+      const refRoot = parentEl || anchor;
+      return {
+        parts: [...grandParent, target],
+        ref: nextNonDescendantSubapartado(bodyEl, secNum, refRoot),
+      };
+    }
+
     const parent = anchorParts.slice(0, -1);
     const target =
       mode === "anterior"
@@ -224,12 +307,10 @@
     };
   }
 
-  function insertSubapartado(bodyEl) {
+  function insertSubapartado(bodyEl, mode) {
     flushUndoDebounce();
     const secNum = getSectionNum(bodyEl);
     const anchor = findAnchorSubapartado(bodyEl);
-    const mode = chooseSubapartadoMode(bodyEl, secNum, anchor);
-    if (!mode) return;
 
     const built = buildNewSubapartado(bodyEl, secNum, anchor, mode);
     const parts = built.parts;
@@ -887,13 +968,30 @@
     qs("#fmtItalic")?.addEventListener("click", () => execTextFormat("italic"));
     qs("#fmtUnderline")?.addEventListener("click", () => execTextFormat("underline"));
 
-    qs("#fmtSubapartado")?.addEventListener("click", () => {
+    function runSubapartadoInsert(mode) {
       const body = getActiveSectionBody();
       if (!body) {
         flashMsg("warning", "Hacé clic en la sección donde querés el subapartado.");
         return;
       }
-      insertSubapartado(body);
+      insertSubapartado(body, mode);
+      updateFormatBar();
+    }
+
+    qs("#fmtSubapartadoPrev")?.addEventListener("click", () => runSubapartadoInsert("anterior"));
+    qs("#fmtSubapartadoNext")?.addEventListener("click", () => runSubapartadoInsert("siguiente"));
+    qs("#fmtSubapartadoChild")?.addEventListener("click", () => runSubapartadoInsert("continuo"));
+    qs("#fmtSubapartadoUp")?.addEventListener("click", () => runSubapartadoInsert("ascender"));
+    qs("#fmtSubapartadoBack")?.addEventListener("click", () => {
+      const body = getActiveSectionBody();
+      if (!body) return;
+      moveCurrentSubapartado(body, -1);
+      updateFormatBar();
+    });
+    qs("#fmtSubapartadoForward")?.addEventListener("click", () => {
+      const body = getActiveSectionBody();
+      if (!body) return;
+      moveCurrentSubapartado(body, 1);
       updateFormatBar();
     });
 
@@ -961,6 +1059,22 @@
 
     document.addEventListener("keydown", (e) => {
       if (soloLectura) return;
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        const body = getActiveSectionBody();
+        if (!body) return;
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          moveCurrentSubapartado(body, -1);
+          updateFormatBar();
+          return;
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          moveCurrentSubapartado(body, 1);
+          updateFormatBar();
+          return;
+        }
+      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
       if (!["b", "i", "u"].includes(key)) return;
