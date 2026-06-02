@@ -821,6 +821,51 @@
     updateFormatBar();
   }
 
+  function getNodeFontSizeInPt(node) {
+    if (!node) return null;
+    const px = window.getComputedStyle(node).fontSize || "";
+    const num = parseFloat(px);
+    if (!Number.isFinite(num)) return null;
+    return Math.round((num * 72) / 96);
+  }
+
+  function applyFontSizeToCellSelection(cell, pt) {
+    const size = Math.max(8, Math.min(32, parseInt(pt, 10)));
+    if (!Number.isFinite(size) || !cell) return;
+    const body = getActiveSectionBody();
+    if (!body) return;
+    flushUndoDebounce();
+    body.focus();
+    const sel = window.getSelection();
+    const hasSelectionInCell =
+      sel &&
+      sel.rangeCount &&
+      !sel.isCollapsed &&
+      cell.contains(sel.anchorNode) &&
+      cell.contains(sel.focusNode);
+
+    if (hasSelectionInCell) {
+      const range = sel.getRangeAt(0);
+      const span = document.createElement("span");
+      span.style.fontSize = `${size}pt`;
+      try {
+        range.surroundContents(span);
+      } catch {
+        const content = range.extractContents();
+        span.appendChild(content);
+        range.insertNode(span);
+      }
+      range.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } else {
+      cell.style.fontSize = `${size}pt`;
+    }
+    pushUndoState();
+    scheduleAutoSaveHint();
+    updateFormatBar();
+  }
+
   function updateFormatBar() {
     if (soloLectura) return;
     const hint = qs("#fmtContextHint");
@@ -834,11 +879,19 @@
     const fmtBold = qs("#fmtBold");
     const fmtItalic = qs("#fmtItalic");
     const fmtUnderline = qs("#fmtUnderline");
+    const fmtBullets = qs("#fmtBullets");
+    const fmtNumbered = qs("#fmtNumbered");
     try {
       if (fmtBold) fmtBold.setAttribute("aria-pressed", document.queryCommandState("bold") ? "true" : "false");
       if (fmtItalic) fmtItalic.setAttribute("aria-pressed", document.queryCommandState("italic") ? "true" : "false");
       if (fmtUnderline) {
         fmtUnderline.setAttribute("aria-pressed", document.queryCommandState("underline") ? "true" : "false");
+      }
+      if (fmtBullets) {
+        fmtBullets.setAttribute("aria-pressed", document.queryCommandState("insertUnorderedList") ? "true" : "false");
+      }
+      if (fmtNumbered) {
+        fmtNumbered.setAttribute("aria-pressed", document.queryCommandState("insertOrderedList") ? "true" : "false");
       }
     } catch {
       /* selection fuera del documento */
@@ -868,8 +921,13 @@
     const pct = parseColWidthPct(cg?.children[colIndex], Math.round(100 / n));
     const range = qs("#fmtTableColWidth");
     const lbl = qs("#fmtTableColWidthLbl");
+    const tableFontSize = qs("#fmtTableFontSize");
     if (range) range.value = String(pct);
     if (lbl) lbl.textContent = `${pct}%`;
+    if (tableFontSize) {
+      const size = getNodeFontSizeInPt(ctx.cell) || 10;
+      tableFontSize.value = String(size);
+    }
   }
 
   function bindTableColumnResize() {
@@ -910,6 +968,8 @@
     qs("#fmtBold")?.addEventListener("click", () => execTextFormat("bold"));
     qs("#fmtItalic")?.addEventListener("click", () => execTextFormat("italic"));
     qs("#fmtUnderline")?.addEventListener("click", () => execTextFormat("underline"));
+    qs("#fmtBullets")?.addEventListener("click", () => execTextFormat("insertUnorderedList"));
+    qs("#fmtNumbered")?.addEventListener("click", () => execTextFormat("insertOrderedList"));
 
     function runSubapartadoInsert(mode) {
       const body = getActiveSectionBody();
@@ -973,6 +1033,12 @@
       scheduleAutoSaveHint();
     });
 
+    qs("#fmtTableFontSize")?.addEventListener("change", (e) => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      applyFontSizeToCellSelection(ctx.cell, e.target.value);
+    });
+
     document.addEventListener("focusin", (e) => {
       const body = e.target.closest?.("[data-seccion-body]");
       if (!body) return;
@@ -991,12 +1057,15 @@
       if (soloLectura) return;
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
-      if (!["b", "i", "u"].includes(key)) return;
+      if (!["b", "i", "u", "8", "7"].includes(key)) return;
       if (!e.target.closest?.("[data-seccion-body]")) return;
+      if (["8", "7"].includes(key) && !e.shiftKey) return;
       e.preventDefault();
       if (key === "b") execTextFormat("bold");
       else if (key === "i") execTextFormat("italic");
-      else execTextFormat("underline");
+      else if (key === "u") execTextFormat("underline");
+      else if (key === "8") execTextFormat("insertUnorderedList");
+      else execTextFormat("insertOrderedList");
     });
 
     bindTableColumnResize();

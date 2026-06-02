@@ -72,6 +72,12 @@
       <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtUnderline" title="Subrayado (Ctrl+U)" aria-pressed="false">
         <i class="bi bi-type-underline"></i>
       </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtBullets" title="Viñetas" aria-pressed="false">
+        <i class="bi bi-list-ul"></i>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtNumbered" title="Lista numerada" aria-pressed="false">
+        <i class="bi bi-list-ol"></i>
+      </button>
     </div>
     <div class="sgi-proc-format-sep" aria-hidden="true"></div>
     <div class="sgi-proc-format-group" aria-label="Insertar contenido">
@@ -100,6 +106,16 @@
       <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtTableColsEqual" title="Repartir el ancho entre todas las columnas">
         Igualar
       </button>
+      <span class="sgi-proc-format-label">Texto</span>
+      <select class="form-select form-select-sm sgi-proc-fmt-fontsize-select" id="fmtTableFontSize" aria-label="Tamaño de letra en tabla">
+        <option value="8">8 pt</option>
+        <option value="9">9 pt</option>
+        <option value="10" selected>10 pt</option>
+        <option value="11">11 pt</option>
+        <option value="12">12 pt</option>
+        <option value="14">14 pt</option>
+        <option value="16">16 pt</option>
+      </select>
     </div>
     <p class="sgi-proc-format-hint mb-0" id="fmtContextHint">Hacé clic en una sección del documento para editar.</p>
   </div>

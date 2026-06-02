@@ -384,6 +384,11 @@
   min-width: 3.5rem;
 }
 
+.sgi-proc-fmt-fontsize-select {
+  width: auto;
+  min-width: 5.5rem;
+}
+
 .sgi-proc-fmt-col-range {
   width: 7rem;
   margin: 0;
