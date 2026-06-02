@@ -154,86 +154,27 @@
     );
   }
 
-  function sameParts(a, b) {
-    return a.length === b.length && a.every((v, i) => v === b[i]);
-  }
-
-  function collectBlockNodes(rootEl, stopEl) {
-    const nodes = [];
-    let cur = rootEl;
-    while (cur && cur !== stopEl) {
-      nodes.push(cur);
-      cur = cur.nextSibling;
-    }
-    return nodes;
-  }
-
-  function renumberSiblingBranches(bodyEl, secNum, parentParts) {
-    const all = listSubapartados(bodyEl, secNum);
-    const siblings = all.filter(
+  function getPreviousSiblingParts(all, anchorParts) {
+    const parent = anchorParts.slice(0, -1);
+    const sameLevel = all.filter(
       (x) =>
-        x.parts.length === parentParts.length + 1 &&
-        parentParts.every((v, i) => x.parts[i] === v)
+        x.parts.length === anchorParts.length &&
+        parent.every((v, i) => x.parts[i] === v)
     );
-    const maps = siblings.map((x, idx) => ({
-      from: x.parts,
-      to: [...parentParts, idx + 1],
-    }));
-
-    maps.forEach(({ from, to }) => {
-      if (sameParts(from, to)) return;
-      all.forEach((item) => {
-        if (item.parts.length < from.length) return;
-        if (!from.every((v, i) => item.parts[i] === v)) return;
-        const moved = [...to, ...item.parts.slice(from.length)];
-        const numEl = item.el.querySelector(".sgi-proc-sub-num");
-        if (numEl) numEl.textContent = formatSubapartadoLabel(secNum, moved);
-        item.el.dataset.subLevel = String(moved.length);
-      });
-    });
+    const idx = sameLevel.findIndex(
+      (x) =>
+        x.parts.length === anchorParts.length &&
+        x.parts.every((v, i) => v === anchorParts[i])
+    );
+    if (idx > 0) return sameLevel[idx - 1].parts;
+    return null;
   }
 
-  function moveCurrentSubapartado(bodyEl, direction) {
-    const secNum = getSectionNum(bodyEl);
+  function getAnchorOrLast(bodyEl, secNum) {
     const anchor = findAnchorSubapartado(bodyEl);
-    if (!anchor) {
-      flashMsg("warning", "Seleccioná primero el subapartado que querés mover.");
-      return;
-    }
+    if (anchor) return anchor;
     const all = listSubapartados(bodyEl, secNum);
-    const anchorItem = all.find((x) => x.el === anchor);
-    if (!anchorItem) return;
-    const parentParts = anchorItem.parts.slice(0, -1);
-    const siblings = all.filter(
-      (x) =>
-        x.parts.length === anchorItem.parts.length &&
-        parentParts.every((v, i) => x.parts[i] === v)
-    );
-    const idx = siblings.findIndex((x) => x.el === anchor);
-    const targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= siblings.length) {
-      flashMsg("warning", "No se puede mover mas en esa direccion.");
-      return;
-    }
-
-    const targetEl = siblings[targetIdx].el;
-    const anchorStop = nextNonDescendantSubapartado(bodyEl, secNum, anchor);
-    const anchorNodes = collectBlockNodes(anchor, anchorStop);
-    const frag = document.createDocumentFragment();
-    anchorNodes.forEach((n) => frag.appendChild(n));
-
-    if (direction < 0) {
-      targetEl.before(frag);
-    } else {
-      const targetStop = nextNonDescendantSubapartado(bodyEl, secNum, targetEl);
-      if (targetStop) targetStop.before(frag);
-      else bodyEl.appendChild(frag);
-    }
-
-    renumberSiblingBranches(bodyEl, secNum, parentParts);
-    placeCursorAtEnd(anchor);
-    pushUndoState();
-    scheduleAutoSaveHint();
+    return all.length ? all[all.length - 1].el : null;
   }
 
   function buildNewSubapartado(bodyEl, secNum, anchor, mode) {
@@ -253,25 +194,27 @@
     }
 
     if (mode === "continuo") {
-      if (anchorParts.length >= MAX_SUBAPARTADO_LEVEL) {
-        const parent = anchorParts.slice(0, -1);
-        const target = anchorParts[anchorParts.length - 1] + 1;
+      const baseParts = getPreviousSiblingParts(all, anchorParts) || anchorParts;
+      const baseEl = findSubapartadoByParts(bodyEl, secNum, baseParts) || anchor;
+      if (baseParts.length >= MAX_SUBAPARTADO_LEVEL) {
+        const parent = baseParts.slice(0, -1);
+        const target = baseParts[baseParts.length - 1] + 1;
         shiftSiblingNumbering(bodyEl, secNum, parent, target);
         return {
           parts: [...parent, target],
-          ref: nextNonDescendantSubapartado(bodyEl, secNum, anchor),
+          ref: nextNonDescendantSubapartado(bodyEl, secNum, baseEl),
         };
       }
-      const level = anchorParts.length;
+      const level = baseParts.length;
       const children = all
         .filter(
           (x) =>
             x.parts.length === level + 1 &&
-            anchorParts.every((v, i) => x.parts[i] === v)
+            baseParts.every((v, i) => x.parts[i] === v)
         )
         .map((x) => x.parts[level]);
       const next = children.length ? Math.max(...children) + 1 : 1;
-      return { parts: [...anchorParts, next], ref: nextNonDescendantSubapartado(bodyEl, secNum, anchor) };
+      return { parts: [...baseParts, next], ref: nextNonDescendantSubapartado(bodyEl, secNum, baseEl) };
     }
 
     if (mode === "ascender") {
@@ -310,7 +253,7 @@
   function insertSubapartado(bodyEl, mode) {
     flushUndoDebounce();
     const secNum = getSectionNum(bodyEl);
-    const anchor = findAnchorSubapartado(bodyEl);
+    const anchor = getAnchorOrLast(bodyEl, secNum);
 
     const built = buildNewSubapartado(bodyEl, secNum, anchor, mode);
     const parts = built.parts;
@@ -978,22 +921,9 @@
       updateFormatBar();
     }
 
-    qs("#fmtSubapartadoPrev")?.addEventListener("click", () => runSubapartadoInsert("anterior"));
     qs("#fmtSubapartadoNext")?.addEventListener("click", () => runSubapartadoInsert("siguiente"));
     qs("#fmtSubapartadoChild")?.addEventListener("click", () => runSubapartadoInsert("continuo"));
     qs("#fmtSubapartadoUp")?.addEventListener("click", () => runSubapartadoInsert("ascender"));
-    qs("#fmtSubapartadoBack")?.addEventListener("click", () => {
-      const body = getActiveSectionBody();
-      if (!body) return;
-      moveCurrentSubapartado(body, -1);
-      updateFormatBar();
-    });
-    qs("#fmtSubapartadoForward")?.addEventListener("click", () => {
-      const body = getActiveSectionBody();
-      if (!body) return;
-      moveCurrentSubapartado(body, 1);
-      updateFormatBar();
-    });
 
     qs("#fmtTable")?.addEventListener("click", () => {
       const body = getActiveSectionBody();
@@ -1059,22 +989,6 @@
 
     document.addEventListener("keydown", (e) => {
       if (soloLectura) return;
-      if (e.altKey && !e.ctrlKey && !e.metaKey) {
-        const body = getActiveSectionBody();
-        if (!body) return;
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          moveCurrentSubapartado(body, -1);
-          updateFormatBar();
-          return;
-        }
-        if (e.key === "ArrowRight") {
-          e.preventDefault();
-          moveCurrentSubapartado(body, 1);
-          updateFormatBar();
-          return;
-        }
-      }
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
       if (!["b", "i", "u"].includes(key)) return;
