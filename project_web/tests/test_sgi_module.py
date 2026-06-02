@@ -92,7 +92,7 @@ def sgi_perm_client(client, sgi_perm_user):
 @pytest.fixture
 def sgi_role_user(app):
     from app.extensions import db
-    from app.models import User
+    from app.models import PermisoUsuario, User
     from app.user_roles import ROLE_SGI
 
     with app.app_context():
@@ -104,6 +104,9 @@ def sgi_role_user(app):
             rol=ROLE_SGI,
         )
         db.session.add(u)
+        db.session.flush()
+        # Override legacy conflict: SGI debe seguir editando SGI aunque exista esta fila.
+        db.session.add(PermisoUsuario(user_id=u.id, permiso="sgi_documentos_edit", habilitado=False, puede_editar=False))
         db.session.commit()
         return u.username
 
