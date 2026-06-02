@@ -319,6 +319,117 @@
         el.replaceWith(strong);
       }
     });
+
+    function isEffectivelyEmpty(node) {
+      if (!node) return true;
+      if (node.nodeType === Node.TEXT_NODE) return !String(node.textContent || "").trim();
+      if (node.nodeType !== Node.ELEMENT_NODE) return true;
+      const html = (node.innerHTML || "")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/<br\s*\/?>/gi, "")
+        .trim();
+      const txt = String(node.textContent || "").replace(/\u00a0/g, " ").trim();
+      return !html && !txt;
+    }
+
+    function hasUsefulContent(node) {
+      if (!node) return false;
+      if (node.nodeType === Node.TEXT_NODE) return !!String(node.textContent || "").trim();
+      if (node.nodeType !== Node.ELEMENT_NODE) return false;
+      if (node.matches("img,table")) return true;
+      if (node.querySelector("img,table")) return true;
+      return !!String(node.textContent || "").replace(/\u00a0/g, " ").trim();
+    }
+
+    function appendNodeAsListItem(listEl, sourceNode) {
+      if (!hasUsefulContent(sourceNode)) return;
+      const li = doc.createElement("li");
+      if (sourceNode.nodeType === Node.TEXT_NODE) {
+        li.textContent = String(sourceNode.textContent || "").trim();
+      } else {
+        li.innerHTML = sourceNode.innerHTML;
+      }
+      listEl.appendChild(li);
+      sourceNode.remove();
+    }
+
+    // Limpia listas vacías y corrige cortes de lista como:
+    // <ul><li>item</li></ul><p>item 2</p><ul><li>&nbsp;</li></ul>
+    root.querySelectorAll("ul,ol").forEach((list) => {
+      list.querySelectorAll("li").forEach((li) => {
+        if (!hasUsefulContent(li)) li.remove();
+      });
+      if (!list.querySelector("li")) list.remove();
+    });
+
+    root.querySelectorAll("*").forEach((parent) => {
+      let node = parent.firstChild;
+      while (node) {
+        if (
+          node.nodeType === Node.ELEMENT_NODE &&
+          (node.tagName === "UL" || node.tagName === "OL")
+        ) {
+          const baseList = node;
+          let cursor = baseList.nextSibling;
+          const bridgeNodes = [];
+          while (cursor && isEffectivelyEmpty(cursor)) {
+            const next = cursor.nextSibling;
+            bridgeNodes.push(cursor);
+            cursor = next;
+          }
+          while (
+            cursor &&
+            ((cursor.nodeType === Node.ELEMENT_NODE && (cursor.tagName === "P" || cursor.tagName === "DIV")) ||
+              cursor.nodeType === Node.TEXT_NODE)
+          ) {
+            if (!hasUsefulContent(cursor)) {
+              const next = cursor.nextSibling;
+              bridgeNodes.push(cursor);
+              cursor = next;
+              continue;
+            }
+            bridgeNodes.push(cursor);
+            const next = cursor.nextSibling;
+            cursor = next;
+            while (cursor && isEffectivelyEmpty(cursor)) {
+              const nn = cursor.nextSibling;
+              bridgeNodes.push(cursor);
+              cursor = nn;
+            }
+          }
+
+          if (
+            cursor &&
+            cursor.nodeType === Node.ELEMENT_NODE &&
+            cursor.tagName === baseList.tagName
+          ) {
+            bridgeNodes.forEach((n) => {
+              if (
+                (n.nodeType === Node.ELEMENT_NODE && (n.tagName === "P" || n.tagName === "DIV")) ||
+                n.nodeType === Node.TEXT_NODE
+              ) {
+                appendNodeAsListItem(baseList, n);
+              } else if (isEffectivelyEmpty(n)) {
+                n.remove();
+              }
+            });
+            Array.from(cursor.children)
+              .filter((el) => el.tagName === "LI")
+              .forEach((li) => {
+              if (hasUsefulContent(li)) baseList.appendChild(li);
+              else li.remove();
+              });
+            cursor.remove();
+          } else {
+            bridgeNodes.forEach((n) => {
+              if (isEffectivelyEmpty(n)) n.remove();
+            });
+          }
+        }
+        node = node.nextSibling;
+      }
+    });
+
     root.querySelectorAll("table").forEach((el) => {
       el.classList.add("sgi-proc-content-table");
       el.removeAttribute("width");
@@ -872,6 +983,29 @@
     updateFormatBar();
   }
 
+  function normalizeTextAlign(align) {
+    const v = String(align || "").toLowerCase();
+    if (v === "start") return "left";
+    if (v === "end") return "right";
+    if (["left", "center", "right", "justify"].includes(v)) return v;
+    return "left";
+  }
+
+  function getCellTextAlign(cell) {
+    if (!cell) return "left";
+    return normalizeTextAlign(window.getComputedStyle(cell).textAlign || cell.style.textAlign || "left");
+  }
+
+  function setCellTextAlign(cell, align) {
+    if (!cell) return;
+    const value = normalizeTextAlign(align);
+    flushUndoDebounce();
+    cell.style.textAlign = value;
+    pushUndoState();
+    scheduleAutoSaveHint();
+    updateFormatBar();
+  }
+
   function updateFormatBar() {
     if (soloLectura) return;
     const hint = qs("#fmtContextHint");
@@ -934,6 +1068,13 @@
       const size = getNodeFontSizeInPt(ctx.cell) || 10;
       tableFontSize.value = String(size);
     }
+    const align = getCellTextAlign(ctx.cell);
+    const alignLeft = qs("#fmtTableAlignLeft");
+    const alignCenter = qs("#fmtTableAlignCenter");
+    const alignRight = qs("#fmtTableAlignRight");
+    if (alignLeft) alignLeft.setAttribute("aria-pressed", align === "left" ? "true" : "false");
+    if (alignCenter) alignCenter.setAttribute("aria-pressed", align === "center" ? "true" : "false");
+    if (alignRight) alignRight.setAttribute("aria-pressed", align === "right" ? "true" : "false");
   }
 
   function bindTableColumnResize() {
@@ -1037,6 +1178,22 @@
       equalizeTableColumns(ctx.table);
       pushUndoState();
       scheduleAutoSaveHint();
+    });
+
+    qs("#fmtTableAlignLeft")?.addEventListener("click", () => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      setCellTextAlign(ctx.cell, "left");
+    });
+    qs("#fmtTableAlignCenter")?.addEventListener("click", () => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      setCellTextAlign(ctx.cell, "center");
+    });
+    qs("#fmtTableAlignRight")?.addEventListener("click", () => {
+      const ctx = getActiveTableContext();
+      if (!ctx) return;
+      setCellTextAlign(ctx.cell, "right");
     });
 
     qs("#fmtTableFontSize")?.addEventListener("change", (e) => {
