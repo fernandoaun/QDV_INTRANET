@@ -304,6 +304,61 @@
   float: none !important;
 }
 
+.sgi-proc-seccion-cuerpo p {
+  display: block;
+  margin: 0.35rem 0;
+  line-height: 1.45;
+}
+
+.sgi-proc-seccion-cuerpo ul,
+.sgi-proc-seccion-cuerpo ol {
+  display: block;
+  margin: 0.35rem 0 0.65rem;
+  padding-left: 1.6rem;
+  list-style-position: outside;
+}
+
+.sgi-proc-seccion-cuerpo li {
+  display: list-item;
+  margin: 0.2rem 0;
+  line-height: 1.45;
+}
+
+.sgi-proc-seccion-cuerpo ul ul,
+.sgi-proc-seccion-cuerpo ol ol,
+.sgi-proc-seccion-cuerpo ul ol,
+.sgi-proc-seccion-cuerpo ol ul {
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
+}
+
+.sgi-proc-seccion-cuerpo table td,
+.sgi-proc-seccion-cuerpo table th,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th {
+  vertical-align: top;
+}
+
+.sgi-proc-seccion-cuerpo table td ul,
+.sgi-proc-seccion-cuerpo table td ol,
+.sgi-proc-seccion-cuerpo table th ul,
+.sgi-proc-seccion-cuerpo table th ol,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td ul,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td ol,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th ul,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th ol {
+  margin: 0.2rem 0 0.35rem;
+  padding-left: 1.4rem;
+}
+
+.sgi-proc-seccion-cuerpo table td p,
+.sgi-proc-seccion-cuerpo table th p,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td p,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th p {
+  margin: 0.2rem 0;
+  line-height: 1.45;
+}
+
 /* Tipografía uniforme: ignora fuentes incrustadas al pegar desde Word u otros orígenes */
 .sgi-proc-sheet .sgi-proc-seccion-cuerpo,
 .sgi-proc-sheet .sgi-proc-seccion-cuerpo * {

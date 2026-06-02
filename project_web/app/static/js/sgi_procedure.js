@@ -302,12 +302,31 @@
       "left",
       "right",
       "top",
+      "bottom",
+      "z-index",
+      "margin",
+      "margin-top",
+      "margin-bottom",
       "margin-left",
       "margin-right",
+      "padding-top",
+      "padding-bottom",
+      "line-height",
+      "height",
+      "min-height",
+      "max-height",
+      "transform",
+      "vertical-align",
     ];
 
     root.querySelectorAll("[style]").forEach((el) => {
+      const tag = el.tagName;
       layoutProps.forEach((prop) => el.style.removeProperty(prop));
+      // display/width heredados de Word suelen romper listas y párrafos en el editor.
+      if (!el.closest("table") && ["P", "DIV", "LI", "UL", "OL", "SPAN"].includes(tag)) {
+        el.style.removeProperty("display");
+        el.style.removeProperty("width");
+      }
       if (!el.getAttribute("style")?.trim()) el.removeAttribute("style");
     });
     root.querySelectorAll("font[face]").forEach((el) => el.removeAttribute("face"));
@@ -341,20 +360,8 @@
       return !!String(node.textContent || "").replace(/\u00a0/g, " ").trim();
     }
 
-    function appendNodeAsListItem(listEl, sourceNode) {
-      if (!hasUsefulContent(sourceNode)) return;
-      const li = doc.createElement("li");
-      if (sourceNode.nodeType === Node.TEXT_NODE) {
-        li.textContent = String(sourceNode.textContent || "").trim();
-      } else {
-        li.innerHTML = sourceNode.innerHTML;
-      }
-      listEl.appendChild(li);
-      sourceNode.remove();
-    }
-
-    // Limpia listas vacías y corrige cortes de lista como:
-    // <ul><li>item</li></ul><p>item 2</p><ul><li>&nbsp;</li></ul>
+    // Limpia viñetas vacías y fusiona listas consecutivas del mismo tipo.
+    // No convierte párrafos intermedios en ítems: eso generaba solapamiento visual.
     root.querySelectorAll("ul,ol").forEach((list) => {
       list.querySelectorAll("li").forEach((li) => {
         if (!hasUsefulContent(li)) li.remove();
@@ -371,60 +378,28 @@
         ) {
           const baseList = node;
           let cursor = baseList.nextSibling;
-          const bridgeNodes = [];
           while (cursor && isEffectivelyEmpty(cursor)) {
             const next = cursor.nextSibling;
-            bridgeNodes.push(cursor);
+            cursor.remove();
             cursor = next;
           }
-          while (
-            cursor &&
-            ((cursor.nodeType === Node.ELEMENT_NODE && (cursor.tagName === "P" || cursor.tagName === "DIV")) ||
-              cursor.nodeType === Node.TEXT_NODE)
-          ) {
-            if (!hasUsefulContent(cursor)) {
-              const next = cursor.nextSibling;
-              bridgeNodes.push(cursor);
-              cursor = next;
-              continue;
-            }
-            bridgeNodes.push(cursor);
-            const next = cursor.nextSibling;
-            cursor = next;
-            while (cursor && isEffectivelyEmpty(cursor)) {
-              const nn = cursor.nextSibling;
-              bridgeNodes.push(cursor);
-              cursor = nn;
-            }
-          }
-
           if (
             cursor &&
             cursor.nodeType === Node.ELEMENT_NODE &&
             cursor.tagName === baseList.tagName
           ) {
-            bridgeNodes.forEach((n) => {
-              if (
-                (n.nodeType === Node.ELEMENT_NODE && (n.tagName === "P" || n.tagName === "DIV")) ||
-                n.nodeType === Node.TEXT_NODE
-              ) {
-                appendNodeAsListItem(baseList, n);
-              } else if (isEffectivelyEmpty(n)) {
-                n.remove();
-              }
-            });
             Array.from(cursor.children)
               .filter((el) => el.tagName === "LI")
               .forEach((li) => {
-              if (hasUsefulContent(li)) baseList.appendChild(li);
-              else li.remove();
+                if (hasUsefulContent(li)) baseList.appendChild(li);
+                else li.remove();
               });
+            const next = cursor.nextSibling;
             cursor.remove();
-          } else {
-            bridgeNodes.forEach((n) => {
-              if (isEffectivelyEmpty(n)) n.remove();
-            });
+            cursor = next;
           }
+          node = cursor || baseList.nextSibling;
+          continue;
         }
         node = node.nextSibling;
       }
@@ -1299,7 +1274,9 @@
           scheduleAutoSaveHint();
         });
         el.addEventListener("blur", () => {
+          el.innerHTML = normalizeProcedureHtml(el.innerHTML);
           syncSubapartadoLevels(el);
+          if (!soloLectura) setupAllContentTables(el);
           flushUndoDebounce();
           scheduleAutoSaveHint();
         });
