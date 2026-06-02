@@ -777,17 +777,59 @@
 
   let activeSectionBody = null;
   let tableResizeState = null;
+  let savedSelectionRange = null;
+  let savedSelectionBody = null;
+
+  function getBodyFromSelection() {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return null;
+    let node = sel.anchorNode;
+    if (node?.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    return node?.closest?.("[data-seccion-body]") || null;
+  }
+
+  function saveSelectionFromDocument() {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const body = getBodyFromSelection();
+    if (!body || !body.contains(range.commonAncestorContainer)) return;
+    savedSelectionRange = range.cloneRange();
+    savedSelectionBody = body;
+    activeSectionBody = body;
+  }
+
+  function restoreSelectionForFormat() {
+    if (!savedSelectionRange || !savedSelectionBody) return false;
+    if (!document.contains(savedSelectionBody)) {
+      savedSelectionRange = null;
+      savedSelectionBody = null;
+      return false;
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedSelectionRange);
+    return true;
+  }
+
+  function bindFormatToolbarAction(element, handler) {
+    if (!element) return;
+    element.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      saveSelectionFromDocument();
+    });
+    element.addEventListener("click", (e) => {
+      e.preventDefault();
+      handler();
+    });
+  }
 
   function getActiveSectionBody() {
     if (activeSectionBody && document.contains(activeSectionBody)) return activeSectionBody;
-    const sel = window.getSelection();
-    if (sel?.rangeCount) {
-      let node = sel.anchorNode;
-      if (node?.nodeType === Node.TEXT_NODE) node = node.parentElement;
-      const body = node?.closest?.("[data-seccion-body]");
-      if (body) return body;
-    }
-    return qsa("[data-seccion-body]")[0] || null;
+    const fromSel = getBodyFromSelection();
+    if (fromSel) return fromSel;
+    if (savedSelectionBody && document.contains(savedSelectionBody)) return savedSelectionBody;
+    return null;
   }
 
   function getSectionDisplayName(bodyEl) {
@@ -890,18 +932,55 @@
     });
   }
 
+  function unwrapBoldInSelection(body) {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const candidates = [];
+    body.querySelectorAll("strong,b,span").forEach((el) => {
+      if (el.tagName === "SPAN") {
+        const fw = el.style.fontWeight || "";
+        if (!/^(bold|[6-9]00)$/i.test(String(fw).trim())) return;
+      }
+      try {
+        if (range.intersectsNode(el)) candidates.push(el);
+      } catch {
+        /* navegador sin intersectsNode */
+      }
+    });
+    candidates
+      .sort((a, b) => {
+        if (a.contains(b)) return 1;
+        if (b.contains(a)) return -1;
+        return 0;
+      })
+      .forEach((el) => {
+        const parent = el.parentNode;
+        if (!parent) return;
+        while (el.firstChild) parent.insertBefore(el.firstChild, el);
+        el.remove();
+      });
+    saveSelectionFromDocument();
+  }
+
   function execTextFormat(command) {
     const body = getActiveSectionBody();
     if (!body) {
       flashMsg("warning", "Hacé clic en una sección del documento para aplicar formato.");
       return;
     }
+    restoreSelectionForFormat();
     body.focus();
+    const wasBold = command === "bold" ? document.queryCommandState("bold") : false;
     try {
       document.execCommand(command, false, null);
     } catch {
       /* navegador sin soporte */
     }
+    if (command === "bold" && wasBold && document.queryCommandState("bold")) {
+      unwrapBoldInSelection(body);
+    }
+    saveSelectionFromDocument();
     pushUndoState();
     scheduleAutoSaveHint();
     updateFormatBar();
@@ -1087,11 +1166,11 @@
   }
 
   function bindFormatBar() {
-    qs("#fmtBold")?.addEventListener("click", () => execTextFormat("bold"));
-    qs("#fmtItalic")?.addEventListener("click", () => execTextFormat("italic"));
-    qs("#fmtUnderline")?.addEventListener("click", () => execTextFormat("underline"));
-    qs("#fmtBullets")?.addEventListener("click", () => execTextFormat("insertUnorderedList"));
-    qs("#fmtNumbered")?.addEventListener("click", () => execTextFormat("insertOrderedList"));
+    bindFormatToolbarAction(qs("#fmtBold"), () => execTextFormat("bold"));
+    bindFormatToolbarAction(qs("#fmtItalic"), () => execTextFormat("italic"));
+    bindFormatToolbarAction(qs("#fmtUnderline"), () => execTextFormat("underline"));
+    bindFormatToolbarAction(qs("#fmtBullets"), () => execTextFormat("insertUnorderedList"));
+    bindFormatToolbarAction(qs("#fmtNumbered"), () => execTextFormat("insertOrderedList"));
 
     function runSubapartadoInsert(mode) {
       const body = getActiveSectionBody();
@@ -1187,8 +1266,15 @@
       updateFormatBar();
     });
 
+    let selectionSaveTimer = null;
     document.addEventListener("selectionchange", () => {
-      if (!soloLectura) updateFormatBar();
+      if (soloLectura) return;
+      clearTimeout(selectionSaveTimer);
+      selectionSaveTimer = setTimeout(() => {
+        selectionSaveTimer = null;
+        saveSelectionFromDocument();
+        updateFormatBar();
+      }, 50);
     });
 
     document.addEventListener("keydown", (e) => {
@@ -1199,6 +1285,7 @@
       if (!e.target.closest?.("[data-seccion-body]")) return;
       if (["8", "7"].includes(key) && !e.shiftKey) return;
       e.preventDefault();
+      saveSelectionFromDocument();
       if (key === "b") execTextFormat("bold");
       else if (key === "i") execTextFormat("italic");
       else if (key === "u") execTextFormat("underline");
