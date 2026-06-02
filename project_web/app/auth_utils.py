@@ -12,6 +12,7 @@ from app.constants import PERMISSION_KEYS
 from app.user_roles import (
     ROLE_LOGISTICA,
     compute_session_perm_lists,
+    normalized_role_has_global_view,
     normalize_stored_rol,
     normalized_role_is_global_read_only,
     user_is_global_read_only,
@@ -84,12 +85,12 @@ def user_can_view_admin_configuration(user: User | None) -> bool:
 
 
 def user_can_access_vencimientos(user: User | None) -> bool:
-    """Solo administrador o perfiles solo lectura total (Angel, SGI)."""
+    """Solo administrador o perfiles con vista total global (Angel, SGI)."""
     if user is None:
         return False
     if user.is_admin:
         return True
-    return normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None)))
+    return normalized_role_has_global_view(normalize_stored_rol(getattr(user, "rol", None)))
 
 
 def user_can_manage_vencimientos(user: User | None) -> bool:
@@ -103,13 +104,13 @@ def user_can_access_sgi(user: User | None) -> bool:
         return False
     if user.is_admin:
         return True
-    if normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None))):
+    if normalized_role_has_global_view(normalize_stored_rol(getattr(user, "rol", None))):
         return True
     return user_can(user, "sgi_hub")
 
 
 def user_can_edit_sgi_documentos(user: User | None) -> bool:
-    """Crear/editar documentos: administrador o permiso sgi_documentos_edit (no Angel/SGI)."""
+    """Crear/editar documentos: administrador o permiso sgi_documentos_edit (SGI sí, Angel no)."""
     if user is None or user_is_global_read_only(user):
         return False
     if user.is_admin:
@@ -123,12 +124,12 @@ def user_can_delete_sgi_documentos(user: User | None) -> bool:
 
 
 def user_can_view_sgi_obsoletos(user: User | None) -> bool:
-    """Documentos obsoletos: administrador o perfiles SGI / Angel (solo lectura total)."""
+    """Documentos obsoletos: administrador o perfiles SGI / Angel (vista total global)."""
     if user is None:
         return False
     if user.is_admin:
         return True
-    return normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None)))
+    return normalized_role_has_global_view(normalize_stored_rol(getattr(user, "rol", None)))
 
 
 def user_can_access_planificacion(user: User | None) -> bool:

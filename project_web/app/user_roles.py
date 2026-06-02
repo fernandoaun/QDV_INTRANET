@@ -2,7 +2,7 @@
 Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 
 - «solo_lectura_total» (Angel): ve todos los módulos y datos; no puede mutar nada (vista completa, edición vacía en sesión).
-- «sgi»: mismo comportamiento que Angel (solo lectura total), con otra etiqueta de perfil.
+- «sgi»: vista global en todo el sistema, con edición limitada al módulo SGI.
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
 - Los permisos finales = plantilla del rol efectivo, aplicando filas en `permisos_usuario` como overrides:
@@ -151,12 +151,17 @@ def normalize_stored_rol(raw: str | None) -> str:
 
 
 def normalized_role_is_global_read_only(normalized_stored_rol: str) -> bool:
-    """Perfiles con vista total y sin permisos de edición en ningún módulo (Angel, SGI)."""
+    """Perfiles con vista total y sin permisos de edición en ningún módulo (solo Angel)."""
+    return normalized_stored_rol == ROLE_SOLO_LECTURA_TOTAL
+
+
+def normalized_role_has_global_view(normalized_stored_rol: str) -> bool:
+    """Perfiles con vista total global (Angel y SGI)."""
     return normalized_stored_rol in (ROLE_SOLO_LECTURA_TOTAL, ROLE_SGI)
 
 
 def user_is_global_read_only(user: object | None) -> bool:
-    """True si el perfil es Angel o SGI (solo lectura total en todo el sistema)."""
+    """True si el perfil es solo lectura total global (Angel)."""
     if user is None or bool(getattr(user, "is_admin", False)):
         return False
     return normalized_role_is_global_read_only(normalize_stored_rol(getattr(user, "rol", None)))
@@ -191,6 +196,8 @@ def _base_view_edit_for_effective_role(effective: str) -> tuple[set[str], set[st
     if effective == ROLE_MANTENIMIENTO:
         v = set(_BASE_MANTENIMIENTO) & keys
         return v, set(v)
+    if effective == ROLE_SGI:
+        return set(_ALL_PERM_KEYS), {"sgi_documentos_edit"}
     if normalized_role_is_global_read_only(effective):
         return set(_ALL_PERM_KEYS), set()
     if effective == ROLE_LABORATORISTA:

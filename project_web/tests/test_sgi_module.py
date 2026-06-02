@@ -89,6 +89,44 @@ def sgi_perm_client(client, sgi_perm_user):
     return client
 
 
+@pytest.fixture
+def sgi_role_user(app):
+    from app.extensions import db
+    from app.models import User
+    from app.user_roles import ROLE_SGI
+
+    with app.app_context():
+        u = User(
+            username="pytest_sgi_role",
+            password_hash=generate_password_hash("pytest-sgi-role-pw"),
+            is_admin=False,
+            activo=True,
+            rol=ROLE_SGI,
+        )
+        db.session.add(u)
+        db.session.commit()
+        return u.username
+
+
+@pytest.fixture
+def sgi_role_client(client, sgi_role_user):
+    lg = client.get("/login")
+    html = lg.get_data(as_text=True)
+    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+    assert m is not None
+    r = client.post(
+        "/login",
+        data={
+            "username": sgi_role_user,
+            "password": "pytest-sgi-role-pw",
+            "csrf_token": m.group(1),
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+    return client
+
+
 def test_sgi_blocked_nonprivileged(mant_client):
     r = mant_client.get("/sgi/", follow_redirects=False)
     assert r.status_code in (302, 303)
@@ -160,6 +198,24 @@ def test_sgi_perm_user_can_create(sgi_perm_client):
             "csrf_token": csrf,
             "codigo": "MSGI-T-01",
             "titulo": "Manual test",
+            "revision": "00",
+            "estado": "vigente",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+
+def test_sgi_role_can_create(sgi_role_client):
+    r_form = sgi_role_client.get("/sgi/msgi/nuevo")
+    assert r_form.status_code == 200
+    csrf = _csrf_from_html(r_form.get_data(as_text=True))
+    r = sgi_role_client.post(
+        "/sgi/msgi/nuevo",
+        data={
+            "csrf_token": csrf,
+            "codigo": "MSGI-SGI-01",
+            "titulo": "Manual SGI editable",
             "revision": "00",
             "estado": "vigente",
         },
