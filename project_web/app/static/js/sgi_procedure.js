@@ -859,7 +859,13 @@
       sel.removeAllRanges();
       sel.addRange(range);
     } else {
-      cell.style.fontSize = `${size}pt`;
+      // Sin selección: aplicar al contenido de texto de la celda
+      // (manteniendo el cambio limitado al texto dentro de la tabla).
+      const span = document.createElement("span");
+      span.style.fontSize = `${size}pt`;
+      span.innerHTML = cell.innerHTML;
+      cell.innerHTML = "";
+      cell.appendChild(span);
     }
     pushUndoState();
     scheduleAutoSaveHint();
