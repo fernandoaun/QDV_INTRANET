@@ -370,9 +370,11 @@ def create_app() -> Flask:
 
         from app.auth_utils import current_user as _cu
         from app.auth_utils import user_shift_may_write_operational
+        from app.auth_utils import user_can_access_sgi
+        from app.services import sgi_notification_service as sgi_notif
         from app.services import shift_handover_service as sh
 
-        empty = {"shift_nav": None, "shift_notifications": None}
+        empty = {"shift_nav": None, "shift_notifications": None, "sgi_notifications": None}
         try:
             u = _cu()
             if u is None:
@@ -380,8 +382,11 @@ def create_app() -> Flask:
             shift_notifications = None
             if sh.user_can_view_shift_handover_notifications(u):
                 shift_notifications = sh.shift_observation_notifications_nav(session)
+            sgi_notifications = None
+            if user_can_access_sgi(u):
+                sgi_notifications = sgi_notif.sgi_notifications_nav(session, u)
             if not sh.user_participates_operational_shift(u):
-                return {"shift_nav": None, "shift_notifications": shift_notifications}
+                return {"shift_nav": None, "shift_notifications": shift_notifications, "sgi_notifications": sgi_notifications}
             pending = sh.get_pending_handover()
             open_s = sh.get_open_shift_session()
             declined = bool(session.get(sh.SESSION_KEY_SHIFT_DECLINED))
@@ -429,6 +434,7 @@ def create_app() -> Flask:
                     "operator_line": operator_line if mine else "",
                 },
                 "shift_notifications": shift_notifications,
+                "sgi_notifications": sgi_notifications,
             }
         except Exception:
             app.logger.exception("inject_shift_nav falló")

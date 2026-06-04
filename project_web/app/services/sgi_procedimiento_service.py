@@ -18,6 +18,7 @@ from app.models.sgi import (
     ESTADO_BORRADOR,
     ESTADO_EN_REVISION,
     ESTADO_OBSOLETO,
+    ESTADO_REVISADO,
     ESTADO_VIGENTE,
     PROCEDIMIENTO_SECCIONES,
     SgiDocumento,
@@ -32,11 +33,15 @@ from app.models.sgi import (
     TIPOS_PROCEDIMIENTO_VISUAL,
 )
 from app.models.user import User
+from app.auth_utils import user_can_edit_sgi_documentos, user_display_name
+from app.services import sgi_notification_service as notif_svc
 from app.services import sgi_service as doc_svc
+from app.services import sgi_workflow_service as workflow_svc
 from app.services.upload_paths import uploads_workspace_root
 
 ACCION_BORRADOR = "guardar_borrador"
 ACCION_ENVIAR_REVISION = "enviar_revision"
+ACCION_MARCAR_REVISADO = "marcar_revisado"
 ACCION_APROBAR = "aprobar"
 ACCION_NUEVA_REVISION = "nueva_revision"
 
@@ -282,19 +287,61 @@ def revision_vigente_aprobada(doc: SgiDocumento) -> SgiProcedimientoRevision | N
 def revision_en_trabajo(doc: SgiDocumento) -> SgiProcedimientoRevision | None:
     return (
         doc.revisiones_proc.filter(
-            SgiProcedimientoRevision.estado.in_((ESTADO_BORRADOR, ESTADO_EN_REVISION))
+            SgiProcedimientoRevision.estado.in_(
+                (ESTADO_BORRADOR, ESTADO_EN_REVISION, ESTADO_REVISADO)
+            )
         )
         .order_by(SgiProcedimientoRevision.numero_revision.desc())
         .first()
     )
 
 
-def puede_ver_documento(doc: SgiDocumento, *, puede_editar: bool) -> bool:
+def _label_matches_user(label: str, user: User) -> bool:
+    needle = (label or "").strip().lower()
+    if not needle:
+        return False
+    for cand in (user_display_name(user), user.username, user.nombre_completo or ""):
+        hay = (cand or "").strip().lower()
+        if hay and (hay == needle or hay in needle or needle in hay):
+            return True
+    return False
+
+
+def user_can_marcar_revisado(user: User | None, rev: SgiProcedimientoRevision) -> bool:
+    if user is None or rev.estado != ESTADO_EN_REVISION:
+        return False
+    if user.is_admin or user_can_edit_sgi_documentos(user):
+        return True
+    return _label_matches_user(rev.reviso, user)
+
+
+def user_can_aprobar_revision(user: User | None, rev: SgiProcedimientoRevision) -> bool:
+    if user is None or rev.estado != ESTADO_REVISADO:
+        return False
+    if user.is_admin or user_can_edit_sgi_documentos(user):
+        return True
+    return _label_matches_user(rev.aprobo, user)
+
+
+def user_participates_workflow(user: User | None, rev: SgiProcedimientoRevision) -> bool:
+    if user is None:
+        return False
+    if rev.estado == ESTADO_EN_REVISION and user_can_marcar_revisado(user, rev):
+        return True
+    if rev.estado == ESTADO_REVISADO and user_can_aprobar_revision(user, rev):
+        return True
+    return False
+
+
+def puede_ver_documento(doc: SgiDocumento, *, puede_editar: bool, user: User | None = None) -> bool:
     if puede_editar:
         return True
     if doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
         return True
     if doc.es_procedimiento_visual:
+        rev_trabajo = revision_en_trabajo(doc)
+        if rev_trabajo and user and user_participates_workflow(user, rev_trabajo):
+            return True
         rev = revision_vigente_aprobada(doc)
         return rev is not None
     return doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE)
@@ -303,7 +350,7 @@ def puede_ver_documento(doc: SgiDocumento, *, puede_editar: bool) -> bool:
 def estado_visual_row(doc: SgiDocumento) -> str:
     if doc.estado == ESTADO_BORRADOR:
         return "sgi-row-borrador"
-    if doc.estado == ESTADO_EN_REVISION:
+    if doc.estado in (ESTADO_EN_REVISION, ESTADO_REVISADO):
         return "sgi-row-revision"
     if doc.estado in (ESTADO_OBSOLETO,):
         return "sgi-row-obsoleto"
@@ -343,6 +390,42 @@ def build_list_query_visual(
 
 def fetch_list_visual(args: dict[str, Any], *, tipo: str, incluir_obsoletos: bool = False) -> list[SgiDocumento]:
     return list(db.session.scalars(build_list_query_visual(args, tipo=tipo, incluir_obsoletos=incluir_obsoletos)).all())
+
+
+def ensure_visual_documento_titulo_sync(doc: SgiDocumento) -> bool:
+    """Alinea título en BD y en contenido_json del procedimiento visual (mayúsculas)."""
+    changed = doc_svc.ensure_documento_nombres_mayusculas(doc)
+    rev = revision_en_trabajo(doc) or revision_vigente_aprobada(doc) or revision_actual(doc)
+    if rev is None:
+        return changed
+
+    try:
+        base = json.loads(rev.contenido_json or "{}")
+    except json.JSONDecodeError:
+        base = {}
+    if not isinstance(base, dict):
+        base = {}
+
+    titulo_doc = (doc.titulo or "").strip()
+    titulo_json = (base.get("titulo") or "").strip()
+    titulo_upper = (titulo_doc or titulo_json).upper()
+    if not titulo_upper:
+        return changed
+
+    if titulo_doc != titulo_upper:
+        doc.titulo = titulo_upper[:512]
+        changed = True
+    if titulo_json != titulo_upper:
+        base["titulo"] = titulo_upper
+        rev.contenido_json = json.dumps(base, ensure_ascii=False)
+        changed = True
+    return changed
+
+
+def ensure_list_visual_nombres_mayusculas(rows: list[SgiDocumento]) -> None:
+    changed = any(ensure_visual_documento_titulo_sync(doc) for doc in rows)
+    if changed:
+        db.session.commit()
 
 
 def _clear_dynamic(rel) -> None:
@@ -530,7 +613,9 @@ def save_revision_content(
     rev.fecha_vigencia = doc_svc.parse_iso_date(payload.get("fecha_vigencia"))
     rev.elaboro = (payload.get("elaboro") or "")[:256]
     rev.reviso = (payload.get("reviso") or "")[:256]
+    rev.revisor_correo = (payload.get("revisor_correo") or "")[:256]
     rev.aprobo = (payload.get("aprobo") or "")[:256]
+    rev.aprobador_correo = (payload.get("aprobador_correo") or "")[:256]
     rev.fecha_elaboracion = doc_svc.parse_iso_date(payload.get("fecha_elaboracion"))
     rev.fecha_revision = doc_svc.parse_iso_date(payload.get("fecha_revision"))
     rev.fecha_aprobacion = doc_svc.parse_iso_date(payload.get("fecha_aprobacion"))
@@ -568,6 +653,8 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     rev = get_revision(rev_id)
     if rev is None or rev.estado != ESTADO_BORRADOR:
         return False, "Solo un borrador puede enviarse a revisión."
+    if not (rev.reviso or "").strip():
+        return False, "Indicá quién revisa (campo «Revisó» en la carátula) antes de enviar."
     rev.estado = ESTADO_EN_REVISION
     rev.updated_by_id = user_id
     doc = rev.documento
@@ -576,13 +663,46 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     _log_aprobacion(rev, ACCION_ENVIAR_REVISION, user_id, actor_label, "Enviado a revisión")
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, "Borrador → En revisión")
     db.session.commit()
-    return True, "Documento enviado a revisión."
+    app = current_app._get_current_object()
+    try:
+        workflow_svc.notify_revision_requested(app, doc, rev)
+    except Exception:
+        current_app.logger.exception("SGI: fallo aviso correo a revisor rev_id=%s", rev_id)
+    return True, "Documento enviado a revisión. Se notificó al revisor por correo."
+
+
+def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[bool, str]:
+    rev = get_revision(rev_id)
+    if rev is None or rev.estado != ESTADO_EN_REVISION:
+        return False, "Solo un documento en revisión puede marcarse como revisado."
+    if not (rev.aprobo or "").strip():
+        return False, "Indicá quién aprueba (campo «Aprobó» en la carátula) antes de continuar."
+    hoy = date.today()
+    rev.estado = ESTADO_REVISADO
+    rev.fecha_revision = rev.fecha_revision or hoy
+    rev.reviso = rev.reviso or actor_label
+    rev.updated_by_id = user_id
+    doc = rev.documento
+    doc.estado = ESTADO_REVISADO
+    doc.responsable_revision = rev.reviso
+    doc.updated_by_id = user_id
+    _log_aprobacion(rev, ACCION_MARCAR_REVISADO, user_id, actor_label, "Marcado como revisado")
+    doc_svc.append_historial(
+        doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, "En revisión → Revisado (pendiente aprobación)"
+    )
+    db.session.commit()
+    app = current_app._get_current_object()
+    try:
+        workflow_svc.notify_pending_approval(app, doc, rev)
+    except Exception:
+        current_app.logger.exception("SGI: fallo aviso correo a aprobador rev_id=%s", rev_id)
+    return True, "Revisión registrada. Se notificó al aprobador por correo."
 
 
 def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool, str]:
     rev = get_revision(rev_id)
-    if rev is None or rev.estado != ESTADO_EN_REVISION:
-        return False, "Solo un documento en revisión puede aprobarse."
+    if rev is None or rev.estado != ESTADO_REVISADO:
+        return False, "Solo un documento revisado puede aprobarse."
     doc = rev.documento
     hoy = date.today()
 
@@ -621,8 +741,9 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
     _sync_child_rows(rev, data)
 
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, f"Aprobado {rev.revision_label}")
+    notif_svc.create_approval_notifications(doc, rev, actor_label=actor_label)
     db.session.commit()
-    return True, "Documento aprobado."
+    return True, "Documento aprobado. Se enviaron notificaciones a los perfiles correspondientes."
 
 
 def crear_nueva_revision(doc_id: int, user_id: int, actor_label: str) -> tuple[SgiProcedimientoRevision | None, str | None]:
@@ -646,6 +767,9 @@ def crear_nueva_revision(doc_id: int, user_id: int, actor_label: str) -> tuple[S
         contenido_json=json.dumps(base_payload, ensure_ascii=False),
         elaboro=ultima.elaboro if ultima else "",
         reviso=ultima.reviso if ultima else "",
+        revisor_correo=ultima.revisor_correo if ultima else "",
+        aprobo=ultima.aprobo if ultima else "",
+        aprobador_correo=ultima.aprobador_correo if ultima else "",
         created_by_id=user_id,
         updated_by_id=user_id,
     )

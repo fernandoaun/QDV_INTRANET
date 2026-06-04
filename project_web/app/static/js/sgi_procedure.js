@@ -713,7 +713,9 @@
       fecha_vigencia: qs("#procFechaVigencia")?.value || "",
       elaboro: qs("#procElaboro")?.value || "",
       reviso: qs("#procReviso")?.value || "",
+      revisor_correo: qs("#procRevisorCorreo")?.value || "",
       aprobo: qs("#procAprobo")?.value || "",
+      aprobador_correo: qs("#procAprobadorCorreo")?.value || "",
       fecha_elaboracion: qs("#procFechaElab")?.value || "",
       fecha_revision: qs("#procFechaRev")?.value || "",
       fecha_aprobacion: qs("#procFechaAprob")?.value || "",
@@ -1428,7 +1430,13 @@
   }
 
   async function workflow(accion) {
-    await guardarBorrador();
+    if (cfg.soloLectura && accion !== "marcar_revisado" && accion !== "aprobar") {
+      flashMsg("danger", "No tenés permiso para esta acción.");
+      return;
+    }
+    if (!cfg.soloLectura) {
+      await guardarBorrador();
+    }
     const token = qs('meta[name="csrf-token"]')?.content || cfg.csrf || "";
     const res = await fetch(cfg.urls.workflow, {
       method: "POST",
@@ -1473,6 +1481,7 @@
     bindFormatBar();
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
     qs("#btnEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
+    qs("#btnMarcarRevisado")?.addEventListener("click", () => workflow("marcar_revisado"));
     qs("#btnAprobar")?.addEventListener("click", () => workflow("aprobar"));
     qs("#btnNuevaRevision")?.addEventListener("click", () => workflow("nueva_revision"));
     qs("#btnAddRegistro")?.addEventListener("click", () => addRegistroRow({}));
@@ -1493,6 +1502,6 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     hydrate();
-    if (!soloLectura) bind();
+    bind();
   });
 })();

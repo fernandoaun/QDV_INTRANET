@@ -32,10 +32,13 @@
   </div>
   <div class="d-flex flex-wrap gap-1 align-items-end">
     <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBorrador"><i class="bi bi-save me-1"></i>Guardar borrador</button>
-    {% if rev.estado == 'borrador' %}
+    {% if rev.estado == 'borrador' and puede_editar %}
     <button type="button" class="btn btn-warning btn-sm" id="btnEnviarRevision"><i class="bi bi-send me-1"></i>Enviar a revisión</button>
     {% endif %}
-    {% if rev.estado == 'en_revision' %}
+    {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <button type="button" class="btn btn-info btn-sm" id="btnMarcarRevisado"><i class="bi bi-check2-square me-1"></i>Marcar como revisado</button>
+    {% endif %}
+    {% if rev.estado == 'revisado' and puede_aprobar %}
     <button type="button" class="btn btn-success btn-sm" id="btnAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
     {% endif %}
     {% if rev.estado in ('aprobado', 'vigente') and puede_editar %}

@@ -52,9 +52,10 @@ def listado_procedimientos(slug: str):
 
     args = doc_svc.filter_args_from_request(request.args, tipo_fijo=tipo)
     rows = proc_svc.fetch_list_visual(args, tipo=tipo or "")
+    proc_svc.ensure_list_visual_nombres_mayusculas(rows)
     puede_editar = user_can_edit_sgi_documentos(u)
     if not puede_editar:
-        rows = [r for r in rows if proc_svc.puede_ver_documento(r, puede_editar=False)]
+        rows = [r for r in rows if proc_svc.puede_ver_documento(r, puede_editar=False, user=u)]
 
     row_meta: dict[int, dict] = {}
     for r in rows:
@@ -88,6 +89,7 @@ def listado_obsoletos(slug: str):
     tipo, _ = _resolve_tipo(slug)
     args = doc_svc.filter_args_from_request(request.args, tipo_fijo=tipo)
     rows = proc_svc.fetch_list_visual(args, tipo=tipo or "", incluir_obsoletos=True)
+    proc_svc.ensure_list_visual_nombres_mayusculas(rows)
     rows = [r for r in rows if r.estado == "obsoleto"]
 
     return render_template(
@@ -134,7 +136,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
         return redirect(url_for("sgi.listado_procedimientos", slug=slug))
 
     puede_editar = user_can_edit_sgi_documentos(u)
-    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar):
+    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar, user=u):
         flash("Solo puede visualizarse la versión aprobada.", "warning")
         vig = proc_svc.revision_vigente_aprobada(doc)
         if vig:
@@ -151,7 +153,11 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             abort(404)
 
     payload = proc_svc.revision_to_payload(rev)
+    puede_marcar_revisado = proc_svc.user_can_marcar_revisado(u, rev)
+    puede_aprobar = proc_svc.user_can_aprobar_revision(u, rev)
     solo_lectura = not puede_editar or rev.estado not in ("borrador", "en_revision")
+    if rev.estado in ("en_revision", "revisado") and (puede_marcar_revisado or puede_aprobar):
+        solo_lectura = True
 
     return render_template(
         "sgi/procedure_editor.html",
@@ -167,6 +173,8 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             estados_labels=ESTADO_LABELS,
             solo_lectura=solo_lectura,
             puede_editar=puede_editar,
+            puede_marcar_revisado=puede_marcar_revisado,
+            puede_aprobar=puede_aprobar,
         ),
     )
 
@@ -230,9 +238,13 @@ def procedimiento_guardar(slug: str, doc_id: int, rev_id: int):
 @bp.post("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/workflow")
 @login_required
 def procedimiento_workflow(slug: str, doc_id: int, rev_id: int):
-    u, redir = _require_edit()
+    u, _, redir = _require_view()
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
+
+    rev = proc_svc.get_revision(rev_id)
+    if rev is None or rev.documento_id != doc_id:
+        return jsonify({"ok": False, "message": "Revisión no encontrada."}), 404
 
     payload = request.get_json(silent=True) or {}
     accion = (request.form.get("accion") or payload.get("accion") or "") or ""
@@ -240,14 +252,24 @@ def procedimiento_workflow(slug: str, doc_id: int, rev_id: int):
     label = user_display_name(u)
 
     if accion == "enviar_revision":
+        if not user_can_edit_sgi_documentos(u):
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
         ok, msg = proc_svc.enviar_a_revision(rev_id, u.id, label)
+    elif accion == "marcar_revisado":
+        if not proc_svc.user_can_marcar_revisado(u, rev):
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        ok, msg = proc_svc.marcar_como_revisado(rev_id, u.id, label)
     elif accion == "aprobar":
+        if not proc_svc.user_can_aprobar_revision(u, rev):
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
         ok, msg = proc_svc.aprobar_revision(rev_id, u.id, label)
     elif accion == "nueva_revision":
-        rev, err = proc_svc.crear_nueva_revision(doc_id, u.id, label)
+        if not user_can_edit_sgi_documentos(u):
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        rev_new, err = proc_svc.crear_nueva_revision(doc_id, u.id, label)
         if err:
             return jsonify({"ok": False, "message": err}), 400
-        return jsonify({"ok": True, "message": "Nueva revisión creada.", "rev_id": rev.id})
+        return jsonify({"ok": True, "message": "Nueva revisión creada.", "rev_id": rev_new.id})
     else:
         return jsonify({"ok": False, "message": "Acción no reconocida."}), 400
 
@@ -288,7 +310,10 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
         abort(404)
 
     puede_editar = user_can_edit_sgi_documentos(u)
-    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar) and rev.estado not in ("aprobado", "vigente"):
+    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar, user=u) and rev.estado not in (
+        "aprobado",
+        "vigente",
+    ):
         abort(403)
 
     html = render_template(

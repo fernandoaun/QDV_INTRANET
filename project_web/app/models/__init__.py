@@ -37,6 +37,7 @@ from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHi
 from app.models.sgi import (
     SgiDocumento,
     SgiDocumentoHistorial,
+    SgiNotificacion,
     SgiProcedimientoAnexo,
     SgiProcedimientoAprobacion,
     SgiProcedimientoControlCambio,
@@ -97,4 +98,5 @@ __all__ = [
     "SgiProcedimientoRegistro",
     "SgiProcedimientoAnexo",
     "SgiProcedimientoAprobacion",
+    "SgiNotificacion",
 ]

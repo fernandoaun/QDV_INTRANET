@@ -29,6 +29,21 @@
 
     <div class="sgi-proc-cover-meta sgi-proc-no-print row g-2 mb-2">
       <div class="col-md-6">
+        <label class="form-label small mb-0" for="procRevisorCorreo">Correo del revisor (aviso automático)</label>
+        <input type="email" class="form-control form-control-sm" id="procRevisorCorreo"
+               value="{{ rev.revisor_correo or '' }}" placeholder="revisor@empresa.com"
+               {% if solo_lectura|default(false) %}readonly{% endif %}>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small mb-0" for="procAprobadorCorreo">Correo del aprobador (aviso automático)</label>
+        <input type="email" class="form-control form-control-sm" id="procAprobadorCorreo"
+               value="{{ rev.aprobador_correo or '' }}" placeholder="aprobador@empresa.com"
+               {% if solo_lectura|default(false) %}readonly{% endif %}>
+      </div>
+    </div>
+
+    <div class="sgi-proc-cover-meta sgi-proc-no-print row g-2 mb-2">
+      <div class="col-md-6">
         <label class="form-label small mb-0">Fecha de vigencia / aprobación</label>
         <input type="date" class="form-control form-control-sm" id="procFechaVigencia"
                value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}"

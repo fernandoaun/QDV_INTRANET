@@ -316,3 +316,27 @@ def test_sgi_parse_form_uppercases_codigo_and_titulo():
     assert parsed is not None
     assert parsed["codigo"] == "PG-TEST-001"
     assert parsed["titulo"] == "PROCEDIMIENTO DE PRUEBA"
+
+
+def test_ensure_documento_nombres_mayusculas(app):
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_service as svs
+
+    with app.app_context():
+        doc = SgiDocumento(
+            tipo="PG",
+            codigo="pg-aux-01",
+            titulo="titulo mixto",
+            revision="",
+            estado="borrador",
+        )
+        db.session.add(doc)
+        db.session.commit()
+        assert svs.ensure_documento_nombres_mayusculas(doc) is True
+        db.session.commit()
+        db.session.refresh(doc)
+        assert doc.codigo == "PG-AUX-01"
+        assert doc.titulo == "TITULO MIXTO"
+        db.session.delete(doc)
+        db.session.commit()

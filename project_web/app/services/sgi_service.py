@@ -112,6 +112,27 @@ def fetch_list(args: dict[str, Any]) -> list[SgiDocumento]:
     return list(db.session.scalars(build_filtered_query(args)).all())
 
 
+def ensure_documento_nombres_mayusculas(doc: SgiDocumento) -> bool:
+    """Normaliza código y título del documento a mayúsculas. Retorna True si hubo cambios."""
+    changed = False
+    codigo = (doc.codigo or "").strip()
+    if codigo and codigo != codigo.upper():
+        doc.codigo = codigo.upper()
+        changed = True
+    titulo = (doc.titulo or "").strip()
+    if titulo and titulo != titulo.upper():
+        doc.titulo = titulo.upper()
+        changed = True
+    return changed
+
+
+def ensure_list_nombres_mayusculas(rows: list[SgiDocumento]) -> None:
+    """Aplica mayúsculas en lote (p. ej. al abrir un listado con datos antiguos)."""
+    changed = any(ensure_documento_nombres_mayusculas(doc) for doc in rows)
+    if changed:
+        db.session.commit()
+
+
 def get_documento(doc_id: int) -> SgiDocumento | None:
     return db.session.get(SgiDocumento, int(doc_id))
 
@@ -303,6 +324,13 @@ def update_documento(
                 detail=f"{row.tipo}:{row.codigo}",
             )
 
+    if row.es_procedimiento_visual:
+        from app.services import sgi_procedimiento_service as proc_svc
+
+        if proc_svc.ensure_visual_documento_titulo_sync(row):
+            if "titulo" not in changes:
+                changes.append("titulo")
+
     db.session.commit()
 
     _record_security_audit(
@@ -425,7 +453,7 @@ def attachment_absolute_path(rel: str | None) -> Path | None:
 def estado_visual_row(doc: SgiDocumento) -> str:
     if doc.estado == ESTADO_BORRADOR:
         return "sgi-row-borrador"
-    if doc.estado == "en_revision":
+    if doc.estado in ("en_revision", "revisado"):
         return "sgi-row-revision"
     if doc.estado == "obsoleto":
         return "sgi-row-obsoleto"

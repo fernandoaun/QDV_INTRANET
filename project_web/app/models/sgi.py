@@ -43,6 +43,7 @@ TIPO_CARATULA_LABELS: dict[str, str] = {
 
 ESTADO_BORRADOR = "borrador"
 ESTADO_EN_REVISION = "en_revision"
+ESTADO_REVISADO = "revisado"
 ESTADO_APROBADO = "aprobado"
 ESTADO_VIGENTE = "vigente"
 ESTADO_OBSOLETO = "obsoleto"
@@ -50,6 +51,7 @@ ESTADO_OBSOLETO = "obsoleto"
 ESTADOS_DOCUMENTO: tuple[str, ...] = (
     ESTADO_BORRADOR,
     ESTADO_EN_REVISION,
+    ESTADO_REVISADO,
     ESTADO_APROBADO,
     ESTADO_VIGENTE,
     ESTADO_OBSOLETO,
@@ -58,6 +60,7 @@ ESTADOS_DOCUMENTO: tuple[str, ...] = (
 ESTADOS_PROCEDIMIENTO_WORKFLOW: tuple[str, ...] = (
     ESTADO_BORRADOR,
     ESTADO_EN_REVISION,
+    ESTADO_REVISADO,
     ESTADO_APROBADO,
     ESTADO_OBSOLETO,
 )
@@ -65,6 +68,7 @@ ESTADOS_PROCEDIMIENTO_WORKFLOW: tuple[str, ...] = (
 ESTADO_LABELS: dict[str, str] = {
     ESTADO_BORRADOR: "Borrador",
     ESTADO_EN_REVISION: "En revisión",
+    ESTADO_REVISADO: "Revisado — pendiente de aprobación",
     ESTADO_APROBADO: "Aprobado",
     ESTADO_VIGENTE: "Vigente",
     ESTADO_OBSOLETO: "Obsoleto",
@@ -146,7 +150,9 @@ class SgiProcedimientoRevision(db.Model):
     fecha_vigencia = db.Column(db.Date, nullable=True)
     elaboro = db.Column(db.String(256), nullable=False, default="", server_default="")
     reviso = db.Column(db.String(256), nullable=False, default="", server_default="")
+    revisor_correo = db.Column(db.String(256), nullable=False, default="", server_default="")
     aprobo = db.Column(db.String(256), nullable=False, default="", server_default="")
+    aprobador_correo = db.Column(db.String(256), nullable=False, default="", server_default="")
     fecha_elaboracion = db.Column(db.Date, nullable=True)
     fecha_revision = db.Column(db.Date, nullable=True)
     fecha_aprobacion = db.Column(db.Date, nullable=True)
@@ -240,6 +246,27 @@ class SgiProcedimientoAnexo(db.Model):
     revision = db.Column(db.String(32), nullable=False, default="", server_default="")
     fecha_vigencia = db.Column(db.Date, nullable=True)
     archivo_path = db.Column(db.String(512), nullable=True)
+
+
+class SgiNotificacion(db.Model):
+    """Avisos in-app (campana) para usuarios del módulo SGI."""
+
+    __tablename__ = "sgi_notificaciones"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, index=True)
+    documento_id = db.Column(
+        db.Integer, db.ForeignKey("sgi_documentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    revision_id = db.Column(
+        db.Integer, db.ForeignKey("sgi_procedimiento_revisiones.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    mensaje = db.Column(db.String(512), nullable=False, default="", server_default="")
+    enlace = db.Column(db.String(512), nullable=False, default="", server_default="")
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+
+    usuario = db.relationship("User", foreign_keys=[user_id])
+    documento = db.relationship("SgiDocumento", foreign_keys=[documento_id])
 
 
 class SgiProcedimientoAprobacion(db.Model):

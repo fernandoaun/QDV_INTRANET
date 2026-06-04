@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.auth_utils import (
     current_user,
@@ -13,9 +13,27 @@ from app.auth_utils import (
     user_display_name,
 )
 from app.models.sgi import ESTADO_LABELS, TIPO_LABELS, TIPOS_DOCUMENTO
+from app.services import sgi_notification_service as sgi_notif_svc
 from app.services import sgi_service as svs
 
 bp = Blueprint("sgi", __name__, url_prefix="/sgi")
+
+
+@bp.post("/notificaciones/visto")
+@login_required
+def notificaciones_mark_seen():
+    u = current_user()
+    if u is None or not sgi_notif_svc.user_can_view_sgi_notifications(u):
+        return "", 403
+    raw = (request.form.get("up_to_id") or "").strip()
+    up_to: int | None = None
+    if raw:
+        try:
+            up_to = int(raw)
+        except ValueError:
+            up_to = None
+    sgi_notif_svc.mark_sgi_notifications_seen(session, up_to_id=up_to)
+    return "", 204
 
 
 def _no_access():
@@ -71,6 +89,7 @@ def listado(slug: str):
     tipo, _ = _resolve_tipo(slug)
     args = svs.filter_args_from_request(request.args, tipo_fijo=tipo)
     rows = svs.fetch_list(args)
+    svs.ensure_list_nombres_mayusculas(rows)
     return render_template(
         "sgi/list.html",
         slug=slug,

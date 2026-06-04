@@ -110,15 +110,45 @@
         {% elif shift_nav and shift_nav.show_readonly_pill %}
         <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
         {% endif %}
-        {% if shift_notifications %}
+        {% if shift_notifications or sgi_notifications %}
+        {% set notif_unread = (shift_notifications['unread_count'] if shift_notifications else 0) + (sgi_notifications['unread_count'] if sgi_notifications else 0) %}
         <div class="dropdown app-notifications-dropdown">
-          <button class="app-notifications-btn dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true" id="appNotificationsBtn" title="Observaciones de cambio de turno" aria-label="Notificaciones de cambio de turno{% if shift_notifications['unread_count'] %} ({{ shift_notifications['unread_count'] }} sin leer){% endif %}">
+          <button class="app-notifications-btn dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true" id="appNotificationsBtn" title="Notificaciones" aria-label="Notificaciones{% if notif_unread %} ({{ notif_unread }} sin leer){% endif %}">
             <i class="bi bi-bell" aria-hidden="true"></i>
-            {% if shift_notifications['unread_count'] > 0 %}
-            <span class="app-notifications-badge" aria-hidden="true">{{ shift_notifications['unread_count'] if shift_notifications['unread_count'] < 10 else '9+' }}</span>
+            {% if notif_unread > 0 %}
+            <span class="app-notifications-badge" aria-hidden="true">{{ notif_unread if notif_unread < 10 else '9+' }}</span>
             {% endif %}
           </button>
-          <div class="dropdown-menu dropdown-menu-end app-notifications-menu" aria-labelledby="appNotificationsBtn" data-mark-seen-url="{{ url_for('shift.notifications_mark_seen') }}" data-mark-seen-up-to="{{ shift_notifications['max_id'] }}" data-csrf-token="{{ csrf_token() }}">
+          <div class="dropdown-menu dropdown-menu-end app-notifications-menu" aria-labelledby="appNotificationsBtn"
+               {% if shift_notifications %}data-shift-mark-seen-url="{{ url_for('shift.notifications_mark_seen') }}" data-shift-mark-seen-up-to="{{ shift_notifications['max_id'] }}"{% endif %}
+               {% if sgi_notifications %}data-sgi-mark-seen-url="{{ url_for('sgi.notificaciones_mark_seen') }}" data-sgi-mark-seen-up-to="{{ sgi_notifications['max_id'] }}"{% endif %}
+               data-csrf-token="{{ csrf_token() }}">
+            {% if sgi_notifications %}
+            <div class="dropdown-header d-flex justify-content-between align-items-center gap-2 py-2">
+              <span class="fw-semibold">SGI — documentos</span>
+              <a class="small text-decoration-none" href="{{ url_for('sgi.hub') }}">Módulo SGI</a>
+            </div>
+            {% if sgi_notifications['entries'] %}
+            <div class="app-notifications-scroll">
+              {% for n in sgi_notifications['entries'] %}
+              <div class="app-notifications-item">
+                <div class="app-notifications-item-head">
+                  <span class="app-notifications-item-date">{{ n.created_at }}</span>
+                </div>
+                <div class="small fw-semibold mb-1">{{ n.codigo }}</div>
+                <p class="mb-2 small">{{ n.mensaje }}</p>
+                <a class="btn btn-sm btn-outline-primary" href="{{ n.enlace }}">Ver documento</a>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <div class="dropdown-item-text text-muted small px-3 py-2">No hay avisos SGI recientes.</div>
+            {% endif %}
+            {% endif %}
+            {% if shift_notifications and sgi_notifications %}
+            <div class="dropdown-divider"></div>
+            {% endif %}
+            {% if shift_notifications %}
             <div class="dropdown-header d-flex justify-content-between align-items-center gap-2 py-2">
               <span class="fw-semibold">Cambio de turno</span>
               <a class="small text-decoration-none" href="{{ url_for('shift.historial') }}">Historial</a>
@@ -158,6 +188,7 @@
             </div>
             {% else %}
             <div class="dropdown-item-text text-muted small px-3 py-3">No hay observaciones recientes en los cambios de turno.</div>
+            {% endif %}
             {% endif %}
           </div>
         </div>
@@ -286,28 +317,34 @@
     if (!btn || typeof bootstrap === "undefined" || !bootstrap.Dropdown) return;
     bootstrap.Dropdown.getOrCreateInstance(btn, { popperConfig: topbarDropdownPopperConfig });
   }
+  function postMarkSeen(menu, urlAttr, upToAttr) {
+    var url = menu.getAttribute(urlAttr);
+    var upTo = menu.getAttribute(upToAttr);
+    if (!url || !upTo) return Promise.resolve();
+    var body = new URLSearchParams();
+    body.set("up_to_id", upTo);
+    var csrfVal = menu.getAttribute("data-csrf-token");
+    var headers = { "Content-Type": "application/x-www-form-urlencoded" };
+    if (csrfVal) {
+      body.set("csrf_token", csrfVal);
+      headers["X-CSRFToken"] = csrfVal;
+    }
+    return fetch(url, { method: "POST", body: body.toString(), headers: headers, credentials: "same-origin" });
+  }
   function initShiftNotificationsDropdown() {
     var menu = document.querySelector(".app-notifications-menu");
     var btn = document.getElementById("appNotificationsBtn");
     if (!menu || !btn) return;
     initTopbarDropdown("appNotificationsBtn");
     btn.addEventListener("show.bs.dropdown", function () {
-      var url = menu.getAttribute("data-mark-seen-url");
-      var upTo = menu.getAttribute("data-mark-seen-up-to");
-      if (!url || !upTo) return;
-      var body = new URLSearchParams();
-      body.set("up_to_id", upTo);
-      var csrfVal = menu.getAttribute("data-csrf-token");
-      var headers = { "Content-Type": "application/x-www-form-urlencoded" };
-      if (csrfVal) {
-        body.set("csrf_token", csrfVal);
-        headers["X-CSRFToken"] = csrfVal;
-      }
-      fetch(url, { method: "POST", body: body.toString(), headers: headers, credentials: "same-origin" })
+      Promise.all([
+        postMarkSeen(menu, "data-shift-mark-seen-url", "data-shift-mark-seen-up-to"),
+        postMarkSeen(menu, "data-sgi-mark-seen-url", "data-sgi-mark-seen-up-to"),
+      ])
         .then(function () {
           var badge = btn.querySelector(".app-notifications-badge");
           if (badge) badge.remove();
-          btn.setAttribute("aria-label", "Notificaciones de cambio de turno");
+          btn.setAttribute("aria-label", "Notificaciones");
         })
         .catch(function () {});
     });
