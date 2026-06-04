@@ -4,7 +4,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">{{ equipo.nombre_equipo }}</h1>
-    <div class="text-muted">Detalle técnico, componentes asociados e historial correctivo.</div>
+    <div class="text-muted">Datos técnicos, componentes e historial de mantenimiento.</div>
   </div>
   <div class="app-page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.equipos') }}">Equipos</a>
@@ -13,117 +13,150 @@
 </div>
 
 <div class="app-card mb-4">
-  <div class="app-card-header">Datos del equipo</div>
-  <div class="app-card-body">
-    <form method="post" class="row g-3">
-      {% include "_csrf.html" %}
-      <input type="hidden" name="action" value="equipo">
-      <div class="col-md-3"><label class="form-label">Código interno</label><input class="form-control" name="codigo_interno" value="{{ equipo.codigo_interno or '' }}"></div>
-      <div class="col-md-5"><label class="form-label">Nombre</label><input class="form-control" name="nombre_equipo" value="{{ equipo.nombre_equipo }}" required></div>
-      <div class="col-md-4"><label class="form-label">Tipo</label><input class="form-control" name="tipo_equipo" value="{{ equipo.tipo_equipo or '' }}"></div>
-      <div class="col-md-4"><label class="form-label">Área / sector</label><input class="form-control" name="area_sector" value="{{ equipo.area_sector or '' }}"></div>
-      <div class="col-md-4"><label class="form-label">Equipo principal asociado</label>
-        <select class="form-select" name="equipo_principal_id">
-          <option value="">Sin equipo principal</option>
-          {% for e in equipos if e.id != equipo.id %}
-          <option value="{{ e.id }}" {% if equipo.equipo_principal_id == e.id %}selected{% endif %}>{{ e.nombre_equipo }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4"><label class="form-label">Estado</label>
-        <select class="form-select" name="estado">
-          {% for key, label in equipo_estados.items() %}
-          <option value="{{ key }}" {% if (equipo.estado or 'operativo') == key %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3"><label class="form-label">Marca</label><input class="form-control" name="marca" value="{{ equipo.marca or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Modelo</label><input class="form-control" name="modelo" value="{{ equipo.modelo or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Número de serie</label><input class="form-control" name="numero_serie" value="{{ equipo.numero_serie or '' }}"></div>
-      <div class="col-md-3"><label class="form-label">Fecha de alta</label><input type="date" class="form-control" name="fecha_alta" value="{{ equipo.fecha_alta or '' }}"></div>
-      <div class="col-12"><label class="form-label">Descripción</label><input class="form-control" name="descripcion" value="{{ equipo.descripcion or '' }}"></div>
-      <div class="col-12"><label class="form-label">Observaciones</label><textarea class="form-control" name="observaciones" rows="2">{{ equipo.observaciones or '' }}</textarea></div>
-      <div class="col-12"><button class="btn btn-primary" type="submit">Guardar datos</button></div>
-    </form>
+  <div class="app-card-header app-card-header--split">
+    <span>Equipo y componentes</span>
+    <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#new-component-row" aria-expanded="false" aria-controls="new-component-row" title="Agregar componente">
+      <i class="bi bi-plus-lg" aria-hidden="true"></i>
+      <span class="visually-hidden">Agregar componente</span>
+    </button>
+  </div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th style="width:6rem">Rol</th>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Tipo</th>
+          <th>Área / sector</th>
+          <th>Estado</th>
+          <th style="width:5rem"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="equipo-principal-row">
+          <td><span class="equipo-parts-badge equipo-parts-badge--equipo">Equipo</span></td>
+          <td>{{ equipo.codigo_interno or "—" }}</td>
+          <td>{{ equipo.nombre_equipo }}</td>
+          <td>{{ equipo.tipo_equipo or "—" }}</td>
+          <td>{{ equipo.area_sector or "—" }}</td>
+          <td>{{ equipo_estados.get(equipo.estado or 'operativo', equipo.estado or 'Operativo') }}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-equipo" aria-expanded="false" aria-controls="edit-equipo">Editar</button>
+          </td>
+        </tr>
+        <tr class="collapse" id="edit-equipo">
+          <td colspan="7" class="bg-light">
+            <form method="post" class="row g-2 py-2">
+              {% include "_csrf.html" %}
+              <input type="hidden" name="action" value="equipo">
+              <div class="col-md-3"><label class="form-label small mb-0">Código interno</label><input class="form-control form-control-sm" name="codigo_interno" value="{{ equipo.codigo_interno or '' }}"></div>
+              <div class="col-md-5"><label class="form-label small mb-0">Nombre</label><input class="form-control form-control-sm" name="nombre_equipo" value="{{ equipo.nombre_equipo }}" required></div>
+              <div class="col-md-4"><label class="form-label small mb-0">Tipo</label><input class="form-control form-control-sm" name="tipo_equipo" value="{{ equipo.tipo_equipo or '' }}"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">Área / sector</label><input class="form-control form-control-sm" name="area_sector" value="{{ equipo.area_sector or '' }}"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">Equipo principal asociado</label>
+                <select class="form-select form-select-sm" name="equipo_principal_id">
+                  <option value="">Sin equipo principal</option>
+                  {% for e in equipos if e.id != equipo.id %}
+                  <option value="{{ e.id }}" {% if equipo.equipo_principal_id == e.id %}selected{% endif %}>{{ e.nombre_equipo }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4"><label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" name="estado">
+                  {% for key, label in equipo_estados.items() %}
+                  <option value="{{ key }}" {% if (equipo.estado or 'operativo') == key %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3"><label class="form-label small mb-0">Marca</label><input class="form-control form-control-sm" name="marca" value="{{ equipo.marca or '' }}"></div>
+              <div class="col-md-3"><label class="form-label small mb-0">Modelo</label><input class="form-control form-control-sm" name="modelo" value="{{ equipo.modelo or '' }}"></div>
+              <div class="col-md-3"><label class="form-label small mb-0">N° serie</label><input class="form-control form-control-sm" name="numero_serie" value="{{ equipo.numero_serie or '' }}"></div>
+              <div class="col-md-3"><label class="form-label small mb-0">Fecha de alta</label><input type="date" class="form-control form-control-sm" name="fecha_alta" value="{{ equipo.fecha_alta or '' }}"></div>
+              <div class="col-12"><label class="form-label small mb-0">Descripción</label><input class="form-control form-control-sm" name="descripcion" value="{{ equipo.descripcion or '' }}"></div>
+              <div class="col-12"><label class="form-label small mb-0">Observaciones</label><textarea class="form-control form-control-sm" name="observaciones" rows="2">{{ equipo.observaciones or '' }}</textarea></div>
+              <div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Guardar equipo</button></div>
+            </form>
+          </td>
+        </tr>
+
+        {% for c in components %}
+        <tr>
+          <td><span class="equipo-parts-badge equipo-parts-badge--componente">Componente</span></td>
+          <td>{{ c.codigo_interno or "—" }}</td>
+          <td>{{ c.nombre }}</td>
+          <td>{{ c.tipo_componente or "—" }}</td>
+          <td class="text-muted">—</td>
+          <td>{{ equipo_estados.get(c.estado, c.estado) }}</td>
+          <td class="text-end">
+            <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-component-{{ c.id }}" aria-expanded="false" aria-controls="edit-component-{{ c.id }}">Editar</button>
+          </td>
+        </tr>
+        <tr class="collapse" id="edit-component-{{ c.id }}">
+          <td colspan="7" class="bg-light">
+            <form method="post" class="row g-2 py-2">
+              {% include "_csrf.html" %}
+              <input type="hidden" name="action" value="component_update">
+              <input type="hidden" name="component_id" value="{{ c.id }}">
+              <div class="col-md-4"><label class="form-label small mb-0">Código</label><input class="form-control form-control-sm" name="codigo_interno" value="{{ c.codigo_interno or '' }}"></div>
+              <div class="col-md-8"><label class="form-label small mb-0">Nombre</label><input class="form-control form-control-sm" name="nombre" value="{{ c.nombre }}" required></div>
+              <div class="col-md-6"><label class="form-label small mb-0">Tipo</label><input class="form-control form-control-sm" name="tipo_componente" value="{{ c.tipo_componente or '' }}"></div>
+              <div class="col-md-6"><label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" name="estado">
+                  {% for key, label in equipo_estados.items() %}
+                  <option value="{{ key }}" {% if c.estado == key %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4"><label class="form-label small mb-0">Marca</label><input class="form-control form-control-sm" name="marca" value="{{ c.marca or '' }}"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">Modelo</label><input class="form-control form-control-sm" name="modelo" value="{{ c.modelo or '' }}"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">N° serie</label><input class="form-control form-control-sm" name="numero_serie" value="{{ c.numero_serie or '' }}"></div>
+              <div class="col-12"><label class="form-label small mb-0">Observaciones</label><textarea class="form-control form-control-sm" name="observaciones" rows="2">{{ c.observaciones or '' }}</textarea></div>
+              <div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Guardar componente</button></div>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+
+        <tr class="collapse" id="new-component-row">
+          <td colspan="7" class="bg-light border-top">
+            <form method="post" class="row g-2 py-2">
+              {% include "_csrf.html" %}
+              <input type="hidden" name="action" value="component">
+              <div class="col-12"><span class="small fw-semibold text-muted">Nuevo componente</span></div>
+              <div class="col-md-4"><label class="form-label small mb-0">Código</label><input class="form-control form-control-sm" name="codigo_interno" placeholder="Código"></div>
+              <div class="col-md-8"><label class="form-label small mb-0">Nombre</label><input class="form-control form-control-sm" name="nombre" placeholder="Nombre del componente" required></div>
+              <div class="col-md-6"><label class="form-label small mb-0">Tipo</label><input class="form-control form-control-sm" name="tipo_componente" placeholder="Tipo"></div>
+              <div class="col-md-6"><label class="form-label small mb-0">Estado</label>
+                <select class="form-select form-select-sm" name="estado">
+                  {% for key, label in equipo_estados.items() %}
+                  <option value="{{ key }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4"><label class="form-label small mb-0">Marca</label><input class="form-control form-control-sm" name="marca" placeholder="Marca"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">Modelo</label><input class="form-control form-control-sm" name="modelo" placeholder="Modelo"></div>
+              <div class="col-md-4"><label class="form-label small mb-0">N° serie</label><input class="form-control form-control-sm" name="numero_serie" placeholder="N° serie"></div>
+              <div class="col-12"><label class="form-label small mb-0">Observaciones</label><textarea class="form-control form-control-sm" name="observaciones" rows="2" placeholder="Observaciones"></textarea></div>
+              <div class="col-12">
+                <button class="btn btn-sm btn-primary" type="submit">Agregar</button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#new-component-row">Cancelar</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+
+        {% if not components %}
+        <tr>
+          <td colspan="7" class="text-muted text-center py-2 small">Sin componentes. Use <i class="bi bi-plus-lg"></i> para agregar uno.</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
   </div>
 </div>
 
 <div class="row g-4">
-  <div class="col-lg-5">
-    <div class="app-card mb-4">
-      <div class="app-card-header">Nuevo componente asociado</div>
-      <div class="app-card-body">
-        <form method="post" class="row g-2">
-          {% include "_csrf.html" %}
-          <input type="hidden" name="action" value="component">
-          <div class="col-md-5"><input class="form-control" name="codigo_interno" placeholder="Código"></div>
-          <div class="col-md-7"><input class="form-control" name="nombre" placeholder="Nombre del componente" required></div>
-          <div class="col-md-6"><input class="form-control" name="tipo_componente" placeholder="Tipo"></div>
-          <div class="col-md-6">
-            <select class="form-select" name="estado">
-              {% for key, label in equipo_estados.items() %}
-              <option value="{{ key }}">{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4"><input class="form-control" name="marca" placeholder="Marca"></div>
-          <div class="col-md-4"><input class="form-control" name="modelo" placeholder="Modelo"></div>
-          <div class="col-md-4"><input class="form-control" name="numero_serie" placeholder="N° serie"></div>
-          <div class="col-12"><textarea class="form-control" name="observaciones" rows="2" placeholder="Observaciones"></textarea></div>
-          <div class="col-12"><button class="btn btn-outline-primary" type="submit">Agregar componente</button></div>
-        </form>
-      </div>
-    </div>
-
-    <div class="app-card">
-      <div class="app-card-header">Componentes</div>
-      <div class="app-card-body--flush table-responsive">
-        <table class="table table-app table-compact mb-0">
-          <thead><tr><th>Código</th><th>Nombre</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
-          <tbody>
-          {% for c in components %}
-            <tr>
-              <td>{{ c.codigo_interno or "—" }}</td>
-              <td>{{ c.nombre }}</td>
-              <td>{{ c.tipo_componente or "—" }}</td>
-              <td>{{ equipo_estados.get(c.estado, c.estado) }}</td>
-              <td class="text-end">
-                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#edit-component-{{ c.id }}" aria-expanded="false" aria-controls="edit-component-{{ c.id }}">Editar</button>
-              </td>
-            </tr>
-            <tr class="collapse" id="edit-component-{{ c.id }}">
-              <td colspan="5" class="bg-light">
-                <form method="post" class="row g-2 py-2">
-                  {% include "_csrf.html" %}
-                  <input type="hidden" name="action" value="component_update">
-                  <input type="hidden" name="component_id" value="{{ c.id }}">
-                  <div class="col-md-4"><label class="form-label small mb-0">Código</label><input class="form-control form-control-sm" name="codigo_interno" value="{{ c.codigo_interno or '' }}"></div>
-                  <div class="col-md-8"><label class="form-label small mb-0">Nombre</label><input class="form-control form-control-sm" name="nombre" value="{{ c.nombre }}" required></div>
-                  <div class="col-md-6"><label class="form-label small mb-0">Tipo</label><input class="form-control form-control-sm" name="tipo_componente" value="{{ c.tipo_componente or '' }}"></div>
-                  <div class="col-md-6"><label class="form-label small mb-0">Estado</label>
-                    <select class="form-select form-select-sm" name="estado">
-                      {% for key, label in equipo_estados.items() %}
-                      <option value="{{ key }}" {% if c.estado == key %}selected{% endif %}>{{ label }}</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div class="col-md-4"><label class="form-label small mb-0">Marca</label><input class="form-control form-control-sm" name="marca" value="{{ c.marca or '' }}"></div>
-                  <div class="col-md-4"><label class="form-label small mb-0">Modelo</label><input class="form-control form-control-sm" name="modelo" value="{{ c.modelo or '' }}"></div>
-                  <div class="col-md-4"><label class="form-label small mb-0">N° serie</label><input class="form-control form-control-sm" name="numero_serie" value="{{ c.numero_serie or '' }}"></div>
-                  <div class="col-12"><label class="form-label small mb-0">Observaciones</label><textarea class="form-control form-control-sm" name="observaciones" rows="2">{{ c.observaciones or '' }}</textarea></div>
-                  <div class="col-12"><button class="btn btn-sm btn-primary" type="submit">Guardar componente</button></div>
-                </form>
-              </td>
-            </tr>
-          {% else %}
-            <tr><td colspan="5" class="text-muted text-center py-3">Sin componentes asociados.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
   <div class="col-lg-7">
     <div class="app-card">
       <div class="app-card-header">Historial correctivo</div>
@@ -148,10 +181,25 @@
       </div>
     </div>
   </div>
+  <div class="col-lg-5">
+    <div class="app-card">
+      <div class="app-card-header">Sugerencias predictivas</div>
+      <div class="app-card-body">
+        {% for p in predictions %}
+        <div class="border-bottom py-2">
+          <div class="fw-semibold">{{ p.tipo_falla }}</div>
+          <div class="text-muted small">Estimada: {{ p.fecha_estimada_proxima or "—" }} · Confianza: {{ p.nivel_confianza }}</div>
+        </div>
+        {% else %}
+        <div class="text-muted">Sin sugerencias predictivas para este equipo.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="row g-4 mt-1">
-  <div class="col-lg-7">
+  <div class="col-12">
     <div class="app-card">
       <div class="app-card-header">Preventivos / predictivos programados</div>
       <div class="app-card-body--flush table-responsive">
@@ -172,21 +220,6 @@
           {% endfor %}
           </tbody>
         </table>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-5">
-    <div class="app-card">
-      <div class="app-card-header">Sugerencias predictivas</div>
-      <div class="app-card-body">
-        {% for p in predictions %}
-        <div class="border-bottom py-2">
-          <div class="fw-semibold">{{ p.tipo_falla }}</div>
-          <div class="text-muted small">Estimada: {{ p.fecha_estimada_proxima or "—" }} · Confianza: {{ p.nivel_confianza }}</div>
-        </div>
-        {% else %}
-        <div class="text-muted">Sin sugerencias predictivas para este equipo.</div>
-        {% endfor %}
       </div>
     </div>
   </div>

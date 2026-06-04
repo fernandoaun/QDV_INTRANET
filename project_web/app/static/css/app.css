@@ -665,6 +665,37 @@ body.app-body {
   background: #f8fafc;
 }
 
+.table-app tbody tr.equipo-principal-row td {
+  background: #f0f7fc;
+  font-weight: 500;
+}
+
+.table-app tbody tr.equipo-principal-row:hover td {
+  background: #e8f3fa;
+}
+
+.equipo-parts-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.12rem 0.4rem;
+  border-radius: var(--app-radius-pill);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.equipo-parts-badge--equipo {
+  background: rgba(26, 95, 158, 0.12);
+  color: #1a5f9e;
+}
+
+.equipo-parts-badge--componente {
+  background: rgba(107, 119, 133, 0.14);
+  color: var(--app-text-muted);
+}
+
 .table-app td.text-muted,
 .table-app th {
   color: inherit;
