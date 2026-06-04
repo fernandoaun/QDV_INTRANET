@@ -107,7 +107,7 @@
   </div>
 </div>
 
-{% if user_can_entregas_hub() and not user_can_entregas_cargar() %}
+{% if user_can_entregas_hub and not user_can_entregas_cargar() %}
 <div class="alert alert-warning small mb-3" role="status">
   No tenés permiso para confirmar la <strong>carga en camión</strong>. Pedí a un administrador que revise tu usuario en <strong>Usuarios → Editar</strong> y habilite <strong>Entregas → Cargar en camión (operaciones)</strong>. Si acaban de cambiar permisos, cerrá sesión y volvé a entrar.
 </div>
