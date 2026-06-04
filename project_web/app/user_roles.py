@@ -106,7 +106,6 @@ _BASE_LOGISTICA: frozenset[str] = frozenset(
         "manual",
         "entregas",
         "entregas_programar",
-        "entregas_cargar",
         "entregas_entregar",
         "despacho",
         "recepcion",

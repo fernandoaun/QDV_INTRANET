@@ -63,7 +63,7 @@ PERMISSION_LABELS: dict[str, str] = {
     "produccion": "Producción (módulo)",
     "entregas": "Entregas (acceso al módulo)",
     "entregas_programar": "Entregas · Programar y editar",
-    "entregas_cargar": "Entregas · Marcar cargada",
+    "entregas_cargar": "Entregas · Cargar camión (operaciones)",
     "entregas_entregar": "Entregas · Marcar entregada",
     "manual": "Manual de uso",
     "salmuera": MODULE_LABELS["salmuera"],
@@ -100,7 +100,7 @@ PERMISSION_TREE: list[dict[str, object]] = [
         "label": "Entregas",
         "children": [
             {"key": "entregas_programar", "label": "Programar y editar entregas"},
-            {"key": "entregas_cargar", "label": "Marcar como cargada (stock hipoclorito)"},
+            {"key": "entregas_cargar", "label": "Cargar en camión (operaciones, stock hipoclorito)"},
             {"key": "entregas_entregar", "label": "Marcar como entregada"},
         ],
     },

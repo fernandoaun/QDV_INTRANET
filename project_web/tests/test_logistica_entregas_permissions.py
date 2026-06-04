@@ -4,6 +4,21 @@ import re
 from datetime import datetime
 
 
+def test_operaciones_cargar_requires_active_shift(app):
+    from flask import session
+
+    from app.auth_utils import user_can_entregas_cargar_effective
+    from app.models import User
+    from app.user_roles import ROLE_OPERACIONES
+
+    user = User(username="pytest_oper", password_hash="x", is_admin=False, activo=True, rol=ROLE_OPERACIONES)
+
+    with app.test_request_context("/entregas/gestion"):
+        session["perms"] = ["entregas", "entregas_cargar"]
+        session["perms_edit"] = ["entregas", "entregas_cargar"]
+        assert not user_can_entregas_cargar_effective(user)
+
+
 def test_logistica_can_operate_entregas_even_with_stale_session(app):
     from flask import session
 
@@ -25,7 +40,7 @@ def test_logistica_can_operate_entregas_even_with_stale_session(app):
 
         assert user_can_access_entregas_hub(user)
         assert user_can_entregas_programar_effective(user)
-        assert user_can_entregas_cargar_effective(user)
+        assert not user_can_entregas_cargar_effective(user)
         assert user_can_entregas_entregar_effective(user)
         assert user_can_edit_entregas_any_action(user)
 
