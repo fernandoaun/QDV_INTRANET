@@ -403,12 +403,26 @@ def fetch_list_visual(args: dict[str, Any], *, tipo: str, incluir_obsoletos: boo
     return list(db.session.scalars(build_list_query_visual(args, tipo=tipo, incluir_obsoletos=incluir_obsoletos)).all())
 
 
+def ensure_revision_personas_mayusculas(rev: SgiProcedimientoRevision) -> bool:
+    changed = False
+    for attr in ("elaboro", "reviso", "aprobo"):
+        if doc_svc._apply_upper_text_attr(rev, attr, max_len=256):
+            changed = True
+    return changed
+
+
 def ensure_visual_documento_titulo_sync(doc: SgiDocumento) -> bool:
-    """Alinea título en BD y en contenido_json del procedimiento visual (mayúsculas)."""
+    """Alinea título y responsables en BD / revisión del procedimiento visual (mayúsculas)."""
     changed = doc_svc.ensure_documento_nombres_mayusculas(doc)
     rev = revision_en_trabajo(doc) or revision_vigente_aprobada(doc) or revision_actual(doc)
     if rev is None:
         return changed
+
+    if ensure_revision_personas_mayusculas(rev):
+        changed = True
+    doc.responsable_elaboracion = rev.elaboro
+    doc.responsable_revision = rev.reviso
+    doc.responsable_aprobacion = rev.aprobo
 
     try:
         base = json.loads(rev.contenido_json or "{}")
@@ -626,10 +640,10 @@ def save_revision_content(
     contenido["control_cambios"] = build_control_cambios_automatico(doc, rev, contenido)
     rev.contenido_json = json.dumps(contenido, ensure_ascii=False)
     rev.fecha_vigencia = doc_svc.parse_iso_date(payload.get("fecha_vigencia"))
-    rev.elaboro = (payload.get("elaboro") or "")[:256]
-    rev.reviso = (payload.get("reviso") or "")[:256]
-    rev.revisor_correo = (payload.get("revisor_correo") or "")[:256]
-    rev.aprobo = (payload.get("aprobo") or "")[:256]
+    rev.elaboro = doc_svc.normalize_persona_campo(payload.get("elaboro"))[:256]
+    rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
+    rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
+    rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
     rev.aprobador_correo = (payload.get("aprobador_correo") or "")[:256]
     rev.fecha_elaboracion = doc_svc.parse_iso_date(payload.get("fecha_elaboracion"))
     rev.fecha_revision = doc_svc.parse_iso_date(payload.get("fecha_revision"))
@@ -699,7 +713,7 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
     hoy = date.today()
     rev.estado = ESTADO_REVISADO
     rev.fecha_revision = rev.fecha_revision or hoy
-    rev.reviso = rev.reviso or actor_label
+    rev.reviso = doc_svc.normalize_persona_campo(rev.reviso or actor_label)
     rev.updated_by_id = user_id
     doc = rev.documento
     doc.estado = ESTADO_REVISADO
@@ -737,7 +751,7 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
 
     rev.estado = ESTADO_APROBADO
     rev.fecha_aprobacion = rev.fecha_aprobacion or hoy
-    rev.aprobo = rev.aprobo or actor_label
+    rev.aprobo = doc_svc.normalize_persona_campo(rev.aprobo or actor_label)
     rev.updated_by_id = user_id
 
     doc.estado = ESTADO_APROBADO

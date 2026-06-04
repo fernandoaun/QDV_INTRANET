@@ -112,17 +112,34 @@ def fetch_list(args: dict[str, Any]) -> list[SgiDocumento]:
     return list(db.session.scalars(build_filtered_query(args)).all())
 
 
+def normalize_persona_campo(raw: str | None) -> str:
+    """Nombre o área de elaboración/revisión/aprobación en mayúsculas."""
+    return (raw or "").strip().upper()
+
+
+def _apply_upper_text_attr(obj: Any, attr: str, *, max_len: int | None = None) -> bool:
+    val = (getattr(obj, attr, None) or "").strip()
+    if not val:
+        return False
+    upper = val.upper()
+    if upper == val:
+        return False
+    setattr(obj, attr, upper[:max_len] if max_len else upper)
+    return True
+
+
 def ensure_documento_nombres_mayusculas(doc: SgiDocumento) -> bool:
-    """Normaliza código y título del documento a mayúsculas. Retorna True si hubo cambios."""
+    """Normaliza código, título y responsables del documento a mayúsculas."""
     changed = False
-    codigo = (doc.codigo or "").strip()
-    if codigo and codigo != codigo.upper():
-        doc.codigo = codigo.upper()
-        changed = True
-    titulo = (doc.titulo or "").strip()
-    if titulo and titulo != titulo.upper():
-        doc.titulo = titulo.upper()
-        changed = True
+    for attr, max_len in (
+        ("codigo", 64),
+        ("titulo", 512),
+        ("responsable_elaboracion", 256),
+        ("responsable_revision", 256),
+        ("responsable_aprobacion", 256),
+    ):
+        if _apply_upper_text_attr(doc, attr, max_len=max_len):
+            changed = True
     return changed
 
 
@@ -196,8 +213,8 @@ def _parse_form(data: dict[str, Any], *, tipo_fijo: str | None = None) -> tuple[
     titulo = (data.get("titulo") or "").strip().upper()
     revision = (data.get("revision") or "").strip()
     estado = (data.get("estado") or ESTADO_BORRADOR).strip().lower()
-    responsable_elab = (data.get("responsable_elaboracion") or "").strip()
-    responsable_aprob = (data.get("responsable_aprobacion") or "").strip()
+    responsable_elab = normalize_persona_campo(data.get("responsable_elaboracion"))
+    responsable_aprob = normalize_persona_campo(data.get("responsable_aprobacion"))
     observaciones = (data.get("observaciones") or "").strip()
 
     if tipo not in TIPOS_DOCUMENTO:

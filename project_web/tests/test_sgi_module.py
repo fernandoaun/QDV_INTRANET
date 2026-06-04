@@ -318,6 +318,24 @@ def test_sgi_parse_form_uppercases_codigo_and_titulo():
     assert parsed["titulo"] == "PROCEDIMIENTO DE PRUEBA"
 
 
+def test_sgi_parse_form_uppercases_responsables():
+    from app.services import sgi_service as svs
+
+    parsed, err = svs._parse_form(
+        {
+            "codigo": "PG-01",
+            "titulo": "Test",
+            "estado": "borrador",
+            "responsable_elaboracion": "area produccion",
+            "responsable_aprobacion": "gerencia",
+        },
+        tipo_fijo="PG",
+    )
+    assert err is None
+    assert parsed["responsable_elaboracion"] == "AREA PRODUCCION"
+    assert parsed["responsable_aprobacion"] == "GERENCIA"
+
+
 def test_ensure_documento_nombres_mayusculas(app):
     from app.extensions import db
     from app.models.sgi import SgiDocumento
@@ -338,5 +356,14 @@ def test_ensure_documento_nombres_mayusculas(app):
         db.session.refresh(doc)
         assert doc.codigo == "PG-AUX-01"
         assert doc.titulo == "TITULO MIXTO"
+        doc.responsable_elaboracion = "juan perez"
+        doc.responsable_revision = "maria lopez"
+        doc.responsable_aprobacion = "dir. calidad"
+        assert svs.ensure_documento_nombres_mayusculas(doc) is True
+        db.session.commit()
+        db.session.refresh(doc)
+        assert doc.responsable_elaboracion == "JUAN PEREZ"
+        assert doc.responsable_revision == "MARIA LOPEZ"
+        assert doc.responsable_aprobacion == "DIR. CALIDAD"
         db.session.delete(doc)
         db.session.commit()
