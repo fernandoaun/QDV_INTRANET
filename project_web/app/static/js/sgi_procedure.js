@@ -719,6 +719,7 @@
       fecha_elaboracion: qs("#procFechaElab")?.value || "",
       fecha_revision: qs("#procFechaRev")?.value || "",
       fecha_aprobacion: qs("#procFechaAprob")?.value || "",
+      perfiles_aplica: qsa(".proc-perfil-check:checked").map((el) => el.value),
     };
   }
 
@@ -1434,8 +1435,22 @@
       flashMsg("danger", "No tenés permiso para esta acción.");
       return;
     }
+    if (accion === "enviar_revision") {
+      const perfiles = qsa(".proc-perfil-check:checked");
+      if (!perfiles.length) {
+        flashMsg("danger", "Seleccioná al menos un sector/perfil al que aplica el procedimiento.");
+        return;
+      }
+    }
     if (!cfg.soloLectura) {
       await guardarBorrador();
+    } else if (accion === "marcar_revisado" || accion === "aprobar") {
+      const data = collectPayload();
+      const res = await postJson(cfg.urls.guardar, data);
+      if (!res.ok) {
+        flashMsg("danger", res.message || "No se pudo guardar antes de continuar.");
+        return;
+      }
     }
     const token = qs('meta[name="csrf-token"]')?.content || cfg.csrf || "";
     const res = await fetch(cfg.urls.workflow, {

@@ -24,6 +24,28 @@
 
 <div id="sgiProcFlash" class="alert d-none sgi-proc-no-print" role="status"></div>
 
+<div class="app-card sgi-proc-no-print mb-3">
+  <div class="app-card-header py-2">
+    <span class="fw-semibold">Sectores / perfiles a los que aplica</span>
+    <span class="text-muted small ms-2">Al aprobar se notifica a los usuarios activos con estos perfiles.</span>
+  </div>
+  <div class="app-card-body py-2">
+    <div class="d-flex flex-wrap gap-3" id="procPerfilesAplica">
+      {% for key, label in perfiles_opciones.items() %}
+      <label class="form-check mb-0">
+        <input class="form-check-input proc-perfil-check" type="checkbox" value="{{ key }}"
+               {% if key in perfiles_aplica %}checked{% endif %}
+               {% if solo_lectura or not puede_editar %}disabled{% endif %}>
+        <span class="form-check-label">{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% if not perfiles_aplica and puede_editar and rev.estado == 'borrador' %}
+    <p class="text-warning small mb-0 mt-2">Seleccioná al menos un sector antes de enviar a revisión.</p>
+    {% endif %}
+  </div>
+</div>
+
 {% if not solo_lectura %}
 <div class="sgi-proc-toolbar sgi-proc-no-print d-flex flex-wrap align-items-center gap-2">
   <div class="flex-grow-1" style="min-width:200px">

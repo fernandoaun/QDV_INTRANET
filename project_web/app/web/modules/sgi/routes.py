@@ -23,7 +23,7 @@ bp = Blueprint("sgi", __name__, url_prefix="/sgi")
 @login_required
 def notificaciones_mark_seen():
     u = current_user()
-    if u is None or not sgi_notif_svc.user_can_view_sgi_notifications(u):
+    if u is None:
         return "", 403
     raw = (request.form.get("up_to_id") or "").strip()
     up_to: int | None = None

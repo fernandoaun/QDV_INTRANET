@@ -10,14 +10,29 @@ from flask import abort, current_app, flash, jsonify, redirect, render_template,
 from app.auth_utils import (
     current_user,
     login_required,
+    user_can_access_sgi,
     user_can_edit_sgi_documentos,
     user_can_view_sgi_obsoletos,
     user_display_name,
 )
 from app.models.sgi import ESTADO_LABELS, PROCEDIMIENTO_SECCIONES, TIPO_CARATULA_LABELS, TIPO_LABELS
+from app.models.sgi import SgiDocumento
+from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_procedimiento_service as proc_svc
 from app.services import sgi_service as doc_svc
 from app.web.modules.sgi.routes import _no_access, _no_mutate, _require_view, _resolve_tipo, bp
+
+
+def _require_procedure_read(doc: SgiDocumento | None = None):
+    """Acceso al módulo SGI o lectura de un procedimiento aprobado asignado al perfil del usuario."""
+    u = current_user()
+    if u is None:
+        return None, _no_access()
+    if user_can_access_sgi(u):
+        return u, None
+    if doc is not None and proc_svc.documento_accesible_por_perfil(u, doc):
+        return u, None
+    return None, _no_access()
 
 
 def _custom_logo_url() -> str | None:
@@ -175,6 +190,8 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             puede_editar=puede_editar,
             puede_marcar_revisado=puede_marcar_revisado,
             puede_aprobar=puede_aprobar,
+            perfiles_aplica=perfil_svc.perfiles_aplica_documento(doc.id),
+            perfiles_opciones=perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
         ),
     )
 
@@ -183,13 +200,13 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
 @bp.get("/<slug>/procedimientos/<int:doc_id>/vista/<int:rev_id>")
 @login_required
 def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
-    u, _, redir = _require_view()
-    if redir is not None:
-        return redir
     tipo, _ = _resolve_tipo(slug)
     doc = doc_svc.get_documento(doc_id)
     if doc is None or doc.tipo != tipo:
         abort(404)
+    u, redir = _require_procedure_read(doc)
+    if redir is not None:
+        return redir
 
     puede_editar = user_can_edit_sgi_documentos(u)
     if rev_id:
@@ -200,7 +217,10 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
         abort(404)
     if not puede_editar and rev.estado not in ("aprobado", "vigente"):
         flash("No tenés permiso para ver esta versión.", "warning")
-        return redirect(url_for("sgi.listado_procedimientos", slug=slug))
+        return redirect(url_for("main.dashboard"))
+    if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
+        flash("Este procedimiento no está asignado a tu perfil.", "warning")
+        return redirect(url_for("main.dashboard"))
 
     return render_template(
         "sgi/procedure_view.html",
@@ -300,20 +320,19 @@ def procedimiento_historial(slug: str, doc_id: int):
 @bp.get("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/export/<fmt>")
 @login_required
 def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
-    u, _, redir = _require_view()
-    if redir is not None:
-        return redir
     tipo, _ = _resolve_tipo(slug)
     doc = doc_svc.get_documento(doc_id)
     rev = proc_svc.get_revision(rev_id)
     if doc is None or rev is None or rev.documento_id != doc.id:
         abort(404)
+    u, redir = _require_procedure_read(doc)
+    if redir is not None:
+        return redir
 
     puede_editar = user_can_edit_sgi_documentos(u)
-    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar, user=u) and rev.estado not in (
-        "aprobado",
-        "vigente",
-    ):
+    if rev.estado not in ("aprobado", "vigente") and not puede_editar:
+        abort(403)
+    if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
         abort(403)
 
     html = render_template(

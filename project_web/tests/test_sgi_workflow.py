@@ -44,10 +44,13 @@ def test_workflow_enviar_marcar_aprobar(app, sgi_editor):
         doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="WF TEST")
         assert err is None and doc and rev
 
+        from app.services import sgi_documento_perfil_service as perfil_svc
+
         rev.reviso = "Revisor Test"
         rev.revisor_correo = "revisor@example.com"
         rev.aprobo = "Aprobador Test"
         rev.aprobador_correo = "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
         db.session.commit()
 
         ok, msg = proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
@@ -81,25 +84,12 @@ def test_aprobar_requires_revisado_state(app, sgi_editor):
         assert "revisado" in msg.lower()
 
 
-def test_users_to_notify_respects_registro_roles(app, sgi_editor):
+def test_users_to_notify_uses_documento_perfiles(app, sgi_editor):
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
     with app.app_context():
         doc, rev, _ = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="NOTIF")
-        rev.reviso = "R"
-        rev.aprobo = "A"
-        data = json.loads(rev.contenido_json)
-        data["registros"] = [
-            {
-                "nombre": "R1",
-                "usuarios": "operaciones",
-                "quien_archiva": "",
-                "como": "",
-                "donde": "",
-                "tiempo_guarda": "",
-                "disposicion_final": "",
-            }
-        ]
-        rev.contenido_json = json.dumps(data)
-        proc_svc._sync_child_rows(rev, data)
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
         doc.estado = "aprobado"
         rev.estado = "aprobado"
         db.session.commit()
@@ -117,10 +107,9 @@ def test_users_to_notify_respects_registro_roles(app, sgi_editor):
             activo=True,
         )
         db.session.add_all([op, mant])
-        db.session.flush()
-        db.session.add(PermisoUsuario(user_id=op.id, permiso="sgi_hub", habilitado=True, puede_editar=False))
         db.session.commit()
 
         users = notif_svc.users_to_notify_document_approved(doc, rev)
-        roles = {u.rol for u in users}
-        assert "operaciones" in roles
+        usernames = {u.username for u in users}
+        assert "pytest_sgi_wf_op" in usernames
+        assert "pytest_sgi_wf_mant" not in usernames

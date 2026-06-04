@@ -116,8 +116,31 @@ class SgiDocumento(db.Model):
     created_by = db.relationship("User", foreign_keys=[created_by_id])
     updated_by = db.relationship("User", foreign_keys=[updated_by_id])
 
+    perfiles_aplica = db.relationship(
+        "SgiDocumentoPerfil",
+        backref="documento",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
     __table_args__ = (
         db.UniqueConstraint("tipo", "codigo", name="uq_sgi_documentos_tipo_codigo"),
+    )
+
+
+class SgiDocumentoPerfil(db.Model):
+    """Perfiles (sectores) de la organización a los que aplica un procedimiento."""
+
+    __tablename__ = "sgi_documento_perfiles"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    documento_id = db.Column(
+        db.Integer, db.ForeignKey("sgi_documentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    perfil = db.Column(db.String(32), nullable=False, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint("documento_id", "perfil", name="uq_sgi_documento_perfil"),
     )
 
 

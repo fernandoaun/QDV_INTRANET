@@ -34,6 +34,7 @@ from app.models.sgi import (
 )
 from app.models.user import User
 from app.auth_utils import user_can_edit_sgi_documentos, user_display_name
+from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_notification_service as notif_svc
 from app.services import sgi_service as doc_svc
 from app.services import sgi_workflow_service as workflow_svc
@@ -333,18 +334,28 @@ def user_participates_workflow(user: User | None, rev: SgiProcedimientoRevision)
     return False
 
 
+def documento_accesible_por_perfil(user: User, doc: SgiDocumento) -> bool:
+    if doc.estado not in (ESTADO_APROBADO, ESTADO_VIGENTE):
+        return False
+    return perfil_svc.user_perfil_aplica_documento(user, doc.id)
+
+
 def puede_ver_documento(doc: SgiDocumento, *, puede_editar: bool, user: User | None = None) -> bool:
+    from app.auth_utils import user_can_access_sgi
+
     if puede_editar:
         return True
-    if doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+    if user and documento_accesible_por_perfil(user, doc):
         return True
-    if doc.es_procedimiento_visual:
+    if user and user_can_access_sgi(user) and doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+        return True
+    if doc.es_procedimiento_visual and user:
         rev_trabajo = revision_en_trabajo(doc)
-        if rev_trabajo and user and user_participates_workflow(user, rev_trabajo):
+        if rev_trabajo and user_participates_workflow(user, rev_trabajo):
             return True
-        rev = revision_vigente_aprobada(doc)
-        return rev is not None
-    return doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE)
+        if doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+            return revision_vigente_aprobada(doc) is not None
+    return False
 
 
 def estado_visual_row(doc: SgiDocumento) -> str:
@@ -529,6 +540,10 @@ def revision_to_payload(rev: SgiProcedimientoRevision) -> dict[str, Any]:
         }
         for a in rev.anexos.all()
     ]
+    if rev.documento:
+        base["perfiles_aplica"] = perfil_svc.perfiles_aplica_documento(rev.documento_id)
+    else:
+        base["perfiles_aplica"] = []
     return base
 
 
@@ -632,6 +647,8 @@ def save_revision_content(
     doc.updated_by_id = user_id
 
     _sync_child_rows(rev, contenido)
+    if "perfiles_aplica" in payload:
+        perfil_svc.sync_perfiles_documento(doc.id, payload.get("perfiles_aplica"))
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Guardado {rev.revision_label}")
     db.session.commit()
     return True, "Borrador guardado.", contenido.get("control_cambios") or []
@@ -655,6 +672,8 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
         return False, "Solo un borrador puede enviarse a revisión."
     if not (rev.reviso or "").strip():
         return False, "Indicá quién revisa (campo «Revisó» en la carátula) antes de enviar."
+    if not perfil_svc.perfiles_aplica_documento(doc.id):
+        return False, "Seleccioná al menos un sector/perfil al que aplica el procedimiento."
     rev.estado = ESTADO_EN_REVISION
     rev.updated_by_id = user_id
     doc = rev.documento
@@ -741,9 +760,11 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
     _sync_child_rows(rev, data)
 
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, f"Aprobado {rev.revision_label}")
-    notif_svc.create_approval_notifications(doc, rev, actor_label=actor_label)
+    n = notif_svc.create_approval_notifications(doc, rev, actor_label=actor_label)
     db.session.commit()
-    return True, "Documento aprobado. Se enviaron notificaciones a los perfiles correspondientes."
+    if n > 0:
+        return True, f"Documento aprobado. Se notificó a {n} usuario(s) de los sectores seleccionados."
+    return True, "Documento aprobado. No hay usuarios activos en los sectores seleccionados para notificar."
 
 
 def crear_nueva_revision(doc_id: int, user_id: int, actor_label: str) -> tuple[SgiProcedimientoRevision | None, str | None]:
