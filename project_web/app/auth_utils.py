@@ -190,21 +190,10 @@ def user_can_entregas_programar_effective(user: User | None) -> bool:
 
 
 def user_can_entregas_cargar_effective(user: User | None) -> bool:
-    """Carga en camión: perfil operaciones (con turno activo). Logística no carga."""
+    """Carga en camión: permiso entregas_cargar (operaciones). Logística no lo incluye en plantilla."""
     if user is None:
         return False
-    if not user_can_edit(user, "entregas_cargar"):
-        return False
-    from app.services import shift_handover_service as sh
-
-    if not sh.user_participates_operational_shift(user):
-        return True
-    from flask import has_request_context, session
-
-    declined = False
-    if has_request_context():
-        declined = bool(session.get(sh.SESSION_KEY_SHIFT_DECLINED))
-    return sh.assert_may_mutate_operational(user, declined).allowed
+    return user_can_edit(user, "entregas_cargar")
 
 
 def user_can_entregas_entregar_effective(user: User | None) -> bool:
@@ -470,7 +459,7 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
     if user.is_admin:
         return True
     if ep.startswith("entregas."):
-        # Programar / entregar: permisos entregas_* sin turno. Cargar: turno vía user_can_entregas_cargar_effective.
+        # Entregas no exige turno de planta; cada acción valida permisos entregas_*.
         return True
     from app.services import shift_handover_service as sh
 

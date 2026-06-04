@@ -4,7 +4,7 @@ import re
 from datetime import datetime
 
 
-def test_operaciones_cargar_requires_active_shift(app):
+def test_operaciones_cargar_does_not_require_active_shift(app):
     from flask import session
 
     from app.auth_utils import user_can_entregas_cargar_effective
@@ -16,7 +16,7 @@ def test_operaciones_cargar_requires_active_shift(app):
     with app.test_request_context("/entregas/gestion"):
         session["perms"] = ["entregas", "entregas_cargar"]
         session["perms_edit"] = ["entregas", "entregas_cargar"]
-        assert not user_can_entregas_cargar_effective(user)
+        assert user_can_entregas_cargar_effective(user)
 
 
 def test_logistica_can_operate_entregas_even_with_stale_session(app):

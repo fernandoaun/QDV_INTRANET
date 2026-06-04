@@ -107,6 +107,16 @@
   </div>
 </div>
 
+{% if user_can_entregas_hub() and not user_can_entregas_cargar() %}
+<div class="alert alert-warning small mb-3" role="status">
+  No tenés permiso para confirmar la <strong>carga en camión</strong>. Pedí a un administrador que revise tu usuario en <strong>Usuarios → Editar</strong> y habilite <strong>Entregas → Cargar en camión (operaciones)</strong>. Si acaban de cambiar permisos, cerrá sesión y volvé a entrar.
+</div>
+{% elif user_can_entregas_cargar() %}
+<div class="alert alert-info small mb-3" role="status">
+  Para cargar un camión, buscá entregas en estado <strong>programada</strong> y usá el botón amarillo <strong>Cargar</strong> en la columna Acciones.
+</div>
+{% endif %}
+
 <div class="row g-3 mb-3">
   <div class="col-md-6">
     <div
