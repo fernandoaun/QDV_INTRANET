@@ -172,6 +172,9 @@
       editorBase: {{ (url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id) + '/')|tojson }},
       exportPdf: {{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='pdf')|tojson }},
       exportWord: {{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='word')|tojson }},
+      {% if doc.tipo == 'MSGI' %}
+      firmaGerente: {{ url_for('sgi.firma_gerente', slug=slug, doc_id=doc.id)|tojson }},
+      {% endif %}
     }
   };
 </script>

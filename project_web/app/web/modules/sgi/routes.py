@@ -14,6 +14,7 @@ from app.auth_utils import (
 )
 from app.models.sgi import ESTADO_LABELS, TIPO_LABELS, TIPOS_DOCUMENTO
 from app.services import sgi_notification_service as sgi_notif_svc
+from app.services import sgi_procedimiento_service as proc_svc
 from app.services import sgi_service as svs
 
 bp = Blueprint("sgi", __name__, url_prefix="/sgi")
@@ -231,6 +232,7 @@ def detalle(slug: str, doc_id: int):
         flash("Documento no encontrado.", "danger")
         return redirect(url_for("sgi.listado", slug=slug))
     hist = svs.historial_for(doc_id)
+    firma_gerente_url = proc_svc.firma_gerente_url_for_document(doc) if tipo == "MSGI" else None
     return render_template(
         "sgi/detail.html",
         slug=slug,
@@ -242,6 +244,7 @@ def detalle(slug: str, doc_id: int):
         estado_visual_row=svs.estado_visual_row,
         puede_editar=user_can_edit_sgi_documentos(u),
         puede_eliminar=user_can_delete_sgi_documentos(u),
+        firma_gerente_url=firma_gerente_url,
     )
 
 
@@ -261,6 +264,37 @@ def eliminar(slug: str, doc_id: int):
     ok, msg = svs.delete_documento(doc_id, user_display_name(u), actor=u)
     flash(msg, "success" if ok else "danger")
     return redirect(url_for("sgi.listado", slug=slug))
+
+
+@bp.route("/<slug>/<int:doc_id>/firma-gerente", methods=["GET", "POST"])
+@login_required
+def firma_gerente(slug: str, doc_id: int):
+    u, _, redir = _require_view()
+    if redir is not None:
+        return redir
+    tipo, _ = _resolve_tipo(slug)
+    if tipo != "MSGI":
+        abort(404)
+    doc = svs.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo:
+        abort(404)
+
+    if request.method == "POST":
+        if not user_can_edit_sgi_documentos(u):
+            return _no_mutate()
+        f = request.files.get("firma") or request.files.get("archivo")
+        ok, msg = proc_svc.save_firma_gerente_file(doc_id, f, u.id)
+        flash(msg, "success" if ok else "danger")
+        dest = request.referrer or url_for("sgi.detalle", slug=slug, doc_id=doc_id)
+        return redirect(dest)
+
+    path = proc_svc.firma_gerente_absolute_path(doc_id)
+    if path is None:
+        static_url = proc_svc.global_firma_gerente_static_url()
+        if static_url:
+            return redirect(static_url)
+        abort(404)
+    return send_file(path, max_age=3600)
 
 
 @bp.get("/<slug>/<int:doc_id>/archivo")

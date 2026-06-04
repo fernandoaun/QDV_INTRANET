@@ -21,10 +21,10 @@
         <h2 class="h5 mb-2">{{ label.split(' – ', 1)[-1] if ' – ' in label else label }}</h2>
         <div class="fs-4 fw-semibold mb-3">{{ counts.get(tipo_key, 0) }} <span class="fs-6 fw-normal text-muted">documento(s)</span></div>
         <div class="mt-auto d-flex flex-wrap gap-2">
-          {% if tipo_key in ('PG', 'PO') %}
-          <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">Procedimientos</a>
+          {% if tipo_key in ('PG', 'PO', 'MSGI') %}
+          <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">{% if tipo_key == 'MSGI' %}Manuales{% else %}Procedimientos{% endif %}</a>
           {% if puede_editar %}
-          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.procedimiento_nuevo', slug=slug) }}"><i class="bi bi-file-earmark-plus me-1"></i>Nuevo procedimiento</a>
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.procedimiento_nuevo', slug=slug) }}"><i class="bi bi-file-earmark-plus me-1"></i>{% if tipo_key == 'MSGI' %}Nuevo manual{% else %}Nuevo procedimiento{% endif %}</a>
           {% endif %}
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado', slug=slug) }}">Registro simple</a>
           {% else %}
@@ -41,9 +41,10 @@
 </div>
 
 <div class="app-card">
-  <div class="app-card-header">Generador visual de procedimientos (PG / PO)</div>
+  <div class="app-card-header">Generador visual (PG / PO / MSGI)</div>
   <div class="app-card-body text-muted mb-0">
-    <p class="mb-2">Creá procedimientos con formato QDV (carátula, control de cambios, secciones 1–8, registros y anexos) en una hoja editable tipo documento Word. Codificación automática <strong>QDV-PG-XX</strong> / <strong>QDV-PO-XX</strong>, flujo borrador → revisión → aprobación y exportación PDF/Word.</p>
+    <p class="mb-2">Creá procedimientos y el manual MSGI con formato QDV (carátula, control de cambios, secciones 1–8, registros y anexos) en una hoja editable tipo documento Word. Codificación automática <strong>QDV-PG-XX</strong> / <strong>QDV-PO-XX</strong> / <strong>QDV-MSGI-XX</strong>, flujo borrador → revisión → aprobación y exportación PDF/Word.</p>
+    <p class="mb-0">Los documentos <strong>MSGI</strong> incluyen la <strong>firma del gerente general</strong> como imagen en la esquina inferior derecha (carga en el editor o archivo global <code>static/img/sgi-firma-gerente-general.png</code>).</p>
   </div>
 </div>
 {% endblock %}

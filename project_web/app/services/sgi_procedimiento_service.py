@@ -1,4 +1,4 @@
-"""Generador visual de procedimientos SGI (PG / PO)."""
+"""Generador visual de procedimientos SGI (PG / PO / MSGI)."""
 from __future__ import annotations
 
 import json
@@ -28,8 +28,10 @@ from app.models.sgi import (
     SgiProcedimientoControlCambio,
     SgiProcedimientoRegistro,
     SgiProcedimientoRevision,
+    TIPO_MSGI,
     TIPO_PG,
     TIPO_PO,
+    TIPO_SLUGS,
     TIPOS_PROCEDIMIENTO_VISUAL,
 )
 from app.models.user import User
@@ -878,4 +880,94 @@ def save_anexo_file(
 
 
 def anexo_absolute_path(rel: str | None) -> Path | None:
+    return doc_svc.attachment_absolute_path(rel)
+
+
+FIRMA_GERENTE_DOC_STEM = "firma-gerente"
+ALLOWED_FIRMA_GERENTE_EXTENSIONS: frozenset[str] = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif"})
+
+
+def _firma_gerente_doc_dir(doc_id: int) -> Path:
+    return uploads_workspace_root() / "sgi" / "procedimientos" / str(int(doc_id))
+
+
+def firma_gerente_relative_path(doc_id: int) -> str | None:
+    base = _firma_gerente_doc_dir(doc_id)
+    if not base.is_dir():
+        return None
+    for p in sorted(base.iterdir()):
+        if p.is_file() and p.stem == FIRMA_GERENTE_DOC_STEM and p.suffix.lower() in ALLOWED_FIRMA_GERENTE_EXTENSIONS:
+            return (Path("sgi") / "procedimientos" / str(int(doc_id)) / p.name).as_posix()
+    return None
+
+
+def global_firma_gerente_static_url() -> str | None:
+    from flask import url_for
+
+    static_root = Path(current_app.static_folder or "")
+    for name in (
+        "sgi-firma-gerente-general.png",
+        "sgi-firma-gerente-general.jpg",
+        "sgi-firma-gerente-general.jpeg",
+        "sgi-firma-gerente-general.webp",
+    ):
+        if (static_root / "img" / name).is_file():
+            return url_for("static", filename=f"img/{name}")
+    return None
+
+
+def firma_gerente_url_for_document(doc: SgiDocumento) -> str | None:
+    from flask import url_for
+
+    if (doc.tipo or "").upper() != TIPO_MSGI:
+        return None
+    if firma_gerente_relative_path(doc.id):
+        slug = TIPO_SLUGS.get(TIPO_MSGI, "msgi")
+        return url_for("sgi.firma_gerente", slug=slug, doc_id=doc.id)
+    return global_firma_gerente_static_url()
+
+
+def save_firma_gerente_file(
+    doc_id: int,
+    storage: FileStorage | None,
+    user_id: int,
+) -> tuple[bool, str]:
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None:
+        return False, "Documento no encontrado."
+    if (doc.tipo or "").upper() != TIPO_MSGI:
+        return False, "La firma del gerente general solo aplica a documentos MSGI."
+    if not storage or not (storage.filename or "").strip():
+        return False, "No se seleccionó imagen."
+
+    fn = secure_filename(storage.filename or "firma")
+    ext = Path(fn).suffix.lower()
+    if ext not in ALLOWED_FIRMA_GERENTE_EXTENSIONS:
+        return False, "Formato no permitido. Use PNG, JPG, WEBP o GIF."
+
+    data = storage.read()
+    if len(data) > doc_svc._upload_max_bytes():
+        return False, "Imagen demasiado grande."
+
+    base = _firma_gerente_doc_dir(doc.id)
+    base.mkdir(parents=True, exist_ok=True)
+    for old in base.iterdir():
+        if old.is_file() and old.stem == FIRMA_GERENTE_DOC_STEM:
+            try:
+                old.unlink()
+            except OSError:
+                current_app.logger.warning("sgi: no se pudo borrar firma anterior %s", old)
+
+    dest = base / f"{FIRMA_GERENTE_DOC_STEM}{ext}"
+    dest.write_bytes(data)
+    doc.updated_at = _utc_now()
+    doc.updated_by_id = user_id
+    db.session.commit()
+    return True, "Firma del gerente general guardada."
+
+
+def firma_gerente_absolute_path(doc_id: int) -> Path | None:
+    rel = firma_gerente_relative_path(doc_id)
+    if not rel:
+        return None
     return doc_svc.attachment_absolute_path(rel)

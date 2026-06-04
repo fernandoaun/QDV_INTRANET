@@ -86,7 +86,7 @@ PROCEDIMIENTO_SECCIONES: tuple[tuple[str, str], ...] = (
     ("anexos", "8.- ANEXOS"),
 )
 
-TIPOS_PROCEDIMIENTO_VISUAL: tuple[str, ...] = (TIPO_PG, TIPO_PO)
+TIPOS_PROCEDIMIENTO_VISUAL: tuple[str, ...] = (TIPO_PG, TIPO_PO, TIPO_MSGI)
 
 
 class SgiDocumento(db.Model):

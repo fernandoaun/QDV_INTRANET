@@ -285,6 +285,66 @@ def test_sgi_role_can_delete(sgi_role_client):
     assert r.status_code in (302, 303)
 
 
+def test_sgi_visual_manual_create(auth_client):
+    r = auth_client.get("/sgi/msgi/procedimientos/nuevo", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    loc = r.headers.get("Location", "")
+    assert "/sgi/msgi/procedimientos/" in loc and "/editor" in loc
+
+    r_list = auth_client.get("/sgi/msgi/procedimientos/")
+    assert r_list.status_code == 200
+    assert b"QDV-MSGI-" in r_list.data
+
+
+def test_sgi_msgi_firma_gerente_upload(sgi_perm_client, app):
+    from io import BytesIO
+
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    r_form = sgi_perm_client.get("/sgi/msgi/nuevo")
+    csrf = _csrf_from_html(r_form.get_data(as_text=True))
+    sgi_perm_client.post(
+        "/sgi/msgi/nuevo",
+        data={
+            "csrf_token": csrf,
+            "codigo": "MSGI-FIRMA-01",
+            "titulo": "Manual con firma",
+            "estado": "borrador",
+        },
+        follow_redirects=True,
+    )
+    r_list = sgi_perm_client.get("/sgi/msgi/?q=MSGI-FIRMA-01")
+    m = re.search(r"/sgi/msgi/(\d+)", r_list.get_data(as_text=True))
+    assert m is not None
+    doc_id = int(m.group(1))
+
+    png = (
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+        b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    r_det = sgi_perm_client.get(f"/sgi/msgi/{doc_id}")
+    csrf2 = _csrf_from_html(r_det.get_data(as_text=True))
+    r_up = sgi_perm_client.post(
+        f"/sgi/msgi/{doc_id}/firma-gerente",
+        data={"csrf_token": csrf2, "firma": (BytesIO(png), "firma.png")},
+        content_type="multipart/form-data",
+        follow_redirects=False,
+    )
+    assert r_up.status_code in (302, 303)
+
+    with app.app_context():
+        doc = db.session.get(SgiDocumento, doc_id)
+        assert doc is not None
+        assert proc_svc.firma_gerente_relative_path(doc_id) is not None
+
+    r_img = sgi_perm_client.get(f"/sgi/msgi/{doc_id}/firma-gerente")
+    assert r_img.status_code == 200
+    assert r_img.mimetype and "image" in r_img.mimetype
+
+
 def test_sgi_visual_procedure_create(auth_client):
     r = auth_client.get("/sgi/pg/procedimientos/nuevo", follow_redirects=False)
     assert r.status_code in (302, 303)

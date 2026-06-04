@@ -27,6 +27,23 @@
       </tbody>
     </table>
 
+    {% if doc.tipo == 'MSGI' %}
+    <div class="sgi-proc-cover-meta sgi-proc-no-print mb-3" id="procFirmaGerenteBlock">
+      <label class="form-label small fw-semibold mb-1">Firma del gerente general (imagen)</label>
+      <p class="text-muted small mb-2">Se muestra en la esquina inferior derecha del documento al imprimir o exportar.</p>
+      {% if firma_gerente_url %}
+      <div class="mb-2">
+        <img src="{{ firma_gerente_url }}" alt="Vista previa firma" class="sgi-proc-firma-gerente-img border" style="max-width:180px;">
+      </div>
+      {% endif %}
+      {% if not solo_lectura|default(false) %}
+      <input type="file" class="form-control form-control-sm" id="procFirmaGerenteInput" accept="image/png,image/jpeg,image/webp,image/gif">
+      {% elif not firma_gerente_url %}
+      <p class="text-muted small mb-0">Sin firma cargada.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
     <div class="sgi-proc-cover-meta sgi-proc-no-print row g-2 mb-2">
       <div class="col-md-6">
         <label class="form-label small mb-0" for="procRevisorCorreo">Correo del revisor (aviso automático)</label>
@@ -132,4 +149,7 @@
       {% endif %}
     </div>
   </section>
+  {% if doc.tipo == 'MSGI' %}
+  {% include "sgi/_procedure_firma_gerente.html" %}
+  {% endif %}
 </div>

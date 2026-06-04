@@ -30,6 +30,40 @@
   padding: 18mm 20mm 22mm;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
   box-sizing: border-box;
+  position: relative;
+}
+
+/* Firma del gerente general (MSGI) — esquina inferior derecha */
+.sgi-proc-firma-gerente {
+  position: absolute;
+  right: 12mm;
+  bottom: 10mm;
+  z-index: 5;
+  pointer-events: none;
+  max-width: 45%;
+  text-align: right;
+}
+
+.sgi-proc-firma-gerente-img {
+  display: block;
+  max-width: 52mm;
+  max-height: 28mm;
+  width: auto;
+  height: auto;
+  margin-left: auto;
+  object-fit: contain;
+}
+
+.sgi-msgi-pdf-wrap {
+  position: relative;
+  min-height: 480px;
+}
+
+.sgi-msgi-pdf-wrap .sgi-proc-firma-gerente {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 2;
 }
 
 /* —— Logo (extraído de QDV-PG-01) —— */
@@ -500,6 +534,11 @@
     margin: 0;
     width: 100%;
     max-width: none;
+  }
+  .sgi-proc-firma-gerente {
+    position: fixed;
+    right: 12mm;
+    bottom: 10mm;
   }
 }
 

@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ doc.codigo }} · {{ tipo_label }} · SGI{% endblock %}
+{% block extra_head %}
+{% if tipo == 'MSGI' %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+{% endif %}
+{% endblock %}
 {% block content %}
 <div class="app-page-head">
   <div>
@@ -45,18 +50,45 @@
       </div>
     </div>
 
+    {% if tipo == 'MSGI' %}
+    <div class="app-card mb-3">
+      <div class="app-card-header">Firma del gerente general</div>
+      <div class="app-card-body">
+        <p class="small text-muted mb-2">Imagen en la esquina inferior derecha del documento (impresión y vista PDF).</p>
+        {% if firma_gerente_url %}
+        <img src="{{ firma_gerente_url }}" alt="Firma del Gerente General" class="sgi-proc-firma-gerente-img border mb-2" style="max-width:220px;">
+        {% else %}
+        <p class="small text-muted mb-2">Sin firma cargada. Podés subir una imagen o colocar <code>static/img/sgi-firma-gerente-general.png</code> en el servidor.</p>
+        {% endif %}
+        {% if puede_editar %}
+        <form method="post" action="{{ url_for('sgi.firma_gerente', slug=slug, doc_id=doc.id) }}" enctype="multipart/form-data" class="mt-2">
+          {% include "_csrf.html" %}
+          <input type="file" class="form-control form-control-sm" name="firma" accept="image/png,image/jpeg,image/webp,image/gif" required>
+          <button type="submit" class="btn btn-outline-primary btn-sm mt-2">Guardar firma</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     {% if doc.archivo_path %}
     <div class="app-card mb-3">
       <div class="app-card-header">Archivo PDF</div>
       <div class="app-card-body">
-        <div class="d-flex flex-wrap gap-2">
+        <div class="d-flex flex-wrap gap-2 mb-2">
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.adjunto_descargar', slug=slug, doc_id=doc.id) }}">
             <i class="bi bi-download me-1"></i>Descargar PDF
           </a>
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.adjunto_descargar', slug=slug, doc_id=doc.id, inline=1) }}" target="_blank" rel="noopener">
-            <i class="bi bi-eye me-1"></i>Ver PDF
+            <i class="bi bi-eye me-1"></i>Ver PDF (nueva pestaña)
           </a>
         </div>
+        {% if tipo == 'MSGI' and firma_gerente_url %}
+        <div class="sgi-msgi-pdf-wrap border rounded overflow-hidden">
+          <iframe src="{{ url_for('sgi.adjunto_descargar', slug=slug, doc_id=doc.id, inline=1) }}" title="PDF {{ doc.codigo }}" class="w-100 border-0" style="min-height:520px;"></iframe>
+          {% include "sgi/_procedure_firma_gerente.html" %}
+        </div>
+        {% endif %}
       </div>
     </div>
     {% endif %}

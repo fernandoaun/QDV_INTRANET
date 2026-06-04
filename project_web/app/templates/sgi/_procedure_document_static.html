@@ -96,4 +96,7 @@
       {% endfor %}
     </div>
   </section>
+  {% if doc.tipo == 'MSGI' %}
+  {% include "sgi/_procedure_firma_gerente.html" %}
+  {% endif %}
 </div>

@@ -45,7 +45,11 @@ def _custom_logo_url() -> str | None:
 
 
 def _procedure_render_kwargs(**extra: object) -> dict:
-    return {"custom_logo_url": _custom_logo_url(), **extra}
+    out: dict = {"custom_logo_url": _custom_logo_url(), **extra}
+    doc = extra.get("doc")
+    if isinstance(doc, SgiDocumento):
+        out["firma_gerente_url"] = proc_svc.firma_gerente_url_for_document(doc)
+    return out
 
 
 def _require_edit():

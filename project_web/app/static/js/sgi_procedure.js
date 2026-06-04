@@ -1,5 +1,5 @@
 /**
- * Editor visual de procedimientos SGI (PG / PO).
+ * Editor visual de procedimientos SGI (PG / PO / MSGI).
  */
 (function () {
   "use strict";
@@ -1513,6 +1513,31 @@
     qsa("#procRegistrosBody input, .sgi-proc-anexo-card input").forEach((el) => {
       el.addEventListener("input", scheduleAutoSaveHint);
     });
+    qs("#procFirmaGerenteInput")?.addEventListener("change", uploadFirmaGerente);
+  }
+
+  async function uploadFirmaGerente(ev) {
+    const input = ev.target;
+    const file = input.files?.[0];
+    if (!file || !cfg.urls?.firmaGerente) return;
+    const fd = new FormData();
+    fd.append("firma", file);
+    fd.append("csrf_token", cfg.csrf || "");
+    try {
+      const res = await fetch(cfg.urls.firmaGerente, {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+      });
+      if (res.ok && res.redirected) {
+        window.location.reload();
+        return;
+      }
+      flashMsg(res.ok ? "success" : "danger", res.ok ? "Firma guardada." : "No se pudo guardar la firma.");
+    } catch {
+      flashMsg("Error al subir la firma.", "danger");
+    }
+    input.value = "";
   }
 
   document.addEventListener("DOMContentLoaded", () => {
