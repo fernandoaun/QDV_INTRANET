@@ -299,3 +299,20 @@ def test_sgi_visual_procedure_create(auth_client):
 def test_sgi_visual_procedure_angel_cannot_create(angel_client):
     r = angel_client.get("/sgi/pg/procedimientos/nuevo", follow_redirects=False)
     assert r.status_code in (302, 303)
+
+
+def test_sgi_parse_form_uppercases_codigo_and_titulo():
+    from app.services import sgi_service as svs
+
+    parsed, err = svs._parse_form(
+        {
+            "codigo": "pg-test-001",
+            "titulo": "procedimiento de prueba",
+            "estado": "borrador",
+        },
+        tipo_fijo="PG",
+    )
+    assert err is None
+    assert parsed is not None
+    assert parsed["codigo"] == "PG-TEST-001"
+    assert parsed["titulo"] == "PROCEDIMIENTO DE PRUEBA"

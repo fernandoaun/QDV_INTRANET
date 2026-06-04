@@ -367,7 +367,7 @@ def _sync_child_rows(rev: SgiProcedimientoRevision, payload: dict[str, Any]) -> 
         rev.registros.append(
             SgiProcedimientoRegistro(
                 orden=i,
-                nombre=(row.get("nombre") or "")[:512],
+                nombre=(row.get("nombre") or "").strip().upper()[:512],
                 quien_archiva=(row.get("quien_archiva") or "")[:512],
                 como=(row.get("como") or "")[:512],
                 donde=(row.get("donde") or "")[:512],
@@ -389,8 +389,8 @@ def _sync_child_rows(rev: SgiProcedimientoRevision, payload: dict[str, Any]) -> 
             a = SgiProcedimientoAnexo(revision_id=rev.id, orden=i)
             rev.anexos.append(a)
         a.orden = i
-        a.nombre = (row.get("nombre") or "")[:512]
-        a.codigo = (row.get("codigo") or "")[:64]
+        a.nombre = (row.get("nombre") or "").strip().upper()[:512]
+        a.codigo = (row.get("codigo") or "").strip().upper()[:64]
         a.revision = (row.get("revision") or "")[:32]
         a.fecha_vigencia = doc_svc.parse_iso_date(row.get("fecha_vigencia"))
         if not a.codigo and a.nombre:
@@ -460,6 +460,7 @@ def create_procedimiento_visual(
     if not tipo_soporta_visual(tipo):
         return None, None, "Este tipo no admite el generador visual de procedimientos."
 
+    titulo = (titulo or "").strip().upper() or "TÍTULO DEL PROCEDIMIENTO"
     codigo = next_codigo(tipo)
     contenido = default_contenido(titulo)
     doc = SgiDocumento(
@@ -512,7 +513,7 @@ def save_revision_content(
         return False, "Solo se puede editar un borrador o documento en revisión.", []
 
     doc = rev.documento
-    titulo = (payload.get("titulo") or doc.titulo or "").strip()
+    titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
     if len(titulo) < 2:
         return False, "El título debe tener al menos 2 caracteres.", []
 
@@ -698,6 +699,11 @@ def save_anexo_file(
     fn = secure_filename(storage.filename or "anexo")
     if not fn:
         return False, "Nombre inválido."
+    if "." in fn:
+        stem, _, ext = fn.rpartition(".")
+        fn = f"{stem.upper()}.{ext.lower()}"
+    else:
+        fn = fn.upper()
     data = storage.read()
     if len(data) > doc_svc._upload_max_bytes():
         return False, "Archivo demasiado grande."

@@ -171,8 +171,8 @@ def _codigo_duplicado(tipo: str, codigo: str, exclude_id: int | None = None) -> 
 
 def _parse_form(data: dict[str, Any], *, tipo_fijo: str | None = None) -> tuple[dict[str, Any] | None, str | None]:
     tipo = (tipo_fijo or (data.get("tipo") or "")).strip().upper()
-    codigo = (data.get("codigo") or "").strip()
-    titulo = (data.get("titulo") or "").strip()
+    codigo = (data.get("codigo") or "").strip().upper()
+    titulo = (data.get("titulo") or "").strip().upper()
     revision = (data.get("revision") or "").strip()
     estado = (data.get("estado") or ESTADO_BORRADOR).strip().lower()
     responsable_elab = (data.get("responsable_elaboracion") or "").strip()
@@ -390,6 +390,8 @@ def save_attachment(
         return False, "Nombre de archivo inválido."
     if not fn.lower().endswith(".pdf"):
         fn = f"{fn}.pdf"
+    stem, _, ext = fn.rpartition(".")
+    fn = f"{stem.upper()}.{ext.lower()}" if ext else stem.upper()
 
     base = uploads_workspace_root() / "sgi" / str(row.id)
     base.mkdir(parents=True, exist_ok=True)
