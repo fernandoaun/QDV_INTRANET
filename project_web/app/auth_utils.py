@@ -33,6 +33,9 @@ _PRODUCTION_HUB_PERMS: tuple[str, ...] = (
     "bolson_carga",
     "graficos",
     "lab_reactivos",
+    "stock_hub",
+    "stock_ingreso_mp",
+    "stock_ingreso_lab",
 )
 
 _ENTREGAS_ACCESS_PERMS: tuple[str, ...] = (

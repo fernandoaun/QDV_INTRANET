@@ -3,6 +3,7 @@ Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 
 - «solo_lectura_total» (Angel): ve todos los módulos y datos; no puede mutar nada (vista completa, edición vacía en sesión).
 - «sgi»: vista global en todo el sistema, con edición limitada al módulo SGI.
+- «administracion»: carga ingresos de materia prima y laboratorio (stock); no toma turno operativo.
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
 - Los permisos finales = plantilla del rol efectivo, aplicando filas en `permisos_usuario` como overrides:
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
 ROLE_ADMINISTRADOR = "administrador"
 ROLE_OPERACIONES = "operaciones"
 ROLE_LOGISTICA = "logistica"
+ROLE_ADMINISTRACION = "administracion"
 ROLE_MANTENIMIENTO = "mantenimiento"
 ROLE_SOLO_LECTURA_TOTAL = "solo_lectura_total"
 ROLE_SGI = "sgi"
@@ -31,6 +33,7 @@ USER_ROLES_ORDERED: tuple[str, ...] = (
     ROLE_ADMINISTRADOR,
     ROLE_OPERACIONES,
     ROLE_LOGISTICA,
+    ROLE_ADMINISTRACION,
     ROLE_MANTENIMIENTO,
     ROLE_SOLO_LECTURA_TOTAL,
     ROLE_SGI,
@@ -41,6 +44,7 @@ ROLE_LABELS: dict[str, str] = {
     ROLE_ADMINISTRADOR: "Administrador",
     ROLE_OPERACIONES: "Operaciones",
     ROLE_LOGISTICA: "Logística",
+    ROLE_ADMINISTRACION: "Administración",
     ROLE_MANTENIMIENTO: "Mantenimiento",
     ROLE_SOLO_LECTURA_TOTAL: "Angel",
     ROLE_SGI: "SGI",
@@ -56,6 +60,9 @@ _LEGACY_ALIASES: dict[str, str] = {
     "operator": ROLE_OPERACIONES,
     "logística": ROLE_LOGISTICA,
     "logistica": ROLE_LOGISTICA,
+    "administración": ROLE_ADMINISTRACION,
+    "administracion": ROLE_ADMINISTRACION,
+    "administration": ROLE_ADMINISTRACION,
     "mantenimiento": ROLE_MANTENIMIENTO,
     "pasante": ROLE_LABORATORISTA,
     "practicante": ROLE_LABORATORISTA,
@@ -107,6 +114,17 @@ _BASE_LOGISTICA: frozenset[str] = frozenset(
         "stock_existencias",
         "stock_historial",
         "planificacion",
+    }
+)
+
+_BASE_ADMINISTRACION: frozenset[str] = frozenset(
+    {
+        "manual",
+        "stock_hub",
+        "stock_ingreso_mp",
+        "stock_ingreso_lab",
+        "stock_existencias",
+        "stock_historial",
     }
 )
 
@@ -192,6 +210,9 @@ def _base_view_edit_for_effective_role(effective: str) -> tuple[set[str], set[st
         return v, set(v)
     if effective == ROLE_LOGISTICA:
         v = set(_BASE_LOGISTICA) & keys
+        return v, set(v)
+    if effective == ROLE_ADMINISTRACION:
+        v = set(_BASE_ADMINISTRACION) & keys
         return v, set(v)
     if effective == ROLE_MANTENIMIENTO:
         v = set(_BASE_MANTENIMIENTO) & keys

@@ -6,6 +6,7 @@ from app.models.sgi import SgiDocumentoPerfil
 from app.models.user import User
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
+    ROLE_ADMINISTRACION,
     ROLE_LABORATORISTA,
     ROLE_LABELS,
     ROLE_LOGISTICA,
@@ -20,6 +21,7 @@ from app.user_roles import (
 SGI_PERFILES_APLICABLES: tuple[str, ...] = (
     ROLE_OPERACIONES,
     ROLE_LOGISTICA,
+    ROLE_ADMINISTRACION,
     ROLE_MANTENIMIENTO,
     ROLE_SGI,
     ROLE_SOLO_LECTURA_TOTAL,
