@@ -686,13 +686,13 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     rev = get_revision(rev_id)
     if rev is None or rev.estado != ESTADO_BORRADOR:
         return False, "Solo un borrador puede enviarse a revisión."
+    doc = rev.documento
     if not (rev.reviso or "").strip():
         return False, "Indicá quién revisa (campo «Revisó» en la carátula) antes de enviar."
     if not perfil_svc.perfiles_aplica_documento(doc.id):
         return False, "Seleccioná al menos un sector/perfil al que aplica el procedimiento."
     rev.estado = ESTADO_EN_REVISION
     rev.updated_by_id = user_id
-    doc = rev.documento
     doc.estado = ESTADO_EN_REVISION
     doc.updated_by_id = user_id
     _log_aprobacion(rev, ACCION_ENVIAR_REVISION, user_id, actor_label, "Enviado a revisión")
@@ -776,7 +776,11 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
     _sync_child_rows(rev, data)
 
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, f"Aprobado {rev.revision_label}")
-    n = notif_svc.create_approval_notifications(doc, rev, actor_label=actor_label)
+    try:
+        n = notif_svc.create_approval_notifications(doc, rev, actor_label=actor_label)
+    except Exception:
+        current_app.logger.exception("SGI: fallo notificaciones in-app al aprobar rev_id=%s", rev_id)
+        n = 0
     db.session.commit()
     if n > 0:
         return True, f"Documento aprobado. Se notificó a {n} usuario(s) de los sectores seleccionados."

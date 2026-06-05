@@ -156,7 +156,15 @@ class SgiDocumentoHistorial(db.Model):
     accion = db.Column(db.String(64), nullable=False, index=True)
     detalle = db.Column(db.String(8000), nullable=False, default="", server_default="")
 
-    documento = db.relationship("SgiDocumento", backref=db.backref("historial", lazy="dynamic", order_by="SgiDocumentoHistorial.fecha.desc()"))
+    documento = db.relationship(
+        "SgiDocumento",
+        backref=db.backref(
+            "historial",
+            lazy="dynamic",
+            order_by="SgiDocumentoHistorial.fecha.desc()",
+            cascade="all, delete-orphan",
+        ),
+    )
 
 
 class SgiProcedimientoRevision(db.Model):
@@ -190,6 +198,7 @@ class SgiProcedimientoRevision(db.Model):
             "revisiones_proc",
             lazy="dynamic",
             order_by="SgiProcedimientoRevision.numero_revision.desc()",
+            cascade="all, delete-orphan",
         ),
     )
     control_cambios = db.relationship(
