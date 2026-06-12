@@ -102,6 +102,24 @@ def user_can_manage_vencimientos(user: User | None) -> bool:
     return user is not None and bool(user.is_admin)
 
 
+def user_can_access_personal(user: User | None) -> bool:
+    """Personal / RRHH: administrador o permiso explícito personal."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    return user_can(user, "personal")
+
+
+def user_can_manage_personal(user: User | None) -> bool:
+    """Alta/edición en Personal: administrador o permiso personal con edición."""
+    if user is None or user_is_global_read_only(user):
+        return False
+    if user.is_admin:
+        return True
+    return user_can_edit(user, "personal")
+
+
 def user_can_access_sgi(user: User | None) -> bool:
     """Administrador, perfiles Angel/SGI o usuarios con permiso sgi_hub."""
     if user is None:
@@ -485,6 +503,8 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_edit_entregas_any_action(user)
     if ep.startswith("vencimientos."):
         return user_can_manage_vencimientos(user)
+    if ep.startswith("personal."):
+        return user_can_manage_personal(user)
     if ep.startswith("sgi."):
         return user_can_edit_sgi_documentos(user)
     if ep.startswith("planificacion."):

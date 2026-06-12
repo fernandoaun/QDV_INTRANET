@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Catálogo EPP · Personal · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Catálogo ropa / EPP</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
+  </div>
+</div>
+
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Agregar o editar ítem</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="item_id" id="item_id" value="">
+      <div class="col-md-4">
+        <label class="form-label">Nombre *</label>
+        <input type="text" class="form-control" name="nombre" id="item_nombre" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Categoría</label>
+        <select class="form-select" name="categoria" id="item_categoria">
+          {% for k, lbl in categoria_labels.items() %}
+          <option value="{{ k }}">{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Orden</label>
+        <input type="number" class="form-control" name="orden" id="item_orden" value="0">
+      </div>
+      <div class="col-md-2">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="requiere_talle" id="item_talle" value="1" checked>
+          <label class="form-check-label" for="item_talle">Requiere talle</label>
+        </div>
+      </div>
+      <div class="col-md-1">
+        <div class="form-check mt-4">
+          <input class="form-check-input" type="checkbox" name="activo" id="item_activo" value="1" checked>
+          <label class="form-check-label" for="item_activo">Activo</label>
+        </div>
+      </div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Nombre</th><th>Categoría</th><th>Talle</th><th>Orden</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td>{{ it.nombre }}</td>
+          <td>{{ categoria_labels.get(it.categoria, it.categoria) }}</td>
+          <td>{{ 'Sí' if it.requiere_talle else 'No' }}</td>
+          <td>{{ it.orden }}</td>
+          <td>{{ 'Activo' if it.activo else 'Inactivo' }}</td>
+          <td>{% if puede_gestionar %}<button type="button" class="btn btn-sm btn-outline-secondary item-edit-btn"
+            data-id="{{ it.id }}" data-nombre="{{ it.nombre|e }}" data-categoria="{{ it.categoria }}"
+            data-orden="{{ it.orden }}" data-talle="{{ '1' if it.requiere_talle else '' }}"
+            data-activo="{{ '1' if it.activo else '' }}">Editar</button>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted p-3">Sin ítems. Agregá prendas y EPP desde el formulario de arriba.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if puede_gestionar %}
+<script>
+document.querySelectorAll('.item-edit-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('item_id').value = btn.dataset.id || '';
+    document.getElementById('item_nombre').value = btn.dataset.nombre || '';
+    document.getElementById('item_categoria').value = btn.dataset.categoria || 'epp';
+    document.getElementById('item_orden').value = btn.dataset.orden || '0';
+    document.getElementById('item_talle').checked = !!btn.dataset.talle;
+    document.getElementById('item_activo').checked = btn.dataset.activo !== '';
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

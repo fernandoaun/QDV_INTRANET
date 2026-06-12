@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Entregas EPP · Personal · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Entregas ropa / EPP</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
+  </div>
+</div>
+
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Nueva entrega</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Empleado *</label>
+        <select class="form-select" name="empleado_id" required>
+          <option value="">Seleccionar…</option>
+          {% for e in empleados %}
+          <option value="{{ e.id }}" {% if filtro_empleado_id == e.id %}selected{% endif %}>{{ e.nombre_completo }} ({{ e.legajo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Ítem *</label>
+        <select class="form-select" name="item_id" required>
+          <option value="">Seleccionar…</option>
+          {% for it in items %}
+          <option value="{{ it.id }}">{{ it.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Fecha</label>
+        <input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Talle</label>
+        <input type="text" class="form-control" name="talle">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Cant.</label>
+        <input type="number" class="form-control" name="cantidad" value="1" min="1">
+      </div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Filtrar por empleado</label>
+        <select class="form-select" name="empleado_id" onchange="this.form.submit()">
+          <option value="">Todos</option>
+          {% for e in empleados %}
+          <option value="{{ e.id }}" {% if filtro_empleado_id == e.id %}selected{% endif %}>{{ e.nombre_completo }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Empleado</th><th>Ítem</th><th>Talle</th><th>Cant.</th><th>Obs.</th></tr></thead>
+      <tbody>
+        {% for en in entregas %}
+        <tr>
+          <td>{{ en.fecha.strftime('%d/%m/%Y') }}</td>
+          <td><a href="{{ url_for('personal.legajo_detalle', empleado_id=en.empleado_id, tab='epp') }}">{{ en.empleado.nombre_completo }}</a></td>
+          <td>{{ en.item.nombre }}</td>
+          <td>{{ en.talle or '—' }}</td>
+          <td>{{ en.cantidad }}</td>
+          <td>{{ en.observaciones or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted p-3">Sin entregas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

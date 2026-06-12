@@ -1,0 +1,153 @@
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+
+from app.extensions import db
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class EmpleadoPersonal(db.Model):
+    """Legajo de personal (RRHH). Distinto de User (login) y Operador (producción)."""
+
+    __tablename__ = "personal_empleados"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    legajo = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    dni = db.Column(db.String(16), nullable=False, default="", server_default="")
+    cuil = db.Column(db.String(16), nullable=False, default="", server_default="")
+    apellido = db.Column(db.String(128), nullable=False, index=True)
+    nombre = db.Column(db.String(128), nullable=False, index=True)
+    fecha_nacimiento = db.Column(db.Date, nullable=True, index=True)
+    domicilio = db.Column(db.String(256), nullable=False, default="", server_default="")
+    telefono = db.Column(db.String(64), nullable=False, default="", server_default="")
+    email = db.Column(db.String(256), nullable=False, default="", server_default="")
+    puesto = db.Column(db.String(128), nullable=False, default="", server_default="")
+    area = db.Column(db.String(128), nullable=False, default="", server_default="")
+    fecha_ingreso = db.Column(db.Date, nullable=True)
+    estado = db.Column(db.String(16), nullable=False, default="activo", server_default="activo", index=True)
+    talle_pantalon = db.Column(db.String(16), nullable=False, default="", server_default="")
+    talle_camisa = db.Column(db.String(16), nullable=False, default="", server_default="")
+    talle_calzado = db.Column(db.String(16), nullable=False, default="", server_default="")
+    talle_guantes = db.Column(db.String(16), nullable=False, default="", server_default="")
+    talle_casco = db.Column(db.String(16), nullable=False, default="", server_default="")
+    observaciones = db.Column(db.String(4000), nullable=False, default="", server_default="")
+    operador_id = db.Column(db.Integer, db.ForeignKey("operadores.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    operador = db.relationship("Operador", backref=db.backref("empleado_personal", uselist=False))
+
+    @property
+    def nombre_completo(self) -> str:
+        return f"{self.apellido}, {self.nombre}".strip(", ")
+
+
+class PersonalEppItem(db.Model):
+    """Catálogo configurable de ítems de ropa y EPP."""
+
+    __tablename__ = "personal_epp_items"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nombre = db.Column(db.String(128), nullable=False, unique=True, index=True)
+    categoria = db.Column(db.String(32), nullable=False, default="epp", server_default="epp", index=True)
+    requiere_talle = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
+    orden = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+
+    entregas = db.relationship("PersonalEntregaEpp", back_populates="item", lazy="dynamic")
+
+
+class PersonalEntregaEpp(db.Model):
+    __tablename__ = "personal_entregas_epp"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_id = db.Column(db.Integer, db.ForeignKey("personal_epp_items.id", ondelete="RESTRICT"), nullable=False, index=True)
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    talle = db.Column(db.String(32), nullable=False, default="", server_default="")
+    cantidad = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    empleado = db.relationship("EmpleadoPersonal", backref=db.backref("entregas_epp", lazy="dynamic"))
+    item = db.relationship("PersonalEppItem", back_populates="entregas")
+
+
+class PersonalCurso(db.Model):
+    __tablename__ = "personal_cursos"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nombre = db.Column(db.String(256), nullable=False)
+    institucion = db.Column(db.String(256), nullable=False, default="", server_default="")
+    fecha_realizacion = db.Column(db.Date, nullable=True)
+    fecha_vencimiento = db.Column(db.Date, nullable=True, index=True)
+    observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    empleado = db.relationship("EmpleadoPersonal", backref=db.backref("cursos", lazy="dynamic"))
+
+
+class PersonalApercibimiento(db.Model):
+    __tablename__ = "personal_apercibimientos"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    tipo = db.Column(db.String(16), nullable=False, default="escrito", server_default="escrito")
+    motivo = db.Column(db.String(512), nullable=False, default="", server_default="")
+    descripcion = db.Column(db.String(4000), nullable=False, default="", server_default="")
+    registrado_por = db.Column(db.String(256), nullable=False, default="", server_default="")
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    empleado = db.relationship("EmpleadoPersonal", backref=db.backref("apercibimientos", lazy="dynamic"))
+
+
+class PersonalArt(db.Model):
+    __tablename__ = "personal_art"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    aseguradora = db.Column(db.String(256), nullable=False, default="", server_default="")
+    numero_poliza = db.Column(db.String(64), nullable=False, default="", server_default="")
+    fecha_alta = db.Column(db.Date, nullable=True)
+    fecha_baja = db.Column(db.Date, nullable=True)
+    observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    empleado = db.relationship("EmpleadoPersonal", backref=db.backref("art", uselist=False))
+
+
+class PersonalVacacion(db.Model):
+    __tablename__ = "personal_vacaciones"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fecha_desde = db.Column(db.Date, nullable=False, index=True)
+    fecha_hasta = db.Column(db.Date, nullable=False, index=True)
+    dias = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    anio = db.Column(db.Integer, nullable=False, index=True)
+    estado = db.Column(db.String(16), nullable=False, default="pendiente", server_default="pendiente", index=True)
+    observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    empleado = db.relationship("EmpleadoPersonal", backref=db.backref("vacaciones", lazy="dynamic"))

@@ -1,0 +1,292 @@
+{% extends "base.html" %}
+{% block title %}{{ empleado.nombre_completo }} · Personal · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">{{ empleado.nombre_completo }}</h1>
+    <div class="text-muted">Legajo {{ empleado.legajo }} · {{ estado_labels.get(empleado.estado, empleado.estado) }}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_gestionar %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.legajo_editar', empleado_id=empleado.id) }}">Editar datos</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.legajos') }}">Volver</a>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+  {% set tabs = [('datos','Datos'),('epp','EPP / Ropa'),('cursos','Cursos'),('apercibimientos','Apercibimientos'),('art','ART'),('vacaciones','Vacaciones')] %}
+  {% for key, lbl in tabs %}
+  <li class="nav-item">
+    <a class="nav-link {% if tab == key %}active{% endif %}" href="{{ url_for('personal.legajo_detalle', empleado_id=empleado.id, tab=key) }}">{{ lbl }}</a>
+  </li>
+  {% endfor %}
+</ul>
+
+{% if tab == 'datos' %}
+<div class="app-card">
+  <div class="app-card-body">
+    <div class="row g-2">
+      <div class="col-md-3"><strong>DNI:</strong> {{ empleado.dni or '—' }}</div>
+      <div class="col-md-3"><strong>CUIL:</strong> {{ empleado.cuil or '—' }}</div>
+      <div class="col-md-3"><strong>Nacimiento:</strong> {{ empleado.fecha_nacimiento.strftime('%d/%m/%Y') if empleado.fecha_nacimiento else '—' }}</div>
+      <div class="col-md-3"><strong>Ingreso:</strong> {{ empleado.fecha_ingreso.strftime('%d/%m/%Y') if empleado.fecha_ingreso else '—' }}</div>
+      <div class="col-md-4"><strong>Puesto:</strong> {{ empleado.puesto or '—' }}</div>
+      <div class="col-md-4"><strong>Área:</strong> {{ empleado.area or '—' }}</div>
+      <div class="col-md-4"><strong>Tel:</strong> {{ empleado.telefono or '—' }}</div>
+      <div class="col-md-6"><strong>Domicilio:</strong> {{ empleado.domicilio or '—' }}</div>
+      <div class="col-md-6"><strong>Email:</strong> {{ empleado.email or '—' }}</div>
+      <div class="col-12"><strong>Talles:</strong>
+        Pant. {{ empleado.talle_pantalon or '—' }} ·
+        Cam. {{ empleado.talle_camisa or '—' }} ·
+        Calz. {{ empleado.talle_calzado or '—' }} ·
+        Guant. {{ empleado.talle_guantes or '—' }} ·
+        Casco {{ empleado.talle_casco or '—' }}
+      </div>
+      {% if empleado.observaciones %}
+      <div class="col-12"><strong>Observaciones:</strong> {{ empleado.observaciones }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'epp' %}
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Registrar entrega</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="action" value="entrega_epp">
+      <input type="hidden" name="tab" value="epp">
+      <div class="col-md-3">
+        <label class="form-label">Ítem</label>
+        <select class="form-select" name="item_id" required>
+          <option value="">Seleccionar…</option>
+          {% for it in items_epp %}
+          <option value="{{ it.id }}">{{ it.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Fecha</label>
+        <input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Talle</label>
+        <input type="text" class="form-control" name="talle">
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Cant.</label>
+        <input type="number" class="form-control" name="cantidad" value="1" min="1">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Observaciones</label>
+        <input type="text" class="form-control" name="observaciones">
+      </div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Ítem</th><th>Talle</th><th>Cant.</th><th>Obs.</th></tr></thead>
+      <tbody>
+        {% for en in entregas %}
+        <tr>
+          <td>{{ en.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>{{ en.item.nombre }}</td>
+          <td>{{ en.talle or '—' }}</td>
+          <td>{{ en.cantidad }}</td>
+          <td>{{ en.observaciones or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted p-3">Sin entregas registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif tab == 'cursos' %}
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Agregar / editar curso</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="action" value="curso">
+      <input type="hidden" name="tab" value="cursos">
+      <input type="hidden" name="curso_id" id="curso_id" value="">
+      <div class="col-md-4"><label class="form-label">Nombre *</label><input type="text" class="form-control" name="nombre" id="curso_nombre" required></div>
+      <div class="col-md-3"><label class="form-label">Institución</label><input type="text" class="form-control" name="institucion" id="curso_institucion"></div>
+      <div class="col-md-2"><label class="form-label">Realización</label><input type="date" class="form-control" name="fecha_realizacion" id="curso_realizacion"></div>
+      <div class="col-md-2"><label class="form-label">Vencimiento</label><input type="date" class="form-control" name="fecha_vencimiento" id="curso_vencimiento"></div>
+      <div class="col-md-12"><label class="form-label">Observaciones</label><input type="text" class="form-control" name="observaciones" id="curso_obs"></div>
+      <div class="col-12"><button type="submit" class="btn btn-primary btn-sm">Guardar curso</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Curso</th><th>Institución</th><th>Realización</th><th>Vencimiento</th><th></th></tr></thead>
+      <tbody>
+        {% for c in cursos %}
+        <tr>
+          <td>{{ c.nombre }}</td>
+          <td>{{ c.institucion or '—' }}</td>
+          <td>{{ c.fecha_realizacion.strftime('%d/%m/%Y') if c.fecha_realizacion else '—' }}</td>
+          <td>{{ c.fecha_vencimiento.strftime('%d/%m/%Y') if c.fecha_vencimiento else '—' }}</td>
+          <td>{% if puede_gestionar %}<button type="button" class="btn btn-sm btn-outline-secondary curso-edit-btn"
+            data-id="{{ c.id }}" data-nombre="{{ c.nombre|e }}" data-institucion="{{ c.institucion|e }}"
+            data-realizacion="{{ c.fecha_realizacion.isoformat() if c.fecha_realizacion else '' }}"
+            data-vencimiento="{{ c.fecha_vencimiento.isoformat() if c.fecha_vencimiento else '' }}"
+            data-obs="{{ c.observaciones|e }}">Editar</button>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted p-3">Sin cursos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif tab == 'apercibimientos' %}
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Registrar apercibimiento</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="action" value="apercibimiento">
+      <input type="hidden" name="tab" value="apercibimientos">
+      <div class="col-md-2"><label class="form-label">Fecha</label><input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}"></div>
+      <div class="col-md-2"><label class="form-label">Tipo</label>
+        <select class="form-select" name="tipo">{% for k,l in tipo_apercibimiento_labels.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-md-3"><label class="form-label">Motivo</label><input type="text" class="form-control" name="motivo"></div>
+      <div class="col-md-5"><label class="form-label">Descripción</label><input type="text" class="form-control" name="descripcion"></div>
+      <div class="col-12"><button type="submit" class="btn btn-primary btn-sm">Guardar</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Motivo</th><th>Descripción</th><th>Registró</th></tr></thead>
+      <tbody>
+        {% for a in apercibimientos %}
+        <tr>
+          <td>{{ a.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>{{ tipo_apercibimiento_labels.get(a.tipo, a.tipo) }}</td>
+          <td>{{ a.motivo or '—' }}</td>
+          <td>{{ a.descripcion or '—' }}</td>
+          <td>{{ a.registrado_por or '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted p-3">Sin apercibimientos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% elif tab == 'art' %}
+<div class="app-card">
+  <div class="app-card-body">
+    {% if puede_gestionar %}
+    <form method="post" class="row g-3">
+      <input type="hidden" name="action" value="art">
+      <input type="hidden" name="tab" value="art">
+      <div class="col-md-4"><label class="form-label">Aseguradora</label>
+        <input type="text" class="form-control" name="aseguradora" value="{{ empleado.art.aseguradora if empleado.art else '' }}"></div>
+      <div class="col-md-3"><label class="form-label">Nº póliza</label>
+        <input type="text" class="form-control" name="numero_poliza" value="{{ empleado.art.numero_poliza if empleado.art else '' }}"></div>
+      <div class="col-md-2"><label class="form-label">Alta</label>
+        <input type="date" class="form-control" name="fecha_alta" value="{{ empleado.art.fecha_alta.isoformat() if empleado.art and empleado.art.fecha_alta else '' }}"></div>
+      <div class="col-md-2"><label class="form-label">Baja</label>
+        <input type="date" class="form-control" name="fecha_baja" value="{{ empleado.art.fecha_baja.isoformat() if empleado.art and empleado.art.fecha_baja else '' }}"></div>
+      <div class="col-12"><label class="form-label">Observaciones</label>
+        <textarea class="form-control" name="observaciones" rows="2">{{ empleado.art.observaciones if empleado.art else '' }}</textarea></div>
+      <div class="col-12"><button type="submit" class="btn btn-primary btn-sm">Guardar ART</button></div>
+    </form>
+    {% elif empleado.art %}
+    <p><strong>Aseguradora:</strong> {{ empleado.art.aseguradora or '—' }}</p>
+    <p><strong>Póliza:</strong> {{ empleado.art.numero_poliza or '—' }}</p>
+    {% else %}
+    <p class="text-muted mb-0">Sin datos de ART.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% elif tab == 'vacaciones' %}
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Cargar vacación</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="action" value="vacacion">
+      <input type="hidden" name="tab" value="vacaciones">
+      <input type="hidden" name="empleado_id" value="{{ empleado.id }}">
+      <input type="hidden" name="vacacion_id" id="vacacion_id" value="">
+      <div class="col-md-2"><label class="form-label">Desde</label><input type="date" class="form-control" name="fecha_desde" id="vac_desde" required></div>
+      <div class="col-md-2"><label class="form-label">Hasta</label><input type="date" class="form-control" name="fecha_hasta" id="vac_hasta" required></div>
+      <div class="col-md-2"><label class="form-label">Año</label><input type="number" class="form-control" name="anio" id="vac_anio" min="2000" max="2100"></div>
+      <div class="col-md-2"><label class="form-label">Estado</label>
+        <select class="form-select" name="estado" id="vac_estado">{% for k,l in estado_vacacion_labels.items() %}<option value="{{ k }}">{{ l }}</option>{% endfor %}</select>
+      </div>
+      <div class="col-md-3"><label class="form-label">Observaciones</label><input type="text" class="form-control" name="observaciones" id="vac_obs"></div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Desde</th><th>Hasta</th><th>Días</th><th>Año</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for v in vacaciones %}
+        <tr>
+          <td>{{ v.fecha_desde.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.fecha_hasta.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.dias }}</td>
+          <td>{{ v.anio }}</td>
+          <td><span class="badge {% if v.estado == 'pendiente' %}text-bg-warning{% elif v.estado == 'tomada' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ estado_vacacion_labels.get(v.estado, v.estado) }}</span></td>
+          <td class="text-end">
+            {% if puede_gestionar and v.estado == 'pendiente' %}
+            <form method="post" class="d-inline">
+              <input type="hidden" name="action" value="vacacion_tomada">
+              <input type="hidden" name="tab" value="vacaciones">
+              <input type="hidden" name="vacacion_id" value="{{ v.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-success">Marcar tomada</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted p-3">Sin vacaciones registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if tab == 'cursos' and puede_gestionar %}
+<script>
+document.querySelectorAll('.curso-edit-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.getElementById('curso_id').value = btn.dataset.id || '';
+    document.getElementById('curso_nombre').value = btn.dataset.nombre || '';
+    document.getElementById('curso_institucion').value = btn.dataset.institucion || '';
+    document.getElementById('curso_realizacion').value = btn.dataset.realizacion || '';
+    document.getElementById('curso_vencimiento').value = btn.dataset.vencimiento || '';
+    document.getElementById('curso_obs').value = btn.dataset.obs || '';
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -82,6 +82,14 @@
              title="SGI – Sistema de Gestión Integrado"><i class="bi bi-journal-bookmark" aria-hidden="true"></i></a>
         </li>
         {% endif %}
+        {% if user_can_access_personal() %}
+        <li>
+          <a href="{{ url_for('personal.hub') }}"
+             class="app-sidenav-link {% if ep and ep.startswith('personal.') %}is-active{% endif %}"
+             data-filter-text="personal rrhh legajos epp vacaciones art cursos apercibimientos cumpleaños"
+             title="Personal / RRHH"><i class="bi bi-people" aria-hidden="true"></i></a>
+        </li>
+        {% endif %}
         {% if user_can_view_admin_configuration() %}
         <li>
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
@@ -212,6 +220,9 @@
             {% endif %}
             {% if user_can_access_sgi() %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('sgi.hub') }}"><i class="bi bi-journal-bookmark me-2 opacity-50" aria-hidden="true"></i>SGI</a></li>
+            {% endif %}
+            {% if user_can_access_personal() %}
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('personal.hub') }}"><i class="bi bi-people me-2 opacity-50" aria-hidden="true"></i>PERSONAL</a></li>
             {% endif %}
             {% if user_can_planificacion %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('planificacion.hub') }}"><i class="bi bi-calendar-range me-2 opacity-50" aria-hidden="true"></i>PLANIFICACIÓN</a></li>

@@ -34,6 +34,15 @@ from app.models.plant_stop import PlantStopAlertEmail, PlantStopEvent
 from app.models.deadline_reminder_sent import DeadlineReminderSent
 from app.models.user import PermisoUsuario, User
 from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHistorial
+from app.models.personal import (
+    EmpleadoPersonal,
+    PersonalApercibimiento,
+    PersonalArt,
+    PersonalCurso,
+    PersonalEntregaEpp,
+    PersonalEppItem,
+    PersonalVacacion,
+)
 from app.models.sgi import (
     SgiDocumento,
     SgiDocumentoHistorial,
@@ -101,4 +110,11 @@ __all__ = [
     "SgiProcedimientoAnexo",
     "SgiProcedimientoAprobacion",
     "SgiNotificacion",
+    "EmpleadoPersonal",
+    "PersonalEppItem",
+    "PersonalEntregaEpp",
+    "PersonalCurso",
+    "PersonalApercibimiento",
+    "PersonalArt",
+    "PersonalVacacion",
 ]

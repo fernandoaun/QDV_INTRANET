@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Personal · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Personal</h1>
+    <div class="text-muted">Legajos, EPP, cursos, vacaciones, ART y apercibimientos.</div>
+  </div>
+  <div class="app-page-actions">
+    {% if puede_gestionar %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('personal.legajo_nuevo') }}">Nuevo legajo</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Activos</div>
+      <div class="fs-3 fw-semibold">{{ counts.empleados_activos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Cumpleaños del mes</div>
+      <div class="fs-3 fw-semibold">{{ counts.cumpleanos_mes }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Cursos por vencer</div>
+      <div class="fs-3 fw-semibold text-warning">{{ counts.cursos_por_vencer }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Vac. pendientes</div>
+      <div class="fs-3 fw-semibold text-info">{{ counts.vacaciones_pendientes }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Vac. tomadas (año)</div>
+      <div class="fs-3 fw-semibold">{{ counts.vacaciones_tomadas_anio }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-2">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Apercib. del año</div>
+      <div class="fs-3 fw-semibold">{{ counts.apercibimientos_anio }}</div>
+    </div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('personal.legajos') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Legajos</h2>
+        <p class="text-muted mb-0">Fichas completas de empleados activos y de baja.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('personal.epp_entregas') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Entregas ropa / EPP</h2>
+        <p class="text-muted mb-0">Historial de entregas con talle por persona.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('personal.epp_catalogo') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Catálogo EPP / ropa</h2>
+        <p class="text-muted mb-0">{{ counts.items_epp_activos }} ítem(s) activo(s). Configuración de prendas y EPP.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('personal.vacaciones') }}">
+      <div class="app-card-body">
+        <h2 class="h5 mb-1">Vacaciones</h2>
+        <p class="text-muted mb-0">Pendientes y tomadas por empleado y año.</p>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Próximos cumpleaños (30 días)</div>
+  <div class="app-card-body">
+    {% for e in cumpleanos %}
+    <div class="d-flex justify-content-between border-bottom py-1">
+      <a href="{{ url_for('personal.legajo_detalle', empleado_id=e.id) }}">{{ e.nombre_completo }}</a>
+      <span class="text-muted">{{ e.fecha_nacimiento.strftime('%d/%m') if e.fecha_nacimiento else '—' }}</span>
+    </div>
+    {% else %}
+    <div class="text-muted">Sin cumpleaños en los próximos 30 días.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

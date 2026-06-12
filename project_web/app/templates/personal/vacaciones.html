@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Vacaciones · Personal · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Vacaciones</h1>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
+  </div>
+</div>
+
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Cargar vacación</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Empleado *</label>
+        <select class="form-select" name="empleado_id" required>
+          <option value="">Seleccionar…</option>
+          {% for e in empleados %}
+          <option value="{{ e.id }}">{{ e.nombre_completo }} ({{ e.legajo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Desde *</label>
+        <input type="date" class="form-control" name="fecha_desde" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Hasta *</label>
+        <input type="date" class="form-control" name="fecha_hasta" required>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">Año</label>
+        <input type="number" class="form-control" name="anio" min="2000" max="2100">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="pendiente">Pendiente</option>
+          <option value="tomada">Tomada</option>
+        </select>
+      </div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Todos</option>
+          {% for k, lbl in estado_labels.items() %}
+          <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Año</label>
+        <input type="number" class="form-control" name="anio" value="{{ filtros.anio or '' }}" min="2000" max="2100">
+      </div>
+      <div class="col-md-2"><button type="submit" class="btn btn-primary">Filtrar</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Empleado</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Año</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for v in vacaciones %}
+        <tr>
+          <td><a href="{{ url_for('personal.legajo_detalle', empleado_id=v.empleado_id, tab='vacaciones') }}">{{ v.empleado.nombre_completo }}</a></td>
+          <td>{{ v.fecha_desde.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.fecha_hasta.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.dias }}</td>
+          <td>{{ v.anio }}</td>
+          <td><span class="badge {% if v.estado == 'pendiente' %}text-bg-warning{% elif v.estado == 'tomada' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ estado_labels.get(v.estado, v.estado) }}</span></td>
+          <td class="text-end">
+            {% if puede_gestionar and v.estado == 'pendiente' %}
+            <form method="post" class="d-inline">
+              <input type="hidden" name="action" value="marcar_tomada">
+              <input type="hidden" name="vacacion_id" value="{{ v.id }}">
+              <button type="submit" class="btn btn-sm btn-outline-success">Marcar tomada</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted p-3">Sin registros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Legajos · Personal · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Legajos</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_gestionar %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('personal.legajo_nuevo') }}">Nuevo legajo</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label">Buscar</label>
+        <input type="text" class="form-control" name="q" value="{{ filtros.q or '' }}" placeholder="Legajo, nombre, DNI, puesto…">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Todos</option>
+          {% for k, lbl in estado_labels.items() %}
+          <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lbl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact table-hover mb-0">
+      <thead>
+        <tr><th>Legajo</th><th>Apellido y nombre</th><th>Puesto</th><th>Área</th><th>Estado</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for e in empleados %}
+        <tr>
+          <td>{{ e.legajo }}</td>
+          <td>{{ e.nombre_completo }}</td>
+          <td>{{ e.puesto or '—' }}</td>
+          <td>{{ e.area or '—' }}</td>
+          <td><span class="badge {% if e.estado == 'activo' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ estado_labels.get(e.estado, e.estado) }}</span></td>
+          <td class="text-end"><a href="{{ url_for('personal.legajo_detalle', empleado_id=e.id) }}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted p-3">Sin legajos registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

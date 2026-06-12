@@ -32,5 +32,8 @@ para que nuevas features no mezclen reglas en vistas.
 | Gráficos producción       | services.produccion_graficos_service     |
 | Panel / dashboard         | services.dashboard_service               |
 | Hub producción (operadores)| services.produccion_hub_service        |
+| Personal / RRHH           | EmpleadoPersonal, PersonalEpp*;          |
+|                           | services.personal_service;               |
+|                           | web.modules.personal                     |
 +---------------------------+------------------------------------------+
 """
