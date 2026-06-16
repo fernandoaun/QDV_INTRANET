@@ -10,6 +10,12 @@
 
 <form method="post" class="app-card">
   <div class="app-card-body">
+    {% if empleado and empleado.user %}
+    <div class="alert alert-light border py-2 mb-3" role="status">
+      Usuario del sistema: <strong><code>{{ empleado.user.username }}</code></strong>
+      · <a href="{{ url_for('admin_users.edit_user', uid=empleado.user.id) }}">Ver cuenta</a>
+    </div>
+    {% endif %}
     <div class="row g-3">
       <div class="col-md-2">
         <label class="form-label">Legajo *</label>

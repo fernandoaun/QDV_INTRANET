@@ -10,11 +10,14 @@ def _utc_now() -> datetime:
 
 
 class EmpleadoPersonal(db.Model):
-    """Legajo de personal (RRHH). Distinto de User (login) y Operador (producción)."""
+    """Legajo RRHH vinculado 1:1 a un User (cuenta del sistema)."""
 
     __tablename__ = "personal_empleados"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=True, unique=True, index=True
+    )
     legajo = db.Column(db.String(32), nullable=False, unique=True, index=True)
     dni = db.Column(db.String(16), nullable=False, default="", server_default="")
     cuil = db.Column(db.String(16), nullable=False, default="", server_default="")
@@ -41,6 +44,7 @@ class EmpleadoPersonal(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
+    user = db.relationship("User", backref=db.backref("empleado_personal", uselist=False))
     operador = db.relationship("Operador", backref=db.backref("empleado_personal", uselist=False))
 
     @property

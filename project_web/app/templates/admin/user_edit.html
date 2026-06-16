@@ -3,7 +3,14 @@
 {% block content %}
 <div class="app-page-head">
   <h1 class="app-page-title">Usuario: {{ edit_user.username }}</h1>
-  <div class="app-page-actions">
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if empleado_personal %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.legajo_detalle', empleado_id=empleado_personal.id) }}">Legajo RRHH</a>
+    {% if empleado_legajo_status and not empleado_legajo_status.complete %}
+    <a class="btn btn-warning btn-sm" href="{{ url_for('personal.legajo_editar', empleado_id=empleado_personal.id) }}"
+       title="Falta completar: {{ empleado_legajo_status.missing | join(', ') }}">Completar legajo ({{ empleado_legajo_status.missing_count }})</a>
+    {% endif %}
+    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_users.list_users') }}">← Lista</a>
   </div>
 </div>

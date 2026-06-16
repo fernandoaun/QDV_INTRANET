@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Any
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, select
 
 from app.extensions import db
 from app.models import (
@@ -14,6 +14,7 @@ from app.models import (
     PersonalEntregaEpp,
     PersonalEppItem,
     PersonalVacacion,
+    User,
 )
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -31,6 +32,24 @@ ESTADO_VACACION_LABELS = {"pendiente": "Pendiente", "tomada": "Tomada", "cancela
 TIPO_APERCIBIMIENTO_LABELS = {"verbal": "Verbal", "escrito": "Escrito"}
 CATEGORIA_EPP_LABELS = {"ropa": "Ropa", "epp": "EPP", "otro": "Otro"}
 
+# Campos del legajo RRHH considerados para marcar perfil incompleto.
+LEGAJO_COMPLETENESS_FIELDS: tuple[tuple[str, str], ...] = (
+    ("dni", "DNI"),
+    ("cuil", "CUIL"),
+    ("fecha_nacimiento", "Fecha de nacimiento"),
+    ("fecha_ingreso", "Fecha de ingreso"),
+    ("puesto", "Puesto"),
+    ("area", "Área"),
+    ("domicilio", "Domicilio"),
+    ("telefono", "Teléfono"),
+    ("email", "Email"),
+    ("talle_pantalon", "Talle pantalón"),
+    ("talle_camisa", "Talle camisa"),
+    ("talle_calzado", "Talle calzado"),
+    ("talle_guantes", "Talle guantes"),
+    ("talle_casco", "Talle casco"),
+)
+
 
 def parse_iso_date(raw: str | None) -> date | None:
     s = (raw or "").strip()
@@ -40,6 +59,141 @@ def parse_iso_date(raw: str | None) -> date | None:
         return date.fromisoformat(s[:10])
     except ValueError:
         return None
+
+
+def split_nombre_completo(full: str | None, *, fallback: str = "") -> tuple[str, str]:
+    """Devuelve (apellido, nombre) a partir de «Apellido, Nombre» o «Nombre Apellido»."""
+    s = (full or "").strip()
+    if not s:
+        return fallback, ""
+    if "," in s:
+        ap, nom = [p.strip() for p in s.split(",", 1)]
+        return ap or fallback, nom
+    parts = s.split(None, 1)
+    if len(parts) == 1:
+        return fallback, parts[0]
+    return parts[1], parts[0]
+
+
+def _unique_legajo_for_user(user: User) -> str:
+    base = (user.username or f"U{user.id}").strip()[:32]
+    if not db.session.query(EmpleadoPersonal.id).filter(EmpleadoPersonal.legajo == base).first():
+        return base
+    alt = f"U{user.id}"[:32]
+    if not db.session.query(EmpleadoPersonal.id).filter(EmpleadoPersonal.legajo == alt).first():
+        return alt
+    return f"U{user.id}-{user.username}"[:32]
+
+
+def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal:
+    """Crea el legajo RRHH para un usuario si aún no existe."""
+    existing = (
+        db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user.id).first()
+    )
+    if existing is not None:
+        return existing
+
+    apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or "Sin nombre")
+    emp = EmpleadoPersonal(
+        user_id=user.id,
+        legajo=_unique_legajo_for_user(user),
+        apellido=apellido[:128],
+        nombre=nombre[:128],
+        estado="activo" if user.activo else "baja",
+    )
+    db.session.add(emp)
+    if commit:
+        db.session.commit()
+    return emp
+
+
+def sync_empleados_from_users() -> None:
+    """Asegura un legajo por cada usuario del sistema (idempotente)."""
+    linked_ids = {
+        uid
+        for (uid,) in db.session.query(EmpleadoPersonal.user_id)
+        .filter(EmpleadoPersonal.user_id.isnot(None))
+        .all()
+        if uid is not None
+    }
+    users = db.session.scalars(select(User)).all()
+    created = False
+    for user in users:
+        if user.id not in linked_ids:
+            ensure_empleado_for_user(user, commit=False)
+            created = True
+    if created:
+        db.session.commit()
+
+
+def get_empleado_by_user_id(user_id: int) -> EmpleadoPersonal | None:
+    return db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user_id).first()
+
+
+def sync_user_nombre_from_empleado(emp: EmpleadoPersonal) -> None:
+    if emp.user_id is None:
+        return
+    user = db.session.get(User, emp.user_id)
+    if user is None:
+        return
+    user.nombre_completo = emp.nombre_completo
+
+
+def sync_empleado_nombre_from_user(user: User) -> None:
+    emp = get_empleado_by_user_id(user.id)
+    if emp is None:
+        return
+    apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or emp.apellido)
+    if apellido:
+        emp.apellido = apellido[:128]
+    if nombre:
+        emp.nombre = nombre[:128]
+    emp.estado = "activo" if user.activo else "baja"
+
+
+def legajo_missing_fields(emp: EmpleadoPersonal) -> list[str]:
+    missing: list[str] = []
+    for attr, label in LEGAJO_COMPLETENESS_FIELDS:
+        val = getattr(emp, attr, None)
+        if val is None or (isinstance(val, str) and not val.strip()):
+            missing.append(label)
+    return missing
+
+
+def legajo_is_complete(emp: EmpleadoPersonal) -> bool:
+    return not legajo_missing_fields(emp)
+
+
+def legajo_status_for_empleado(emp: EmpleadoPersonal | None) -> dict[str, Any]:
+    if emp is None:
+        return {
+            "empleado_id": None,
+            "complete": False,
+            "missing": ["Sin legajo"],
+            "missing_count": 0,
+        }
+    missing = legajo_missing_fields(emp)
+    return {
+        "empleado_id": emp.id,
+        "complete": not missing,
+        "missing": missing,
+        "missing_count": len(missing),
+    }
+
+
+def legajo_status_by_user_id(*, sync_users: bool = True) -> dict[int, dict[str, Any]]:
+    """Mapa user_id → estado de completitud del legajo RRHH."""
+    if sync_users:
+        sync_empleados_from_users()
+    rows = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id.isnot(None)).all()
+    return {int(emp.user_id): legajo_status_for_empleado(emp) for emp in rows if emp.user_id is not None}
+
+
+def legajo_status_by_empleado_id(*, sync_users: bool = True) -> dict[int, dict[str, Any]]:
+    if sync_users:
+        sync_empleados_from_users()
+    rows = db.session.query(EmpleadoPersonal).all()
+    return {int(emp.id): legajo_status_for_empleado(emp) for emp in rows}
 
 
 def _dias_entre(desde: date, hasta: date) -> int:
@@ -141,7 +295,8 @@ def proximos_cumpleanos(dias: int = 30) -> list[EmpleadoPersonal]:
 
 
 def list_empleados(*, q: str = "", estado: str = "") -> list[EmpleadoPersonal]:
-    query = db.session.query(EmpleadoPersonal)
+    sync_empleados_from_users()
+    query = db.session.query(EmpleadoPersonal).outerjoin(User, EmpleadoPersonal.user_id == User.id)
     est = (estado or "").strip().lower()
     if est in ESTADOS_EMPLEADO:
         query = query.filter(EmpleadoPersonal.estado == est)
@@ -155,6 +310,7 @@ def list_empleados(*, q: str = "", estado: str = "") -> list[EmpleadoPersonal]:
                 EmpleadoPersonal.nombre.ilike(like),
                 EmpleadoPersonal.dni.ilike(like),
                 EmpleadoPersonal.puesto.ilike(like),
+                User.username.ilike(like),
             )
         )
     return query.order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre).all()
@@ -194,8 +350,7 @@ def save_empleado(
         if emp is None:
             return False, "Empleado no encontrado.", None
     else:
-        emp = EmpleadoPersonal(created_by_id=user_id)
-        db.session.add(emp)
+        return False, "Los legajos se crean al dar de alta un usuario en Administración.", None
 
     emp.legajo = legajo
     emp.dni = (data.get("dni") or "").strip()[:16]
@@ -219,6 +374,7 @@ def save_empleado(
     op_raw = (data.get("operador_id") or "").strip()
     emp.operador_id = int(op_raw) if op_raw.isdigit() else None
     emp.updated_by_id = user_id
+    sync_user_nombre_from_empleado(emp)
     db.session.commit()
     return True, "Legajo guardado.", emp
 

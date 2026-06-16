@@ -45,6 +45,7 @@ def hub():
     u, redir = _require_view()
     if redir is not None:
         return redir
+    ps.sync_empleados_from_users()
     return render_template(
         "personal/hub.html",
         counts=ps.dashboard_counts(),
@@ -62,6 +63,7 @@ def legajos():
     return render_template(
         "personal/legajos.html",
         empleados=ps.list_empleados(q=request.args.get("q", ""), estado=request.args.get("estado", "")),
+        legajo_status=ps.legajo_status_by_empleado_id(sync_users=False),
         filtros={"q": request.args.get("q", ""), "estado": request.args.get("estado", "")},
         estado_labels=ps.ESTADO_EMPLEADO_LABELS,
         puede_gestionar=user_can_manage_personal(u),
@@ -71,23 +73,24 @@ def legajos():
 @bp.route("/legajos/nuevo", methods=["GET", "POST"])
 @login_required
 def legajo_nuevo():
+    flash("Los legajos se crean al dar de alta un usuario en Administración. Desde acá podés completar el perfil.", "info")
+    return redirect(url_for("personal.legajos"))
+
+
+@bp.route("/legajos/usuario/<int:user_id>", methods=["GET", "POST"])
+@login_required
+def legajo_por_usuario(user_id: int):
     u, redir = _require_view()
     if redir is not None:
         return redir
-    if request.method == "POST":
-        mredir = _require_manage(u)
-        if mredir is not None:
-            return mredir
-        ok, msg, emp = ps.save_empleado(request.form, user_id=u.id)
-        flash(msg, "success" if ok else "danger")
-        if ok and emp is not None:
-            return redirect(url_for("personal.legajo_detalle", empleado_id=emp.id))
-    return render_template(
-        "personal/legajo_form.html",
-        empleado=None,
-        operadores=db.session.query(Operador).order_by(Operador.nombre).all(),
-        estado_labels=ps.ESTADO_EMPLEADO_LABELS,
-    )
+    from app.models import User
+
+    user = db.session.get(User, user_id)
+    if user is None:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("personal.legajos"))
+    emp = ps.ensure_empleado_for_user(user)
+    return redirect(url_for("personal.legajo_detalle", empleado_id=emp.id))
 
 
 @bp.route("/legajos/<int:empleado_id>", methods=["GET", "POST"])

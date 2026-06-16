@@ -4,11 +4,13 @@
 <div class="app-page-head">
   <h1 class="app-page-title">Legajos</h1>
   <div class="app-page-actions d-flex flex-wrap gap-2">
-    {% if puede_gestionar %}
-    <a class="btn btn-primary btn-sm" href="{{ url_for('personal.legajo_nuevo') }}">Nuevo legajo</a>
-    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
   </div>
+</div>
+
+<div class="alert alert-light border mb-3" role="status">
+  Cada empleado corresponde a un <strong>usuario del sistema</strong>. Para incorporar personal nuevo, creá el usuario en
+  <a href="{{ url_for('admin_users.list_users') }}">Administración → Usuarios</a> y completá el legajo desde acá.
 </div>
 
 <div class="app-card mb-3">
@@ -38,20 +40,36 @@
   <div class="app-card-body--flush table-responsive">
     <table class="table table-app table-compact table-hover mb-0">
       <thead>
-        <tr><th>Legajo</th><th>Apellido y nombre</th><th>Puesto</th><th>Área</th><th>Estado</th><th></th></tr>
+        <tr><th>Legajo</th><th>Usuario</th><th>Apellido y nombre</th><th>Puesto</th><th>Área</th><th>Estado</th><th>Perfil</th><th></th></tr>
       </thead>
       <tbody>
         {% for e in empleados %}
+        {% set st = legajo_status.get(e.id) %}
         <tr>
           <td>{{ e.legajo }}</td>
+          <td>{% if e.user %}<code>{{ e.user.username }}</code>{% else %}—{% endif %}</td>
           <td>{{ e.nombre_completo }}</td>
           <td>{{ e.puesto or '—' }}</td>
           <td>{{ e.area or '—' }}</td>
           <td><span class="badge {% if e.estado == 'activo' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ estado_labels.get(e.estado, e.estado) }}</span></td>
-          <td class="text-end"><a href="{{ url_for('personal.legajo_detalle', empleado_id=e.id) }}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+          <td>
+            {% if st and st.complete %}
+            <span class="badge text-bg-success">Completo</span>
+            {% elif st %}
+            <span class="badge text-bg-warning" title="Falta completar: {{ st.missing | join(', ') }}">Incompleto ({{ st.missing_count }})</span>
+            {% else %}
+            <span class="badge text-bg-secondary">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if puede_gestionar and st and not st.complete %}
+            <a href="{{ url_for('personal.legajo_editar', empleado_id=e.id) }}" class="btn btn-sm btn-warning me-1">Completar</a>
+            {% endif %}
+            <a href="{{ url_for('personal.legajo_detalle', empleado_id=e.id) }}" class="btn btn-sm btn-outline-primary">Ver</a>
+          </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-muted p-3">Sin legajos registrados.</td></tr>
+        <tr><td colspan="8" class="text-muted p-3">Sin legajos registrados.</td></tr>
         {% endfor %}
       </tbody>
     </table>

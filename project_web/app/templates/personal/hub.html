@@ -7,9 +7,7 @@
     <div class="text-muted">Legajos, EPP, cursos, vacaciones, ART y apercibimientos.</div>
   </div>
   <div class="app-page-actions">
-    {% if puede_gestionar %}
-    <a class="btn btn-primary btn-sm" href="{{ url_for('personal.legajo_nuevo') }}">Nuevo legajo</a>
-    {% endif %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.legajos') }}">Ver legajos</a>
   </div>
 </div>
 
@@ -57,7 +55,7 @@
     <a class="app-card d-block text-decoration-none h-100" href="{{ url_for('personal.legajos') }}">
       <div class="app-card-body">
         <h2 class="h5 mb-1">Legajos</h2>
-        <p class="text-muted mb-0">Fichas completas de empleados activos y de baja.</p>
+        <p class="text-muted mb-0">Un legajo por cada usuario del sistema.</p>
       </div>
     </a>
   </div>

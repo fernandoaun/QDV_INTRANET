@@ -4,7 +4,10 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">{{ empleado.nombre_completo }}</h1>
-    <div class="text-muted">Legajo {{ empleado.legajo }} · {{ estado_labels.get(empleado.estado, empleado.estado) }}</div>
+    <div class="text-muted">
+      Legajo {{ empleado.legajo }} · {{ estado_labels.get(empleado.estado, empleado.estado) }}
+      {% if empleado.user %} · Usuario <code>{{ empleado.user.username }}</code>{% endif %}
+    </div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     {% if puede_gestionar %}
