@@ -31,6 +31,7 @@ from app.models.planificacion import PlanificacionActividad, PlanificacionDepend
 from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
 from app.models.plant_stop import PlantStopAlertEmail, PlantStopEvent
+from app.models.stock_alert import StockAlertEmail, StockCriticalAlertSent
 from app.models.deadline_reminder_sent import DeadlineReminderSent
 from app.models.user import PermisoUsuario, User
 from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHistorial
@@ -103,6 +104,8 @@ __all__ = [
     "DeadlineAlertEmail",
     "PlantStopAlertEmail",
     "PlantStopEvent",
+    "StockAlertEmail",
+    "StockCriticalAlertSent",
     "SectorVencimiento",
     "Vencimiento",
     "VencimientoHistorial",

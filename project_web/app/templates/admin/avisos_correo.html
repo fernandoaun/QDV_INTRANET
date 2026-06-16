@@ -15,6 +15,7 @@
   La misma configuración SMTP sirve para los avisos del módulo <strong>Vencimientos</strong>: un correo por ítem al <strong>email de aviso</strong> del registro cuando faltan hasta 30 días (configurable con <code>DEADLINE_REMINDER_DAYS_BEFORE</code>); opcional copia a esta lista según <code>VENCIMIENTO_MAIL_CC_PANEL</code>.
   Los avisos de <strong>Vencimientos</strong> se envían solos en segundo plano mientras la app está activa (ventana de 30 días).
   Planificación y mantenimiento siguen usando el cron <code>send-deadline-reminders</code> o el botón de abajo para vencimientos.
+  Los avisos de <strong>stock crítico</strong> (por debajo del mínimo) se envían al cruzar el umbral, a los correos de la sección correspondiente.
   <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; los perfiles <strong>Angel</strong> y <strong>SGI</strong> pueden ver esta pantalla completa sin modificarla.
 </p>
 
@@ -157,6 +158,64 @@
     {% if plant_stop_env_addresses %}
     <p class="small mb-0 mt-2 text-muted"><strong>Desde entorno:</strong>
       {% for e in plant_stop_env_addresses %}<code class="me-1">{{ e }}</code>{% endfor %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if viewer_is_admin|default(false) %}
+<div class="app-card mb-4 border-danger">
+  <div class="app-card-header">Stock crítico — correo de aviso (solo administrador)</div>
+  <div class="app-card-body">
+    <p class="small text-muted mb-3">
+      Cuando un producto pasa de alerta preventiva (en el mínimo) o normal a <strong>estado crítico</strong>
+      (stock por debajo del mínimo configurado en el catálogo), se envía un correo automático a estas direcciones.
+      No se repite mientras siga crítico; si el stock se recupera y vuelve a caer, se avisa de nuevo.
+      También podés usar <code>STOCK_CRITICAL_ALERT_EMAIL_TO</code> en el servidor.
+    </p>
+    {% if stock_critical_merged %}
+    <ul class="mb-3 ps-3">
+      {% for m in stock_critical_merged %}<li><code>{{ m }}</code></li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted mb-3">Sin destinatarios configurados: agregá un correo abajo o la variable de entorno.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('admin_users.stock_critical_alert_email_add') }}" class="row g-2 align-items-end mb-3">
+      {% include "_csrf.html" %}
+      <div class="col-md-6">
+        <label class="form-label">Correo electrónico</label>
+        <input type="email" class="form-control" name="email" required maxlength="254" placeholder="compras@dominio.com" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-danger">Guardar</button>
+      </div>
+    </form>
+    <div class="table-responsive">
+      <table class="table table-app table-compact mb-0">
+        <thead><tr><th>ID</th><th>Correo</th><th></th></tr></thead>
+        <tbody>
+        {% for row in stock_critical_db_rows %}
+        <tr>
+          <td>{{ row.id }}</td>
+          <td>{{ row.email }}</td>
+          <td>
+            <form method="post" action="{{ url_for('admin_users.stock_critical_alert_email_delete', eid=row.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Eliminar este correo?');">
+            {% include "_csrf.html" %}
+              <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-muted text-center py-2">Ninguno guardado en base de datos.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if stock_critical_env_addresses %}
+    <p class="small mb-0 mt-2 text-muted"><strong>Desde entorno:</strong>
+      {% for e in stock_critical_env_addresses %}<code class="me-1">{{ e }}</code>{% endfor %}
     </p>
     {% endif %}
   </div>

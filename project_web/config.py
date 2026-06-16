@@ -228,6 +228,8 @@ def get_config_dict(base_dir: Path) -> dict:
     deadline_alert_email_to = [e.strip() for e in deadline_mail_raw.split(",") if e.strip()]
     plant_stop_mail_raw = (os.environ.get("PLANT_STOP_ALERT_EMAIL_TO") or "").strip()
     plant_stop_alert_email_to = [e.strip() for e in plant_stop_mail_raw.split(",") if e.strip()]
+    stock_critical_mail_raw = (os.environ.get("STOCK_CRITICAL_ALERT_EMAIL_TO") or "").strip()
+    stock_critical_alert_email_to = [e.strip() for e in stock_critical_mail_raw.split(",") if e.strip()]
     deadline_days_raw = (os.environ.get("DEADLINE_REMINDER_DAYS_BEFORE") or "30").strip()
     try:
         deadline_reminder_days_before = int(deadline_days_raw)
@@ -339,6 +341,7 @@ def get_config_dict(base_dir: Path) -> dict:
         "MAIL_FROM": mail_from,
         "DEADLINE_ALERT_EMAIL_TO": deadline_alert_email_to,
         "PLANT_STOP_ALERT_EMAIL_TO": plant_stop_alert_email_to,
+        "STOCK_CRITICAL_ALERT_EMAIL_TO": stock_critical_alert_email_to,
         "DEADLINE_REMINDER_DAYS_BEFORE": deadline_reminder_days_before,
         "VENCIMIENTO_MAIL_CC_PANEL": vencimiento_mail_cc_panel,
         "VENCIMIENTO_AUTO_MAIL_ENABLED": vencimiento_auto_mail_enabled,

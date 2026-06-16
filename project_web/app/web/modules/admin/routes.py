@@ -20,6 +20,7 @@ from app.services.deadline_alert_email_service import (
     normalize_validate_email,
 )
 from app.services import plant_stop_service as plant_stop_svc
+from app.services import stock_alert_email_service as stock_alert_svc
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
@@ -389,6 +390,11 @@ def deadline_alert_emails():
         for x in (current_app.config.get("PLANT_STOP_ALERT_EMAIL_TO") or [])
         if str(x).strip()
     ]
+    stock_critical_env = [
+        str(x).strip()
+        for x in (current_app.config.get("STOCK_CRITICAL_ALERT_EMAIL_TO") or [])
+        if str(x).strip()
+    ]
     return render_template(
         "admin/avisos_correo.html",
         db_rows=rows,
@@ -400,6 +406,9 @@ def deadline_alert_emails():
         plant_stop_db_rows=plant_stop_svc.list_alert_emails_ordered() if u.is_admin else [],
         plant_stop_merged=plant_stop_svc.merged_plant_stop_recipients(current_app) if u.is_admin else [],
         plant_stop_env_addresses=plant_stop_env if u.is_admin else [],
+        stock_critical_db_rows=stock_alert_svc.list_emails_ordered() if u.is_admin else [],
+        stock_critical_merged=stock_alert_svc.merged_recipient_addresses(current_app) if u.is_admin else [],
+        stock_critical_env_addresses=stock_critical_env if u.is_admin else [],
     )
 
 
@@ -464,6 +473,27 @@ def plant_stop_alert_email_delete(eid: int):
         flash("Correo no encontrado.", "warning")
     else:
         flash("Correo de paradas de planta eliminado.", "info")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
+
+
+@bp.post("/avisos-correo/stock-critico/agregar")
+@login_required
+@admin_required
+def stock_critical_alert_email_add():
+    ok, msg = stock_alert_svc.add_email(request.form.get("email"))
+    flash(msg, "success" if ok else "danger")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
+
+
+@bp.post("/avisos-correo/stock-critico/<int:eid>/eliminar")
+@login_required
+@admin_required
+def stock_critical_alert_email_delete(eid: int):
+    removed = stock_alert_svc.delete_email_row(eid)
+    if removed is None:
+        flash("Correo no encontrado.", "warning")
+    else:
+        flash("Correo de stock crítico eliminado.", "info")
     return redirect(url_for("admin_users.deadline_alert_emails"))
 
 

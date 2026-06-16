@@ -213,7 +213,10 @@ def puede_marcar_entregada(entrega: Entrega) -> bool:
     return str(entrega.estado or "") in ("programada", "cargada")
 
 
-def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime, cantidad_real: float | None = None) -> None:
+def ejecutar_cargada(
+    entrega: Entrega, actor: User | None, ahora: datetime, cantidad_real: float | None = None
+) -> tuple[str, str] | None:
+    """Registra la carga. Devuelve (categoría, producto ledger) si hubo consumo de stock."""
     if not puede_marcar_cargada(entrega):
         raise ValueError("Esta entrega no admite la acción «Cargar».")
     op_name = _actor_operador(actor)
@@ -274,6 +277,9 @@ def ejecutar_cargada(entrega: Entrega, actor: User | None, ahora: datetime, cant
         _actor_display(actor),
         detalle_carga,
     )
+    if consumo_id is not None:
+        return cat, prod_ledger
+    return None
 
 
 def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime, cantidad_real: float | None = None) -> None:

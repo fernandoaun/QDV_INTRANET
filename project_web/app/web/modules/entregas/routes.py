@@ -139,8 +139,10 @@ def gestion():
                     programada if cantidad_real_raw is None else cantidad_real_raw, "La cantidad a cargar"
                 )
                 warning = entregas_service.cantidad_real_warning(programada, cantidad_real)
-                entregas_service.ejecutar_cargada(ent, u, ahora, cantidad_real)
+                stock_mut = entregas_service.ejecutar_cargada(ent, u, ahora, cantidad_real)
                 db.session.commit()
+                if stock_mut is not None:
+                    stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
                 flash("Entrega marcada como cargada.", "success")
                 if warning:
                     flash(warning, "warning")

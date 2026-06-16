@@ -604,6 +604,7 @@ def save_ingreso(
         )
     )
     db.session.commit()
+    after_stock_mutation(c, p)
 
 
 def add_consumo_stock_record(
@@ -718,6 +719,7 @@ def save_consumo(
         ingreso_stock_id=ingreso_stock_id,
     )
     db.session.commit()
+    after_stock_mutation(categoria, producto)
 
 
 def stock_consolidado(cat: str) -> list[dict[str, Any]]:
@@ -852,6 +854,19 @@ def _nivel_alerta_panel(stock_actual: float, stock_minimo: float) -> str | None:
     if a == m:
         return "limite"
     return "critico"
+
+
+def after_stock_mutation(categoria: str, producto: str) -> None:
+    """Tras un cambio de stock, evalúa si hay que avisar por correo (estado crítico)."""
+    try:
+        from flask import current_app
+
+        app = current_app._get_current_object()
+    except RuntimeError:
+        return
+    from app.services.stock_critical_alert_service import maybe_notify_critical_transition
+
+    maybe_notify_critical_transition(app, categoria, producto)
 
 
 def alertas_bajo_stock(limit: int = 100) -> list[dict[str, Any]]:
@@ -1209,6 +1224,7 @@ def save_ajuste_from_web_form(form: Any, *, operador: str, admin_user_id: int | 
     )
     db.session.add(rec)
     db.session.commit()
+    after_stock_mutation(c, p)
     return rec
 
 
@@ -1438,3 +1454,4 @@ def update_catalog_product_admin(
         if normalize_tipo_producto(row.tipo_producto) == "Filtro":
             row.requiere_equipo = True
     db.session.commit()
+    after_stock_mutation(str(row.categoria), str(row.nombre_producto))
