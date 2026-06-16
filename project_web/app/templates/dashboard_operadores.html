@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Operadores · Panel · QDV{% endblock %}
+{% block content %}
+<div class="app-card">
+  <div class="app-card-body">
+    <h1 class="app-page-title mb-2">Panel</h1>
+    <p class="app-text-secondary mb-3">
+      Ranking de atrasos en análisis y producción de hipoclorito por operador.
+    </p>
+    {% set dashboard_tab = 'operadores' %}
+    {% include "panel/_dashboard_tabs.html" %}
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="app-card app-panel-kpi h-100 mb-0">
+          <div class="app-card-header app-card-header--split">
+            <span class="text-uppercase fw-semibold small">Producción {{ mes_actual.label }}</span>
+            <span class="small app-text-secondary">Mes en curso</span>
+          </div>
+          <div class="app-card-body">
+            <div class="app-panel-kpi-value">{{ mes_actual.total_display }}</div>
+            <p class="app-text-secondary small mb-0">
+              {{ mes_actual.turnos_contados }} turno(s) cerrado(s) ·
+              Promedio por operador: <strong>{{ mes_actual.promedio_por_operador_display }}</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="app-card app-panel-kpi h-100 mb-0">
+          <div class="app-card-header app-card-header--split">
+            <span class="text-uppercase fw-semibold small">Producción {{ mes_anterior.label }}</span>
+            <span class="small app-text-secondary">Mes anterior</span>
+          </div>
+          <div class="app-card-body">
+            <div class="app-panel-kpi-value">{{ mes_anterior.total_display }}</div>
+            <p class="app-text-secondary small mb-0">
+              {{ mes_anterior.turnos_contados }} turno(s) cerrado(s) ·
+              Promedio por operador: <strong>{{ mes_anterior.promedio_por_operador_display }}</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="app-text-secondary small mb-0">
+      La producción se calcula por turno recepcionado: stock cierre − stock apertura + cargas − ingresos PT (admin),
+      atribuida al operador que entregó el turno.
+    </p>
+  </div>
+</div>
+
+<div class="app-card mt-3">
+  <div class="app-card-header app-card-header--split">
+    <span>Ranking de atrasos en análisis</span>
+    <span class="small app-text-secondary">{{ ranking_periodo_label }}</span>
+  </div>
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    {% if ranking_atrasos %}
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Operador</th>
+          <th>Total atrasos</th>
+          <th>En qué análisis</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in ranking_atrasos %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ r.operador }}</strong></td>
+          <td>
+            {% if r.total_atrasos > 0 %}
+            <span class="badge text-bg-danger">{{ r.total_atrasos }}</span>
+            {% else %}
+            <span class="text-muted">0</span>
+            {% endif %}
+          </td>
+          <td class="small">
+            {% if r.desglose %}
+            {% for d in r.desglose %}
+            <span class="badge text-bg-secondary app-badge-soft me-1 mb-1" title="{{ d.label }}">
+              {{ d.label }}: {{ d.count }}
+            </span>
+            {% endfor %}
+            {% else %}
+            —
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="app-card-body">
+      <p class="app-text-secondary mb-0">Sin registros con atraso en el período.</p>
+    </div>
+    {% endif %}
+  </div>
+  <div class="app-card-body border-top">
+    <p class="app-text-secondary small mb-0">
+      Un análisis se considera atrasado si supera el intervalo operativo (2 h hipoclorito/reactor, 8 h agua/análisis 8 hs)
+      respecto al registro anterior, si tiene motivo de atraso cargado (hipoclorito), o si hubo paradas de planta en el intervalo.
+    </p>
+  </div>
+</div>
+
+<div class="row g-3 mt-0">
+  <div class="col-lg-6">
+    <div class="app-card h-100">
+      <div class="app-card-header app-card-header--split">
+        <span>Producción por operador — {{ mes_actual.label }}</span>
+        <span class="small app-text-secondary">Mes en curso</span>
+      </div>
+      {% if mes_actual.operadores %}
+      <div class="app-card-body--flush table-responsive app-table-scroll">
+        <table class="table table-app table-compact mb-0">
+          <thead>
+            <tr>
+              <th>Operador</th>
+              <th>Producción</th>
+              <th>Turnos</th>
+              <th>Prom./turno</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in mes_actual.operadores %}
+            <tr>
+              <td>{{ o.operador }}</td>
+              <td>{{ o.produccion_display }}</td>
+              <td>{{ o.turnos }}</td>
+              <td>{{ o.promedio_por_turno_display }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="app-card-body">
+        <p class="app-text-secondary mb-0">Sin turnos recepcionados en este mes.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="app-card h-100">
+      <div class="app-card-header app-card-header--split">
+        <span>Producción por operador — {{ mes_anterior.label }}</span>
+        <span class="small app-text-secondary">Mes anterior</span>
+      </div>
+      {% if mes_anterior.operadores %}
+      <div class="app-card-body--flush table-responsive app-table-scroll">
+        <table class="table table-app table-compact mb-0">
+          <thead>
+            <tr>
+              <th>Operador</th>
+              <th>Producción</th>
+              <th>Turnos</th>
+              <th>Prom./turno</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in mes_anterior.operadores %}
+            <tr>
+              <td>{{ o.operador }}</td>
+              <td>{{ o.produccion_display }}</td>
+              <td>{{ o.turnos }}</td>
+              <td>{{ o.promedio_por_turno_display }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="app-card-body">
+        <p class="app-text-secondary mb-0">Sin turnos recepcionados en ese mes.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

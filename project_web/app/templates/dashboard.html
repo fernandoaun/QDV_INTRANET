@@ -8,6 +8,8 @@
       Sesión: <strong>{{ nav_user.username }}</strong>
       {% if nav_user.is_admin %}<span class="badge rounded-pill text-bg-secondary">{{ role_labels.get('administrador', 'Administrador') }}</span>{% else %}<span class="badge rounded-pill text-bg-secondary">{{ user_role_label(nav_user) }}</span>{% endif %}
     </p>
+    {% set dashboard_tab = dashboard_tab | default('resumen') %}
+    {% include "panel/_dashboard_tabs.html" %}
     {% if operational_indicators.pending_handover_notice %}
     <div class="alert alert-warning mb-3" role="alert">
       <div class="mb-1">{{ operational_indicators.pending_handover_notice }}</div>

@@ -23,7 +23,18 @@ def index():
 @login_required
 def dashboard():
     ctx = dashboard_service.build_dashboard_template_context(current_user())
+    ctx["dashboard_tab"] = "resumen"
     return render_template("dashboard.html", **ctx)
+
+
+@bp.get("/dashboard/operadores")
+@login_required
+def dashboard_operadores():
+    from app.services.operador_dashboard_service import build_operador_dashboard_context
+
+    ctx = build_operador_dashboard_context()
+    ctx["dashboard_tab"] = "operadores"
+    return render_template("dashboard_operadores.html", **ctx)
 
 
 @bp.get("/manual")
