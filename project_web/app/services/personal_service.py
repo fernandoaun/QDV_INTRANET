@@ -16,7 +16,10 @@ from app.models import (
     PersonalVacacion,
     User,
 )
+from app.user_roles import ROLE_SGI, ROLE_SOLO_LECTURA_TOTAL, normalize_stored_rol
 from app.utils.datetime_operacion import now_operacion_naive_local
+
+ROLES_SIN_LEGAJO: frozenset[str] = frozenset({ROLE_SOLO_LECTURA_TOTAL, ROLE_SGI})
 
 
 def today_operacion() -> date:
@@ -47,7 +50,7 @@ LEGAJO_COMPLETENESS_FIELDS: tuple[tuple[str, str], ...] = (
     ("talle_camisa", "Talle camisa"),
     ("talle_calzado", "Talle calzado"),
     ("talle_guantes", "Talle guantes"),
-    ("talle_casco", "Talle casco"),
+    ("talle_mameluco", "Talle mameluco"),
 )
 
 
@@ -59,6 +62,27 @@ def parse_iso_date(raw: str | None) -> date | None:
         return date.fromisoformat(s[:10])
     except ValueError:
         return None
+
+
+def user_requires_legajo(user: User | None) -> bool:
+    """Angel y SGI no llevan legajo RRHH."""
+    if user is None:
+        return False
+    return normalize_stored_rol(getattr(user, "rol", None)) not in ROLES_SIN_LEGAJO
+
+
+def _query_empleados_con_legajo():
+    """Empleados visibles en RRHH (excluye usuarios Angel / SGI)."""
+    return (
+        db.session.query(EmpleadoPersonal)
+        .outerjoin(User, EmpleadoPersonal.user_id == User.id)
+        .filter(
+            or_(
+                EmpleadoPersonal.user_id.is_(None),
+                User.rol.notin_(tuple(ROLES_SIN_LEGAJO)),
+            )
+        )
+    )
 
 
 def split_nombre_completo(full: str | None, *, fallback: str = "") -> tuple[str, str]:
@@ -75,18 +99,51 @@ def split_nombre_completo(full: str | None, *, fallback: str = "") -> tuple[str,
     return parts[1], parts[0]
 
 
-def _unique_legajo_for_user(user: User) -> str:
-    base = (user.username or f"U{user.id}").strip()[:32]
-    if not db.session.query(EmpleadoPersonal.id).filter(EmpleadoPersonal.legajo == base).first():
-        return base
-    alt = f"U{user.id}"[:32]
-    if not db.session.query(EmpleadoPersonal.id).filter(EmpleadoPersonal.legajo == alt).first():
-        return alt
-    return f"U{user.id}-{user.username}"[:32]
+def format_legajo_correlativo(year: int, seq: int) -> str:
+    """Número de legajo: año de ingreso + correlativo de ese año (ej. 2026-003)."""
+    return f"{year}-{seq:03d}"
 
 
-def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal:
+def renumber_legajos_for_year(year: int) -> None:
+    """Reasigna correlativos del año según fecha de ingreso (y id como desempate)."""
+    rows = (
+        _query_empleados_con_legajo()
+        .filter(
+            EmpleadoPersonal.fecha_ingreso.isnot(None),
+            func.extract("year", EmpleadoPersonal.fecha_ingreso) == year,
+        )
+        .order_by(EmpleadoPersonal.fecha_ingreso.asc(), EmpleadoPersonal.id.asc())
+        .all()
+    )
+    for seq, emp in enumerate(rows, start=1):
+        emp.legajo = format_legajo_correlativo(year, seq)
+
+
+def normalize_legajos_correlativos() -> None:
+    """Fecha de ingreso faltante → hoy; renumerar todos los años con legajos."""
+    sin_fecha = _query_empleados_con_legajo().filter(EmpleadoPersonal.fecha_ingreso.is_(None)).all()
+    hoy = today_operacion()
+    for emp in sin_fecha:
+        emp.fecha_ingreso = hoy
+    years_raw = (
+        db.session.query(func.extract("year", EmpleadoPersonal.fecha_ingreso))
+        .filter(EmpleadoPersonal.fecha_ingreso.isnot(None))
+        .distinct()
+        .all()
+    )
+    for (year_val,) in years_raw:
+        if year_val is not None:
+            renumber_legajos_for_year(int(year_val))
+
+
+def _temp_legajo_for_user(user: User) -> str:
+    return f"TMP-U{user.id}"[:32]
+
+
+def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal | None:
     """Crea el legajo RRHH para un usuario si aún no existe."""
+    if not user_requires_legajo(user):
+        return None
     existing = (
         db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user.id).first()
     )
@@ -96,19 +153,22 @@ def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPers
     apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or "Sin nombre")
     emp = EmpleadoPersonal(
         user_id=user.id,
-        legajo=_unique_legajo_for_user(user),
+        legajo=_temp_legajo_for_user(user),
         apellido=apellido[:128],
         nombre=nombre[:128],
+        fecha_ingreso=today_operacion(),
         estado="activo" if user.activo else "baja",
     )
     db.session.add(emp)
+    db.session.flush()
+    renumber_legajos_for_year(emp.fecha_ingreso.year)
     if commit:
         db.session.commit()
     return emp
 
 
 def sync_empleados_from_users() -> None:
-    """Asegura un legajo por cada usuario del sistema (idempotente)."""
+    """Asegura un legajo por cada usuario que lo requiere (idempotente)."""
     linked_ids = {
         uid
         for (uid,) in db.session.query(EmpleadoPersonal.user_id)
@@ -117,13 +177,21 @@ def sync_empleados_from_users() -> None:
         if uid is not None
     }
     users = db.session.scalars(select(User)).all()
-    created = False
+    changed = False
     for user in users:
+        if not user_requires_legajo(user):
+            emp = get_empleado_by_user_id(user.id)
+            if emp is not None:
+                db.session.delete(emp)
+                changed = True
+            continue
         if user.id not in linked_ids:
             ensure_empleado_for_user(user, commit=False)
-            created = True
-    if created:
+            changed = True
+    if changed:
         db.session.commit()
+    normalize_legajos_correlativos()
+    db.session.commit()
 
 
 def get_empleado_by_user_id(user_id: int) -> EmpleadoPersonal | None:
@@ -139,9 +207,16 @@ def sync_user_nombre_from_empleado(emp: EmpleadoPersonal) -> None:
     user.nombre_completo = emp.nombre_completo
 
 
-def sync_empleado_nombre_from_user(user: User) -> None:
+def sync_empleado_for_user_role(user: User) -> None:
+    """Crea, actualiza o elimina el legajo según el perfil del usuario."""
+    if not user_requires_legajo(user):
+        emp = get_empleado_by_user_id(user.id)
+        if emp is not None:
+            db.session.delete(emp)
+        return
     emp = get_empleado_by_user_id(user.id)
     if emp is None:
+        ensure_empleado_for_user(user, commit=False)
         return
     apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or emp.apellido)
     if apellido:
@@ -149,6 +224,10 @@ def sync_empleado_nombre_from_user(user: User) -> None:
     if nombre:
         emp.nombre = nombre[:128]
     emp.estado = "activo" if user.activo else "baja"
+
+
+def sync_empleado_nombre_from_user(user: User) -> None:
+    sync_empleado_for_user_role(user)
 
 
 def legajo_missing_fields(emp: EmpleadoPersonal) -> list[str]:
@@ -185,14 +264,19 @@ def legajo_status_by_user_id(*, sync_users: bool = True) -> dict[int, dict[str, 
     """Mapa user_id → estado de completitud del legajo RRHH."""
     if sync_users:
         sync_empleados_from_users()
-    rows = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id.isnot(None)).all()
+    rows = (
+        db.session.query(EmpleadoPersonal)
+        .join(User, EmpleadoPersonal.user_id == User.id)
+        .filter(~User.rol.in_(tuple(ROLES_SIN_LEGAJO)))
+        .all()
+    )
     return {int(emp.user_id): legajo_status_for_empleado(emp) for emp in rows if emp.user_id is not None}
 
 
 def legajo_status_by_empleado_id(*, sync_users: bool = True) -> dict[int, dict[str, Any]]:
     if sync_users:
         sync_empleados_from_users()
-    rows = db.session.query(EmpleadoPersonal).all()
+    rows = _query_empleados_con_legajo().all()
     return {int(emp.id): legajo_status_for_empleado(emp) for emp in rows}
 
 
@@ -202,27 +286,23 @@ def _dias_entre(desde: date, hasta: date) -> int:
 
 def dashboard_counts() -> dict[str, int]:
     hoy = today_operacion()
+    base = _query_empleados_con_legajo()
 
-    activos = (
-        db.session.query(func.count(EmpleadoPersonal.id))
-        .filter(EmpleadoPersonal.estado == "activo")
-        .scalar()
-        or 0
-    )
-    cumple_mes = (
-        db.session.query(func.count(EmpleadoPersonal.id))
-        .filter(
-            EmpleadoPersonal.estado == "activo",
-            EmpleadoPersonal.fecha_nacimiento.isnot(None),
-            func.extract("month", EmpleadoPersonal.fecha_nacimiento) == hoy.month,
-        )
-        .scalar()
-        or 0
-    )
+    activos = base.filter(EmpleadoPersonal.estado == "activo").count()
+    cumple_mes = base.filter(
+        EmpleadoPersonal.estado == "activo",
+        EmpleadoPersonal.fecha_nacimiento.isnot(None),
+        func.extract("month", EmpleadoPersonal.fecha_nacimiento) == hoy.month,
+    ).count()
     cursos_por_vencer = (
         db.session.query(func.count(PersonalCurso.id))
         .join(EmpleadoPersonal)
+        .outerjoin(User, EmpleadoPersonal.user_id == User.id)
         .filter(
+            or_(
+                EmpleadoPersonal.user_id.is_(None),
+                User.rol.notin_(tuple(ROLES_SIN_LEGAJO)),
+            ),
             EmpleadoPersonal.estado == "activo",
             PersonalCurso.fecha_vencimiento.isnot(None),
             PersonalCurso.fecha_vencimiento <= hoy + timedelta(days=30),
@@ -268,7 +348,7 @@ def dashboard_counts() -> dict[str, int]:
 def proximos_cumpleanos(dias: int = 30) -> list[EmpleadoPersonal]:
     hoy = today_operacion()
     empleados = (
-        db.session.query(EmpleadoPersonal)
+        _query_empleados_con_legajo()
         .filter(EmpleadoPersonal.estado == "activo", EmpleadoPersonal.fecha_nacimiento.isnot(None))
         .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre)
         .all()
@@ -296,7 +376,7 @@ def proximos_cumpleanos(dias: int = 30) -> list[EmpleadoPersonal]:
 
 def list_empleados(*, q: str = "", estado: str = "") -> list[EmpleadoPersonal]:
     sync_empleados_from_users()
-    query = db.session.query(EmpleadoPersonal).outerjoin(User, EmpleadoPersonal.user_id == User.id)
+    query = _query_empleados_con_legajo()
     est = (estado or "").strip().lower()
     if est in ESTADOS_EMPLEADO:
         query = query.filter(EmpleadoPersonal.estado == est)
@@ -326,24 +406,18 @@ def save_empleado(
     empleado_id: int | None = None,
     user_id: int | None = None,
 ) -> tuple[bool, str, EmpleadoPersonal | None]:
-    legajo = (data.get("legajo") or "").strip()
     apellido = (data.get("apellido") or "").strip()
     nombre = (data.get("nombre") or "").strip()
-    if not legajo or not apellido or not nombre:
-        return False, "Legajo, apellido y nombre son obligatorios.", None
+    if not apellido or not nombre:
+        return False, "Apellido y nombre son obligatorios.", None
+
+    fecha_ingreso = parse_iso_date(data.get("fecha_ingreso"))
+    if fecha_ingreso is None:
+        return False, "La fecha de ingreso es obligatoria (define el número de legajo).", None
 
     estado = (data.get("estado") or "activo").strip().lower()
     if estado not in ESTADOS_EMPLEADO:
         estado = "activo"
-
-    existing_legajo = (
-        db.session.query(EmpleadoPersonal)
-        .filter(EmpleadoPersonal.legajo == legajo)
-        .filter(EmpleadoPersonal.id != (empleado_id or -1))
-        .first()
-    )
-    if existing_legajo:
-        return False, f"Ya existe un legajo con número {legajo}.", None
 
     if empleado_id:
         emp = db.session.get(EmpleadoPersonal, empleado_id)
@@ -352,7 +426,8 @@ def save_empleado(
     else:
         return False, "Los legajos se crean al dar de alta un usuario en Administración.", None
 
-    emp.legajo = legajo
+    old_year = emp.fecha_ingreso.year if emp.fecha_ingreso else None
+
     emp.dni = (data.get("dni") or "").strip()[:16]
     emp.cuil = (data.get("cuil") or "").strip()[:16]
     emp.apellido = apellido[:128]
@@ -363,17 +438,21 @@ def save_empleado(
     emp.email = (data.get("email") or "").strip()[:256]
     emp.puesto = (data.get("puesto") or "").strip()[:128]
     emp.area = (data.get("area") or "").strip()[:128]
-    emp.fecha_ingreso = parse_iso_date(data.get("fecha_ingreso"))
+    emp.fecha_ingreso = fecha_ingreso
     emp.estado = estado
     emp.talle_pantalon = (data.get("talle_pantalon") or "").strip()[:16]
     emp.talle_camisa = (data.get("talle_camisa") or "").strip()[:16]
     emp.talle_calzado = (data.get("talle_calzado") or "").strip()[:16]
     emp.talle_guantes = (data.get("talle_guantes") or "").strip()[:16]
-    emp.talle_casco = (data.get("talle_casco") or "").strip()[:16]
+    emp.talle_mameluco = (data.get("talle_mameluco") or "").strip()[:16]
     emp.observaciones = (data.get("observaciones") or "").strip()[:4000]
     op_raw = (data.get("operador_id") or "").strip()
     emp.operador_id = int(op_raw) if op_raw.isdigit() else None
     emp.updated_by_id = user_id
+    db.session.flush()
+    renumber_legajos_for_year(fecha_ingreso.year)
+    if old_year is not None and old_year != fecha_ingreso.year:
+        renumber_legajos_for_year(old_year)
     sync_user_nombre_from_empleado(emp)
     db.session.commit()
     return True, "Legajo guardado.", emp

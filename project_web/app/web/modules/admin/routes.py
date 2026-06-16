@@ -54,6 +54,7 @@ def list_users():
         "admin/users_list.html",
         users=rows,
         legajo_status=personal_svc.legajo_status_by_user_id(sync_users=False),
+        user_requires_legajo=personal_svc.user_requires_legajo,
         viewer_may_manage_users=bool(u.is_admin),
     )
 
@@ -111,7 +112,8 @@ def create_user():
     )
     db.session.add(u)
     db.session.commit()
-    personal_svc.ensure_empleado_for_user(u)
+    personal_svc.sync_empleado_for_user_role(u)
+    db.session.commit()
     audit_svc.record_event(
         action="user_create",
         module="admin",
@@ -190,7 +192,7 @@ def edit_user(uid: int):
             u.rol = rol
             u.is_admin = will_admin
             u.activo = will_activo
-            personal_svc.sync_empleado_nombre_from_user(u)
+            personal_svc.sync_empleado_for_user_role(u)
             db.session.execute(delete(PermisoUsuario).where(PermisoUsuario.user_id == u.id))
             if not u.is_admin and normalize_stored_rol(u.rol) not in (
                 ROLE_LABORATORISTA,
@@ -301,8 +303,10 @@ def edit_user(uid: int):
         ROLE_SOLO_LECTURA_TOTAL,
         ROLE_SGI,
     )
-    empleado_personal = personal_svc.get_empleado_by_user_id(u.id)
-    if empleado_personal is None:
+    empleado_personal = (
+        personal_svc.get_empleado_by_user_id(u.id) if personal_svc.user_requires_legajo(u) else None
+    )
+    if empleado_personal is None and personal_svc.user_requires_legajo(u):
         personal_svc.ensure_empleado_for_user(u)
         empleado_personal = personal_svc.get_empleado_by_user_id(u.id)
     return render_template(
@@ -310,6 +314,7 @@ def edit_user(uid: int):
         edit_user=u,
         empleado_personal=empleado_personal,
         empleado_legajo_status=personal_svc.legajo_status_for_empleado(empleado_personal),
+        user_requires_legajo=personal_svc.user_requires_legajo,
         hide_perm_grid=hide_perm_grid,
         admin_viewer_read_only=admin_viewer_read_only,
         permission_keys=PERMISSION_KEYS,

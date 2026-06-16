@@ -69,7 +69,10 @@ def test_user_create_generates_legajo(auth_client, app):
         emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user.id).one()
         assert emp.apellido == "Pérez"
         assert emp.nombre == "Ana"
-        assert emp.legajo == "nuevo.emp"
+        assert emp.fecha_ingreso is not None
+        import re
+        assert re.fullmatch(r"\d{4}-\d{3}", emp.legajo)
+        assert emp.legajo.startswith(str(emp.fecha_ingreso.year))
         user_id = user.id
 
     r = auth_client.get(f"/personal/legajos/usuario/{user_id}", follow_redirects=False)
@@ -98,7 +101,7 @@ def test_legajo_completeness_indicator(app):
             talle_camisa="L",
             talle_calzado="41",
             talle_guantes="M",
-            talle_casco="S",
+            talle_mameluco="S",
         )
         assert ps.legajo_is_complete(emp) is False
         emp.fecha_nacimiento = date(1990, 1, 1)
@@ -106,8 +109,75 @@ def test_legajo_completeness_indicator(app):
         assert ps.legajo_is_complete(emp) is True
 
 
+def test_legajo_correlativo_por_anio(app):
+    from datetime import date
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        e1 = EmpleadoPersonal(
+            legajo="TMP-1",
+            apellido="Primero",
+            nombre="A",
+            fecha_ingreso=date(2026, 6, 1),
+        )
+        e2 = EmpleadoPersonal(
+            legajo="TMP-2",
+            apellido="Segundo",
+            nombre="B",
+            fecha_ingreso=date(2026, 1, 10),
+        )
+        db.session.add_all([e1, e2])
+        db.session.flush()
+        ps.renumber_legajos_for_year(2026)
+        db.session.commit()
+        assert e2.legajo == "2026-001"
+        assert e1.legajo == "2026-002"
+
+
 def test_users_list_shows_incomplete_legajo(auth_client):
     r = auth_client.get("/admin/usuarios")
     assert r.status_code == 200
     assert b"Incompleto" in r.data or b"Completo" in r.data
     assert b"Legajo RRHH" in r.data
+
+
+def test_sgi_user_sin_legajo(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.user_roles import ROLE_SGI
+
+    lg = auth_client.get("/login")
+    html = lg.get_data(as_text=True)
+    import re
+
+    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
+    assert m is not None
+    r = auth_client.post(
+        "/admin/usuarios/nuevo",
+        data={
+            "username": "usuario.sgi",
+            "nombre_completo": "SGI Test",
+            "password": "secret12",
+            "password2": "secret12",
+            "activo": "1",
+            "rol": ROLE_SGI,
+            "csrf_token": m.group(1),
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        user = db.session.query(User).filter(User.username == "usuario.sgi").one()
+        assert db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user.id).count() == 0
+
+    r = auth_client.get("/admin/usuarios")
+    assert b"usuario.sgi" in r.data
+    assert b"N/A" in r.data
+
+    r = auth_client.get("/personal/legajos")
+    assert r.status_code == 200
+    assert b"usuario.sgi" not in r.data

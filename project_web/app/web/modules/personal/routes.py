@@ -89,7 +89,13 @@ def legajo_por_usuario(user_id: int):
     if user is None:
         flash("Usuario no encontrado.", "danger")
         return redirect(url_for("personal.legajos"))
+    if not ps.user_requires_legajo(user):
+        flash("Los perfiles Angel y SGI no llevan legajo RRHH.", "info")
+        return redirect(url_for("personal.legajos"))
     emp = ps.ensure_empleado_for_user(user)
+    if emp is None:
+        flash("No se pudo abrir el legajo para este usuario.", "warning")
+        return redirect(url_for("personal.legajos"))
     return redirect(url_for("personal.legajo_detalle", empleado_id=emp.id))
 
 

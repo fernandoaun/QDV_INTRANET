@@ -35,7 +35,7 @@ class EmpleadoPersonal(db.Model):
     talle_camisa = db.Column(db.String(16), nullable=False, default="", server_default="")
     talle_calzado = db.Column(db.String(16), nullable=False, default="", server_default="")
     talle_guantes = db.Column(db.String(16), nullable=False, default="", server_default="")
-    talle_casco = db.Column(db.String(16), nullable=False, default="", server_default="")
+    talle_mameluco = db.Column(db.String(16), nullable=False, default="", server_default="")
     observaciones = db.Column(db.String(4000), nullable=False, default="", server_default="")
     operador_id = db.Column(db.Integer, db.ForeignKey("operadores.id", ondelete="SET NULL"), nullable=True, index=True)
 

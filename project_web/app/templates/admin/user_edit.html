@@ -4,7 +4,7 @@
 <div class="app-page-head">
   <h1 class="app-page-title">Usuario: {{ edit_user.username }}</h1>
   <div class="app-page-actions d-flex flex-wrap gap-2">
-    {% if empleado_personal %}
+    {% if user_requires_legajo(edit_user) and empleado_personal %}
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.legajo_detalle', empleado_id=empleado_personal.id) }}">Legajo RRHH</a>
     {% if empleado_legajo_status and not empleado_legajo_status.complete %}
     <a class="btn btn-warning btn-sm" href="{{ url_for('personal.legajo_editar', empleado_id=empleado_personal.id) }}"

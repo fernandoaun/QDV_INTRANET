@@ -68,7 +68,9 @@
         <td>{{ user_role_label(u) }}</td>
         <td>{% if u.activo %}Sí{% else %}No{% endif %}</td>
         <td>
-          {% if st and st.empleado_id %}
+          {% if not user_requires_legajo(u) %}
+          <span class="text-muted small">N/A</span>
+          {% elif st and st.empleado_id %}
             {% if st.complete %}
             <span class="badge text-bg-success">Completo</span>
             {% else %}

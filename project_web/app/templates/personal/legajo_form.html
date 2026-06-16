@@ -18,8 +18,13 @@
     {% endif %}
     <div class="row g-3">
       <div class="col-md-2">
-        <label class="form-label">Legajo *</label>
-        <input type="text" class="form-control" name="legajo" value="{{ empleado.legajo if empleado else '' }}" required>
+        <label class="form-label">Legajo</label>
+        {% if empleado and empleado.legajo and not empleado.legajo.startswith('TMP-') %}
+        <input type="text" class="form-control" value="{{ empleado.legajo }}" readonly>
+        {% else %}
+        <input type="text" class="form-control" value="Se asigna al guardar" readonly>
+        {% endif %}
+        <div class="form-text">Correlativo del año de ingreso (ej. 2026-001).</div>
       </div>
       <div class="col-md-2">
         <label class="form-label">DNI</label>
@@ -42,8 +47,9 @@
         <input type="date" class="form-control" name="fecha_nacimiento" value="{{ empleado.fecha_nacimiento.isoformat() if empleado and empleado.fecha_nacimiento else '' }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label">Fecha ingreso</label>
-        <input type="date" class="form-control" name="fecha_ingreso" value="{{ empleado.fecha_ingreso.isoformat() if empleado and empleado.fecha_ingreso else '' }}">
+        <label class="form-label">Fecha ingreso *</label>
+        <input type="date" class="form-control" name="fecha_ingreso" value="{{ empleado.fecha_ingreso.isoformat() if empleado and empleado.fecha_ingreso else '' }}" required>
+        <div class="form-text">Determina el número de legajo del año.</div>
       </div>
       <div class="col-md-3">
         <label class="form-label">Puesto</label>
@@ -90,8 +96,8 @@
         <input type="text" class="form-control" name="talle_guantes" value="{{ empleado.talle_guantes if empleado else '' }}">
       </div>
       <div class="col-md-2">
-        <label class="form-label">Talle casco</label>
-        <input type="text" class="form-control" name="talle_casco" value="{{ empleado.talle_casco if empleado else '' }}">
+        <label class="form-label">Talle mameluco</label>
+        <input type="text" class="form-control" name="talle_mameluco" value="{{ empleado.talle_mameluco if empleado else '' }}">
       </div>
       <div class="col-md-4">
         <label class="form-label">Operador vinculado (producción)</label>
