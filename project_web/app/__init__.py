@@ -186,6 +186,7 @@ def create_app() -> Flask:
     from app.web.modules.vencimientos import bp as vencimientos_bp
     from app.web.modules.sgi import bp as sgi_bp
     from app.web.modules.personal import bp as personal_bp
+    from app.web.modules.chat import bp as chat_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -199,6 +200,7 @@ def create_app() -> Flask:
     app.register_blueprint(vencimientos_bp)
     app.register_blueprint(sgi_bp)
     app.register_blueprint(personal_bp)
+    app.register_blueprint(chat_bp)
 
     @app.before_request
     def _session_inactivity_touch():
@@ -440,6 +442,20 @@ def create_app() -> Flask:
         except Exception:
             app.logger.exception("inject_shift_nav falló")
             return empty
+
+    @app.context_processor
+    def inject_chat_nav():
+        from app.auth_utils import current_user as _cu
+        from app.services import internal_chat_service as chat_svc
+
+        try:
+            u = _cu()
+            if u is None:
+                return {"chat_nav": None}
+            return {"chat_nav": chat_svc.chat_nav_summary(u)}
+        except Exception:
+            app.logger.exception("inject_chat_nav falló")
+            return {"chat_nav": None}
 
     @app.context_processor
     def inject_primera_vez():

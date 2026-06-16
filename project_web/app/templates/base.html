@@ -118,6 +118,7 @@
         {% elif shift_nav and shift_nav.show_readonly_pill %}
         <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
         {% endif %}
+        <div class="app-topbar-comms d-flex align-items-center gap-1">
         {% if shift_notifications or sgi_notifications %}
         {% set notif_unread = (shift_notifications['unread_count'] if shift_notifications else 0) + (sgi_notifications['unread_count'] if sgi_notifications else 0) %}
         <div class="dropdown app-notifications-dropdown">
@@ -201,6 +202,71 @@
           </div>
         </div>
         {% endif %}
+        <div class="dropdown app-chat-dropdown">
+          <button class="app-chat-btn dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-haspopup="true" id="appChatBtn" title="Chat interno" aria-label="Chat interno{% if chat_nav and chat_nav.unread_count %} ({{ chat_nav.unread_count }} sin leer){% endif %}">
+            <i class="bi bi-chat-dots" aria-hidden="true"></i>
+            {% if chat_nav and chat_nav.unread_count > 0 %}
+            <span class="app-chat-badge" id="appChatBadge" aria-hidden="true">{{ chat_nav.unread_count if chat_nav.unread_count < 10 else '9+' }}</span>
+            {% endif %}
+          </button>
+          <div class="dropdown-menu dropdown-menu-end app-chat-menu" aria-labelledby="appChatBtn"
+               data-threads-url="{{ url_for('chat.api_threads') }}"
+               data-recipients-url="{{ url_for('chat.api_recipients') }}"
+               data-csrf-token="{{ csrf_token() }}">
+            <div class="app-chat-panel" id="appChatPanel">
+              <div class="app-chat-header d-flex justify-content-between align-items-center gap-2 px-3 py-2 border-bottom">
+                <span class="fw-semibold" id="appChatHeaderTitle">Chat interno</span>
+                <div class="d-flex gap-1">
+                  <button type="button" class="btn btn-sm btn-outline-primary d-none" id="appChatBackBtn" title="Volver"><i class="bi bi-arrow-left"></i></button>
+                  <button type="button" class="btn btn-sm btn-primary" id="appChatNewBtn" title="Nuevo mensaje"><i class="bi bi-pencil-square"></i></button>
+                </div>
+              </div>
+              <div class="app-chat-view" id="appChatListView">
+                <div class="app-chat-scroll" id="appChatThreadList">
+                  <div class="dropdown-item-text text-muted small px-3 py-3">Cargando conversaciones…</div>
+                </div>
+              </div>
+              <div class="app-chat-view d-none" id="appChatThreadView">
+                <div class="app-chat-scroll app-chat-messages" id="appChatMessages"></div>
+                <form class="app-chat-reply border-top p-2" id="appChatReplyForm">
+                  <div class="input-group input-group-sm">
+                    <input type="text" class="form-control" id="appChatReplyInput" placeholder="Escribí un mensaje…" maxlength="4000" autocomplete="off">
+                    <button class="btn btn-primary" type="submit" title="Enviar"><i class="bi bi-send"></i></button>
+                  </div>
+                </form>
+              </div>
+              <div class="app-chat-view d-none" id="appChatComposeView">
+                <form class="p-3" id="appChatComposeForm">
+                  <div class="mb-2">
+                    <label class="form-label small mb-1" for="appChatTargetType">Destinatario</label>
+                    <select class="form-select form-select-sm" id="appChatTargetType">
+                      <option value="users">Usuario(s)</option>
+                      <option value="role">Perfil</option>
+                    </select>
+                  </div>
+                  <div class="mb-2" id="appChatUsersWrap">
+                    <label class="form-label small mb-1" for="appChatUsersSelect">Usuarios</label>
+                    <select class="form-select form-select-sm" id="appChatUsersSelect" multiple size="5"></select>
+                    <div class="form-text">Mantené Ctrl (o Cmd) para elegir varios.</div>
+                  </div>
+                  <div class="mb-2 d-none" id="appChatRoleWrap">
+                    <label class="form-label small mb-1" for="appChatRoleSelect">Perfil</label>
+                    <select class="form-select form-select-sm" id="appChatRoleSelect"></select>
+                  </div>
+                  <div class="mb-2">
+                    <label class="form-label small mb-1" for="appChatComposeBody">Mensaje</label>
+                    <textarea class="form-control form-control-sm" id="appChatComposeBody" rows="3" maxlength="4000" placeholder="Escribí tu mensaje…"></textarea>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center gap-2">
+                    <div class="small text-danger d-none" id="appChatComposeError"></div>
+                    <button type="submit" class="btn btn-sm btn-primary ms-auto">Enviar</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
         <div class="dropdown app-user-dropdown">
           <button class="app-user-pill dropdown-toggle border-0" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" aria-expanded="false" aria-haspopup="true" id="appUserMenuBtn">
             <i class="bi bi-person-circle" aria-hidden="true"></i>
@@ -371,6 +437,7 @@
   }
 })();
 </script>
+<script src="{{ url_for('static', filename='js/internal_chat.js') }}"></script>
 <script>
 (function () {
   var shell = document.getElementById("appShell");

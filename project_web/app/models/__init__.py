@@ -43,6 +43,11 @@ from app.models.personal import (
     PersonalEppItem,
     PersonalVacacion,
 )
+from app.models.internal_chat import (
+    InternalChatMessage,
+    InternalChatParticipant,
+    InternalChatThread,
+)
 from app.models.sgi import (
     SgiDocumento,
     SgiDocumentoHistorial,
@@ -110,6 +115,9 @@ __all__ = [
     "SgiProcedimientoAnexo",
     "SgiProcedimientoAprobacion",
     "SgiNotificacion",
+    "InternalChatThread",
+    "InternalChatParticipant",
+    "InternalChatMessage",
     "EmpleadoPersonal",
     "PersonalEppItem",
     "PersonalEntregaEpp",

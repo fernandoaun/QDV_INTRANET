@@ -237,8 +237,14 @@ body.app-body {
   overflow: visible;
 }
 
+.app-topbar-comms {
+  flex-shrink: 0;
+  gap: 0.35rem;
+}
+
 .app-topbar .app-user-dropdown,
-.app-topbar .app-notifications-dropdown {
+.app-topbar .app-notifications-dropdown,
+.app-topbar .app-chat-dropdown {
   flex-shrink: 0;
   position: relative;
   z-index: 5;
@@ -352,6 +358,138 @@ body.app-body {
 .app-notifications-obs p {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.app-chat-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border-radius: var(--app-radius-pill);
+  border: 1px solid var(--app-border);
+  background: var(--app-page-bg);
+  color: var(--app-text);
+}
+
+.app-chat-btn:hover,
+.app-chat-btn:focus {
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.app-chat-btn .bi {
+  font-size: 1.15rem;
+  color: var(--app-text-muted);
+}
+
+.app-chat-btn.dropdown-toggle::after {
+  display: none;
+}
+
+.app-chat-badge {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #0d6efd;
+  color: #fff;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  text-align: center;
+}
+
+.app-chat-menu {
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-width: 24rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.app-chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 18rem;
+  max-height: min(32rem, 75vh);
+}
+
+.app-chat-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  max-height: min(24rem, 60vh);
+}
+
+.app-chat-thread-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--app-border);
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+
+.app-chat-thread-item:hover,
+.app-chat-thread-item:focus {
+  background: var(--app-surface);
+}
+
+.app-chat-thread-item--unread .app-chat-thread-title {
+  font-weight: 700;
+}
+
+.app-chat-thread-title {
+  font-size: 0.875rem;
+  margin-bottom: 0.15rem;
+}
+
+.app-chat-thread-preview {
+  font-size: 0.8125rem;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-chat-messages {
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.app-chat-msg {
+  max-width: 90%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.8125rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.app-chat-msg--mine {
+  align-self: flex-end;
+  background: rgba(13, 110, 253, 0.12);
+  border: 1px solid rgba(13, 110, 253, 0.2);
+}
+
+.app-chat-msg--other {
+  align-self: flex-start;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+}
+
+.app-chat-msg-meta {
+  font-size: 0.6875rem;
+  color: var(--app-text-muted);
+  margin-bottom: 0.15rem;
 }
 
 .app-user-pill {
