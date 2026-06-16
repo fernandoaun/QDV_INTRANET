@@ -60,6 +60,19 @@ def upgrade() -> None:
             continue
         apellido, nombre = _split_nombre_completo(nombre_completo, username or "Sin nombre")
         legajo = (username or f"U{user_id}").strip()[:32]
+        orphan = conn.execute(
+            sa.text(
+                "SELECT id FROM personal_empleados WHERE user_id IS NULL AND lower(legajo) = lower(:legajo) LIMIT 1"
+            ),
+            {"legajo": legajo},
+        ).fetchone()
+        if orphan is not None:
+            conn.execute(
+                sa.text("UPDATE personal_empleados SET user_id = :user_id WHERE id = :emp_id"),
+                {"user_id": user_id, "emp_id": orphan[0]},
+            )
+            linked_user_ids.add(user_id)
+            continue
         if legajo in used_legajos:
             legajo = f"U{user_id}"[:32]
         used_legajos.add(legajo)

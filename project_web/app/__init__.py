@@ -363,12 +363,20 @@ def create_app() -> Flask:
     def inject_header_operational_indicators():
         from app.services.operational_informed_stock import header_operational_indicators_dict
 
-        d = header_operational_indicators_dict()
-        return {
-            "instant_stock": d["instant_display"],
-            "last_shift_production": d["production_display"],
-            "operational_indicators": d,
-        }
+        try:
+            d = header_operational_indicators_dict()
+            return {
+                "instant_stock": d["instant_display"],
+                "last_shift_production": d["production_display"],
+                "operational_indicators": d,
+            }
+        except Exception:
+            app.logger.exception("inject_header_operational_indicators falló")
+            return {
+                "instant_stock": "—",
+                "last_shift_production": "—",
+                "operational_indicators": None,
+            }
 
     @app.context_processor
     def inject_shift_nav():

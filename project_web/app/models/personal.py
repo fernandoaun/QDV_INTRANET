@@ -44,7 +44,11 @@ class EmpleadoPersonal(db.Model):
     created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
-    user = db.relationship("User", backref=db.backref("empleado_personal", uselist=False))
+    user = db.relationship(
+        "User",
+        foreign_keys=[user_id],
+        backref=db.backref("empleado_personal", uselist=False),
+    )
     operador = db.relationship("Operador", backref=db.backref("empleado_personal", uselist=False))
 
     @property
