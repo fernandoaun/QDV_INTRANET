@@ -95,41 +95,73 @@ def _in_range(ts: str | None, start: str, end_exclusive: str) -> bool:
     return bool(s and start <= s < end_exclusive)
 
 
+def _analysis_delay_seconds(
+    prev_created_iso: str | None,
+    curr_created_iso: str,
+    interval_sec: int,
+    circuit_key: str,
+) -> int:
+    """Segundos de atraso (0 si el registro no está vencido o no hay ancla previa)."""
+    prev = (prev_created_iso or "").strip()
+    curr = (curr_created_iso or "").strip()
+    if not prev or not curr:
+        return 0
+    prev_dt = _parse_iso(prev)
+    curr_dt = _parse_iso(curr)
+    if prev_dt is None or curr_dt is None:
+        return 0
+    pause_extra = pause_seconds_after_anchor(prev, circuit_key, now_iso=curr)
+    due_ts = prev_dt.timestamp() + int(interval_sec) + pause_extra
+    overdue = curr_dt.timestamp() - due_ts
+    return max(0, int(overdue))
+
+
 def _was_analysis_delayed(
     prev_created_iso: str | None,
     curr_created_iso: str,
     interval_sec: int,
     circuit_key: str,
 ) -> bool:
-    prev = (prev_created_iso or "").strip()
-    curr = (curr_created_iso or "").strip()
-    if not curr:
-        return False
-    if not prev:
-        return False
-    prev_dt = _parse_iso(prev)
-    curr_dt = _parse_iso(curr)
-    if prev_dt is None or curr_dt is None:
-        return False
-    pause_extra = pause_seconds_after_anchor(prev, circuit_key, now_iso=curr)
-    due_ts = prev_dt.timestamp() + int(interval_sec) + pause_extra
-    return curr_dt.timestamp() > due_ts
+    return _analysis_delay_seconds(prev_created_iso, curr_created_iso, interval_sec, circuit_key) > 0
+
+
+def format_atraso_duration(seconds: int) -> str:
+    """Duración legible de atraso (p. ej. ``2 h 15 min`` o ``45 min``)."""
+    s = max(0, int(seconds))
+    h = s // 3600
+    m = (s % 3600) // 60
+    sec = s % 60
+    if h >= 1:
+        return f"{h} h {m} min" if m else f"{h} h"
+    if m >= 1:
+        return f"{m} min {sec} s" if sec else f"{m} min"
+    return f"{sec} s"
 
 
 def _norm_operador(name: str | None) -> str:
     return (name or "").strip() or "—"
 
 
+def _empty_delay_bucket() -> dict[str, int]:
+    return defaultdict(int)
+
+
 def _accum_delay(
     counts: dict[str, dict[str, int]],
+    seconds_map: dict[str, dict[str, int]],
     operador: str,
     tipo: str,
+    delay_seconds: int,
 ) -> None:
     op = _norm_operador(operador)
     if op not in counts:
-        counts[op] = defaultdict(int)
+        counts[op] = _empty_delay_bucket()
+        seconds_map[op] = _empty_delay_bucket()
     counts[op][tipo] += 1
     counts[op]["_total"] += 1
+    sec = max(0, int(delay_seconds))
+    seconds_map[op][tipo] += sec
+    seconds_map[op]["_total"] += sec
 
 
 def _scan_consecutive_delays(
@@ -138,6 +170,7 @@ def _scan_consecutive_delays(
     circuit_key: str,
     tipo: str,
     counts: dict[str, dict[str, int]],
+    seconds_map: dict[str, dict[str, int]],
     *,
     start_iso: str,
     end_exclusive: str,
@@ -152,13 +185,12 @@ def _scan_consecutive_delays(
         if not _in_range(ts, start_iso, end_exclusive):
             prev_ts = ts
             continue
-        delayed = False
+        delay_sec = _analysis_delay_seconds(prev_ts, ts, interval_sec, circuit_key)
+        delayed = delay_sec > 0
         if extra_delay_check and extra_delay_check(row):
             delayed = True
-        elif _was_analysis_delayed(prev_ts, ts, interval_sec, circuit_key):
-            delayed = True
         if delayed:
-            _accum_delay(counts, operador, tipo)
+            _accum_delay(counts, seconds_map, operador, tipo, delay_sec)
         prev_ts = ts
 
 
@@ -168,10 +200,11 @@ def ranking_atrasos_analisis(
     hasta_iso_exclusive: str,
 ) -> list[dict[str, Any]]:
     """
-    Ranking de operadores por cantidad de análisis registrados con atraso en el período.
+    Ranking de operadores por atrasos en análisis en el período (cantidad y tiempo acumulado).
     ``hasta_iso_exclusive`` es límite superior exclusivo (p. ej. primer día del mes siguiente).
     """
     counts: dict[str, dict[str, int]] = {}
+    seconds_map: dict[str, dict[str, int]] = {}
 
     hip_rows = db.session.execute(
         select(
@@ -199,11 +232,12 @@ def ranking_atrasos_analisis(
             if not _in_range(created, desde_iso, hasta_iso_exclusive):
                 prev_ts = created
                 continue
-            delayed = bool((motivo or "").strip()) or _was_analysis_delayed(
+            delay_sec = _analysis_delay_seconds(
                 prev_ts, created, int(ANALYSIS_INTERVAL_SECONDS), ck
             )
+            delayed = bool((motivo or "").strip()) or delay_sec > 0
             if delayed:
-                _accum_delay(counts, operador, tipo)
+                _accum_delay(counts, seconds_map, operador, tipo, delay_sec)
             prev_ts = created
 
     reactor_rows = db.session.execute(
@@ -217,6 +251,7 @@ def ranking_atrasos_analisis(
         CIRCUIT_REACTOR,
         "reactor",
         counts,
+        seconds_map,
         start_iso=desde_iso,
         end_exclusive=hasta_iso_exclusive,
     )
@@ -232,6 +267,7 @@ def ranking_atrasos_analisis(
         CIRCUIT_AGUA,
         "agua",
         counts,
+        seconds_map,
         start_iso=desde_iso,
         end_exclusive=hasta_iso_exclusive,
     )
@@ -248,6 +284,7 @@ def ranking_atrasos_analisis(
         CIRCUIT_REACTOR,
         "analisis_8hs",
         counts,
+        seconds_map,
         start_iso=desde_iso,
         end_exclusive=hasta_iso_exclusive,
     )
@@ -255,25 +292,37 @@ def ranking_atrasos_analisis(
     ranking: list[dict[str, Any]] = []
     for operador, tipos in counts.items():
         total = int(tipos.get("_total", 0))
+        total_sec = int(seconds_map.get(operador, {}).get("_total", 0))
         desglose: list[dict[str, Any]] = []
+        secs_by_tipo = seconds_map.get(operador, {})
         for key, n in sorted(tipos.items(), key=lambda kv: (-kv[1], kv[0])):
             if key == "_total" or n <= 0:
                 continue
+            tipo_sec = int(secs_by_tipo.get(key, 0))
             desglose.append(
                 {
                     "tipo": key,
                     "label": _ANALISIS_LABELS.get(key, key),
                     "count": int(n),
+                    "segundos_atraso": tipo_sec,
+                    "tiempo_display": format_atraso_duration(tipo_sec),
+                    "promedio_display": format_atraso_duration(tipo_sec // n if n else 0),
                 }
             )
+        promedio_sec = total_sec // total if total else 0
         ranking.append(
             {
                 "operador": operador,
                 "total_atrasos": total,
+                "total_segundos_atraso": total_sec,
+                "tiempo_atraso_total_display": format_atraso_duration(total_sec),
+                "promedio_atraso_display": format_atraso_duration(promedio_sec),
                 "desglose": desglose,
             }
         )
-    ranking.sort(key=lambda r: (-r["total_atrasos"], r["operador"].lower()))
+    ranking.sort(
+        key=lambda r: (-r["total_segundos_atraso"], -r["total_atrasos"], r["operador"].lower())
+    )
     return ranking
 
 

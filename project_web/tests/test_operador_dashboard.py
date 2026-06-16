@@ -11,7 +11,30 @@ def test_ranking_atrasos_hipoclorito_por_motivo(app):
         db.session.add(
             SalmueraRegistro(
                 fecha_iso="2026-06-10",
-                hora_hm="10:00",
+                hora_hm="08:00",
+                electrolizador=2,
+                cantidad_celdas=10,
+                turno="M",
+                voltajes_json="[]",
+                voltaje_total=100.0,
+                amperaje=50.0,
+                caudal_agua_l_h=10.0,
+                caudal_salmuera_l_h=10.0,
+                hipo_conc=1.0,
+                hipo_exceso_soda=0.1,
+                sal_temp=25.0,
+                sal_conc=1.0,
+                sal_ph=7.0,
+                soda_conc=1.0,
+                declor_ph=7.0,
+                operador="op_uno",
+                created_at_iso="2026-06-10T08:00:00",
+            )
+        )
+        db.session.add(
+            SalmueraRegistro(
+                fecha_iso="2026-06-10",
+                hora_hm="11:00",
                 electrolizador=2,
                 cantidad_celdas=10,
                 turno="M",
@@ -29,7 +52,7 @@ def test_ranking_atrasos_hipoclorito_por_motivo(app):
                 declor_ph=7.0,
                 operador="op_uno",
                 atraso_motivo="Demora en laboratorio",
-                created_at_iso="2026-06-10T10:00:00",
+                created_at_iso="2026-06-10T11:00:00",
             )
         )
         db.session.commit()
@@ -41,7 +64,19 @@ def test_ranking_atrasos_hipoclorito_por_motivo(app):
         assert len(ranking) == 1
         assert ranking[0]["operador"] == "op_uno"
         assert ranking[0]["total_atrasos"] == 1
+        assert ranking[0]["total_segundos_atraso"] == 3600
+        assert ranking[0]["tiempo_atraso_total_display"] == "1 h"
         assert any(d["tipo"] == "hipoclorito_e2" for d in ranking[0]["desglose"])
+
+
+def test_format_atraso_duration():
+    from app.services.operador_dashboard_service import format_atraso_duration
+
+    assert format_atraso_duration(0) == "0 s"
+    assert format_atraso_duration(45) == "45 s"
+    assert format_atraso_duration(90) == "1 min 30 s"
+    assert format_atraso_duration(3600) == "1 h"
+    assert format_atraso_duration(5400) == "1 h 30 min"
 
 
 def test_produccion_por_operador_mes(app):

@@ -61,7 +61,9 @@
         <tr>
           <th>#</th>
           <th>Operador</th>
-          <th>Total atrasos</th>
+          <th>Atrasos</th>
+          <th>Tiempo total</th>
+          <th>Prom. por atraso</th>
           <th>En qué análisis</th>
         </tr>
       </thead>
@@ -77,11 +79,20 @@
             <span class="text-muted">0</span>
             {% endif %}
           </td>
+          <td>
+            {% if r.total_segundos_atraso > 0 %}
+            <span class="text-danger fw-semibold">{{ r.tiempo_atraso_total_display }}</span>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="small">{{ r.promedio_atraso_display if r.total_atrasos > 0 else '—' }}</td>
           <td class="small">
             {% if r.desglose %}
             {% for d in r.desglose %}
-            <span class="badge text-bg-secondary app-badge-soft me-1 mb-1" title="{{ d.label }}">
-              {{ d.label }}: {{ d.count }}
+            <span class="badge text-bg-secondary app-badge-soft me-1 mb-1"
+                  title="{{ d.label }}: {{ d.count }} atraso(s), {{ d.tiempo_display }} acumulados (prom. {{ d.promedio_display }})">
+              {{ d.label }}: {{ d.count }} · {{ d.tiempo_display }}
             </span>
             {% endfor %}
             {% else %}
@@ -101,7 +112,8 @@
   <div class="app-card-body border-top">
     <p class="app-text-secondary small mb-0">
       Un análisis se considera atrasado si supera el intervalo operativo (2 h hipoclorito/reactor, 8 h agua/análisis 8 hs)
-      respecto al registro anterior, si tiene motivo de atraso cargado (hipoclorito), o si hubo paradas de planta en el intervalo.
+      respecto al registro anterior (teniendo en cuenta paradas de planta). El tiempo de atraso es la diferencia entre
+      el vencimiento y la hora del registro. El ranking ordena por tiempo acumulado de atraso.
     </p>
   </div>
 </div>
