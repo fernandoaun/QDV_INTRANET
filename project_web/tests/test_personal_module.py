@@ -117,6 +117,44 @@ def test_legajo_completeness_indicator(app):
         assert ps.legajo_is_complete(emp) is True
 
 
+def test_save_empleado_renumber_swapped_legajos_no_crash(app):
+    """Renumerar no debe romper si los correlativos estaban invertidos (unique legajo)."""
+    from datetime import date
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        e1 = EmpleadoPersonal(
+            legajo="2026-002",
+            apellido="Primero",
+            nombre="A",
+            fecha_ingreso=date(2026, 1, 10),
+        )
+        e2 = EmpleadoPersonal(
+            legajo="2026-001",
+            apellido="Segundo",
+            nombre="B",
+            fecha_ingreso=date(2026, 6, 1),
+        )
+        db.session.add_all([e1, e2])
+        db.session.commit()
+        ok, msg, emp = ps.save_empleado(
+            {
+                "apellido": "Primero",
+                "nombre": "A",
+                "fecha_ingreso": "2026-01-10",
+                "estado": "activo",
+            },
+            empleado_id=e1.id,
+        )
+        assert ok is True, msg
+        assert emp is not None
+        assert e1.legajo == "2026-001"
+        assert e2.legajo == "2026-002"
+
+
 def test_legajo_correlativo_por_anio(app):
     from datetime import date
 

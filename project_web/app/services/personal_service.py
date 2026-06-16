@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models import (
@@ -115,6 +116,12 @@ def renumber_legajos_for_year(year: int) -> None:
         .order_by(EmpleadoPersonal.fecha_ingreso.asc(), EmpleadoPersonal.id.asc())
         .all()
     )
+    if not rows:
+        return
+    # Fase temporal: evita choque UNIQUE al reordenar (ej. 2026-002 → 2026-001).
+    for emp in rows:
+        emp.legajo = f"TMP-R{emp.id}"[:32]
+    db.session.flush()
     for seq, emp in enumerate(rows, start=1):
         emp.legajo = format_legajo_correlativo(year, seq)
 
@@ -454,7 +461,11 @@ def save_empleado(
     if old_year is not None and old_year != fecha_ingreso.year:
         renumber_legajos_for_year(old_year)
     sync_user_nombre_from_empleado(emp)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return False, "No se pudo guardar el legajo (conflicto de datos). Revisá el número de legajo o contactá al administrador.", None
     return True, "Legajo guardado.", emp
 
 
