@@ -12,6 +12,14 @@ def test_personal_blocked_nonprivileged(mant_client):
     assert r.status_code in (302, 303)
 
 
+def test_personal_post_forms_include_csrf(auth_client):
+    """En producción CSRF está activo; los formularios POST de Personal deben incluir el token."""
+    for path in ("/personal/epp/catalogo", "/personal/epp/entregas", "/personal/vacaciones"):
+        r = auth_client.get(path)
+        assert r.status_code == 200
+        assert b'name="csrf_token"' in r.data, path
+
+
 def test_personal_legajo_crud(auth_client):
     r = auth_client.get("/personal/legajos/nuevo", follow_redirects=True)
     assert r.status_code == 200

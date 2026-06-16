@@ -13,6 +13,7 @@
   <div class="app-card-header">Cargar vacación</div>
   <div class="app-card-body">
     <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
       <div class="col-md-3">
         <label class="form-label">Empleado *</label>
         <select class="form-select" name="empleado_id" required>
@@ -84,6 +85,7 @@
           <td class="text-end">
             {% if puede_gestionar and v.estado == 'pendiente' %}
             <form method="post" class="d-inline">
+              {% include "_csrf.html" %}
               <input type="hidden" name="action" value="marcar_tomada">
               <input type="hidden" name="vacacion_id" value="{{ v.id }}">
               <button type="submit" class="btn btn-sm btn-outline-success">Marcar tomada</button>

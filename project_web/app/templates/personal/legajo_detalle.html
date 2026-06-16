@@ -59,6 +59,7 @@
   <div class="app-card-header">Registrar entrega</div>
   <div class="app-card-body">
     <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
       <input type="hidden" name="action" value="entrega_epp">
       <input type="hidden" name="tab" value="epp">
       <div class="col-md-3">
@@ -118,6 +119,7 @@
   <div class="app-card-header">Agregar / editar curso</div>
   <div class="app-card-body">
     <form method="post" class="row g-2">
+      {% include "_csrf.html" %}
       <input type="hidden" name="action" value="curso">
       <input type="hidden" name="tab" value="cursos">
       <input type="hidden" name="curso_id" id="curso_id" value="">
@@ -162,6 +164,7 @@
   <div class="app-card-header">Registrar apercibimiento</div>
   <div class="app-card-body">
     <form method="post" class="row g-2">
+      {% include "_csrf.html" %}
       <input type="hidden" name="action" value="apercibimiento">
       <input type="hidden" name="tab" value="apercibimientos">
       <div class="col-md-2"><label class="form-label">Fecha</label><input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}"></div>
@@ -201,6 +204,7 @@
   <div class="app-card-body">
     {% if puede_gestionar %}
     <form method="post" class="row g-3">
+      {% include "_csrf.html" %}
       <input type="hidden" name="action" value="art">
       <input type="hidden" name="tab" value="art">
       <div class="col-md-4"><label class="form-label">Aseguradora</label>
@@ -230,6 +234,7 @@
   <div class="app-card-header">Cargar vacación</div>
   <div class="app-card-body">
     <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
       <input type="hidden" name="action" value="vacacion">
       <input type="hidden" name="tab" value="vacaciones">
       <input type="hidden" name="empleado_id" value="{{ empleado.id }}">
@@ -261,6 +266,7 @@
           <td class="text-end">
             {% if puede_gestionar and v.estado == 'pendiente' %}
             <form method="post" class="d-inline">
+              {% include "_csrf.html" %}
               <input type="hidden" name="action" value="vacacion_tomada">
               <input type="hidden" name="tab" value="vacaciones">
               <input type="hidden" name="vacacion_id" value="{{ v.id }}">

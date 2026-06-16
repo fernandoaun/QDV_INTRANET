@@ -9,6 +9,7 @@
 </div>
 
 <form method="post" class="app-card">
+  {% include "_csrf.html" %}
   <div class="app-card-body">
     {% if empleado and empleado.user %}
     <div class="alert alert-light border py-2 mb-3" role="status">

@@ -13,6 +13,7 @@
   <div class="app-card-header">Agregar o editar ítem</div>
   <div class="app-card-body">
     <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
       <input type="hidden" name="item_id" id="item_id" value="">
       <div class="col-md-4">
         <label class="form-label">Nombre *</label>

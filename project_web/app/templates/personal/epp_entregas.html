@@ -13,6 +13,7 @@
   <div class="app-card-header">Nueva entrega</div>
   <div class="app-card-body">
     <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
       <div class="col-md-3">
         <label class="form-label">Empleado *</label>
         <select class="form-select" name="empleado_id" required>
