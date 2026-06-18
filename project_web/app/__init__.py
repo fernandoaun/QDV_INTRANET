@@ -281,6 +281,7 @@ def create_app() -> Flask:
     def inject_nav_user():
         from flask import session as flask_session
 
+        from app.extensions import db
         from app.auth_utils import current_user as _current_user
         from app.auth_utils import page_can_edit_effective as _page_can_edit_effective
         from app.auth_utils import has_permission as _has_permission
@@ -328,9 +329,14 @@ def create_app() -> Flask:
                     _personal_service.get_empleado_by_user_id(int(u.id)) is not None
                 )
                 personal_entregas_pendientes = _personal_service.count_entregas_epp_pendientes_usuario(int(u.id))
+            except Exception:
+                app.logger.exception("inject_nav_user: legajo / entregas EPP")
+                db.session.rollback()
+            try:
                 cumpleanos_hoy_lista = _personal_service.cumpleanos_hoy()
             except Exception:
-                app.logger.exception("inject_nav_user: entregas EPP pendientes")
+                app.logger.exception("inject_nav_user: cumpleaños de hoy")
+                db.session.rollback()
         return {
             "nav_user": u,
             "user_can": (lambda perm: _user_can(u, perm)),

@@ -7,13 +7,26 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from app.extensions import db
 from app.models import EmpleadoPersonal
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.services.personal_epp_reminder_service import resolve_empleado_email
 from app.services.personal_service import cumpleanos_hoy, today_operacion
 
 log = logging.getLogger(__name__)
+
+
+def _congrats_mail_lock_path(app: Any, iso_date: str, empleado_id: int) -> Path:
+    p = Path(app.instance_path) / "locks"
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"birthday_congrats_{iso_date}_{empleado_id}.lock"
+
+
+def _congrats_mail_already_sent(app: Any, iso_date: str, empleado_id: int) -> bool:
+    return _congrats_mail_lock_path(app, iso_date, empleado_id).exists()
+
+
+def _mark_congrats_mail_sent(app: Any, iso_date: str, empleado_id: int) -> None:
+    _congrats_mail_lock_path(app, iso_date, empleado_id).touch()
 
 
 def _team_mail_lock_path(app: Any, iso_date: str) -> Path:
@@ -96,8 +109,9 @@ def _build_team_bodies(festejados: list[EmpleadoPersonal]) -> tuple[str, str, st
 
 def _send_congrats(app: Any, empleado: EmpleadoPersonal, *, dry_run: bool) -> tuple[bool, str]:
     hoy = today_operacion()
-    if empleado.aviso_cumpleanos_anio == hoy.year:
-        return True, "Ya enviado este año."
+    iso = hoy.isoformat()
+    if _congrats_mail_already_sent(app, iso, int(empleado.id)):
+        return True, "Ya enviado hoy."
     to_addr = resolve_empleado_email(empleado)
     if not to_addr:
         return False, f"Sin email válido en legajo de {empleado.nombre_completo}."
@@ -115,8 +129,7 @@ def _send_congrats(app: Any, empleado: EmpleadoPersonal, *, dry_run: bool) -> tu
     except Exception as exc:
         log.exception("Fallo envío cumpleaños empleado_id=%s", empleado.id)
         return False, f"Error SMTP: {exc}"
-    empleado.aviso_cumpleanos_anio = hoy.year
-    db.session.commit()
+    _mark_congrats_mail_sent(app, iso, int(empleado.id))
     return True, f"Felicitación enviada a {to_addr}."
 
 
@@ -184,7 +197,7 @@ def run_birthday_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
         result["congrats_attempted"] += 1
         if dry_run:
             addr = resolve_empleado_email(emp)
-            if addr and emp.aviso_cumpleanos_anio != hoy.year:
+            if addr and not _congrats_mail_already_sent(app, hoy.isoformat(), int(emp.id)):
                 result["congrats_sent"] += 1
             elif not addr:
                 result["errors"].append(f"{emp.nombre_completo}: sin email válido.")
