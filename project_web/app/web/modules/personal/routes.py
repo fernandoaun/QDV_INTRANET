@@ -179,6 +179,7 @@ def legajo_detalle(empleado_id: int):
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
         puede_registrar_entregas=user_can_register_entregas_personal(u),
+        es_mi_legajo=False,
     )
 
 
@@ -295,6 +296,37 @@ def mis_entregas_epp():
         pendientes=ps.list_entregas_epp_pendientes_empleado(emp.id),
         historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
+    )
+
+
+@bp.get("/mi-legajo")
+@login_required
+def mi_legajo():
+    u = current_user()
+    emp = ps.get_empleado_by_user_id(u.id)
+    if emp is None:
+        flash("No tenés un legajo de personal vinculado a tu usuario.", "warning")
+        return redirect(url_for("main.dashboard"))
+
+    tab = (request.args.get("tab") or "datos").strip()
+    return render_template(
+        "personal/legajo_detalle.html",
+        empleado=emp,
+        tab=tab,
+        operadores=[],
+        items_epp=ps.list_epp_items(solo_activos=True),
+        entregas=ps.list_entregas_epp(empleado_id=emp.id),
+        cursos=emp.cursos.order_by(PersonalCurso.fecha_vencimiento.asc().nullslast(), PersonalCurso.nombre).all(),
+        apercibimientos=emp.apercibimientos.order_by(PersonalApercibimiento.fecha.desc()).all(),
+        vacaciones=ps.list_vacaciones(empleado_id=emp.id),
+        estado_labels=ps.ESTADO_EMPLEADO_LABELS,
+        estado_vacacion_labels=ps.ESTADO_VACACION_LABELS,
+        tipo_apercibimiento_labels=ps.TIPO_APERCIBIMIENTO_LABELS,
+        categoria_epp_labels=ps.CATEGORIA_EPP_LABELS,
+        estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
+        puede_gestionar=False,
+        puede_registrar_entregas=False,
+        es_mi_legajo=True,
     )
 
 

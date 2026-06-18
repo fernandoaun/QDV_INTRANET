@@ -64,6 +64,7 @@ def _run_exclusive(app: Any, fn: Callable[[], None]) -> None:
 
 def _run_reminders(app: Any) -> None:
     from app.services.mail_service import is_mail_fully_configured
+    from app.services.personal_birthday_reminder_service import run_birthday_reminders
     from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 
     if not is_mail_fully_configured(app):
@@ -80,6 +81,12 @@ def _run_reminders(app: Any) -> None:
         )
     elif out.get("errors"):
         log.warning("Avisos de vencimientos con errores: %s", out.get("errors"))
+
+    out_b = run_birthday_reminders(app, dry_run=False)
+    if int(out_b.get("cumpleaneros") or 0) > 0:
+        log.info("Avisos de cumpleaños: %s", out_b.get("message") or "")
+    elif out_b.get("errors"):
+        log.warning("Avisos de cumpleaños con errores: %s", out_b.get("errors"))
 
 
 def _scheduler_loop(app: Any) -> None:

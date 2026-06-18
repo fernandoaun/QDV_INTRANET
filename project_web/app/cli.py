@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash
 from app.extensions import db
 from app.models import User
 from app.services.deadline_reminder_service import run_deadline_reminders
+from app.services.personal_birthday_reminder_service import run_birthday_reminders
 from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.user_roles import ROLE_ADMINISTRADOR
@@ -93,16 +94,18 @@ def register_cli(app: Flask) -> None:
         help="Mostrar ítems y cuerpo del correo sin enviar ni registrar.",
     )
     def send_deadline_reminders(dry_run: bool) -> None:
-        """Avisos por mail: planificación, mantenimiento, vencimientos y entregas EPP/ropa pendientes.
+        """Avisos por mail: planificación, mantenimiento, vencimientos, entregas EPP/ropa pendientes y cumpleaños.
 
         Configurar SMTP_* , MAIL_FROM y destinatarios en Administración → Avisos por correo / DEADLINE_ALERT_EMAIL_TO.
         Cron diario recomendado. Opcional: DEADLINE_REMINDER_DAYS_BEFORE (planificación/mantenimiento; por defecto 30).
         Los avisos EPP se envían al email del legajo del empleado al registrar la entrega y como recordatorio diario.
+        Los cumpleaños envían felicitación al empleado y aviso al resto del equipo con email en legajo.
         """
         with app.app_context():
             out = run_deadline_reminders(app, dry_run=dry_run)
             out_v = run_vencimiento_reminders(app, dry_run=dry_run)
             out_epp = run_entrega_epp_reminders(app, dry_run=dry_run)
+            out_bday = run_birthday_reminders(app, dry_run=dry_run)
         click.echo(out.get("message") or "")
         click.echo(
             f"Fecha operación: {out.get('today')} · Días de anticipación: {out.get('days_before')} · "
@@ -117,6 +120,11 @@ def register_cli(app: Flask) -> None:
         click.echo(
             f"EPP/ropa pendientes · empleados: {out_epp.get('empleados_con_pendientes')} · "
             f"intentados: {out_epp.get('emails_attempted')} · enviados: {out_epp.get('emails_sent')}"
+        )
+        click.echo(out_bday.get("message") or "")
+        click.echo(
+            f"Cumpleaños · hoy: {out_bday.get('cumpleaneros')} · "
+            f"felicitaciones: {out_bday.get('congrats_sent')} · avisos equipo: {out_bday.get('team_emails_sent')}"
         )
         if dry_run and out.get("preview_body"):
             click.echo("--- Planificación/Mantenimiento: asunto ---")

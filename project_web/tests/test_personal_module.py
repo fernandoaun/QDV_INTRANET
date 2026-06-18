@@ -521,3 +521,67 @@ def test_sgi_user_sin_legajo(auth_client, app):
     r = auth_client.get("/personal/legajos")
     assert r.status_code == 200
     assert b"usuario.sgi" not in r.data
+
+
+def test_mi_legajo_solo_lectura(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp.dni = "12345678"
+        emp.fecha_nacimiento = __import__("datetime").date(1990, 1, 1)
+        db.session.commit()
+
+    r = auth_client.get("/personal/mi-legajo")
+    assert r.status_code == 200
+    assert b"Mi legajo" in r.data
+    assert b"Solo lectura" in r.data
+    assert b"Editar datos" not in r.data
+    assert b"12345678" in r.data
+
+
+def test_cumpleanos_hoy_y_banner(auth_client, app):
+    from datetime import date
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        hoy = ps.today_operacion()
+        emp.fecha_nacimiento = date(1985, hoy.month, hoy.day)
+        emp.estado = "activo"
+        db.session.commit()
+        assert len(ps.cumpleanos_hoy()) >= 1
+
+    r = auth_client.get("/")
+    assert r.status_code == 200
+    assert b"cumplea" in r.data.lower()
+
+
+def test_birthday_reminders_dry_run(app, admin_user):
+    from datetime import date
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+    from app.services.personal_birthday_reminder_service import run_birthday_reminders
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        hoy = ps.today_operacion()
+        emp.fecha_nacimiento = date(1985, hoy.month, hoy.day)
+        emp.email = "cumple@test.local"
+        emp.estado = "activo"
+        db.session.commit()
+        out = run_birthday_reminders(app, dry_run=True)
+        assert out["cumpleaneros"] >= 1

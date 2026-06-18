@@ -368,6 +368,33 @@ def dashboard_counts() -> dict[str, int]:
     }
 
 
+def es_cumpleanos_hoy(fecha_nac: date | None, hoy: date | None = None) -> bool:
+    """True si hoy es el cumpleaños (29/02 se festeja el 28/02 en años no bisiestos)."""
+    if fecha_nac is None:
+        return False
+    hoy = hoy or today_operacion()
+    if fecha_nac.month == hoy.month and fecha_nac.day == hoy.day:
+        return True
+    if fecha_nac.month == 2 and fecha_nac.day == 29 and hoy.month == 2 and hoy.day == 28:
+        try:
+            date(hoy.year, 2, 29)
+        except ValueError:
+            return True
+    return False
+
+
+def cumpleanos_hoy() -> list[EmpleadoPersonal]:
+    """Empleados activos que cumplen años hoy."""
+    hoy = today_operacion()
+    empleados = (
+        _query_empleados_con_legajo()
+        .filter(EmpleadoPersonal.estado == "activo", EmpleadoPersonal.fecha_nacimiento.isnot(None))
+        .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre)
+        .all()
+    )
+    return [e for e in empleados if es_cumpleanos_hoy(e.fecha_nacimiento, hoy)]
+
+
 def proximos_cumpleanos(dias: int = 30) -> list[EmpleadoPersonal]:
     hoy = today_operacion()
     empleados = (

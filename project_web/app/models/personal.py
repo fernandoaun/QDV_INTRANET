@@ -38,6 +38,7 @@ class EmpleadoPersonal(db.Model):
     talle_mameluco = db.Column(db.String(16), nullable=False, default="", server_default="")
     observaciones = db.Column(db.String(4000), nullable=False, default="", server_default="")
     operador_id = db.Column(db.Integer, db.ForeignKey("operadores.id", ondelete="SET NULL"), nullable=True, index=True)
+    aviso_cumpleanos_anio = db.Column(db.Integer, nullable=True)
 
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)

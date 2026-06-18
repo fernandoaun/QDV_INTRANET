@@ -277,6 +277,11 @@
             <li><a class="dropdown-item" href="{{ url_for('main.dashboard') }}"><i class="bi bi-speedometer2 me-2 opacity-50" aria-hidden="true"></i>Panel</a></li>
             {% if user_tiene_legajo_personal %}
             <li>
+              <a class="dropdown-item" href="{{ url_for('personal.mi_legajo') }}">
+                <i class="bi bi-folder2-open me-2 opacity-50" aria-hidden="true"></i>Mi legajo
+              </a>
+            </li>
+            <li>
               <a class="dropdown-item" href="{{ url_for('personal.mis_entregas_epp') }}">
                 <i class="bi bi-bag-check me-2 opacity-50" aria-hidden="true"></i>Mis entregas ropa / EPP
                 {% if personal_entregas_pendientes %}
@@ -368,6 +373,18 @@
       <div class="alert alert-warning mb-3" role="status">
         Tenés {{ personal_entregas_pendientes }} entrega(s) de ropa/EPP pendiente(s) de confirmación.
         <a class="alert-link ms-1" href="{{ url_for('personal.mis_entregas_epp') }}">Confirmar entregas</a>
+      </div>
+      {% endif %}
+      {% if cumpleanos_hoy %}
+      <div class="alert alert-info mb-3" role="status">
+        <i class="bi bi-balloon-heart me-1" aria-hidden="true"></i>
+        {% if cumpleanos_hoy|length == 1 %}
+        Hoy es el cumpleaños de <strong>{{ cumpleanos_hoy[0].nombre_completo }}</strong>. ¡Felicitaciones!
+        {% else %}
+        Hoy festejan su cumpleaños:
+        {% for e in cumpleanos_hoy %}<strong>{{ e.nombre_completo }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
+        ¡Felicitaciones!
+        {% endif %}
       </div>
       {% endif %}
       {% block content %}{% endblock %}

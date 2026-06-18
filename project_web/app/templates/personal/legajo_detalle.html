@@ -1,19 +1,25 @@
 {% extends "base.html" %}
-{% block title %}{{ empleado.nombre_completo }} · Personal · QDV{% endblock %}
+{% block title %}{% if es_mi_legajo %}Mi legajo{% else %}{{ empleado.nombre_completo }}{% endif %} · Personal · QDV{% endblock %}
 {% block content %}
 <div class="app-page-head">
   <div>
-    <h1 class="app-page-title">{{ empleado.nombre_completo }}</h1>
+    <h1 class="app-page-title">{% if es_mi_legajo %}Mi legajo{% else %}{{ empleado.nombre_completo }}{% endif %}</h1>
     <div class="text-muted">
       Legajo {{ empleado.legajo }} · {{ estado_labels.get(empleado.estado, empleado.estado) }}
-      {% if empleado.user %} · Usuario <code>{{ empleado.user.username }}</code>{% endif %}
+      {% if es_mi_legajo %}
+      · Solo lectura
+      {% elif empleado.user %} · Usuario <code>{{ empleado.user.username }}</code>{% endif %}
     </div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     {% if puede_gestionar %}
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.legajo_editar', empleado_id=empleado.id) }}">Editar datos</a>
     {% endif %}
+  {% if es_mi_legajo %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Volver al panel</a>
+  {% else %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.legajos') }}">Volver</a>
+  {% endif %}
   </div>
 </div>
 
@@ -21,7 +27,11 @@
   {% set tabs = [('datos','Datos'),('epp','EPP / Ropa'),('cursos','Cursos'),('apercibimientos','Apercibimientos'),('art','ART'),('vacaciones','Vacaciones')] %}
   {% for key, lbl in tabs %}
   <li class="nav-item">
+    {% if es_mi_legajo %}
+    <a class="nav-link {% if tab == key %}active{% endif %}" href="{{ url_for('personal.mi_legajo', tab=key) }}">{{ lbl }}</a>
+    {% else %}
     <a class="nav-link {% if tab == key %}active{% endif %}" href="{{ url_for('personal.legajo_detalle', empleado_id=empleado.id, tab=key) }}">{{ lbl }}</a>
+    {% endif %}
   </li>
   {% endfor %}
 </ul>

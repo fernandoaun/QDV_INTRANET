@@ -321,12 +321,14 @@ def create_app() -> Flask:
             u = None
         personal_entregas_pendientes = 0
         user_tiene_legajo_personal = False
+        cumpleanos_hoy_lista: list = []
         if u is not None:
             try:
                 user_tiene_legajo_personal = (
                     _personal_service.get_empleado_by_user_id(int(u.id)) is not None
                 )
                 personal_entregas_pendientes = _personal_service.count_entregas_epp_pendientes_usuario(int(u.id))
+                cumpleanos_hoy_lista = _personal_service.cumpleanos_hoy()
             except Exception:
                 app.logger.exception("inject_nav_user: entregas EPP pendientes")
         return {
@@ -364,6 +366,7 @@ def create_app() -> Flask:
             "planificacion_resumen_predecesoras": lambda dlist: _planificacion_service.resumen_predecesoras_texto(dlist or []),
             "personal_entregas_pendientes": personal_entregas_pendientes,
             "user_tiene_legajo_personal": user_tiene_legajo_personal,
+            "cumpleanos_hoy": cumpleanos_hoy_lista,
         }
 
     @app.context_processor
