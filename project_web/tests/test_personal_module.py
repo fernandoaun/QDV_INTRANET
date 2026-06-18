@@ -12,6 +12,60 @@ def test_personal_blocked_nonprivileged(mant_client):
     assert r.status_code in (302, 303)
 
 
+def test_ensure_default_epp_catalog_seeds_ropa_y_epp(app):
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        created = ps.ensure_default_epp_catalog()
+        assert created == len(ps.DEFAULT_EPP_CATALOG)
+        cats = {it.categoria for it in ps.list_epp_items()}
+        assert "ropa" in cats
+        assert "epp" in cats
+        assert ps.ensure_default_epp_catalog() == 0
+
+
+def test_epp_entregas_page_seeds_catalog(auth_client):
+    r = auth_client.get("/personal/epp/entregas")
+    assert r.status_code == 200
+    assert b"Pantal" in r.data
+    assert b"Casco" in r.data
+    assert b"Registrar" in r.data
+
+
+def test_registrar_entrega_ropa_y_epp(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        ps.ensure_default_epp_catalog()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        ropa = next(it for it in ps.list_epp_items(solo_activos=True) if it.categoria == "ropa")
+        epp = next(it for it in ps.list_epp_items(solo_activos=True) if it.categoria == "epp")
+        emp_id = emp.id
+        ropa_id = ropa.id
+        epp_id = epp.id
+
+    for item_id, label in ((ropa_id, "ropa"), (epp_id, "epp")):
+        r = auth_client.post(
+            "/personal/epp/entregas",
+            data={
+                "empleado_id": str(emp_id),
+                "item_id": str(item_id),
+                "fecha": "2026-06-18",
+                "talle": "M",
+            },
+            follow_redirects=False,
+        )
+        assert r.status_code in (302, 303), label
+
+    with app.app_context():
+        pendientes = ps.list_entregas_epp_pendientes_empleado(emp_id)
+        assert len(pendientes) == 2
+
+
 def test_personal_post_forms_include_csrf(auth_client):
     """En producción CSRF está activo; los formularios POST de Personal deben incluir el token."""
     for path in ("/personal/epp/catalogo", "/personal/epp/entregas", "/personal/vacaciones"):

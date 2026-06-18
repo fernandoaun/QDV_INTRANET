@@ -8,10 +8,13 @@
   </div>
 </div>
 
-{% if puede_gestionar %}
+{% if puede_registrar_entregas %}
 <div class="app-card mb-3">
   <div class="app-card-header">Nueva entrega</div>
   <div class="app-card-body">
+    {% if not empleados or not items %}
+    <p class="text-muted mb-0">Completá empleados activos y el catálogo de ítems para poder registrar entregas.</p>
+    {% else %}
     <form method="post" class="row g-2 align-items-end">
       {% include "_csrf.html" %}
       <div class="col-md-3">
@@ -27,8 +30,15 @@
         <label class="form-label">Ítem *</label>
         <select class="form-select" name="item_id" required>
           <option value="">Seleccionar…</option>
-          {% for it in items %}
-          <option value="{{ it.id }}">{{ it.nombre }}</option>
+          {% for cat_key, cat_lbl in categoria_labels.items() %}
+          {% set cat_items = items|selectattr('categoria', 'equalto', cat_key)|list %}
+          {% if cat_items %}
+          <optgroup label="{{ cat_lbl }}">
+            {% for it in cat_items %}
+            <option value="{{ it.id }}">{{ it.nombre }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
           {% endfor %}
         </select>
       </div>
@@ -55,10 +65,13 @@
         </div>
         <div class="form-text">Marcá esta casilla solo si el empleado entregó la prenda anterior. Es obligatorio cuando ya tenía ese ítem confirmado. La entrega quedará pendiente hasta que el empleado la confirme desde su usuario.</div>
       </div>
-      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">Registrar</button></div>
     </form>
+    {% endif %}
   </div>
 </div>
+{% elif user_can_access_personal() %}
+<div class="alert alert-info">Solo usuarios con acceso a Personal pueden registrar entregas de ropa y EPP.</div>
 {% endif %}
 
 <div class="app-card mb-3">

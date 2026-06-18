@@ -7,6 +7,7 @@ from app.auth_utils import (
     login_required,
     user_can_access_personal,
     user_can_manage_personal,
+    user_can_register_entregas_personal,
     user_display_name,
 )
 from app.extensions import db
@@ -26,11 +27,22 @@ def _no_manage():
     return redirect(request.referrer or url_for("personal.hub"))
 
 
+def _no_register_entregas():
+    flash("No tenés permiso para registrar entregas de ropa/EPP.", "warning")
+    return redirect(request.referrer or url_for("personal.epp_entregas"))
+
+
 def _require_view():
     u = current_user()
     if not user_can_access_personal(u):
         return None, _no_access()
     return u, None
+
+
+def _require_register_entregas(u):
+    if not user_can_register_entregas_personal(u):
+        return _no_register_entregas()
+    return None
 
 
 def _require_manage(u):
@@ -111,10 +123,15 @@ def legajo_detalle(empleado_id: int):
         return redirect(url_for("personal.legajos"))
 
     if request.method == "POST":
-        mredir = _require_manage(u)
-        if mredir is not None:
-            return mredir
         action = (request.form.get("action") or "").strip()
+        if action == "entrega_epp":
+            rredir = _require_register_entregas(u)
+            if rredir is not None:
+                return rredir
+        else:
+            mredir = _require_manage(u)
+            if mredir is not None:
+                return mredir
         ok, msg = False, "Acción no reconocida."
         if action == "legajo":
             ok, msg, _ = ps.save_empleado(request.form, empleado_id=empleado_id, user_id=u.id)
@@ -142,6 +159,9 @@ def legajo_detalle(empleado_id: int):
         return redirect(url_for("personal.legajo_detalle", empleado_id=empleado_id, tab=request.form.get("tab") or ""))
 
     tab = (request.args.get("tab") or "datos").strip()
+    if tab == "epp":
+        if ps.ensure_default_epp_catalog() > 0:
+            flash("Se cargó el catálogo inicial de ropa y EPP. Podés ajustarlo en Catálogo EPP.", "info")
     return render_template(
         "personal/legajo_detalle.html",
         empleado=emp,
@@ -158,6 +178,7 @@ def legajo_detalle(empleado_id: int):
         categoria_epp_labels=ps.CATEGORIA_EPP_LABELS,
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
+        puede_registrar_entregas=user_can_register_entregas_personal(u),
     )
 
 
@@ -217,23 +238,33 @@ def epp_entregas():
     if redir is not None:
         return redir
     if request.method == "POST":
-        mredir = _require_manage(u)
-        if mredir is not None:
-            return mredir
+        rredir = _require_register_entregas(u)
+        if rredir is not None:
+            return rredir
         ok, msg = ps.save_entrega_epp(request.form, user_id=u.id)
         flash(msg, "success" if ok else "danger")
         return redirect(url_for("personal.epp_entregas"))
+    seeded = ps.ensure_default_epp_catalog()
+    if seeded > 0:
+        flash("Se cargó el catálogo inicial de ropa y EPP. Podés ajustarlo en Catálogo EPP.", "info")
     emp_id_raw = (request.args.get("empleado_id") or "").strip()
     emp_id = int(emp_id_raw) if emp_id_raw.isdigit() else None
+    empleados = ps.list_empleados(estado="activo")
+    items = ps.list_epp_items(solo_activos=True)
+    if not empleados:
+        flash("No hay empleados activos con legajo. Los legajos se crean al dar de alta usuarios.", "warning")
+    elif not items:
+        flash("No hay ítems activos en el catálogo. Cargalos en Catálogo ropa / EPP.", "warning")
     return render_template(
         "personal/epp_entregas.html",
         entregas=ps.list_entregas_epp(empleado_id=emp_id),
-        empleados=ps.list_empleados(estado="activo"),
-        items=ps.list_epp_items(solo_activos=True),
+        empleados=empleados,
+        items=items,
         filtro_empleado_id=emp_id,
         categoria_labels=ps.CATEGORIA_EPP_LABELS,
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
+        puede_registrar_entregas=user_can_register_entregas_personal(u),
     )
 
 

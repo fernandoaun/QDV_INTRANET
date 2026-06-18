@@ -39,6 +39,19 @@ ESTADO_ENTREGA_EPP_LABELS = {"pendiente": "Pendiente confirmación", "confirmada
 TIPO_APERCIBIMIENTO_LABELS = {"verbal": "Verbal", "escrito": "Escrito"}
 CATEGORIA_EPP_LABELS = {"ropa": "Ropa", "epp": "EPP", "otro": "Otro"}
 
+# Catálogo inicial si aún no hay ítems (ropa y EPP).
+DEFAULT_EPP_CATALOG: tuple[tuple[str, str, int, bool], ...] = (
+    ("Pantalón", "ropa", 10, True),
+    ("Camisa / remera", "ropa", 20, True),
+    ("Mameluco", "ropa", 30, True),
+    ("Calzado de seguridad", "ropa", 40, True),
+    ("Casco", "epp", 50, True),
+    ("Guantes", "epp", 60, True),
+    ("Anteojos de seguridad", "epp", 70, True),
+    ("Protector auricular", "epp", 80, False),
+    ("Barbijo", "epp", 90, False),
+)
+
 # Campos del legajo RRHH considerados para marcar perfil incompleto.
 LEGAJO_COMPLETENESS_FIELDS: tuple[tuple[str, str], ...] = (
     ("dni", "DNI"),
@@ -479,6 +492,25 @@ def list_epp_items(*, solo_activos: bool = False) -> list[PersonalEppItem]:
     return q.all()
 
 
+def ensure_default_epp_catalog() -> int:
+    """Crea ítems base de ropa y EPP si el catálogo está vacío."""
+    total = int(db.session.query(func.count(PersonalEppItem.id)).scalar() or 0)
+    if total > 0:
+        return 0
+    for nombre, cat, orden, req_talle in DEFAULT_EPP_CATALOG:
+        db.session.add(
+            PersonalEppItem(
+                nombre=nombre,
+                categoria=cat,
+                orden=orden,
+                requiere_talle=req_talle,
+                activo=True,
+            )
+        )
+    db.session.commit()
+    return len(DEFAULT_EPP_CATALOG)
+
+
 def save_epp_item(
     data: dict[str, Any],
     *,
@@ -652,7 +684,17 @@ def save_entrega_epp(
         created_by_id=user_id,
     )
     db.session.add(entrega)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        err = str(exc).lower()
+        if "estado" in err or "personal_entregas_epp" in err:
+            return (
+                False,
+                "No se pudo guardar la entrega. Ejecutá «flask db upgrade» en el servidor para aplicar las migraciones de Personal.",
+            )
+        return False, "No se pudo guardar la entrega. Revisá los datos o contactá al administrador."
     if requiere_workflow:
         from app.services.personal_epp_reminder_service import maybe_notify_entrega_epp_pendiente
 

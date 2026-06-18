@@ -120,6 +120,15 @@ def user_can_manage_personal(user: User | None) -> bool:
     return user_can_edit(user, "personal")
 
 
+def user_can_register_entregas_personal(user: User | None) -> bool:
+    """Registrar entregas de ropa/EPP: quien accede a Personal y no es solo lectura global."""
+    if user is None or user_is_global_read_only(user):
+        return False
+    if user.is_admin:
+        return True
+    return user_can_access_personal(user)
+
+
 def user_can_access_sgi(user: User | None) -> bool:
     """Administrador, perfiles Angel/SGI o usuarios con permiso sgi_hub."""
     if user is None:

@@ -54,10 +54,13 @@
 </div>
 
 {% elif tab == 'epp' %}
-{% if puede_gestionar %}
+{% if puede_registrar_entregas %}
 <div class="app-card mb-3">
   <div class="app-card-header">Registrar entrega</div>
   <div class="app-card-body">
+    {% if not items_epp %}
+    <p class="text-muted mb-0">No hay ítems en el catálogo. Un administrador puede cargarlos en <a href="{{ url_for('personal.epp_catalogo') }}">Catálogo ropa / EPP</a>.</p>
+    {% else %}
     <form method="post" class="row g-2 align-items-end">
       {% include "_csrf.html" %}
       <input type="hidden" name="action" value="entrega_epp">
@@ -66,8 +69,15 @@
         <label class="form-label">Ítem</label>
         <select class="form-select" name="item_id" required>
           <option value="">Seleccionar…</option>
-          {% for it in items_epp %}
-          <option value="{{ it.id }}">{{ it.nombre }}</option>
+          {% for cat_key, cat_lbl in categoria_epp_labels.items() %}
+          {% set cat_items = items_epp|selectattr('categoria', 'equalto', cat_key)|list %}
+          {% if cat_items %}
+          <optgroup label="{{ cat_lbl }}">
+            {% for it in cat_items %}
+            <option value="{{ it.id }}">{{ it.nombre }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
           {% endfor %}
         </select>
       </div>
@@ -94,8 +104,9 @@
         </div>
         <div class="form-text">Marcá si recibiste la prenda anterior. Obligatorio si ya tenía este ítem confirmado. Quedará pendiente hasta que el empleado confirme desde su usuario.</div>
       </div>
-      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">Registrar</button></div>
     </form>
+    {% endif %}
   </div>
 </div>
 {% endif %}
