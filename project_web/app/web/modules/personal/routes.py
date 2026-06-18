@@ -156,6 +156,7 @@ def legajo_detalle(empleado_id: int):
         estado_vacacion_labels=ps.ESTADO_VACACION_LABELS,
         tipo_apercibimiento_labels=ps.TIPO_APERCIBIMIENTO_LABELS,
         categoria_epp_labels=ps.CATEGORIA_EPP_LABELS,
+        estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
     )
 
@@ -231,7 +232,38 @@ def epp_entregas():
         items=ps.list_epp_items(solo_activos=True),
         filtro_empleado_id=emp_id,
         categoria_labels=ps.CATEGORIA_EPP_LABELS,
+        estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
+    )
+
+
+@bp.route("/mis-entregas-epp", methods=["GET", "POST"])
+@login_required
+def mis_entregas_epp():
+    u = current_user()
+    emp = ps.get_empleado_by_user_id(u.id)
+    if emp is None:
+        flash("No tenés un legajo de personal vinculado a tu usuario.", "warning")
+        return redirect(url_for("main.dashboard"))
+
+    if request.method == "POST":
+        entrega_id_raw = (request.form.get("entrega_id") or "").strip()
+        if not entrega_id_raw.isdigit():
+            flash("Entrega no válida.", "danger")
+            return redirect(url_for("personal.mis_entregas_epp"))
+        if (request.form.get("confirmar_recepcion") or "").strip() != "1":
+            flash("Debés confirmar que recibiste la prenda y devolviste la anterior (si correspondía).", "warning")
+            return redirect(url_for("personal.mis_entregas_epp"))
+        ok, msg = ps.confirmar_entrega_epp(int(entrega_id_raw), user_id=u.id)
+        flash(msg, "success" if ok else "danger")
+        return redirect(url_for("personal.mis_entregas_epp"))
+
+    return render_template(
+        "personal/mis_entregas_epp.html",
+        empleado=emp,
+        pendientes=ps.list_entregas_epp_pendientes_empleado(emp.id),
+        historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
+        estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
     )
 
 

@@ -310,6 +310,7 @@ def create_app() -> Flask:
         )
         from app.constants import MODULE_LABELS
         from app.services import planificacion_service as _planificacion_service
+        from app.services import personal_service as _personal_service
         from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label, user_is_global_read_only
         from flask import request
 
@@ -318,6 +319,16 @@ def create_app() -> Flask:
         except Exception:
             app.logger.exception("inject_nav_user: no se pudo cargar el usuario")
             u = None
+        personal_entregas_pendientes = 0
+        user_tiene_legajo_personal = False
+        if u is not None:
+            try:
+                user_tiene_legajo_personal = (
+                    _personal_service.get_empleado_by_user_id(int(u.id)) is not None
+                )
+                personal_entregas_pendientes = _personal_service.count_entregas_epp_pendientes_usuario(int(u.id))
+            except Exception:
+                app.logger.exception("inject_nav_user: entregas EPP pendientes")
         return {
             "nav_user": u,
             "user_can": (lambda perm: _user_can(u, perm)),
@@ -351,6 +362,8 @@ def create_app() -> Flask:
             "planificacion_display_codigo": _planificacion_service.actividad_display_codigo,
             "planificacion_is_atrasada": _planificacion_service.is_atrasada,
             "planificacion_resumen_predecesoras": lambda dlist: _planificacion_service.resumen_predecesoras_texto(dlist or []),
+            "personal_entregas_pendientes": personal_entregas_pendientes,
+            "user_tiene_legajo_personal": user_tiene_legajo_personal,
         }
 
     @app.context_processor

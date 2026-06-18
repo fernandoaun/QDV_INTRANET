@@ -47,6 +47,246 @@ def test_personal_legajo_crud(auth_client):
     assert r.status_code == 200
 
 
+def test_entrega_epp_workflow_devolucion_y_confirmacion(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        item = PersonalEppItem(nombre="Pantalón test wf", categoria="ropa", activo=True)
+        db.session.add(item)
+        db.session.commit()
+        emp_id = emp.id
+        item_id = item.id
+        admin_id = admin.id
+
+    r = auth_client.post(
+        "/personal/epp/entregas",
+        data={
+            "empleado_id": str(emp_id),
+            "item_id": str(item_id),
+            "fecha": "2026-06-01",
+            "talle": "42",
+            "cantidad": "1",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        pendientes = ps.list_entregas_epp_pendientes_empleado(emp_id)
+        assert len(pendientes) == 1
+        primera_id = pendientes[0].id
+
+    r = auth_client.post(
+        "/personal/mis-entregas-epp",
+        data={"entrega_id": str(primera_id), "confirmar_recepcion": "1"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        primera = ps.ultima_entrega_confirmada_empleado_item(emp_id, item_id)
+        assert primera is not None
+        assert primera.estado == "confirmada"
+
+    r = auth_client.post(
+        "/personal/epp/entregas",
+        data={
+            "empleado_id": str(emp_id),
+            "item_id": str(item_id),
+            "fecha": "2026-06-18",
+            "talle": "44",
+            "cantidad": "1",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        pendientes = ps.list_entregas_epp_pendientes_empleado(emp_id)
+        assert len(pendientes) == 0
+
+    r = auth_client.post(
+        "/personal/epp/entregas",
+        data={
+            "empleado_id": str(emp_id),
+            "item_id": str(item_id),
+            "fecha": "2026-06-18",
+            "talle": "44",
+            "cantidad": "1",
+            "prenda_anterior_devuelta": "1",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        pendientes = ps.list_entregas_epp_pendientes_empleado(emp_id)
+        assert len(pendientes) == 1
+        entrega_id = pendientes[0].id
+
+    r = auth_client.get("/personal/mis-entregas-epp")
+    assert r.status_code == 200
+    assert b"Pendientes de confirmaci" in r.data
+
+    r = auth_client.post(
+        "/personal/mis-entregas-epp",
+        data={"entrega_id": str(entrega_id), "confirmar_recepcion": "1"},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        from app.models import PersonalEntregaEpp
+
+        entrega = db.session.get(PersonalEntregaEpp, entrega_id)
+        assert entrega is not None
+        assert entrega.estado == "confirmada"
+        assert entrega.confirmada_by_user_id == admin_id
+        assert ps.list_entregas_epp_pendientes_empleado(emp_id) == []
+
+
+def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+    from app.services import personal_service as ps
+
+    sent: list[dict] = []
+
+    def _fake_mail(app, **kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr("app.services.personal_epp_reminder_service.enviar_mail", _fake_mail)
+    monkeypatch.setattr("app.services.personal_epp_reminder_service.is_mail_fully_configured", lambda _app: True)
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp.email = "empleado@test.example"
+        item = PersonalEppItem(nombre="Casco test mail", categoria="epp", activo=True)
+        db.session.add(item)
+        db.session.commit()
+        emp_id = emp.id
+        item_id = item.id
+
+    r = auth_client.post(
+        "/personal/epp/entregas",
+        data={
+            "empleado_id": str(emp_id),
+            "item_id": str(item_id),
+            "fecha": "2026-06-18",
+            "talle": "M",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+    assert len(sent) == 1
+    assert sent[0]["destinatarios"] == ["empleado@test.example"]
+    assert "Casco test mail" in sent[0]["asunto"]
+
+
+def test_run_entrega_epp_reminders_agrupa_por_empleado(app, monkeypatch):
+    from datetime import date, datetime, timedelta, timezone
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEntregaEpp, PersonalEppItem
+    from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
+
+    sent: list[dict] = []
+
+    def _fake_mail(app, **kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr("app.services.personal_epp_reminder_service.enviar_mail", _fake_mail)
+    monkeypatch.setattr("app.services.personal_epp_reminder_service.is_mail_fully_configured", lambda _app: True)
+
+    with app.app_context():
+        emp = EmpleadoPersonal(
+            legajo="MAIL-1",
+            apellido="Mail",
+            nombre="Test",
+            email="mail.test@example.com",
+            fecha_ingreso=date(2026, 1, 1),
+        )
+        db.session.add(emp)
+        db.session.flush()
+        item1 = PersonalEppItem(nombre="Item mail 1", categoria="ropa", activo=True)
+        item2 = PersonalEppItem(nombre="Item mail 2", categoria="epp", activo=True)
+        db.session.add_all([item1, item2])
+        db.session.flush()
+        ayer = datetime.now(timezone.utc) - timedelta(days=1)
+        db.session.add_all(
+            [
+                PersonalEntregaEpp(
+                    empleado_id=emp.id,
+                    item_id=item1.id,
+                    fecha=date(2026, 6, 10),
+                    estado="pendiente",
+                    aviso_pendiente_at=ayer,
+                ),
+                PersonalEntregaEpp(
+                    empleado_id=emp.id,
+                    item_id=item2.id,
+                    fecha=date(2026, 6, 12),
+                    estado="pendiente",
+                    aviso_pendiente_at=ayer,
+                ),
+            ]
+        )
+        db.session.commit()
+
+        out = run_entrega_epp_reminders(app, dry_run=False)
+        assert out["emails_sent"] == 1
+        assert len(sent) == 1
+        assert sent[0]["destinatarios"] == ["mail.test@example.com"]
+        assert "2 entregas" in sent[0]["asunto"]
+
+
+def test_entrega_epp_sin_devolucion_rechazada(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        item = PersonalEppItem(nombre="Camisa test wf", categoria="ropa", activo=True)
+        db.session.add(item)
+        db.session.commit()
+        ok, _ = ps.save_entrega_epp(
+            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-05-01"},
+            user_id=1,
+        )
+        assert ok is True
+        pendiente = ps.entrega_epp_pendiente_empleado_item(emp.id, item.id)
+        assert pendiente is not None
+        ok_confirm, _ = ps.confirmar_entrega_epp(pendiente.id, user_id=emp.user_id)
+        assert ok_confirm is True
+        emp_id = emp.id
+        item_id = item.id
+
+    r = auth_client.post(
+        "/personal/epp/entregas",
+        data={
+            "empleado_id": str(emp_id),
+            "item_id": str(item_id),
+            "fecha": "2026-06-18",
+            "talle": "L",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        assert ps.list_entregas_epp_pendientes_empleado(emp_id) == []
+
+
 def test_user_create_generates_legajo(auth_client, app):
     from app.extensions import db
     from app.models import EmpleadoPersonal, User

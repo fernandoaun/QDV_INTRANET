@@ -16,6 +16,7 @@
   Los avisos de <strong>Vencimientos</strong> se envían solos en segundo plano mientras la app está activa (ventana de 30 días).
   Planificación y mantenimiento siguen usando el cron <code>send-deadline-reminders</code> o el botón de abajo para vencimientos.
   Los avisos de <strong>stock crítico</strong> (por debajo del mínimo) se envían al cruzar el umbral, a los correos de la sección correspondiente.
+  Las entregas de <strong>ropa/EPP</strong> pendientes de confirmación avisan al <strong>email del legajo</strong> del empleado al registrarse y con recordatorio diario.
   <strong>Solo un administrador</strong> puede cargar o quitar correos en la aplicación; los perfiles <strong>Angel</strong> y <strong>SGI</strong> pueden ver esta pantalla completa sin modificarla.
 </p>
 
@@ -59,6 +60,23 @@
       {% include "_csrf.html" %}
       <button type="submit" class="btn btn-primary" {% if smtp_configured is defined and not smtp_configured %}disabled{% endif %}>
         Enviar avisos de vencimientos
+      </button>
+    </form>
+  </div>
+</div>
+<div class="app-card mb-4">
+  <div class="app-card-header">Recordatorios entregas ropa / EPP</div>
+  <div class="app-card-body">
+    <p class="small text-muted mb-3">
+      Envía recordatorios a empleados con entregas pendientes de confirmación (email cargado en el legajo RRHH).
+      Al registrar una entrega nueva también se envía un aviso inmediato si SMTP está configurado.
+      El cron diario <code>send-deadline-reminders</code> incluye estos recordatorios.
+    </p>
+    <form method="post" action="{{ url_for('admin_users.entrega_epp_reminders_send') }}" class="d-inline"
+          onsubmit="return confirm('¿Enviar ahora los recordatorios de entregas EPP/ropa pendientes?');">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-primary" {% if smtp_configured is defined and not smtp_configured %}disabled{% endif %}>
+        Enviar recordatorios EPP pendientes
       </button>
     </form>
   </div>

@@ -275,6 +275,16 @@
           </button>
           <ul class="dropdown-menu dropdown-menu-end app-user-dropdown-menu" aria-labelledby="appUserMenuBtn">
             <li><a class="dropdown-item" href="{{ url_for('main.dashboard') }}"><i class="bi bi-speedometer2 me-2 opacity-50" aria-hidden="true"></i>Panel</a></li>
+            {% if user_tiene_legajo_personal %}
+            <li>
+              <a class="dropdown-item" href="{{ url_for('personal.mis_entregas_epp') }}">
+                <i class="bi bi-bag-check me-2 opacity-50" aria-hidden="true"></i>Mis entregas ropa / EPP
+                {% if personal_entregas_pendientes %}
+                <span class="badge text-bg-warning ms-1">{{ personal_entregas_pendientes }}</span>
+                {% endif %}
+              </a>
+            </li>
+            {% endif %}
             {% if user_can_production_hub %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('produccion.hub') }}"><i class="bi bi-grid-1x2 me-2 opacity-50" aria-hidden="true"></i>PRODUCCIÓN</a></li>
             {% endif %}
@@ -352,6 +362,12 @@
         {% if shift_nav.banner.href %}
         <a class="alert-link ms-1" href="{{ shift_nav.banner.href }}">{{ shift_nav.banner.link_label or 'Ir' }}</a>
         {% endif %}
+      </div>
+      {% endif %}
+      {% if personal_entregas_pendientes %}
+      <div class="alert alert-warning mb-3" role="status">
+        Tenés {{ personal_entregas_pendientes }} entrega(s) de ropa/EPP pendiente(s) de confirmación.
+        <a class="alert-link ms-1" href="{{ url_for('personal.mis_entregas_epp') }}">Confirmar entregas</a>
       </div>
       {% endif %}
       {% block content %}{% endblock %}

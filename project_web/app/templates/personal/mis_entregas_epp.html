@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Confirmar entregas EPP · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Mis entregas de ropa / EPP</h1>
+    <div class="text-muted">Confirmá desde tu usuario la recepción de prendas y EPP registrados por RRHH.</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Volver al panel</a>
+  </div>
+</div>
+
+{% if pendientes %}
+<div class="app-card mb-3 border-warning">
+  <div class="app-card-header">Pendientes de confirmación</div>
+  <div class="app-card-body">
+    <p class="small text-muted mb-3">
+      RRHH registró estas entregas. Para cerrarlas, confirmá que recibiste la prenda nueva
+      {% if pendientes|selectattr('prenda_anterior_entrega_id')|list %}y que devolviste la anterior{% endif %}.
+    </p>
+    {% for en in pendientes %}
+    <div class="border rounded p-3 mb-3 {% if not loop.last %}mb-3{% endif %}">
+      <div class="row g-2 align-items-start">
+        <div class="col-md-8">
+          <div class="fw-semibold">{{ en.item.nombre }}</div>
+          <div class="small text-muted">
+            Fecha de entrega: {{ en.fecha.strftime('%d/%m/%Y') }}
+            {% if en.talle %} · Talle {{ en.talle }}{% endif %}
+            {% if en.cantidad > 1 %} · Cant. {{ en.cantidad }}{% endif %}
+          </div>
+          {% if en.prenda_anterior_entrega %}
+          <div class="small mt-1">
+            Prenda anterior: <strong>{{ en.prenda_anterior_entrega.item.nombre }}</strong>
+            ({{ en.prenda_anterior_entrega.fecha.strftime('%d/%m/%Y') }}{% if en.prenda_anterior_entrega.talle %}, talle {{ en.prenda_anterior_entrega.talle }}{% endif %})
+            {% if en.prenda_anterior_devuelta %}
+            <span class="badge text-bg-success ms-1">Devuelta registrada por RRHH</span>
+            {% else %}
+            <span class="badge text-bg-warning ms-1">Pendiente devolución en RRHH</span>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% if en.observaciones %}
+          <div class="small mt-1">Obs.: {{ en.observaciones }}</div>
+          {% endif %}
+        </div>
+        <div class="col-md-4">
+          {% if en.prenda_anterior_entrega_id and not en.prenda_anterior_devuelta %}
+          <p class="small text-warning mb-0">Entregá la prenda anterior a RRHH para que puedan registrar la devolución y habilitar tu confirmación.</p>
+          {% else %}
+          <form method="post">
+            {% include "_csrf.html" %}
+            <input type="hidden" name="entrega_id" value="{{ en.id }}">
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" value="1" name="confirmar_recepcion" id="confirm{{ en.id }}" required>
+              <label class="form-check-label small" for="confirm{{ en.id }}">
+                Confirmo haber recibido esta prenda{% if en.prenda_anterior_entrega %} y haber devuelto la anterior{% endif %}.
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm w-100">Confirmar entrega</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-success">No tenés entregas pendientes de confirmación.</div>
+{% endif %}
+
+<div class="app-card">
+  <div class="app-card-header">Historial reciente</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Ítem</th><th>Talle</th><th>Estado</th><th>Confirmada</th></tr></thead>
+      <tbody>
+        {% for en in historial %}
+        <tr>
+          <td>{{ en.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>{{ en.item.nombre }}</td>
+          <td>{{ en.talle or '—' }}</td>
+          <td>
+            <span class="badge {% if en.estado == 'pendiente' %}text-bg-warning{% else %}text-bg-success{% endif %}">
+              {{ estado_entrega_labels.get(en.estado, en.estado) }}
+            </span>
+          </td>
+          <td>
+            {% if en.confirmada_at %}
+            {{ en.confirmada_at.strftime('%d/%m/%Y %H:%M') }}
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted p-3">Sin entregas registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

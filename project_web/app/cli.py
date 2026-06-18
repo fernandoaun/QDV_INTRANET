@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash
 from app.extensions import db
 from app.models import User
 from app.services.deadline_reminder_service import run_deadline_reminders
+from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.user_roles import ROLE_ADMINISTRADOR
 
@@ -92,14 +93,16 @@ def register_cli(app: Flask) -> None:
         help="Mostrar ítems y cuerpo del correo sin enviar ni registrar.",
     )
     def send_deadline_reminders(dry_run: bool) -> None:
-        """Avisos por mail: planificación, mantenimiento y módulo Vencimientos (ventana 30 días).
+        """Avisos por mail: planificación, mantenimiento, vencimientos y entregas EPP/ropa pendientes.
 
         Configurar SMTP_* , MAIL_FROM y destinatarios en Administración → Avisos por correo / DEADLINE_ALERT_EMAIL_TO.
         Cron diario recomendado. Opcional: DEADLINE_REMINDER_DAYS_BEFORE (planificación/mantenimiento; por defecto 30).
+        Los avisos EPP se envían al email del legajo del empleado al registrar la entrega y como recordatorio diario.
         """
         with app.app_context():
             out = run_deadline_reminders(app, dry_run=dry_run)
             out_v = run_vencimiento_reminders(app, dry_run=dry_run)
+            out_epp = run_entrega_epp_reminders(app, dry_run=dry_run)
         click.echo(out.get("message") or "")
         click.echo(
             f"Fecha operación: {out.get('today')} · Días de anticipación: {out.get('days_before')} · "
@@ -109,6 +112,11 @@ def register_cli(app: Flask) -> None:
         click.echo(
             f"Vencimientos · anticipación: {out_v.get('days_before')} días · candidatos: {out_v.get('candidates')} · "
             f"intentados: {out_v.get('emails_attempted')} · enviados: {out_v.get('emails_sent')}"
+        )
+        click.echo(out_epp.get("message") or "")
+        click.echo(
+            f"EPP/ropa pendientes · empleados: {out_epp.get('empleados_con_pendientes')} · "
+            f"intentados: {out_epp.get('emails_attempted')} · enviados: {out_epp.get('emails_sent')}"
         )
         if dry_run and out.get("preview_body"):
             click.echo("--- Planificación/Mantenimiento: asunto ---")

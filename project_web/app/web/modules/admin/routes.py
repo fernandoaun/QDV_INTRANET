@@ -23,6 +23,7 @@ from app.services import plant_stop_service as plant_stop_svc
 from app.services import personal_service as personal_svc
 from app.services import stock_alert_email_service as stock_alert_svc
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
+from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
@@ -441,6 +442,24 @@ def vencimientos_reminders_send():
         return redirect(url_for("admin_users.deadline_alert_emails"))
     out = run_vencimiento_reminders(current_app, dry_run=False)
     msg = out.get("message") or "Proceso de avisos de vencimientos finalizado."
+    if out.get("errors"):
+        flash(f"{msg} Hubo {len(out['errors'])} error(es).", "warning")
+    elif int(out.get("emails_sent") or 0) > 0:
+        flash(msg, "success")
+    else:
+        flash(msg, "info")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
+
+
+@bp.post("/avisos-correo/enviar-epp-pendientes")
+@login_required
+@admin_required
+def entrega_epp_reminders_send():
+    if not is_mail_fully_configured(current_app):
+        flash("SMTP no configurado: revisá SMTP_HOST y MAIL_FROM en el servidor.", "warning")
+        return redirect(url_for("admin_users.deadline_alert_emails"))
+    out = run_entrega_epp_reminders(current_app, dry_run=False)
+    msg = out.get("message") or "Proceso de recordatorios EPP finalizado."
     if out.get("errors"):
         flash(f"{msg} Hubo {len(out['errors'])} error(es).", "warning")
     elif int(out.get("emails_sent") or 0) > 0:

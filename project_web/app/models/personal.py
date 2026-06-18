@@ -83,12 +83,26 @@ class PersonalEntregaEpp(db.Model):
     talle = db.Column(db.String(32), nullable=False, default="", server_default="")
     cantidad = db.Column(db.Integer, nullable=False, default=1, server_default="1")
     observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+    estado = db.Column(db.String(16), nullable=False, default="pendiente", server_default="pendiente", index=True)
+    prenda_anterior_devuelta = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    prenda_anterior_entrega_id = db.Column(
+        db.Integer, db.ForeignKey("personal_entregas_epp.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    confirmada_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    confirmada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    aviso_pendiente_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
     created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
     empleado = db.relationship("EmpleadoPersonal", backref=db.backref("entregas_epp", lazy="dynamic"))
     item = db.relationship("PersonalEppItem", back_populates="entregas")
+    prenda_anterior_entrega = db.relationship(
+        "PersonalEntregaEpp",
+        remote_side=[id],
+        foreign_keys=[prenda_anterior_entrega_id],
+    )
+    confirmada_por = db.relationship("User", foreign_keys=[confirmada_by_user_id])
 
 
 class PersonalCurso(db.Model):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import func, or_, select
@@ -28,11 +28,14 @@ def today_operacion() -> date:
 
 ESTADOS_EMPLEADO = ("activo", "baja")
 ESTADOS_VACACION = ("pendiente", "tomada", "cancelada")
+ESTADOS_ENTREGA_EPP = ("pendiente", "confirmada")
 TIPOS_APERCIBIMIENTO = ("verbal", "escrito")
 CATEGORIAS_EPP = ("ropa", "epp", "otro")
+CATEGORIAS_EPP_CON_WORKFLOW = frozenset({"ropa", "epp"})
 
 ESTADO_EMPLEADO_LABELS = {"activo": "Activo", "baja": "Baja"}
 ESTADO_VACACION_LABELS = {"pendiente": "Pendiente", "tomada": "Tomada", "cancelada": "Cancelada"}
+ESTADO_ENTREGA_EPP_LABELS = {"pendiente": "Pendiente confirmación", "confirmada": "Confirmada"}
 TIPO_APERCIBIMIENTO_LABELS = {"verbal": "Verbal", "escrito": "Escrito"}
 CATEGORIA_EPP_LABELS = {"ropa": "Ropa", "epp": "EPP", "otro": "Otro"}
 
@@ -526,6 +529,70 @@ def list_entregas_epp(*, empleado_id: int | None = None, limit: int = 200) -> li
     return q.limit(limit).all()
 
 
+def item_epp_requiere_workflow(item: PersonalEppItem | None) -> bool:
+    if item is None:
+        return False
+    return (item.categoria or "").strip().lower() in CATEGORIAS_EPP_CON_WORKFLOW
+
+
+def ultima_entrega_confirmada_empleado_item(empleado_id: int, item_id: int) -> PersonalEntregaEpp | None:
+    return (
+        db.session.query(PersonalEntregaEpp)
+        .filter(
+            PersonalEntregaEpp.empleado_id == empleado_id,
+            PersonalEntregaEpp.item_id == item_id,
+            PersonalEntregaEpp.estado == "confirmada",
+        )
+        .order_by(PersonalEntregaEpp.fecha.desc(), PersonalEntregaEpp.id.desc())
+        .first()
+    )
+
+
+def entrega_epp_pendiente_empleado_item(empleado_id: int, item_id: int) -> PersonalEntregaEpp | None:
+    return (
+        db.session.query(PersonalEntregaEpp)
+        .filter(
+            PersonalEntregaEpp.empleado_id == empleado_id,
+            PersonalEntregaEpp.item_id == item_id,
+            PersonalEntregaEpp.estado == "pendiente",
+        )
+        .order_by(PersonalEntregaEpp.fecha.desc(), PersonalEntregaEpp.id.desc())
+        .first()
+    )
+
+
+def list_entregas_epp_pendientes_empleado(empleado_id: int) -> list[PersonalEntregaEpp]:
+    return (
+        db.session.query(PersonalEntregaEpp)
+        .join(PersonalEppItem)
+        .filter(
+            PersonalEntregaEpp.empleado_id == empleado_id,
+            PersonalEntregaEpp.estado == "pendiente",
+        )
+        .order_by(PersonalEntregaEpp.fecha.desc(), PersonalEntregaEpp.id.desc())
+        .all()
+    )
+
+
+def count_entregas_epp_pendientes_usuario(user_id: int) -> int:
+    emp = get_empleado_by_user_id(user_id)
+    if emp is None:
+        return 0
+    return int(
+        db.session.query(func.count(PersonalEntregaEpp.id))
+        .filter(
+            PersonalEntregaEpp.empleado_id == emp.id,
+            PersonalEntregaEpp.estado == "pendiente",
+        )
+        .scalar()
+        or 0
+    )
+
+
+def _checkbox_truthy(raw: str | None) -> bool:
+    return (raw or "") in ("1", "on", "true", "yes")
+
+
 def save_entrega_epp(
     data: dict[str, Any],
     *,
@@ -543,6 +610,33 @@ def save_entrega_epp(
     cant_raw = (data.get("cantidad") or "1").strip()
     cantidad = int(cant_raw) if cant_raw.isdigit() and int(cant_raw) > 0 else 1
 
+    requiere_workflow = item_epp_requiere_workflow(item)
+    if requiere_workflow:
+        pendiente = entrega_epp_pendiente_empleado_item(emp.id, item.id)
+        if pendiente is not None:
+            return (
+                False,
+                "Hay una entrega pendiente de confirmación para este ítem. "
+                "El empleado debe confirmarla desde su usuario antes de registrar otra.",
+            )
+    anterior = ultima_entrega_confirmada_empleado_item(emp.id, item.id) if requiere_workflow else None
+    prenda_devuelta = _checkbox_truthy(data.get("prenda_anterior_devuelta"))
+    if anterior is not None and not prenda_devuelta:
+        return (
+            False,
+            f"Debe registrarse la devolución de la prenda anterior ({anterior.item.nombre}, "
+            f"entrega del {anterior.fecha.strftime('%d/%m/%Y')}).",
+        )
+
+    if requiere_workflow:
+        estado = "pendiente"
+        confirmada_at = None
+        confirmada_by = None
+    else:
+        estado = "confirmada"
+        confirmada_at = datetime.now(timezone.utc)
+        confirmada_by = user_id
+
     entrega = PersonalEntregaEpp(
         empleado_id=emp.id,
         item_id=item.id,
@@ -550,11 +644,48 @@ def save_entrega_epp(
         talle=(data.get("talle") or "").strip()[:32],
         cantidad=cantidad,
         observaciones=(data.get("observaciones") or "").strip()[:2000],
+        estado=estado,
+        prenda_anterior_devuelta=prenda_devuelta,
+        prenda_anterior_entrega_id=anterior.id if anterior is not None else None,
+        confirmada_at=confirmada_at,
+        confirmada_by_user_id=confirmada_by,
         created_by_id=user_id,
     )
     db.session.add(entrega)
     db.session.commit()
+    if requiere_workflow:
+        from app.services.personal_epp_reminder_service import maybe_notify_entrega_epp_pendiente
+
+        mail_ok, mail_detail = maybe_notify_entrega_epp_pendiente(entrega)
+        base_msg = "Entrega registrada. El empleado debe confirmarla desde su usuario."
+        if not mail_ok and mail_detail:
+            return True, f"{base_msg} Aviso por correo: {mail_detail}"
+        return True, base_msg
     return True, "Entrega registrada."
+
+
+def confirmar_entrega_epp(entrega_id: int, *, user_id: int) -> tuple[bool, str]:
+    entrega = db.session.get(PersonalEntregaEpp, entrega_id)
+    if entrega is None:
+        return False, "Entrega no encontrada."
+    if entrega.estado != "pendiente":
+        return False, "Esta entrega ya fue confirmada."
+    emp = entrega.empleado
+    if emp is None or emp.user_id is None or int(emp.user_id) != int(user_id):
+        return False, "Solo el empleado titular puede confirmar esta entrega."
+    if not item_epp_requiere_workflow(entrega.item):
+        return False, "Esta entrega no requiere confirmación del empleado."
+    if entrega.prenda_anterior_entrega_id is not None and not entrega.prenda_anterior_devuelta:
+        return (
+            False,
+            "RRHH debe registrar la devolución de la prenda anterior antes de que puedas confirmar.",
+        )
+
+    entrega.estado = "confirmada"
+    entrega.confirmada_at = datetime.now(timezone.utc)
+    entrega.confirmada_by_user_id = user_id
+    db.session.commit()
+    return True, "Entrega confirmada."
 
 
 def save_curso(empleado_id: int, data: dict[str, Any]) -> tuple[bool, str]:
