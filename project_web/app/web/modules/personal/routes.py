@@ -370,9 +370,10 @@ def vacaciones():
             ok, msg, _ = ps.save_vacacion_periodo_lote(
                 anio=int(anio_raw),
                 empleado_ids=request.form.getlist("empleado_id"),
-                dias_values=request.form.getlist("dias_asignados"),
+                dias_values=request.form.getlist("dias_disponibles"),
                 user_id=u.id,
                 observaciones=(request.form.get("observaciones") or "").strip(),
+                input_mode=(request.form.get("input_mode") or "disponibles").strip(),
             )
             flash(msg, "success" if ok else "danger")
             return redirect(url_for("personal.vacaciones", anio_carga=anio_raw))

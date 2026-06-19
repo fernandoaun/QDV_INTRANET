@@ -985,23 +985,49 @@ def saldos_vacaciones_empleado(empleado_id: int) -> list[dict[str, Any]]:
     return out
 
 
+def _resolve_dias_asignados_periodo(
+    empleado_id: int,
+    anio: int,
+    data: dict[str, Any],
+) -> tuple[int | None, str | None]:
+    """Interpreta días disponibles o asignados totales para un período."""
+    usados = _dias_usados_periodo(empleado_id, anio)
+    disp_raw = (data.get("dias_disponibles") or "").strip()
+    asig_raw = (data.get("dias_asignados") or "").strip()
+    mode = (data.get("input_mode") or "").strip().lower()
+
+    if disp_raw or mode == "disponibles":
+        if not disp_raw.isdigit():
+            return None, "Días disponibles obligatorios."
+        disponibles = int(disp_raw)
+        if disponibles < 0:
+            return None, "Los días disponibles no pueden ser negativos."
+        return disponibles + usados, None
+
+    if not asig_raw.isdigit():
+        return None, "Días asignados obligatorios."
+    dias = int(asig_raw)
+    if dias < 0:
+        return None, "Los días asignados no pueden ser negativos."
+    if dias < usados:
+        return None, f"No podés asignar menos de {usados} días (ya hay solicitudes/aprobaciones por ese período)."
+    return dias, None
+
+
 def save_vacacion_periodo(data: dict[str, Any], *, user_id: int | None) -> tuple[bool, str]:
     emp_id_raw = (data.get("empleado_id") or "").strip()
     anio_raw = (data.get("anio") or "").strip()
-    dias_raw = (data.get("dias_asignados") or "").strip()
     if not emp_id_raw.isdigit():
         return False, "Empleado obligatorio."
     if not anio_raw.isdigit():
         return False, "Año del período obligatorio."
-    if not dias_raw.isdigit():
-        return False, "Días asignados obligatorios."
     emp = db.session.get(EmpleadoPersonal, int(emp_id_raw))
     if emp is None:
         return False, "Empleado no encontrado."
     anio = int(anio_raw)
-    dias = int(dias_raw)
-    if dias < 0:
-        return False, "Los días asignados no pueden ser negativos."
+    dias, err = _resolve_dias_asignados_periodo(emp.id, anio, data)
+    if err is not None or dias is None:
+        return False, err or "Días del período no válidos."
 
     periodo_id_raw = (data.get("periodo_id") or "").strip()
     periodo: PersonalVacacionPeriodo | None = None
@@ -1019,9 +1045,6 @@ def save_vacacion_periodo(data: dict[str, Any], *, user_id: int | None) -> tuple
     periodo.dias_asignados = dias
     periodo.observaciones = (data.get("observaciones") or "").strip()[:2000]
     periodo.updated_by_id = user_id
-    usados = _dias_usados_periodo(emp.id, anio)
-    if dias < usados:
-        return False, f"No podés asignar menos de {usados} días (ya hay solicitudes/aprobaciones por ese período)."
     db.session.commit()
     return True, "Período de vacaciones guardado."
 
@@ -1034,15 +1057,26 @@ def save_vacacion_periodo_masivo(
 ) -> tuple[bool, str, int]:
     """Asigna el mismo saldo de días a todos los empleados activos (o a los seleccionados)."""
     anio_raw = (data.get("anio") or "").strip()
+    disp_raw = (data.get("dias_disponibles") or "").strip()
     dias_raw = (data.get("dias_asignados") or "").strip()
+    mode = (data.get("input_mode") or "").strip().lower()
     if not anio_raw.isdigit():
         return False, "Año del período obligatorio.", 0
-    if not dias_raw.isdigit():
-        return False, "Días asignados obligatorios.", 0
+    if not disp_raw.isdigit() and not dias_raw.isdigit():
+        return False, "Días del período obligatorios.", 0
     anio = int(anio_raw)
-    dias = int(dias_raw)
-    if dias < 0:
-        return False, "Los días asignados no pueden ser negativos.", 0
+    if disp_raw.isdigit() or mode == "disponibles":
+        if not disp_raw.isdigit():
+            return False, "Días disponibles obligatorios.", 0
+        if int(disp_raw) < 0:
+            return False, "Los días disponibles no pueden ser negativos.", 0
+        dias_key, dias_val = "dias_disponibles", disp_raw
+        resumen = f"{int(disp_raw)} días disponibles"
+    else:
+        if int(dias_raw) < 0:
+            return False, "Los días asignados no pueden ser negativos.", 0
+        dias_key, dias_val = "dias_asignados", dias_raw
+        resumen = f"{int(dias_raw)} días asignados"
 
     empleados = list_empleados(estado="activo")
     if empleado_ids:
@@ -1058,7 +1092,8 @@ def save_vacacion_periodo_masivo(
             {
                 "empleado_id": str(emp.id),
                 "anio": str(anio),
-                "dias_asignados": str(dias),
+                dias_key: dias_val,
+                "input_mode": mode,
                 "observaciones": (data.get("observaciones") or "").strip(),
             },
             user_id=user_id,
@@ -1073,7 +1108,7 @@ def save_vacacion_periodo_masivo(
         return False, f"No se pudo cargar ningún período. {detalle}", 0
     if errores:
         return True, f"Período {anio} cargado para {ok_count} empleado(s). {len(errores)} con error.", ok_count
-    return True, f"Período {anio}: {dias} días asignados a {ok_count} empleado(s).", ok_count
+    return True, f"Período {anio}: {resumen} para {ok_count} empleado(s).", ok_count
 
 
 def periodo_lote_filas(empleados: list[EmpleadoPersonal], anio: int) -> list[dict[str, Any]]:
@@ -1082,10 +1117,13 @@ def periodo_lote_filas(empleados: list[EmpleadoPersonal], anio: int) -> list[dic
     rows: list[dict[str, Any]] = []
     for emp in empleados:
         periodo = periodos_by_emp.get(int(emp.id))
+        saldo = saldo_vacacion_periodo(int(emp.id), anio)
         rows.append(
             {
                 "empleado": emp,
                 "dias_asignados": int(periodo.dias_asignados) if periodo is not None else "",
+                "dias_disponibles": saldo["disponibles"] if periodo is not None else "",
+                "usados": saldo["usados"],
                 "periodo_id": int(periodo.id) if periodo is not None else None,
             }
         )
@@ -1099,12 +1137,16 @@ def save_vacacion_periodo_lote(
     dias_values: list[str],
     user_id: int | None,
     observaciones: str = "",
+    input_mode: str = "disponibles",
 ) -> tuple[bool, str, int]:
     """Guarda días por período desde la tabla en lote (omite filas vacías)."""
     if anio < 2000 or anio > 2100:
         return False, "Año del período no válido.", 0
     if len(empleado_ids) != len(dias_values):
         return False, "Datos de la tabla incompletos.", 0
+
+    mode = (input_mode or "disponibles").strip().lower()
+    dias_key = "dias_disponibles" if mode == "disponibles" else "dias_asignados"
 
     ok_count = 0
     errores: list[str] = []
@@ -1124,7 +1166,8 @@ def save_vacacion_periodo_lote(
             {
                 "empleado_id": emp_id_raw,
                 "anio": str(anio),
-                "dias_asignados": dias_s,
+                dias_key: dias_s,
+                "input_mode": mode,
                 "observaciones": obs,
             },
             user_id=user_id,

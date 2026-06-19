@@ -848,3 +848,71 @@ def test_vacaciones_periodo_lote(app, admin_user):
         assert ok and n == 1
         saldo = ps.saldo_vacacion_periodo(empleados[0].id, 2028)
         assert saldo["asignados"] == 15
+
+
+def test_vacaciones_periodo_lote_disponibles_con_usados(app, admin_user):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        ps.save_vacacion_periodo(
+            {"empleado_id": str(emp.id), "anio": "2025", "dias_asignados": "10"},
+            user_id=admin.id,
+        )
+        ok, _, vac = ps.solicitar_vacacion(
+            emp.id,
+            user_id=admin.id,
+            data={"anio": "2025", "fecha_desde": "2025-12-01", "fecha_hasta": "2025-12-03"},
+        )
+        assert ok and vac is not None
+        ok, msg, n = ps.save_vacacion_periodo_lote(
+            anio=2025,
+            empleado_ids=[str(emp.id)],
+            dias_values=["7"],
+            user_id=admin.id,
+            input_mode="disponibles",
+        )
+        assert ok and n == 1, msg
+        saldo = ps.saldo_vacacion_periodo(emp.id, 2025)
+        assert saldo["usados"] == 3
+        assert saldo["disponibles"] == 7
+        assert saldo["asignados"] == 10
+
+
+def test_vacaciones_periodo_independiente_entre_anios(app, admin_user):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        ps.save_vacacion_periodo(
+            {"empleado_id": str(emp.id), "anio": "2026", "dias_asignados": "14"},
+            user_id=admin.id,
+        )
+        ok, _, _ = ps.solicitar_vacacion(
+            emp.id,
+            user_id=admin.id,
+            data={"anio": "2026", "fecha_desde": "2026-01-10", "fecha_hasta": "2026-01-14"},
+        )
+        assert ok
+        ok, msg, n = ps.save_vacacion_periodo_lote(
+            anio=2025,
+            empleado_ids=[str(emp.id)],
+            dias_values=["14"],
+            user_id=admin.id,
+            input_mode="disponibles",
+        )
+        assert ok and n == 1, msg
+        saldo_2025 = ps.saldo_vacacion_periodo(emp.id, 2025)
+        saldo_2026 = ps.saldo_vacacion_periodo(emp.id, 2026)
+        assert saldo_2025["asignados"] == 14
+        assert saldo_2025["disponibles"] == 14
+        assert saldo_2026["usados"] == 5
+        assert saldo_2026["disponibles"] == 9
