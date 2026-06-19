@@ -898,16 +898,30 @@ def get_vacacion_config() -> PersonalVacacionConfig:
     return row
 
 
-def set_responsable_vacaciones(user_id: int | None, *, by_user_id: int | None) -> tuple[bool, str]:
+def set_responsable_vacaciones(
+    user_id: int | None,
+    *,
+    by_user_id: int | None,
+    email: str | None = None,
+) -> tuple[bool, str]:
+    from app.services.deadline_alert_email_service import normalize_validate_email
+    from app.services.personal_epp_reminder_service import resolve_empleado_email
+
     cfg = get_vacacion_config()
     if user_id is not None:
         u = db.session.get(User, user_id)
         if u is None or not u.activo:
             return False, "Usuario responsable no válido."
         emp = get_empleado_by_user_id(user_id)
-        if emp is None:
-            return False, "El responsable debe tener un legajo vinculado."
-    cfg.responsable_user_id = user_id
+        legajo_mail = resolve_empleado_email(emp) if emp is not None else None
+        mail = normalize_validate_email((email or "").strip()) or legajo_mail
+        if not mail and not user_requires_legajo(u):
+            return False, "Indicá un email de contacto para el responsable (perfil Angel / sin legajo)."
+        cfg.responsable_user_id = user_id
+        cfg.responsable_email = mail or ""
+    else:
+        cfg.responsable_user_id = None
+        cfg.responsable_email = ""
     cfg.updated_by_id = by_user_id
     cfg.updated_at = datetime.now(timezone.utc)
     db.session.commit()
@@ -1060,6 +1074,72 @@ def save_vacacion_periodo_masivo(
     if errores:
         return True, f"Período {anio} cargado para {ok_count} empleado(s). {len(errores)} con error.", ok_count
     return True, f"Período {anio}: {dias} días asignados a {ok_count} empleado(s).", ok_count
+
+
+def periodo_lote_filas(empleados: list[EmpleadoPersonal], anio: int) -> list[dict[str, Any]]:
+    """Filas para la tabla de carga en lote (días ya cargados por empleado)."""
+    periodos_by_emp = {int(p.empleado_id): p for p in list_vacacion_periodos(anio=anio)}
+    rows: list[dict[str, Any]] = []
+    for emp in empleados:
+        periodo = periodos_by_emp.get(int(emp.id))
+        rows.append(
+            {
+                "empleado": emp,
+                "dias_asignados": int(periodo.dias_asignados) if periodo is not None else "",
+                "periodo_id": int(periodo.id) if periodo is not None else None,
+            }
+        )
+    return rows
+
+
+def save_vacacion_periodo_lote(
+    *,
+    anio: int,
+    empleado_ids: list[str],
+    dias_values: list[str],
+    user_id: int | None,
+    observaciones: str = "",
+) -> tuple[bool, str, int]:
+    """Guarda días por período desde la tabla en lote (omite filas vacías)."""
+    if anio < 2000 or anio > 2100:
+        return False, "Año del período no válido.", 0
+    if len(empleado_ids) != len(dias_values):
+        return False, "Datos de la tabla incompletos.", 0
+
+    ok_count = 0
+    errores: list[str] = []
+    obs = (observaciones or "").strip()[:2000]
+    for emp_id_raw, dias_raw in zip(empleado_ids, dias_values, strict=True):
+        dias_s = (dias_raw or "").strip()
+        if not dias_s:
+            continue
+        if not emp_id_raw.isdigit() or not dias_s.isdigit():
+            errores.append(f"Fila inválida (empleado {emp_id_raw}).")
+            continue
+        emp = db.session.get(EmpleadoPersonal, int(emp_id_raw))
+        if emp is None:
+            errores.append(f"Empleado id {emp_id_raw} no encontrado.")
+            continue
+        ok, msg = save_vacacion_periodo(
+            {
+                "empleado_id": emp_id_raw,
+                "anio": str(anio),
+                "dias_asignados": dias_s,
+                "observaciones": obs,
+            },
+            user_id=user_id,
+        )
+        if ok:
+            ok_count += 1
+        else:
+            errores.append(f"{emp.nombre_completo}: {msg}")
+
+    if ok_count == 0:
+        detalle = errores[0] if errores else "No ingresaste días en ninguna fila."
+        return False, detalle, 0
+    if errores:
+        return True, f"Guardado para {ok_count} empleado(s). {len(errores)} fila(s) con error.", ok_count
+    return True, f"Período {anio} guardado para {ok_count} empleado(s).", ok_count
 
 
 def _get_periodo_empleado(empleado_id: int, anio: int) -> PersonalVacacionPeriodo | None:

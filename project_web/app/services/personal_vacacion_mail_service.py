@@ -40,7 +40,15 @@ def resolve_responsable_email(app: Any) -> str | None:
     if user is None or not user.activo:
         return None
     emp = ps.get_empleado_by_user_id(user.id)
-    return resolve_empleado_email(emp)
+    mail = resolve_empleado_email(emp) if emp is not None else None
+    if mail:
+        return mail
+    stored = (cfg.responsable_email or "").strip()
+    if not stored:
+        return None
+    from app.services.deadline_alert_email_service import normalize_validate_email
+
+    return normalize_validate_email(stored)
 
 
 def _format_rango(vac: PersonalVacacion) -> str:

@@ -18,76 +18,110 @@
 <div class="app-card mb-3">
   <div class="app-card-header">Paso 1 — Días del período (administrador)</div>
   <div class="app-card-body">
-    <form method="post" class="row g-2 align-items-end mb-3">
+    <form method="post" class="row g-2 align-items-end mb-4">
       {% include "_csrf.html" %}
       <input type="hidden" name="action" value="responsable">
-      <div class="col-md-6">
+      <div class="col-md-4">
         <label class="form-label">Responsable de vacaciones</label>
-        <select class="form-select" name="responsable_user_id">
+        <select class="form-select" name="responsable_user_id" id="responsable_user_id">
           <option value="">Sin designar</option>
           {% for usr in usuarios_activos %}
           <option value="{{ usr.id }}" {% if responsable and responsable.id == usr.id %}selected{% endif %}>
-            {{ usr.nombre_completo or usr.username }} ({{ usr.username }})
+            {{ usr.nombre_completo or usr.username }} ({{ usr.username }}) — {{ role_labels.get(usr.rol, usr.rol) }}
           </option>
           {% endfor %}
         </select>
-        <div class="form-text">Recibe un mail cuando se registra una solicitud. Debe tener email en su legajo.</div>
+        <div class="form-text">Puede ser un usuario Angel u otro perfil. Recibe mail al registrarse una solicitud.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Email de contacto</label>
+        <input type="email" class="form-control" name="responsable_email" id="responsable_email"
+               value="{{ responsable_email or '' }}" maxlength="256" placeholder="Obligatorio si no tiene legajo con email">
+        <div class="form-text">Para Angel / perfiles sin legajo, cargá acá el correo de avisos.</div>
       </div>
       <div class="col-md-2"><button type="submit" class="btn btn-outline-primary">Guardar responsable</button></div>
     </form>
 
     <hr>
-    <h2 class="h6">Un empleado</h2>
-    <form method="post" class="row g-2 align-items-end mb-4">
-      {% include "_csrf.html" %}
-      <input type="hidden" name="action" value="periodo">
-      <div class="col-md-3">
-        <label class="form-label">Empleado *</label>
-        <select class="form-select" name="empleado_id" required>
-          <option value="">Seleccionar…</option>
-          {% for e in empleados %}
-          <option value="{{ e.id }}">{{ e.nombre_completo }} ({{ e.legajo }})</option>
-          {% endfor %}
-        </select>
-      </div>
+    <h2 class="h6 mb-2">Carga en lote — días del período</h2>
+    <p class="small text-muted mb-3">Completá la tabla y guardá. Las filas vacías no se modifican. Podés usar el mismo valor para todos con el botón de abajo.</p>
+
+    <form method="get" class="row g-2 align-items-end mb-3">
       <div class="col-md-2">
-        <label class="form-label">Período (año) *</label>
-        <input type="number" class="form-control" name="anio" min="2000" max="2100" value="{{ anio_actual }}" required>
+        <label class="form-label">Período a editar (año)</label>
+        <input type="number" class="form-control" name="anio_carga" min="2000" max="2100" value="{{ anio_carga }}" required>
       </div>
-      <div class="col-md-2">
-        <label class="form-label">Días asignados *</label>
-        <input type="number" class="form-control" name="dias_asignados" min="0" max="365" required placeholder="Ej. 14">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Observaciones</label>
-        <input type="text" class="form-control" name="observaciones" maxlength="2000">
-      </div>
-      <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Guardar</button></div>
+      <div class="col-md-2"><button type="submit" class="btn btn-outline-secondary">Cargar tabla</button></div>
     </form>
 
-    <h2 class="h6">Todos los empleados activos</h2>
-    <form method="post" class="row g-2 align-items-end">
+    <form method="post" id="form-periodo-lote">
       {% include "_csrf.html" %}
-      <input type="hidden" name="action" value="periodo_masivo">
-      <div class="col-md-2">
-        <label class="form-label">Período (año) *</label>
-        <input type="number" class="form-control" name="anio" min="2000" max="2100" value="{{ anio_actual }}" required>
+      <input type="hidden" name="action" value="periodo_lote">
+      <input type="hidden" name="anio" value="{{ anio_carga }}">
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-md-4">
+          <label class="form-label">Observaciones (todas las filas)</label>
+          <input type="text" class="form-control" name="observaciones" maxlength="2000" placeholder="Opcional">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Copiar días a todos</label>
+          <div class="input-group">
+            <input type="number" class="form-control" id="dias_todos" min="0" max="365" placeholder="Ej. 14">
+            <button type="button" class="btn btn-outline-secondary" id="btn_dias_todos">Aplicar</button>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100">Guardar lote</button>
+        </div>
       </div>
-      <div class="col-md-2">
-        <label class="form-label">Días a cada uno *</label>
-        <input type="number" class="form-control" name="dias_asignados" min="0" max="365" required placeholder="Ej. 14">
+      <div class="table-responsive border rounded">
+        <table class="table table-app table-compact mb-0">
+          <thead>
+            <tr>
+              <th>Legajo</th>
+              <th>Empleado</th>
+              <th style="width:8rem">Días asignados</th>
+              <th style="width:8rem">Usados</th>
+              <th style="width:8rem">Disponibles</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in periodo_lote_filas %}
+            {% set saldo = saldo_periodo(row.empleado.id, anio_carga) %}
+            <tr>
+              <td>{{ row.empleado.legajo }}</td>
+              <td>{{ row.empleado.nombre_completo }}</td>
+              <td>
+                <input type="hidden" name="empleado_id" value="{{ row.empleado.id }}">
+                <input type="number" class="form-control form-control-sm input-dias-lote" name="dias_asignados"
+                       min="0" max="365" value="{{ row.dias_asignados }}" placeholder="—">
+              </td>
+              <td class="text-muted">{{ saldo.usados }}</td>
+              <td class="text-muted">{{ saldo.disponibles if row.dias_asignados != '' else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted p-3">No hay empleados activos.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-      <div class="col-md-4">
-        <label class="form-label">Observaciones</label>
-        <input type="text" class="form-control" name="observaciones" maxlength="2000" placeholder="Opcional, mismo texto para todos">
-      </div>
-      <div class="col-md-2">
-        <button type="submit" class="btn btn-outline-primary w-100" onclick="return confirm('¿Asignar estos días a todos los empleados activos?');">Cargar a todos</button>
-      </div>
+      <p class="form-text small mb-0 mt-2">{{ periodo_lote_filas|length }} empleado(s) activo(s) · Período {{ anio_carga }}</p>
     </form>
-    <p class="form-text small mb-0 mt-2">Asigna el mismo saldo a los {{ empleados|length }} empleado(s) activo(s). Si ya tenían período cargado, se actualiza.</p>
   </div>
 </div>
+
+<script>
+(function () {
+  var btn = document.getElementById('btn_dias_todos');
+  var inp = document.getElementById('dias_todos');
+  if (!btn || !inp) return;
+  btn.addEventListener('click', function () {
+    var v = inp.value;
+    if (v === '') return;
+    document.querySelectorAll('.input-dias-lote').forEach(function (el) { el.value = v; });
+  });
+})();
+</script>
 
 <div class="app-card mb-3">
   <div class="app-card-header">Paso 2 — Registrar solicitud (inicia el trámite)</div>

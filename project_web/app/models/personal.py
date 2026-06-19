@@ -188,6 +188,7 @@ class PersonalVacacionConfig(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     responsable_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    responsable_email = db.Column(db.String(256), nullable=False, default="", server_default="")
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
     updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 

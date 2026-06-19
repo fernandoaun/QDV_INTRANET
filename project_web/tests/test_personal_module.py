@@ -800,3 +800,51 @@ def test_vacaciones_admin_solicitar_empleado(auth_client, app):
     with app.app_context():
         vacs = ps.list_vacaciones(empleado_id=emp_id, estado="solicitada")
         assert any(v.fecha_desde.isoformat() == "2026-11-01" for v in vacs)
+
+
+def test_responsable_vacaciones_usuario_angel(app, admin_user):
+    from app.extensions import db
+    from app.models import User
+    from app.services import personal_service as ps
+    from app.user_roles import ROLE_SOLO_LECTURA_TOTAL
+
+    with app.app_context():
+        angel = User(
+            username="pytest_angel",
+            nombre_completo="Angel Test",
+            password_hash="x",
+            is_admin=False,
+            rol=ROLE_SOLO_LECTURA_TOTAL,
+            activo=True,
+        )
+        db.session.add(angel)
+        db.session.commit()
+        angel_id = angel.id
+
+        ok, msg = ps.set_responsable_vacaciones(angel_id, by_user_id=1, email="angel@test.local")
+        assert ok, msg
+        assert ps.user_is_responsable_vacaciones(angel)
+
+        ok2, msg2 = ps.set_responsable_vacaciones(angel_id, by_user_id=1, email="")
+        assert not ok2
+
+
+def test_vacaciones_periodo_lote(app, admin_user):
+    from app.extensions import db
+    from app.models import User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        empleados = ps.list_empleados(estado="activo")
+        assert empleados
+        ok, msg, n = ps.save_vacacion_periodo_lote(
+            anio=2028,
+            empleado_ids=[str(empleados[0].id)],
+            dias_values=["15"],
+            user_id=admin.id,
+        )
+        assert ok and n == 1
+        saldo = ps.saldo_vacacion_periodo(empleados[0].id, 2028)
+        assert saldo["asignados"] == 15

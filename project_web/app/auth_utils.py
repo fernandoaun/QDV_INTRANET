@@ -503,6 +503,9 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
     Las rutas shift.* se eximen del chequeo de turno en UI (cada vista valida en servidor).
     """
     if user is not None and user_is_global_read_only(user):
+        ep = (endpoint or "").strip()
+        if ep == "personal.vacaciones" and user_can_gestionar_vacaciones(user):
+            return True
         return False
     if not user_can_edit_endpoint(user, endpoint):
         return False
@@ -540,6 +543,14 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_edit_entregas_any_action(user)
     if ep.startswith("vencimientos."):
         return user_can_manage_vencimientos(user)
+    if ep == "personal.vacaciones":
+        return (
+            user_can_manage_personal(user)
+            or user_can_manage_vacacion_periodos(user)
+            or user_can_gestionar_vacaciones(user)
+        )
+    if ep == "personal.mis_vacaciones":
+        return user_can_solicitar_vacaciones(user)
     if ep.startswith("personal."):
         return user_can_manage_personal(user)
     if ep.startswith("sgi."):

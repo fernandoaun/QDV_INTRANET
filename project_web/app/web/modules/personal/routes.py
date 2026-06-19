@@ -359,6 +359,24 @@ def vacaciones():
             flash(msg, "success" if ok else "danger")
             return redirect(url_for("personal.vacaciones"))
 
+        if action == "periodo_lote":
+            if not puede_gestionar_periodos:
+                flash("Solo el administrador puede cargar días por período.", "warning")
+                return redirect(url_for("personal.vacaciones"))
+            anio_raw = (request.form.get("anio") or "").strip()
+            if not anio_raw.isdigit():
+                flash("Año del período obligatorio.", "danger")
+                return redirect(url_for("personal.vacaciones"))
+            ok, msg, _ = ps.save_vacacion_periodo_lote(
+                anio=int(anio_raw),
+                empleado_ids=request.form.getlist("empleado_id"),
+                dias_values=request.form.getlist("dias_asignados"),
+                user_id=u.id,
+                observaciones=(request.form.get("observaciones") or "").strip(),
+            )
+            flash(msg, "success" if ok else "danger")
+            return redirect(url_for("personal.vacaciones", anio_carga=anio_raw))
+
         if action == "periodo_masivo":
             if not puede_gestionar_periodos:
                 flash("Solo el administrador puede cargar días por período.", "warning")
@@ -396,7 +414,11 @@ def vacaciones():
                 return redirect(url_for("personal.vacaciones"))
             raw = (request.form.get("responsable_user_id") or "").strip()
             uid = int(raw) if raw.isdigit() else None
-            ok, msg = ps.set_responsable_vacaciones(uid, by_user_id=u.id)
+            ok, msg = ps.set_responsable_vacaciones(
+                uid,
+                by_user_id=u.id,
+                email=(request.form.get("responsable_email") or "").strip(),
+            )
             flash(msg, "success" if ok else "danger")
             return redirect(url_for("personal.vacaciones"))
 
@@ -439,29 +461,38 @@ def vacaciones():
     estado = (request.args.get("estado") or "").strip()
     anio_raw = (request.args.get("anio") or "").strip()
     anio = int(anio_raw) if anio_raw.isdigit() else None
+    anio_carga_raw = (request.args.get("anio_carga") or "").strip()
+    anio_carga = int(anio_carga_raw) if anio_carga_raw.isdigit() else ps.today_operacion().year
     cfg = ps.get_vacacion_config()
     responsable = None
     if cfg.responsable_user_id:
         responsable = db.session.get(User, int(cfg.responsable_user_id))
+    empleados_activos = ps.list_empleados(estado="activo") if puede_gestionar_periodos else []
     usuarios_activos = (
         db.session.query(User).filter(User.activo.is_(True)).order_by(User.username).all()
         if puede_gestionar_periodos
         else []
     )
+    from app.user_roles import ROLE_LABELS
+
     return render_template(
         "personal/vacaciones.html",
         vacaciones=ps.list_vacaciones(estado=estado, anio=anio),
         solicitudes_pendientes=ps.list_vacaciones(pendientes_responsable=True) if puede_gestionar_solicitudes else [],
         periodos=ps.list_vacacion_periodos(anio=anio) if puede_gestionar_periodos else [],
-        empleados=ps.list_empleados(estado="activo"),
+        empleados=empleados_activos,
+        periodo_lote_filas=ps.periodo_lote_filas(empleados_activos, anio_carga) if puede_gestionar_periodos else [],
         anio_actual=ps.today_operacion().year,
+        anio_carga=anio_carga,
         filtros={"estado": estado, "anio": anio_raw},
         estado_labels=ps.ESTADO_VACACION_LABELS,
         puede_gestionar=user_can_manage_personal(u),
         puede_gestionar_periodos=puede_gestionar_periodos,
         puede_gestionar_solicitudes=puede_gestionar_solicitudes,
         responsable=responsable,
+        responsable_email=cfg.responsable_email or "",
         usuarios_activos=usuarios_activos,
+        role_labels=ROLE_LABELS,
         saldo_periodo=ps.saldo_vacacion_periodo,
     )
 
