@@ -1,7 +1,7 @@
 """Workflow vacaciones: períodos, responsable y estados de solicitud.
 
 Revision ID: 20260619_personal_vacaciones_workflow
-Revises: 20260618_personal_entrega_epp_aviso_mail
+Revises: 20260618_personal_cumpleanos_aviso
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260619_personal_vacaciones_workflow"
-down_revision: Union[str, Sequence[str], None] = "20260618_personal_entrega_epp_aviso_mail"
+down_revision: Union[str, Sequence[str], None] = "20260618_personal_cumpleanos_aviso"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
