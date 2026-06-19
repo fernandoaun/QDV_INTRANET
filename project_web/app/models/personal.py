@@ -156,6 +156,45 @@ class PersonalArt(db.Model):
     empleado = db.relationship("EmpleadoPersonal", backref=db.backref("art", uselist=False))
 
 
+class PersonalVacacionPeriodo(db.Model):
+    """Días de vacaciones asignados por período (carga del administrador)."""
+
+    __tablename__ = "personal_vacaciones_periodos"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    anio = db.Column(db.Integer, nullable=False, index=True)
+    dias_asignados = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    empleado = db.relationship("EmpleadoPersonal", backref=db.backref("vacaciones_periodos", lazy="dynamic"))
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    updated_by = db.relationship("User", foreign_keys=[updated_by_id])
+
+    __table_args__ = (db.UniqueConstraint("empleado_id", "anio", name="uq_personal_vac_periodo_empleado_anio"),)
+
+
+class PersonalVacacionConfig(db.Model):
+    """Configuración global del módulo de vacaciones (fila única id=1)."""
+
+    __tablename__ = "personal_vacaciones_config"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    responsable_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    responsable = db.relationship("User", foreign_keys=[responsable_user_id])
+    updated_by = db.relationship("User", foreign_keys=[updated_by_id])
+
+
 class PersonalVacacion(db.Model):
     __tablename__ = "personal_vacaciones"
 
@@ -163,13 +202,27 @@ class PersonalVacacion(db.Model):
     empleado_id = db.Column(
         db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    periodo_id = db.Column(
+        db.Integer, db.ForeignKey("personal_vacaciones_periodos.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     fecha_desde = db.Column(db.Date, nullable=False, index=True)
     fecha_hasta = db.Column(db.Date, nullable=False, index=True)
     dias = db.Column(db.Integer, nullable=False, default=1, server_default="1")
     anio = db.Column(db.Integer, nullable=False, index=True)
-    estado = db.Column(db.String(16), nullable=False, default="pendiente", server_default="pendiente", index=True)
+    estado = db.Column(db.String(16), nullable=False, default="solicitada", server_default="solicitada", index=True)
     observaciones = db.Column(db.String(2000), nullable=False, default="", server_default="")
+    motivo_responsable = db.Column(db.String(2000), nullable=False, default="", server_default="")
+    fecha_desde_original = db.Column(db.Date, nullable=True)
+    fecha_hasta_original = db.Column(db.Date, nullable=True)
+    solicitada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    gestionada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    gestionada_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    confirmada_empleado_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    solicitud_aviso_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
     empleado = db.relationship("EmpleadoPersonal", backref=db.backref("vacaciones", lazy="dynamic"))
+    periodo = db.relationship("PersonalVacacionPeriodo", backref=db.backref("solicitudes", lazy="dynamic"))
+    solicitada_por = db.relationship("User", foreign_keys=[solicitada_by_user_id])
+    gestionada_por = db.relationship("User", foreign_keys=[gestionada_by_user_id])

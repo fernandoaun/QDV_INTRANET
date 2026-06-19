@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Mis vacaciones · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Mis vacaciones</h1>
+    <div class="text-muted">Saldo por período, solicitudes y confirmaciones pendientes.</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Volver</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Días disponibles por período</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Período (año)</th><th>Asignados</th><th>Usados</th><th>Disponibles</th></tr></thead>
+      <tbody>
+        {% for s in saldos %}
+        <tr>
+          <td>{{ s.anio }}</td>
+          <td>{{ s.asignados }}</td>
+          <td>{{ s.usados }}</td>
+          <td><strong class="{% if s.disponibles > 0 %}text-success{% else %}text-muted{% endif %}">{{ s.disponibles }}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted p-3">Todavía no tenés días cargados por período. Consultá con administración.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if pendientes %}
+<div class="app-card mb-3 border-warning">
+  <div class="app-card-header text-warning">Pendiente de tu confirmación</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Período</th><th>Fechas</th><th>Estado</th><th>Motivo / detalle</th><th></th></tr></thead>
+      <tbody>
+        {% for v in pendientes %}
+        <tr>
+          <td>{{ v.anio }}</td>
+          <td>
+            {{ v.fecha_desde.strftime('%d/%m/%Y') }} — {{ v.fecha_hasta.strftime('%d/%m/%Y') }}
+            {% if v.fecha_desde_original %}
+            <div class="small text-muted">Pediste: {{ v.fecha_desde_original.strftime('%d/%m/%Y') }} — {{ v.fecha_hasta_original.strftime('%d/%m/%Y') }}</div>
+            {% endif %}
+          </td>
+          <td><span class="badge text-bg-warning">{{ estado_labels.get(v.estado, v.estado) }}</span></td>
+          <td class="small">{{ v.motivo_responsable or '—' }}</td>
+          <td class="text-end">
+            <form method="post" class="d-inline">
+              {% include "_csrf.html" %}
+              <input type="hidden" name="action" value="confirmar">
+              <input type="hidden" name="vacacion_id" value="{{ v.id }}">
+              <button type="submit" class="btn btn-sm btn-primary">
+                {% if v.estado == 'modificada' %}Aceptar fechas{% else %}Confirmar rechazo{% endif %}
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Solicitar vacaciones</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="solicitar">
+      <div class="col-md-2">
+        <label class="form-label">Período (año) *</label>
+        <select class="form-select" name="anio" required>
+          <option value="">Seleccionar…</option>
+          {% for s in saldos if s.disponibles > 0 %}
+          <option value="{{ s.anio }}">{{ s.anio }} ({{ s.disponibles }} disp.)</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Desde *</label>
+        <input type="date" class="form-control" name="fecha_desde" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Hasta *</label>
+        <input type="date" class="form-control" name="fecha_hasta" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Observaciones</label>
+        <input type="text" class="form-control" name="observaciones" maxlength="2000" placeholder="Opcional">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-primary w-100" {% if not saldos %}disabled{% endif %}>Solicitar</button>
+      </div>
+    </form>
+    <p class="form-text small mb-0 mt-2">La solicitud llega al responsable de vacaciones por correo para su aprobación.</p>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Mis solicitudes</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Período</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for v in vacaciones %}
+        <tr>
+          <td>{{ v.anio }}</td>
+          <td>{{ v.fecha_desde.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.fecha_hasta.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.dias }}</td>
+          <td>
+            <span class="badge {% if v.estado == 'solicitada' %}text-bg-warning{% elif v.estado in ('aprobada','tomada') %}text-bg-success{% elif v.estado in ('modificada','rechazada') %}text-bg-warning{% elif v.estado == 'cancelada' %}text-bg-secondary{% else %}text-bg-light text-dark{% endif %}">
+              {{ estado_labels.get(v.estado, v.estado) }}
+            </span>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted p-3">Sin solicitudes.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

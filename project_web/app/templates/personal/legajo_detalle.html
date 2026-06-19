@@ -263,7 +263,31 @@
 </div>
 
 {% elif tab == 'vacaciones' %}
-{% if puede_gestionar %}
+{% if es_mi_legajo %}
+<div class="app-card mb-3">
+  <div class="app-card-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div>Desde acá podés ver tu saldo y gestionar solicitudes en <strong>Mis vacaciones</strong>.</div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('personal.mis_vacaciones') }}">Ir a mis vacaciones</a>
+  </div>
+</div>
+{% if saldos_vacaciones %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Saldo por período</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Año</th><th>Asignados</th><th>Usados</th><th>Disponibles</th></tr></thead>
+      <tbody>
+        {% for s in saldos_vacaciones %}
+        <tr>
+          <td>{{ s.anio }}</td><td>{{ s.asignados }}</td><td>{{ s.usados }}</td><td>{{ s.disponibles }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% elif puede_gestionar %}
 <div class="app-card mb-3">
   <div class="app-card-header">Cargar vacación</div>
   <div class="app-card-body">
@@ -296,9 +320,9 @@
           <td>{{ v.fecha_hasta.strftime('%d/%m/%Y') }}</td>
           <td>{{ v.dias }}</td>
           <td>{{ v.anio }}</td>
-          <td><span class="badge {% if v.estado == 'pendiente' %}text-bg-warning{% elif v.estado == 'tomada' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ estado_vacacion_labels.get(v.estado, v.estado) }}</span></td>
+          <td><span class="badge {% if v.estado == 'solicitada' %}text-bg-warning{% elif v.estado in ('aprobada','tomada') %}text-bg-success{% elif v.estado in ('modificada','rechazada') %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ estado_vacacion_labels.get(v.estado, v.estado) }}</span></td>
           <td class="text-end">
-            {% if puede_gestionar and v.estado == 'pendiente' %}
+            {% if puede_gestionar and v.estado in ('aprobada', 'pendiente') %}
             <form method="post" class="d-inline">
               {% include "_csrf.html" %}
               <input type="hidden" name="action" value="vacacion_tomada">

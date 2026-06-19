@@ -289,6 +289,14 @@
                 {% endif %}
               </a>
             </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('personal.mis_vacaciones') }}">
+                <i class="bi bi-sun me-2 opacity-50" aria-hidden="true"></i>Mis vacaciones
+                {% if personal_vacaciones_pendientes %}
+                <span class="badge text-bg-warning ms-1">{{ personal_vacaciones_pendientes }}</span>
+                {% endif %}
+              </a>
+            </li>
             {% endif %}
             {% if user_can_production_hub %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('produccion.hub') }}"><i class="bi bi-grid-1x2 me-2 opacity-50" aria-hidden="true"></i>PRODUCCIÓN</a></li>

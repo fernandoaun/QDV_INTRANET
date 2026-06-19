@@ -15,6 +15,8 @@ from app.models import (
     PersonalEntregaEpp,
     PersonalEppItem,
     PersonalVacacion,
+    PersonalVacacionConfig,
+    PersonalVacacionPeriodo,
     User,
 )
 from app.user_roles import ROLE_SGI, ROLE_SOLO_LECTURA_TOTAL, normalize_stored_rol
@@ -27,14 +29,33 @@ def today_operacion() -> date:
     return now_operacion_naive_local().date()
 
 ESTADOS_EMPLEADO = ("activo", "baja")
-ESTADOS_VACACION = ("pendiente", "tomada", "cancelada")
+ESTADOS_VACACION = (
+    "solicitada",
+    "aprobada",
+    "modificada",
+    "rechazada",
+    "tomada",
+    "cancelada",
+    "pendiente",
+)
+ESTADOS_VACACION_RESERVAN_DIAS = frozenset({"solicitada", "aprobada", "modificada", "pendiente", "tomada"})
+ESTADOS_VACACION_PENDIENTES_RESPONSABLE = frozenset({"solicitada"})
+ESTADOS_VACACION_PENDIENTES_EMPLEADO = frozenset({"modificada", "rechazada"})
 ESTADOS_ENTREGA_EPP = ("pendiente", "confirmada")
 TIPOS_APERCIBIMIENTO = ("verbal", "escrito")
 CATEGORIAS_EPP = ("ropa", "epp", "otro")
 CATEGORIAS_EPP_CON_WORKFLOW = frozenset({"ropa", "epp"})
 
 ESTADO_EMPLEADO_LABELS = {"activo": "Activo", "baja": "Baja"}
-ESTADO_VACACION_LABELS = {"pendiente": "Pendiente", "tomada": "Tomada", "cancelada": "Cancelada"}
+ESTADO_VACACION_LABELS = {
+    "solicitada": "Solicitada",
+    "aprobada": "Aprobada",
+    "modificada": "Modificada (pendiente tu confirmación)",
+    "rechazada": "Rechazada (pendiente tu confirmación)",
+    "tomada": "Tomada",
+    "cancelada": "Cancelada",
+    "pendiente": "Pendiente (legado)",
+}
 ESTADO_ENTREGA_EPP_LABELS = {"pendiente": "Pendiente confirmación", "confirmada": "Confirmada"}
 TIPO_APERCIBIMIENTO_LABELS = {"verbal": "Verbal", "escrito": "Escrito"}
 CATEGORIA_EPP_LABELS = {"ropa": "Ropa", "epp": "EPP", "otro": "Otro"}
@@ -336,7 +357,7 @@ def dashboard_counts() -> dict[str, int]:
     )
     vac_pendientes = (
         db.session.query(func.count(PersonalVacacion.id))
-        .filter(PersonalVacacion.estado == "pendiente")
+        .filter(PersonalVacacion.estado.in_(tuple(ESTADOS_VACACION_PENDIENTES_RESPONSABLE)))
         .scalar()
         or 0
     )
@@ -648,6 +669,21 @@ def count_entregas_epp_pendientes_usuario(user_id: int) -> int:
     )
 
 
+def count_vacaciones_pendientes_empleado(user_id: int) -> int:
+    emp = get_empleado_by_user_id(user_id)
+    if emp is None:
+        return 0
+    return int(
+        db.session.query(func.count(PersonalVacacion.id))
+        .filter(
+            PersonalVacacion.empleado_id == emp.id,
+            PersonalVacacion.estado.in_(tuple(ESTADOS_VACACION_PENDIENTES_EMPLEADO)),
+        )
+        .scalar()
+        or 0
+    )
+
+
 def _checkbox_truthy(raw: str | None) -> bool:
     return (raw or "") in ("1", "on", "true", "yes")
 
@@ -823,7 +859,14 @@ def save_art(empleado_id: int, data: dict[str, Any]) -> tuple[bool, str]:
     return True, "Datos de ART guardados."
 
 
-def list_vacaciones(*, estado: str = "", anio: int | None = None, empleado_id: int | None = None) -> list[PersonalVacacion]:
+def list_vacaciones(
+    *,
+    estado: str = "",
+    anio: int | None = None,
+    empleado_id: int | None = None,
+    pendientes_responsable: bool = False,
+    pendientes_empleado_id: int | None = None,
+) -> list[PersonalVacacion]:
     q = (
         db.session.query(PersonalVacacion)
         .join(EmpleadoPersonal)
@@ -836,7 +879,284 @@ def list_vacaciones(*, estado: str = "", anio: int | None = None, empleado_id: i
         q = q.filter(PersonalVacacion.anio == anio)
     if empleado_id:
         q = q.filter(PersonalVacacion.empleado_id == empleado_id)
+    if pendientes_responsable:
+        q = q.filter(PersonalVacacion.estado.in_(tuple(ESTADOS_VACACION_PENDIENTES_RESPONSABLE)))
+    if pendientes_empleado_id:
+        q = q.filter(
+            PersonalVacacion.empleado_id == pendientes_empleado_id,
+            PersonalVacacion.estado.in_(tuple(ESTADOS_VACACION_PENDIENTES_EMPLEADO)),
+        )
     return q.all()
+
+
+def get_vacacion_config() -> PersonalVacacionConfig:
+    row = db.session.get(PersonalVacacionConfig, 1)
+    if row is None:
+        row = PersonalVacacionConfig(id=1)
+        db.session.add(row)
+        db.session.commit()
+    return row
+
+
+def set_responsable_vacaciones(user_id: int | None, *, by_user_id: int | None) -> tuple[bool, str]:
+    cfg = get_vacacion_config()
+    if user_id is not None:
+        u = db.session.get(User, user_id)
+        if u is None or not u.activo:
+            return False, "Usuario responsable no válido."
+        emp = get_empleado_by_user_id(user_id)
+        if emp is None:
+            return False, "El responsable debe tener un legajo vinculado."
+    cfg.responsable_user_id = user_id
+    cfg.updated_by_id = by_user_id
+    cfg.updated_at = datetime.now(timezone.utc)
+    db.session.commit()
+    return True, "Responsable de vacaciones actualizado."
+
+
+def user_is_responsable_vacaciones(user: User | None) -> bool:
+    if user is None or not user.activo:
+        return False
+    cfg = get_vacacion_config()
+    return cfg.responsable_user_id is not None and int(cfg.responsable_user_id) == int(user.id)
+
+
+def list_vacacion_periodos(*, empleado_id: int | None = None, anio: int | None = None) -> list[PersonalVacacionPeriodo]:
+    q = db.session.query(PersonalVacacionPeriodo).join(EmpleadoPersonal).order_by(
+        PersonalVacacionPeriodo.anio.desc(), EmpleadoPersonal.apellido, EmpleadoPersonal.nombre
+    )
+    if empleado_id:
+        q = q.filter(PersonalVacacionPeriodo.empleado_id == empleado_id)
+    if anio is not None:
+        q = q.filter(PersonalVacacionPeriodo.anio == anio)
+    return q.all()
+
+
+def _dias_usados_periodo(empleado_id: int, anio: int, *, excluir_vacacion_id: int | None = None) -> int:
+    q = db.session.query(func.coalesce(func.sum(PersonalVacacion.dias), 0)).filter(
+        PersonalVacacion.empleado_id == empleado_id,
+        PersonalVacacion.anio == anio,
+        PersonalVacacion.estado.in_(tuple(ESTADOS_VACACION_RESERVAN_DIAS)),
+    )
+    if excluir_vacacion_id:
+        q = q.filter(PersonalVacacion.id != excluir_vacacion_id)
+    return int(q.scalar() or 0)
+
+
+def saldo_vacacion_periodo(empleado_id: int, anio: int, *, excluir_vacacion_id: int | None = None) -> dict[str, int]:
+    periodo = (
+        db.session.query(PersonalVacacionPeriodo)
+        .filter(PersonalVacacionPeriodo.empleado_id == empleado_id, PersonalVacacionPeriodo.anio == anio)
+        .one_or_none()
+    )
+    asignados = int(periodo.dias_asignados) if periodo else 0
+    usados = _dias_usados_periodo(empleado_id, anio, excluir_vacacion_id=excluir_vacacion_id)
+    return {"asignados": asignados, "usados": usados, "disponibles": max(0, asignados - usados)}
+
+
+def saldos_vacaciones_empleado(empleado_id: int) -> list[dict[str, Any]]:
+    periodos = list_vacacion_periodos(empleado_id=empleado_id)
+    out: list[dict[str, Any]] = []
+    for p in periodos:
+        saldo = saldo_vacacion_periodo(empleado_id, p.anio)
+        out.append(
+            {
+                "periodo": p,
+                "anio": p.anio,
+                "asignados": saldo["asignados"],
+                "usados": saldo["usados"],
+                "disponibles": saldo["disponibles"],
+            }
+        )
+    return out
+
+
+def save_vacacion_periodo(data: dict[str, Any], *, user_id: int | None) -> tuple[bool, str]:
+    emp_id_raw = (data.get("empleado_id") or "").strip()
+    anio_raw = (data.get("anio") or "").strip()
+    dias_raw = (data.get("dias_asignados") or "").strip()
+    if not emp_id_raw.isdigit():
+        return False, "Empleado obligatorio."
+    if not anio_raw.isdigit():
+        return False, "Año del período obligatorio."
+    if not dias_raw.isdigit():
+        return False, "Días asignados obligatorios."
+    emp = db.session.get(EmpleadoPersonal, int(emp_id_raw))
+    if emp is None:
+        return False, "Empleado no encontrado."
+    anio = int(anio_raw)
+    dias = int(dias_raw)
+    if dias < 0:
+        return False, "Los días asignados no pueden ser negativos."
+
+    periodo_id_raw = (data.get("periodo_id") or "").strip()
+    periodo: PersonalVacacionPeriodo | None = None
+    if periodo_id_raw.isdigit():
+        periodo = db.session.get(PersonalVacacionPeriodo, int(periodo_id_raw))
+    if periodo is None:
+        periodo = (
+            db.session.query(PersonalVacacionPeriodo)
+            .filter(PersonalVacacionPeriodo.empleado_id == emp.id, PersonalVacacionPeriodo.anio == anio)
+            .one_or_none()
+        )
+    if periodo is None:
+        periodo = PersonalVacacionPeriodo(empleado_id=emp.id, anio=anio, created_by_id=user_id)
+        db.session.add(periodo)
+    periodo.dias_asignados = dias
+    periodo.observaciones = (data.get("observaciones") or "").strip()[:2000]
+    periodo.updated_by_id = user_id
+    usados = _dias_usados_periodo(emp.id, anio)
+    if dias < usados:
+        return False, f"No podés asignar menos de {usados} días (ya hay solicitudes/aprobaciones por ese período)."
+    db.session.commit()
+    return True, "Período de vacaciones guardado."
+
+
+def _get_periodo_empleado(empleado_id: int, anio: int) -> PersonalVacacionPeriodo | None:
+    return (
+        db.session.query(PersonalVacacionPeriodo)
+        .filter(PersonalVacacionPeriodo.empleado_id == empleado_id, PersonalVacacionPeriodo.anio == anio)
+        .one_or_none()
+    )
+
+
+def solicitar_vacacion(
+    empleado_id: int,
+    *,
+    user_id: int,
+    data: dict[str, Any],
+) -> tuple[bool, str, PersonalVacacion | None]:
+    emp = db.session.get(EmpleadoPersonal, empleado_id)
+    if emp is None:
+        return False, "Legajo no encontrado.", None
+    desde = parse_iso_date(data.get("fecha_desde"))
+    hasta = parse_iso_date(data.get("fecha_hasta"))
+    if desde is None or hasta is None:
+        return False, "Fechas desde y hasta son obligatorias.", None
+    if hasta < desde:
+        return False, "La fecha hasta no puede ser anterior a la fecha desde.", None
+    anio_raw = (data.get("anio") or "").strip()
+    anio = int(anio_raw) if anio_raw.isdigit() else desde.year
+    periodo = _get_periodo_empleado(empleado_id, anio)
+    if periodo is None or int(periodo.dias_asignados) <= 0:
+        return False, f"No tenés días cargados para el período {anio}.", None
+    dias = _dias_entre(desde, hasta)
+    saldo = saldo_vacacion_periodo(empleado_id, anio)
+    if dias > saldo["disponibles"]:
+        return (
+            False,
+            f"Pedís {dias} días pero solo tenés {saldo['disponibles']} disponibles en el período {anio}.",
+            None,
+        )
+
+    vac = PersonalVacacion(
+        empleado_id=empleado_id,
+        periodo_id=periodo.id,
+        fecha_desde=desde,
+        fecha_hasta=hasta,
+        dias=dias,
+        anio=anio,
+        estado="solicitada",
+        observaciones=(data.get("observaciones") or "").strip()[:2000],
+        solicitada_by_user_id=user_id,
+    )
+    db.session.add(vac)
+    db.session.commit()
+    return True, "Solicitud de vacaciones enviada.", vac
+
+
+def gestionar_vacacion_responsable(
+    vacacion_id: int,
+    *,
+    user_id: int,
+    accion: str,
+    data: dict[str, Any],
+) -> tuple[bool, str, PersonalVacacion | None]:
+    vac = db.session.get(PersonalVacacion, vacacion_id)
+    if vac is None:
+        return False, "Solicitud no encontrada.", None
+    if (vac.estado or "").strip() not in ESTADOS_VACACION_PENDIENTES_RESPONSABLE:
+        return False, "Esta solicitud ya fue gestionada.", None
+
+    acc = (accion or "").strip().lower()
+    now = datetime.now(timezone.utc)
+    motivo = (data.get("motivo_responsable") or "").strip()[:2000]
+
+    if acc == "aprobar":
+        vac.estado = "aprobada"
+        vac.motivo_responsable = motivo
+        vac.gestionada_by_user_id = user_id
+        vac.gestionada_at = now
+        db.session.commit()
+        return True, "Vacaciones aprobadas.", vac
+
+    if acc == "rechazar":
+        if not motivo:
+            return False, "Indicá el motivo del rechazo.", None
+        vac.estado = "rechazada"
+        vac.motivo_responsable = motivo
+        vac.gestionada_by_user_id = user_id
+        vac.gestionada_at = now
+        db.session.commit()
+        return True, "Vacaciones rechazadas. El empleado debe confirmar.", vac
+
+    if acc == "modificar":
+        desde = parse_iso_date(data.get("fecha_desde"))
+        hasta = parse_iso_date(data.get("fecha_hasta"))
+        if desde is None or hasta is None:
+            return False, "Indicá las fechas propuestas.", None
+        if hasta < desde:
+            return False, "La fecha hasta no puede ser anterior a la fecha desde.", None
+        dias = _dias_entre(desde, hasta)
+        saldo = saldo_vacacion_periodo(vac.empleado_id, vac.anio, excluir_vacacion_id=vac.id)
+        if dias > saldo["disponibles"] + vac.dias:
+            return (
+                False,
+                f"La propuesta usa {dias} días pero solo quedan {saldo['disponibles']} disponibles en el período.",
+                None,
+            )
+        vac.fecha_desde_original = vac.fecha_desde
+        vac.fecha_hasta_original = vac.fecha_hasta
+        vac.fecha_desde = desde
+        vac.fecha_hasta = hasta
+        vac.dias = dias
+        vac.estado = "modificada"
+        vac.motivo_responsable = motivo
+        vac.gestionada_by_user_id = user_id
+        vac.gestionada_at = now
+        db.session.commit()
+        return True, "Propuesta enviada al empleado para confirmación.", vac
+
+    return False, "Acción no reconocida.", None
+
+
+def confirmar_vacacion_empleado(
+    vacacion_id: int,
+    *,
+    empleado_id: int,
+    user_id: int,
+) -> tuple[bool, str, PersonalVacacion | None]:
+    vac = db.session.get(PersonalVacacion, vacacion_id)
+    if vac is None or int(vac.empleado_id) != int(empleado_id):
+        return False, "Solicitud no encontrada.", None
+    estado = (vac.estado or "").strip()
+    if estado not in ESTADOS_VACACION_PENDIENTES_EMPLEADO:
+        return False, "No hay nada pendiente de tu confirmación.", None
+
+    now = datetime.now(timezone.utc)
+    if estado == "modificada":
+        vac.estado = "aprobada"
+        vac.confirmada_empleado_at = now
+        db.session.commit()
+        return True, "Aceptaste las fechas propuestas. Vacaciones aprobadas.", vac
+
+    if estado == "rechazada":
+        vac.estado = "cancelada"
+        vac.confirmada_empleado_at = now
+        db.session.commit()
+        return True, "Rechazo confirmado.", vac
+
+    return False, "Estado no válido.", None
 
 
 def save_vacacion(
@@ -856,9 +1176,9 @@ def save_vacacion(
         return False, "Fechas desde y hasta son obligatorias."
     if hasta < desde:
         return False, "La fecha hasta no puede ser anterior a la fecha desde."
-    estado = (data.get("estado") or "pendiente").strip().lower()
+    estado = (data.get("estado") or "aprobada").strip().lower()
     if estado not in ESTADOS_VACACION:
-        estado = "pendiente"
+        estado = "aprobada"
     anio_raw = (data.get("anio") or "").strip()
     anio = int(anio_raw) if anio_raw.isdigit() else desde.year
 
@@ -885,6 +1205,8 @@ def marcar_vacacion_tomada(vacacion_id: int) -> tuple[bool, str]:
     vac = db.session.get(PersonalVacacion, vacacion_id)
     if vac is None:
         return False, "Vacación no encontrada."
+    if (vac.estado or "").strip() not in ("aprobada", "pendiente"):
+        return False, "Solo se pueden marcar como tomadas las vacaciones aprobadas."
     vac.estado = "tomada"
     db.session.commit()
     return True, "Vacación marcada como tomada."

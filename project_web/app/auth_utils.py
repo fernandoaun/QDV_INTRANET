@@ -129,6 +129,34 @@ def user_can_register_entregas_personal(user: User | None) -> bool:
     return user_can_access_personal(user)
 
 
+def user_can_manage_vacacion_periodos(user: User | None) -> bool:
+    """Carga de días por período: solo administrador."""
+    return user is not None and bool(user.is_admin)
+
+
+def user_can_gestionar_vacaciones(user: User | None) -> bool:
+    """Aprobar/modificar/rechazar solicitudes: responsable designado o administrador."""
+    if user is None or not user.activo:
+        return False
+    if user.is_admin:
+        return True
+    from app.services import personal_service as ps
+
+    return ps.user_is_responsable_vacaciones(user)
+
+
+def user_can_solicitar_vacaciones(user: User | None) -> bool:
+    """Solicitar vacaciones: usuario con legajo activo vinculado."""
+    if user is None or not user.activo:
+        return False
+    from app.services import personal_service as ps
+
+    if not ps.user_requires_legajo(user):
+        return False
+    emp = ps.get_empleado_by_user_id(user.id)
+    return emp is not None and (emp.estado or "").strip() == "activo"
+
+
 def user_can_access_sgi(user: User | None) -> bool:
     """Administrador, perfiles Angel/SGI o usuarios con permiso sgi_hub."""
     if user is None:

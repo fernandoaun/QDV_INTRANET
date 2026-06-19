@@ -6,12 +6,15 @@ from app.auth_utils import (
     current_user,
     login_required,
     user_can_access_personal,
+    user_can_gestionar_vacaciones,
     user_can_manage_personal,
+    user_can_manage_vacacion_periodos,
     user_can_register_entregas_personal,
+    user_can_solicitar_vacaciones,
     user_display_name,
 )
 from app.extensions import db
-from app.models import Operador, PersonalApercibimiento, PersonalCurso
+from app.models import Operador, PersonalApercibimiento, PersonalCurso, User
 from app.services import personal_service as ps
 
 bp = Blueprint("personal", __name__, url_prefix="/personal")
@@ -172,6 +175,7 @@ def legajo_detalle(empleado_id: int):
         cursos=emp.cursos.order_by(PersonalCurso.fecha_vencimiento.asc().nullslast(), PersonalCurso.nombre).all(),
         apercibimientos=emp.apercibimientos.order_by(PersonalApercibimiento.fecha.desc()).all(),
         vacaciones=ps.list_vacaciones(empleado_id=empleado_id),
+        saldos_vacaciones=ps.saldos_vacaciones_empleado(empleado_id),
         estado_labels=ps.ESTADO_EMPLEADO_LABELS,
         estado_vacacion_labels=ps.ESTADO_VACACION_LABELS,
         tipo_apercibimiento_labels=ps.TIPO_APERCIBIMIENTO_LABELS,
@@ -319,6 +323,7 @@ def mi_legajo():
         cursos=emp.cursos.order_by(PersonalCurso.fecha_vencimiento.asc().nullslast(), PersonalCurso.nombre).all(),
         apercibimientos=emp.apercibimientos.order_by(PersonalApercibimiento.fecha.desc()).all(),
         vacaciones=ps.list_vacaciones(empleado_id=emp.id),
+        saldos_vacaciones=ps.saldos_vacaciones_empleado(emp.id),
         estado_labels=ps.ESTADO_EMPLEADO_LABELS,
         estado_vacacion_labels=ps.ESTADO_VACACION_LABELS,
         tipo_apercibimiento_labels=ps.TIPO_APERCIBIMIENTO_LABELS,
@@ -336,11 +341,58 @@ def vacaciones():
     u, redir = _require_view()
     if redir is not None:
         return redir
+    from app.services.personal_vacacion_mail_service import (
+        maybe_notify_empleado_vacacion_gestionada,
+        maybe_notify_solicitud_vacacion,
+    )
+
+    puede_gestionar_periodos = user_can_manage_vacacion_periodos(u)
+    puede_gestionar_solicitudes = user_can_gestionar_vacaciones(u)
+
     if request.method == "POST":
-        mredir = _require_manage(u)
-        if mredir is not None:
-            return mredir
         action = (request.form.get("action") or "").strip()
+        if action == "periodo":
+            if not puede_gestionar_periodos:
+                flash("Solo el administrador puede cargar días por período.", "warning")
+                return redirect(url_for("personal.vacaciones"))
+            ok, msg = ps.save_vacacion_periodo(request.form, user_id=u.id)
+            flash(msg, "success" if ok else "danger")
+            return redirect(url_for("personal.vacaciones"))
+
+        if action == "responsable":
+            if not puede_gestionar_periodos:
+                flash("Solo el administrador puede designar al responsable.", "warning")
+                return redirect(url_for("personal.vacaciones"))
+            raw = (request.form.get("responsable_user_id") or "").strip()
+            uid = int(raw) if raw.isdigit() else None
+            ok, msg = ps.set_responsable_vacaciones(uid, by_user_id=u.id)
+            flash(msg, "success" if ok else "danger")
+            return redirect(url_for("personal.vacaciones"))
+
+        if action in ("aprobar", "rechazar", "modificar"):
+            if not puede_gestionar_solicitudes:
+                flash("No tenés permiso para gestionar solicitudes de vacaciones.", "warning")
+                return redirect(url_for("personal.vacaciones"))
+            vac_id_raw = (request.form.get("vacacion_id") or "").strip()
+            if not vac_id_raw.isdigit():
+                flash("Solicitud no válida.", "danger")
+                return redirect(url_for("personal.vacaciones"))
+            ok, msg, vac = ps.gestionar_vacacion_responsable(
+                int(vac_id_raw), user_id=u.id, accion=action, data=dict(request.form)
+            )
+            if ok and vac is not None:
+                mail_ok, mail_msg = maybe_notify_empleado_vacacion_gestionada(vac)
+                if not mail_ok and mail_msg:
+                    flash(f"{msg} ({mail_msg})", "warning")
+                else:
+                    flash(msg, "success")
+            else:
+                flash(msg, "success" if ok else "danger")
+            return redirect(url_for("personal.vacaciones"))
+
+        if not user_can_manage_personal(u):
+            flash("No tenés permiso para modificar vacaciones.", "warning")
+            return redirect(url_for("personal.vacaciones"))
         if action == "marcar_tomada":
             vac_id_raw = (request.form.get("vacacion_id") or "").strip()
             if vac_id_raw.isdigit():
@@ -356,11 +408,69 @@ def vacaciones():
     estado = (request.args.get("estado") or "").strip()
     anio_raw = (request.args.get("anio") or "").strip()
     anio = int(anio_raw) if anio_raw.isdigit() else None
+    cfg = ps.get_vacacion_config()
+    responsable = None
+    if cfg.responsable_user_id:
+        responsable = db.session.get(User, int(cfg.responsable_user_id))
+    usuarios_activos = (
+        db.session.query(User).filter(User.activo.is_(True)).order_by(User.username).all()
+        if puede_gestionar_periodos
+        else []
+    )
     return render_template(
         "personal/vacaciones.html",
         vacaciones=ps.list_vacaciones(estado=estado, anio=anio),
+        solicitudes_pendientes=ps.list_vacaciones(pendientes_responsable=True) if puede_gestionar_solicitudes else [],
+        periodos=ps.list_vacacion_periodos(anio=anio) if puede_gestionar_periodos else [],
         empleados=ps.list_empleados(estado="activo"),
         filtros={"estado": estado, "anio": anio_raw},
         estado_labels=ps.ESTADO_VACACION_LABELS,
         puede_gestionar=user_can_manage_personal(u),
+        puede_gestionar_periodos=puede_gestionar_periodos,
+        puede_gestionar_solicitudes=puede_gestionar_solicitudes,
+        responsable=responsable,
+        usuarios_activos=usuarios_activos,
+        saldo_periodo=ps.saldo_vacacion_periodo,
+    )
+
+
+@bp.route("/mis-vacaciones", methods=["GET", "POST"])
+@login_required
+def mis_vacaciones():
+    u = current_user()
+    if not user_can_solicitar_vacaciones(u):
+        flash("No tenés un legajo activo para solicitar vacaciones.", "warning")
+        return redirect(url_for("main.dashboard"))
+
+    emp = ps.get_empleado_by_user_id(u.id)
+    assert emp is not None
+
+    from app.services.personal_vacacion_mail_service import maybe_notify_solicitud_vacacion
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+        if action == "solicitar":
+            ok, msg, vac = ps.solicitar_vacacion(emp.id, user_id=u.id, data=dict(request.form))
+            if ok and vac is not None:
+                mail_ok, mail_msg = maybe_notify_solicitud_vacacion(vac)
+                if not mail_ok and mail_msg:
+                    flash(f"{msg} ({mail_msg})", "warning")
+                else:
+                    flash(msg, "success")
+            else:
+                flash(msg, "success" if ok else "danger")
+        elif action == "confirmar":
+            vac_id_raw = (request.form.get("vacacion_id") or "").strip()
+            if vac_id_raw.isdigit():
+                ok, msg, _ = ps.confirmar_vacacion_empleado(int(vac_id_raw), empleado_id=emp.id, user_id=u.id)
+                flash(msg, "success" if ok else "danger")
+        return redirect(url_for("personal.mis_vacaciones"))
+
+    return render_template(
+        "personal/mis_vacaciones.html",
+        empleado=emp,
+        saldos=ps.saldos_vacaciones_empleado(emp.id),
+        vacaciones=ps.list_vacaciones(empleado_id=emp.id),
+        pendientes=ps.list_vacaciones(pendientes_empleado_id=emp.id),
+        estado_labels=ps.ESTADO_VACACION_LABELS,
     )

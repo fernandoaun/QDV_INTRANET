@@ -8,12 +8,33 @@
   </div>
 </div>
 
-{% if puede_gestionar %}
+{% if puede_gestionar_periodos %}
 <div class="app-card mb-3">
-  <div class="app-card-header">Cargar vacación</div>
+  <div class="app-card-header">Configuración (administrador)</div>
   <div class="app-card-body">
+    <form method="post" class="row g-2 align-items-end mb-3">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="responsable">
+      <div class="col-md-6">
+        <label class="form-label">Responsable de vacaciones</label>
+        <select class="form-select" name="responsable_user_id">
+          <option value="">Sin designar</option>
+          {% for usr in usuarios_activos %}
+          <option value="{{ usr.id }}" {% if responsable and responsable.id == usr.id %}selected{% endif %}>
+            {{ usr.nombre_completo or usr.username }} ({{ usr.username }})
+          </option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Recibe un mail cuando un empleado solicita vacaciones. Debe tener email en su legajo.</div>
+      </div>
+      <div class="col-md-2"><button type="submit" class="btn btn-outline-primary">Guardar</button></div>
+    </form>
+
+    <hr>
+    <h2 class="h6">Cargar días por período</h2>
     <form method="post" class="row g-2 align-items-end">
       {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="periodo">
       <div class="col-md-3">
         <label class="form-label">Empleado *</label>
         <select class="form-select" name="empleado_id" required>
@@ -24,26 +45,96 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label">Desde *</label>
-        <input type="date" class="form-control" name="fecha_desde" required>
+        <label class="form-label">Período (año) *</label>
+        <input type="number" class="form-control" name="anio" min="2000" max="2100" required>
       </div>
       <div class="col-md-2">
-        <label class="form-label">Hasta *</label>
-        <input type="date" class="form-control" name="fecha_hasta" required>
+        <label class="form-label">Días asignados *</label>
+        <input type="number" class="form-control" name="dias_asignados" min="0" max="365" required>
       </div>
-      <div class="col-md-1">
-        <label class="form-label">Año</label>
-        <input type="number" class="form-control" name="anio" min="2000" max="2100">
+      <div class="col-md-3">
+        <label class="form-label">Observaciones</label>
+        <input type="text" class="form-control" name="observaciones" maxlength="2000">
       </div>
-      <div class="col-md-2">
-        <label class="form-label">Estado</label>
-        <select class="form-select" name="estado">
-          <option value="pendiente">Pendiente</option>
-          <option value="tomada">Tomada</option>
-        </select>
-      </div>
-      <div class="col-md-1"><button type="submit" class="btn btn-primary w-100">OK</button></div>
+      <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Guardar</button></div>
     </form>
+  </div>
+</div>
+
+{% if periodos %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Períodos cargados</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Empleado</th><th>Año</th><th>Asignados</th><th>Usados</th><th>Disponibles</th></tr></thead>
+      <tbody>
+        {% for p in periodos %}
+        {% set saldo = saldo_periodo(p.empleado_id, p.anio) %}
+        <tr>
+          <td>{{ p.empleado.nombre_completo }}</td>
+          <td>{{ p.anio }}</td>
+          <td>{{ p.dias_asignados }}</td>
+          <td>{{ saldo.usados }}</td>
+          <td>{{ saldo.disponibles }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if puede_gestionar_solicitudes and solicitudes_pendientes %}
+<div class="app-card mb-3 border-warning">
+  <div class="app-card-header">Solicitudes pendientes de gestión</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Empleado</th><th>Período</th><th>Fechas</th><th>Días</th><th>Obs.</th><th>Acciones</th></tr></thead>
+      <tbody>
+        {% for v in solicitudes_pendientes %}
+        <tr>
+          <td>{{ v.empleado.nombre_completo }}</td>
+          <td>{{ v.anio }}</td>
+          <td>{{ v.fecha_desde.strftime('%d/%m/%Y') }} — {{ v.fecha_hasta.strftime('%d/%m/%Y') }}</td>
+          <td>{{ v.dias }}</td>
+          <td class="small">{{ v.observaciones or '—' }}</td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">
+              <form method="post" class="d-inline">
+                {% include "_csrf.html" %}
+                <input type="hidden" name="action" value="aprobar">
+                <input type="hidden" name="vacacion_id" value="{{ v.id }}">
+                <button type="submit" class="btn btn-sm btn-success">Aprobar</button>
+              </form>
+              <button type="button" class="btn btn-sm btn-outline-warning" data-bs-toggle="collapse" data-bs-target="#mod-{{ v.id }}">Modificar</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#rej-{{ v.id }}">Rechazar</button>
+            </div>
+            <div class="collapse mt-2" id="mod-{{ v.id }}">
+              <form method="post" class="row g-1 align-items-end border rounded p-2 bg-light">
+                {% include "_csrf.html" %}
+                <input type="hidden" name="action" value="modificar">
+                <input type="hidden" name="vacacion_id" value="{{ v.id }}">
+                <div class="col-auto"><input type="date" class="form-control form-control-sm" name="fecha_desde" value="{{ v.fecha_desde.isoformat() }}" required></div>
+                <div class="col-auto"><input type="date" class="form-control form-control-sm" name="fecha_hasta" value="{{ v.fecha_hasta.isoformat() }}" required></div>
+                <div class="col"><input type="text" class="form-control form-control-sm" name="motivo_responsable" placeholder="Comentario (opcional)"></div>
+                <div class="col-auto"><button type="submit" class="btn btn-sm btn-warning">Enviar propuesta</button></div>
+              </form>
+            </div>
+            <div class="collapse mt-2" id="rej-{{ v.id }}">
+              <form method="post" class="row g-1 align-items-end border rounded p-2 bg-light">
+                {% include "_csrf.html" %}
+                <input type="hidden" name="action" value="rechazar">
+                <input type="hidden" name="vacacion_id" value="{{ v.id }}">
+                <div class="col"><input type="text" class="form-control form-control-sm" name="motivo_responsable" placeholder="Motivo del rechazo *" required></div>
+                <div class="col-auto"><button type="submit" class="btn btn-sm btn-danger">Rechazar</button></div>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 {% endif %}
@@ -81,9 +172,9 @@
           <td>{{ v.fecha_hasta.strftime('%d/%m/%Y') }}</td>
           <td>{{ v.dias }}</td>
           <td>{{ v.anio }}</td>
-          <td><span class="badge {% if v.estado == 'pendiente' %}text-bg-warning{% elif v.estado == 'tomada' %}text-bg-success{% else %}text-bg-secondary{% endif %}">{{ estado_labels.get(v.estado, v.estado) }}</span></td>
+          <td><span class="badge {% if v.estado == 'solicitada' %}text-bg-warning{% elif v.estado in ('aprobada','tomada') %}text-bg-success{% elif v.estado in ('modificada','rechazada') %}text-bg-warning{% else %}text-bg-secondary{% endif %}">{{ estado_labels.get(v.estado, v.estado) }}</span></td>
           <td class="text-end">
-            {% if puede_gestionar and v.estado == 'pendiente' %}
+            {% if puede_gestionar and v.estado in ('aprobada', 'pendiente') %}
             <form method="post" class="d-inline">
               {% include "_csrf.html" %}
               <input type="hidden" name="action" value="marcar_tomada">

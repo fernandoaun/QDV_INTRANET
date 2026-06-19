@@ -321,6 +321,7 @@ def create_app() -> Flask:
             app.logger.exception("inject_nav_user: no se pudo cargar el usuario")
             u = None
         personal_entregas_pendientes = 0
+        personal_vacaciones_pendientes = 0
         user_tiene_legajo_personal = False
         cumpleanos_hoy_lista: list = []
         if u is not None:
@@ -329,6 +330,7 @@ def create_app() -> Flask:
                     _personal_service.get_empleado_by_user_id(int(u.id)) is not None
                 )
                 personal_entregas_pendientes = _personal_service.count_entregas_epp_pendientes_usuario(int(u.id))
+                personal_vacaciones_pendientes = _personal_service.count_vacaciones_pendientes_empleado(int(u.id))
             except Exception:
                 app.logger.exception("inject_nav_user: legajo / entregas EPP")
                 db.session.rollback()
@@ -371,6 +373,7 @@ def create_app() -> Flask:
             "planificacion_is_atrasada": _planificacion_service.is_atrasada,
             "planificacion_resumen_predecesoras": lambda dlist: _planificacion_service.resumen_predecesoras_texto(dlist or []),
             "personal_entregas_pendientes": personal_entregas_pendientes,
+            "personal_vacaciones_pendientes": personal_vacaciones_pendientes,
             "user_tiene_legajo_personal": user_tiene_legajo_personal,
             "cumpleanos_hoy": cumpleanos_hoy_lista,
         }

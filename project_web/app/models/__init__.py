@@ -43,6 +43,8 @@ from app.models.personal import (
     PersonalEntregaEpp,
     PersonalEppItem,
     PersonalVacacion,
+    PersonalVacacionConfig,
+    PersonalVacacionPeriodo,
 )
 from app.models.internal_chat import (
     InternalChatMessage,
@@ -128,4 +130,6 @@ __all__ = [
     "PersonalApercibimiento",
     "PersonalArt",
     "PersonalVacacion",
+    "PersonalVacacionConfig",
+    "PersonalVacacionPeriodo",
 ]

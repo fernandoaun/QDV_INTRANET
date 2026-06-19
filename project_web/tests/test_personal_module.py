@@ -68,7 +68,7 @@ def test_registrar_entrega_ropa_y_epp(auth_client, app):
 
 def test_personal_post_forms_include_csrf(auth_client):
     """En producción CSRF está activo; los formularios POST de Personal deben incluir el token."""
-    for path in ("/personal/epp/catalogo", "/personal/epp/entregas", "/personal/vacaciones"):
+    for path in ("/personal/epp/catalogo", "/personal/epp/entregas", "/personal/vacaciones", "/personal/mis-vacaciones"):
         r = auth_client.get(path)
         assert r.status_code == 200
         assert b'name="csrf_token"' in r.data, path
@@ -585,3 +585,169 @@ def test_birthday_reminders_dry_run(app, admin_user):
         db.session.commit()
         out = run_birthday_reminders(app, dry_run=True)
         assert out["cumpleaneros"] >= 1
+
+
+def test_vacaciones_workflow_solicitud_aprobacion(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp.email = "vacaciones@test.local"
+        db.session.commit()
+        emp_id = emp.id
+        admin_id = admin.id
+        ps.set_responsable_vacaciones(admin_id, by_user_id=admin_id)
+        ok, _ = ps.save_vacacion_periodo(
+            {"empleado_id": str(emp_id), "anio": "2026", "dias_asignados": "14"},
+            user_id=admin_id,
+        )
+        assert ok
+
+    r = auth_client.get("/personal/mis-vacaciones")
+    assert r.status_code == 200
+    assert b"14" in r.data
+
+    r = auth_client.post(
+        "/personal/mis-vacaciones",
+        data={
+            "action": "solicitar",
+            "anio": "2026",
+            "fecha_desde": "2026-07-01",
+            "fecha_hasta": "2026-07-05",
+            "observaciones": "Familia",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        vacs = ps.list_vacaciones(empleado_id=emp_id, estado="solicitada")
+        assert len(vacs) == 1
+        vac_id = vacs[0].id
+
+    r = auth_client.post(
+        "/personal/vacaciones",
+        data={"action": "aprobar", "vacacion_id": str(vac_id)},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        from app.models import PersonalVacacion
+
+        vac = db.session.get(PersonalVacacion, vac_id)
+        assert vac is not None
+        assert vac.estado == "aprobada"
+        saldo = ps.saldo_vacacion_periodo(emp_id, 2026)
+        assert saldo["usados"] == 5
+        assert saldo["disponibles"] == 9
+
+
+def test_vacaciones_workflow_modificacion_empleado_confirma(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp_id = emp.id
+        admin_id = admin.id
+        ps.set_responsable_vacaciones(admin_id, by_user_id=admin_id)
+        ps.save_vacacion_periodo(
+            {"empleado_id": str(emp_id), "anio": "2026", "dias_asignados": "10"},
+            user_id=admin_id,
+        )
+        ok, _, vac = ps.solicitar_vacacion(
+            emp_id,
+            user_id=admin_id,
+            data={"anio": "2026", "fecha_desde": "2026-08-01", "fecha_hasta": "2026-08-03"},
+        )
+        assert ok and vac is not None
+        vac_id = vac.id
+
+    r = auth_client.post(
+        "/personal/vacaciones",
+        data={
+            "action": "modificar",
+            "vacacion_id": str(vac_id),
+            "fecha_desde": "2026-08-10",
+            "fecha_hasta": "2026-08-12",
+            "motivo_responsable": "Cobertura de turno",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        from app.models import PersonalVacacion
+
+        vac = db.session.get(PersonalVacacion, vac_id)
+        assert vac.estado == "modificada"
+
+    r = auth_client.post(
+        "/personal/mis-vacaciones",
+        data={"action": "confirmar", "vacacion_id": str(vac_id)},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        from app.models import PersonalVacacion
+
+        vac = db.session.get(PersonalVacacion, vac_id)
+        assert vac.estado == "aprobada"
+        assert vac.confirmada_empleado_at is not None
+
+
+def test_vacaciones_workflow_rechazo_empleado_confirma(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalVacacion, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp_id = emp.id
+        admin_id = admin.id
+        ps.set_responsable_vacaciones(admin_id, by_user_id=admin_id)
+        ps.save_vacacion_periodo(
+            {"empleado_id": str(emp_id), "anio": "2026", "dias_asignados": "10"},
+            user_id=admin_id,
+        )
+        _, _, vac = ps.solicitar_vacacion(
+            emp_id,
+            user_id=admin_id,
+            data={"anio": "2026", "fecha_desde": "2026-09-01", "fecha_hasta": "2026-09-02"},
+        )
+        vac_id = vac.id
+
+    r = auth_client.post(
+        "/personal/vacaciones",
+        data={
+            "action": "rechazar",
+            "vacacion_id": str(vac_id),
+            "motivo_responsable": "Falta personal",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    r = auth_client.post(
+        "/personal/mis-vacaciones",
+        data={"action": "confirmar", "vacacion_id": str(vac_id)},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        vac = db.session.get(PersonalVacacion, vac_id)
+        assert vac.estado == "cancelada"
+        saldo = ps.saldo_vacacion_periodo(emp_id, 2026)
+        assert saldo["usados"] == 0
