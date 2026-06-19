@@ -1012,6 +1012,56 @@ def save_vacacion_periodo(data: dict[str, Any], *, user_id: int | None) -> tuple
     return True, "Período de vacaciones guardado."
 
 
+def save_vacacion_periodo_masivo(
+    data: dict[str, Any],
+    *,
+    user_id: int | None,
+    empleado_ids: list[str] | None = None,
+) -> tuple[bool, str, int]:
+    """Asigna el mismo saldo de días a todos los empleados activos (o a los seleccionados)."""
+    anio_raw = (data.get("anio") or "").strip()
+    dias_raw = (data.get("dias_asignados") or "").strip()
+    if not anio_raw.isdigit():
+        return False, "Año del período obligatorio.", 0
+    if not dias_raw.isdigit():
+        return False, "Días asignados obligatorios.", 0
+    anio = int(anio_raw)
+    dias = int(dias_raw)
+    if dias < 0:
+        return False, "Los días asignados no pueden ser negativos.", 0
+
+    empleados = list_empleados(estado="activo")
+    if empleado_ids:
+        ids = {int(x) for x in empleado_ids if str(x).isdigit()}
+        empleados = [e for e in empleados if e.id in ids]
+    if not empleados:
+        return False, "No hay empleados activos para cargar el período.", 0
+
+    ok_count = 0
+    errores: list[str] = []
+    for emp in empleados:
+        ok, msg = save_vacacion_periodo(
+            {
+                "empleado_id": str(emp.id),
+                "anio": str(anio),
+                "dias_asignados": str(dias),
+                "observaciones": (data.get("observaciones") or "").strip(),
+            },
+            user_id=user_id,
+        )
+        if ok:
+            ok_count += 1
+        else:
+            errores.append(f"{emp.nombre_completo}: {msg}")
+
+    if ok_count == 0:
+        detalle = errores[0] if errores else "Sin cambios."
+        return False, f"No se pudo cargar ningún período. {detalle}", 0
+    if errores:
+        return True, f"Período {anio} cargado para {ok_count} empleado(s). {len(errores)} con error.", ok_count
+    return True, f"Período {anio}: {dias} días asignados a {ok_count} empleado(s).", ok_count
+
+
 def _get_periodo_empleado(empleado_id: int, anio: int) -> PersonalVacacionPeriodo | None:
     return (
         db.session.query(PersonalVacacionPeriodo)
@@ -1039,7 +1089,8 @@ def solicitar_vacacion(
     anio = int(anio_raw) if anio_raw.isdigit() else desde.year
     periodo = _get_periodo_empleado(empleado_id, anio)
     if periodo is None or int(periodo.dias_asignados) <= 0:
-        return False, f"No tenés días cargados para el período {anio}.", None
+        nombre = emp.nombre_completo
+        return False, f"{nombre} no tiene días cargados para el período {anio}. El administrador debe asignarlos primero.", None
     dias = _dias_entre(desde, hasta)
     saldo = saldo_vacacion_periodo(empleado_id, anio)
     if dias > saldo["disponibles"]:

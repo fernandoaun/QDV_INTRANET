@@ -751,3 +751,52 @@ def test_vacaciones_workflow_rechazo_empleado_confirma(auth_client, app):
         assert vac.estado == "cancelada"
         saldo = ps.saldo_vacacion_periodo(emp_id, 2026)
         assert saldo["usados"] == 0
+
+
+def test_vacaciones_periodo_masivo(app, admin_user):
+    from app.extensions import db
+    from app.models import User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        ok, msg, n = ps.save_vacacion_periodo_masivo(
+            {"anio": "2027", "dias_asignados": "21"},
+            user_id=admin.id,
+        )
+        assert ok and n >= 1
+        assert len(ps.list_vacacion_periodos(anio=2027)) >= 1
+
+
+def test_vacaciones_admin_solicitar_empleado(auth_client, app):
+    from app.extensions import db
+    from app.models import User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = ps.get_empleado_by_user_id(admin.id)
+        ps.save_vacacion_periodo(
+            {"empleado_id": str(emp.id), "anio": "2026", "dias_asignados": "14"},
+            user_id=admin.id,
+        )
+        emp_id = emp.id
+
+    r = auth_client.post(
+        "/personal/vacaciones",
+        data={
+            "action": "solicitar_empleado",
+            "empleado_id": str(emp_id),
+            "anio": "2026",
+            "fecha_desde": "2026-11-01",
+            "fecha_hasta": "2026-11-03",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    with app.app_context():
+        vacs = ps.list_vacaciones(empleado_id=emp_id, estado="solicitada")
+        assert any(v.fecha_desde.isoformat() == "2026-11-01" for v in vacs)

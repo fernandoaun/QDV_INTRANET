@@ -9,8 +9,14 @@
 </div>
 
 {% if puede_gestionar_periodos %}
+<div class="alert alert-info small mb-3">
+  <strong>Flujo:</strong> (1) Cargá los <strong>días del período</strong> de cada empleado.
+  (2) Registrá la <strong>solicitud con fechas</strong> (vos o el empleado desde «Mis vacaciones»).
+  (3) El <strong>responsable</strong> aprueba, modifica o rechaza; si modifica o rechaza, el empleado debe confirmar.
+</div>
+
 <div class="app-card mb-3">
-  <div class="app-card-header">Configuración (administrador)</div>
+  <div class="app-card-header">Paso 1 — Días del período (administrador)</div>
   <div class="app-card-body">
     <form method="post" class="row g-2 align-items-end mb-3">
       {% include "_csrf.html" %}
@@ -25,14 +31,14 @@
           </option>
           {% endfor %}
         </select>
-        <div class="form-text">Recibe un mail cuando un empleado solicita vacaciones. Debe tener email en su legajo.</div>
+        <div class="form-text">Recibe un mail cuando se registra una solicitud. Debe tener email en su legajo.</div>
       </div>
-      <div class="col-md-2"><button type="submit" class="btn btn-outline-primary">Guardar</button></div>
+      <div class="col-md-2"><button type="submit" class="btn btn-outline-primary">Guardar responsable</button></div>
     </form>
 
     <hr>
-    <h2 class="h6">Cargar días por período</h2>
-    <form method="post" class="row g-2 align-items-end">
+    <h2 class="h6">Un empleado</h2>
+    <form method="post" class="row g-2 align-items-end mb-4">
       {% include "_csrf.html" %}
       <input type="hidden" name="action" value="periodo">
       <div class="col-md-3">
@@ -46,11 +52,11 @@
       </div>
       <div class="col-md-2">
         <label class="form-label">Período (año) *</label>
-        <input type="number" class="form-control" name="anio" min="2000" max="2100" required>
+        <input type="number" class="form-control" name="anio" min="2000" max="2100" value="{{ anio_actual }}" required>
       </div>
       <div class="col-md-2">
         <label class="form-label">Días asignados *</label>
-        <input type="number" class="form-control" name="dias_asignados" min="0" max="365" required>
+        <input type="number" class="form-control" name="dias_asignados" min="0" max="365" required placeholder="Ej. 14">
       </div>
       <div class="col-md-3">
         <label class="form-label">Observaciones</label>
@@ -58,12 +64,70 @@
       </div>
       <div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Guardar</button></div>
     </form>
+
+    <h2 class="h6">Todos los empleados activos</h2>
+    <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="periodo_masivo">
+      <div class="col-md-2">
+        <label class="form-label">Período (año) *</label>
+        <input type="number" class="form-control" name="anio" min="2000" max="2100" value="{{ anio_actual }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Días a cada uno *</label>
+        <input type="number" class="form-control" name="dias_asignados" min="0" max="365" required placeholder="Ej. 14">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Observaciones</label>
+        <input type="text" class="form-control" name="observaciones" maxlength="2000" placeholder="Opcional, mismo texto para todos">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-primary w-100" onclick="return confirm('¿Asignar estos días a todos los empleados activos?');">Cargar a todos</button>
+      </div>
+    </form>
+    <p class="form-text small mb-0 mt-2">Asigna el mismo saldo a los {{ empleados|length }} empleado(s) activo(s). Si ya tenían período cargado, se actualiza.</p>
   </div>
 </div>
 
-{% if periodos %}
 <div class="app-card mb-3">
-  <div class="app-card-header">Períodos cargados</div>
+  <div class="app-card-header">Paso 2 — Registrar solicitud (inicia el trámite)</div>
+  <div class="app-card-body">
+    <p class="small text-muted">Cargá las fechas en nombre del empleado. La solicitud queda pendiente de aprobación del responsable (igual que si la cargara el operador).</p>
+    <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="solicitar_empleado">
+      <div class="col-md-3">
+        <label class="form-label">Empleado *</label>
+        <select class="form-select" name="empleado_id" required>
+          <option value="">Seleccionar…</option>
+          {% for e in empleados %}
+          <option value="{{ e.id }}">{{ e.nombre_completo }} ({{ e.legajo }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Período (año) *</label>
+        <input type="number" class="form-control" name="anio" min="2000" max="2100" value="{{ anio_actual }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Desde *</label>
+        <input type="date" class="form-control" name="fecha_desde" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Hasta *</label>
+        <input type="date" class="form-control" name="fecha_hasta" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Observaciones</label>
+        <input type="text" class="form-control" name="observaciones" maxlength="2000">
+      </div>
+      <div class="col-md-1"><button type="submit" class="btn btn-success w-100">Registrar</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Saldos por período</div>
   <div class="app-card-body--flush table-responsive">
     <table class="table table-app table-compact mb-0">
       <thead><tr><th>Empleado</th><th>Año</th><th>Asignados</th><th>Usados</th><th>Disponibles</th></tr></thead>
@@ -77,17 +141,18 @@
           <td>{{ saldo.usados }}</td>
           <td>{{ saldo.disponibles }}</td>
         </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted p-3">Todavía no hay períodos cargados. Usá el paso 1 para asignar días.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
 {% endif %}
-{% endif %}
 
 {% if puede_gestionar_solicitudes and solicitudes_pendientes %}
 <div class="app-card mb-3 border-warning">
-  <div class="app-card-header">Solicitudes pendientes de gestión</div>
+  <div class="app-card-header">Paso 3 — Solicitudes pendientes de gestión</div>
   <div class="app-card-body--flush table-responsive">
     <table class="table table-app table-compact mb-0">
       <thead><tr><th>Empleado</th><th>Período</th><th>Fechas</th><th>Días</th><th>Obs.</th><th>Acciones</th></tr></thead>
@@ -161,6 +226,7 @@
 </div>
 
 <div class="app-card">
+  <div class="app-card-header">Todas las solicitudes</div>
   <div class="app-card-body--flush table-responsive">
     <table class="table table-app table-compact mb-0">
       <thead><tr><th>Empleado</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Año</th><th>Estado</th><th></th></tr></thead>

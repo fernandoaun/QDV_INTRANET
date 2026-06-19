@@ -359,6 +359,37 @@ def vacaciones():
             flash(msg, "success" if ok else "danger")
             return redirect(url_for("personal.vacaciones"))
 
+        if action == "periodo_masivo":
+            if not puede_gestionar_periodos:
+                flash("Solo el administrador puede cargar días por período.", "warning")
+                return redirect(url_for("personal.vacaciones"))
+            ok, msg, _ = ps.save_vacacion_periodo_masivo(
+                request.form, empleado_ids=request.form.getlist("empleado_ids"), user_id=u.id
+            )
+            flash(msg, "success" if ok else "danger")
+            return redirect(url_for("personal.vacaciones"))
+
+        if action == "solicitar_empleado":
+            if not puede_gestionar_periodos:
+                flash("Solo el administrador puede registrar solicitudes de vacaciones.", "warning")
+                return redirect(url_for("personal.vacaciones"))
+            emp_id_raw = (request.form.get("empleado_id") or "").strip()
+            if not emp_id_raw.isdigit():
+                flash("Seleccioná un empleado.", "danger")
+                return redirect(url_for("personal.vacaciones"))
+            ok, msg, vac = ps.solicitar_vacacion(
+                int(emp_id_raw), user_id=u.id, data=dict(request.form)
+            )
+            if ok and vac is not None:
+                mail_ok, mail_msg = maybe_notify_solicitud_vacacion(vac)
+                if not mail_ok and mail_msg:
+                    flash(f"Solicitud registrada. {mail_msg}", "warning")
+                else:
+                    flash("Solicitud registrada. Se notificó al responsable de vacaciones.", "success")
+            else:
+                flash(msg, "success" if ok else "danger")
+            return redirect(url_for("personal.vacaciones"))
+
         if action == "responsable":
             if not puede_gestionar_periodos:
                 flash("Solo el administrador puede designar al responsable.", "warning")
@@ -423,6 +454,7 @@ def vacaciones():
         solicitudes_pendientes=ps.list_vacaciones(pendientes_responsable=True) if puede_gestionar_solicitudes else [],
         periodos=ps.list_vacacion_periodos(anio=anio) if puede_gestionar_periodos else [],
         empleados=ps.list_empleados(estado="activo"),
+        anio_actual=ps.today_operacion().year,
         filtros={"estado": estado, "anio": anio_raw},
         estado_labels=ps.ESTADO_VACACION_LABELS,
         puede_gestionar=user_can_manage_personal(u),
