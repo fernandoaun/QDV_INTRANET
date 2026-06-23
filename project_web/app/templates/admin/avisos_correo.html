@@ -130,8 +130,9 @@
   <div class="app-card-header">Paradas de planta — correo de aviso (solo administrador)</div>
   <div class="app-card-body">
     <p class="small text-muted mb-3">
-      Cuando un operador declara <strong>parada de planta</strong> en electrolizador 2, 3, circuito de salmuera o de agua,
-      se envía un correo automático a estas direcciones. <strong>No se muestra al operador</strong> en pantalla de producción.
+      Cuando un operador declara <strong>parada de planta</strong> o <strong>reanuda el análisis</strong> en electrolizador 2, 3,
+      circuito de salmuera o de agua, se envía un correo automático a estas direcciones.
+      <strong>No se muestra al operador</strong> en pantalla de producción.
       También podés usar <code>PLANT_STOP_ALERT_EMAIL_TO</code> en el servidor.
     </p>
     {% if plant_stop_merged %}

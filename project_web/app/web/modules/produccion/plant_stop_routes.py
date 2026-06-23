@@ -89,7 +89,12 @@ def register_plant_stop_routes(bp: Blueprint) -> None:
                 )
                 msg = f"Parada de planta registrada en {ps.circuit_label(circuit_key)}."
             else:
-                ev = ps.end_plant_stop(circuit_key)
+                operador = operador_display_line() or default_operador_for_salmuera() or u.username
+                ev = ps.end_plant_stop(
+                    current_app,
+                    circuit_key,
+                    operador=operador or "",
+                )
                 msg = f"Análisis reanudado en {ps.circuit_label(circuit_key)}."
         except ValueError as e:
             return jsonify({"ok": False, "error": str(e)}), 400

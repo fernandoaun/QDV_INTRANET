@@ -266,6 +266,52 @@ def _send_stop_mail(app: Any, ev: PlantStopEvent) -> None:
     ev.mail_sent_at_iso = now_local_iso()
 
 
+def _send_resume_mail(app: Any, ev: PlantStopEvent, *, operador: str | None = None) -> None:
+    recipients = merged_plant_stop_recipients(app)
+    if not recipients:
+        log.warning("Reanudación de análisis id=%s: sin destinatarios PLANT_STOP_ALERT_EMAIL", ev.id)
+        return
+    if not is_mail_fully_configured(app):
+        log.warning("Reanudación de análisis id=%s: SMTP no configurado", ev.id)
+        return
+    label = circuit_label(ev.circuit_key)
+    obs = (ev.observaciones or "").strip()
+    obs_html = f"<p><strong>Observaciones de la parada:</strong> {html_lib.escape(obs)}</p>" if obs else ""
+    obs_txt = f"\nObservaciones de la parada: {obs}" if obs else ""
+    extra_8h = ""
+    if ev.circuit_key == CIRCUIT_REACTOR:
+        extra_8h = "<p>También se reanudó el cronómetro del <strong>análisis 8 hs</strong> (dureza / cloro libre).</p>"
+    op_resume = (operador or "").strip() or "—"
+    op_stop = (ev.operador or "").strip() or "—"
+    ended = (ev.ended_at_iso or "").strip() or "—"
+    asunto = f"QDV — Reanudación de análisis · {label}"
+    cuerpo_html = (
+        f"<p>Se <strong>reanudó el análisis</strong> en <strong>{html_lib.escape(label)}</strong> "
+        f"(fin de parada de planta).</p>"
+        f"{extra_8h}"
+        f"<p><strong>Operador (reanudación):</strong> {html_lib.escape(op_resume)}<br>"
+        f"<strong>Operador (parada):</strong> {html_lib.escape(op_stop)}<br>"
+        f"<strong>Inicio parada:</strong> {html_lib.escape(ev.started_at_iso)}<br>"
+        f"<strong>Fin parada:</strong> {html_lib.escape(ended)}</p>"
+        f"{obs_html}"
+        f"<p class=\"text-muted\">Aviso automático (no visible para el operador en pantalla).</p>"
+    )
+    cuerpo_texto = (
+        f"Reanudación de análisis en {label} (fin de parada de planta).\n"
+        f"Operador (reanudación): {op_resume}\n"
+        f"Operador (parada): {op_stop}\n"
+        f"Inicio parada: {ev.started_at_iso}\n"
+        f"Fin parada: {ended}{obs_txt}"
+    )
+    enviar_mail(
+        app,
+        destinatarios=recipients,
+        asunto=asunto,
+        cuerpo_html=cuerpo_html,
+        cuerpo_texto=cuerpo_texto,
+    )
+
+
 def start_plant_stop(
     app: Any,
     *,
@@ -324,12 +370,22 @@ def start_plant_stop(
     return ev
 
 
-def end_plant_stop(circuit_key: str) -> PlantStopEvent:
+def end_plant_stop(
+    app: Any,
+    circuit_key: str,
+    *,
+    operador: str | None = None,
+) -> PlantStopEvent:
     key = (circuit_key or "").strip()
     ev = get_active_stop(key)
     if ev is None:
         raise ValueError("No hay parada de planta activa en este punto.")
     ev.ended_at_iso = now_local_iso()
+    db.session.flush()
+    try:
+        _send_resume_mail(app, ev, operador=operador)
+    except Exception:
+        log.exception("Fallo envío mail reanudación de análisis id=%s", ev.id)
     db.session.commit()
     return ev
 

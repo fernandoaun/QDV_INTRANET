@@ -47,7 +47,7 @@ def test_start_and_end_plant_stop_freezes_timer_context(app):
         assert state["frozen_remaining_sec"] == ev.frozen_remaining_sec
 
         with patch.object(ps, "now_local_iso", return_value="2026-05-29T14:00:00"):
-            ended = ps.end_plant_stop(ps.CIRCUIT_SALMUERA_E2)
+            ended = ps.end_plant_stop(app, ps.CIRCUIT_SALMUERA_E2, operador="Operador Test")
         assert ended.ended_at_iso is not None
         assert ps.get_active_stop(ps.CIRCUIT_SALMUERA_E2) is None
 
