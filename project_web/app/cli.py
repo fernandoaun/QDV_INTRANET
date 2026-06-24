@@ -160,9 +160,11 @@ def register_cli(app: Flask) -> None:
             if not docs and not logs:
                 raise click.ClickException("No se pudo registrar ningún documento MSGI.")
             summary = f"Documentos MSGI registrados: {len(docs)}"
+            doc_lines = [f"  · {d.codigo} — {d.titulo}" for d in docs]
+            log_lines = list(logs)
         click.echo(summary)
-        for doc in docs:
-            click.echo(f"  · {doc.codigo} — {doc.titulo}")
-        for line in logs:
+        for line in doc_lines:
+            click.echo(line)
+        for line in log_lines:
             click.echo(f"  · {line}")
         click.echo("Listo. Abrí SGI → MSGI → Manuales para ver QDV-ANEXO I–IV.")

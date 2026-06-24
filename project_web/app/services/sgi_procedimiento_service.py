@@ -1034,9 +1034,7 @@ def create_msgi_documento_catalogo(
     db.session.add(rev)
     db.session.flush()
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_ALTA, f"Documento MSGI {codigo}")
-    db.session.commit()
-    db.session.refresh(doc)
-    db.session.refresh(rev)
+    db.session.flush()
     return doc, rev, None
 
 
