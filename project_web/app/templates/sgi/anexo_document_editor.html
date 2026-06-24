@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set standalone = standalone|default(false) %}
 {% block title %}{{ anexo.codigo }} · Editor anexo{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
@@ -9,7 +10,7 @@
   <h1 class="app-page-title h5">Editor — {{ anexo.codigo }}</h1>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=anexo.id) }}">Vista lectura</a>
+       href="{% if standalone %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=anexo.id) }}{% endif %}">Vista lectura</a>
     <button type="button" class="btn btn-primary btn-sm" id="btnGuardarAnexoDoc"><i class="bi bi-save me-1"></i>Guardar</button>
   </div>
 </div>
@@ -45,7 +46,7 @@
   window.SGI_ANEXO_DOC_CONFIG = {
     payload: {{ payload_json|safe }},
     csrf: {{ csrf_token()|tojson }},
-    guardarUrl: {{ url_for('sgi.procedimiento_anexo_guardar_contenido', slug=slug, anexo_id=anexo.id)|tojson }},
+    guardarUrl: {% if standalone %}{{ url_for('sgi.procedimiento_guardar_contenido', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }}{% else %}{{ url_for('sgi.procedimiento_anexo_guardar_contenido', slug=slug, anexo_id=anexo.id)|tojson }}{% endif %},
   };
 </script>
 <script src="{{ url_for('static', filename='js/sgi_anexo_document.js') }}"></script>

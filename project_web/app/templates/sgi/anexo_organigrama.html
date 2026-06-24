@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set standalone = standalone|default(false) %}
 {% block title %}{{ anexo.codigo }} · Organigrama{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
@@ -12,10 +13,10 @@
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">← Manual</a>
+       href="{% if standalone %}{{ url_for('sgi.listado_procedimientos', slug=slug) }}{% else %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% endif %}">← {% if standalone %}Manuales MSGI{% else %}Manual{% endif %}</a>
     {% if puede_editar %}
     <a class="btn btn-outline-primary btn-sm"
-       href="{{ url_for('sgi.procedimiento_anexo_editor', slug=slug, anexo_id=anexo.id) }}">Editar organigrama</a>
+       href="{% if standalone %}{{ url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_editor', slug=slug, anexo_id=anexo.id) }}{% endif %}">Editar organigrama</a>
     {% endif %}
   </div>
 </div>

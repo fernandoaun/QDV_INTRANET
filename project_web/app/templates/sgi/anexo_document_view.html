@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set standalone = standalone|default(false) %}
 {% block title %}{{ anexo.codigo }} · {{ anexo.nombre }}{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
@@ -8,14 +9,14 @@
   <h1 class="app-page-title h5">{{ anexo.codigo }}</h1>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">← Manual</a>
+       href="{% if standalone %}{{ url_for('sgi.listado_procedimientos', slug=slug) }}{% else %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% endif %}">← {% if standalone %}Manuales MSGI{% else %}Manual{% endif %}</a>
     {% if puede_editar %}
     <a class="btn btn-outline-primary btn-sm"
-       href="{{ url_for('sgi.procedimiento_anexo_editor', slug=slug, anexo_id=anexo.id) }}">Editar anexo</a>
+       href="{% if standalone %}{{ url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_editor', slug=slug, anexo_id=anexo.id) }}{% endif %}">Editar documento</a>
     {% endif %}
     {% if anexo.archivo_path %}
     <a class="btn btn-outline-secondary btn-sm"
-       href="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}">Word original</a>
+       href="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}{% endif %}">Word original</a>
     {% endif %}
   </div>
 </div>

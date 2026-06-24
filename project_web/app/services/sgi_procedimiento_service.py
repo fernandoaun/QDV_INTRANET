@@ -948,6 +948,134 @@ def attach_anexo_file_from_path(anexo_id: int, source: Path) -> tuple[bool, str]
     return True, f"Archivo de anexo guardado: {fn}"
 
 
+def attach_msgi_documento_file_from_path(doc_id: int, source: Path) -> tuple[bool, str]:
+    """Copia un archivo fuente al documento MSGI independiente (p. ej. mapa de procesos)."""
+    src = Path(source)
+    if not src.is_file():
+        return False, f"Archivo no encontrado: {src}"
+    doc = db.session.get(SgiDocumento, int(doc_id))
+    if doc is None:
+        return False, "Documento no encontrado."
+
+    fn = secure_filename(src.name)
+    if not fn:
+        return False, "Nombre inválido."
+    if "." in fn:
+        stem, _, ext = fn.rpartition(".")
+        fn = f"{stem.upper()}.{ext.lower()}"
+    else:
+        fn = fn.upper()
+    data = src.read_bytes()
+    if len(data) > doc_svc._upload_max_bytes():
+        return False, "Archivo demasiado grande."
+
+    base = uploads_workspace_root() / "sgi" / str(doc.id)
+    base.mkdir(parents=True, exist_ok=True)
+    dest = base / fn
+    shutil.copy2(src, dest)
+    doc.archivo_path = (Path("sgi") / str(doc.id) / fn).as_posix()
+    db.session.commit()
+    return True, f"Archivo guardado: {fn}"
+
+
+def _codigo_es_msgi_anexo_independiente(codigo: str) -> bool:
+    return (codigo or "").strip().upper().startswith("QDV-ANEXO")
+
+
+def create_msgi_documento_catalogo(
+    *,
+    codigo: str,
+    titulo: str,
+    tipo_contenido: str,
+    revision_label: str,
+    user_id: int,
+    actor_label: str,
+) -> tuple[SgiDocumento | None, SgiProcedimientoRevision | None, str | None]:
+    """Crea un documento MSGI con código fijo (QDV-ANEXO I, II, …)."""
+    from app.services import sgi_anexo_service as anexo_svc
+
+    codigo = (codigo or "").strip().upper()
+    titulo = (titulo or "").strip().upper() or codigo
+    tipo = anexo_svc.normalize_tipo_contenido(tipo_contenido)
+    if doc_svc._codigo_duplicado(TIPO_MSGI, codigo):
+        return None, None, f"Ya existe un documento con código {codigo}."
+
+    if tipo == ANEXO_TIPO_ORGANIGRAMA:
+        contenido: dict[str, Any] = {"version": 1, "nodes": []}
+    elif tipo == ANEXO_TIPO_DOCUMENTO:
+        contenido = anexo_svc.default_documento_contenido(titulo)
+    else:
+        contenido = {}
+
+    doc = SgiDocumento(
+        tipo=TIPO_MSGI,
+        codigo=codigo,
+        titulo=titulo[:512],
+        revision=revision_label or "Rev. 00",
+        estado=ESTADO_BORRADOR,
+        es_procedimiento_visual=True,
+        tipo_contenido=tipo,
+        created_by_id=user_id,
+        updated_by_id=user_id,
+    )
+    db.session.add(doc)
+    db.session.flush()
+
+    rev = SgiProcedimientoRevision(
+        documento_id=doc.id,
+        numero_revision=0,
+        revision_label=revision_label or "Rev. 00",
+        estado=ESTADO_BORRADOR,
+        contenido_json=json.dumps(contenido, ensure_ascii=False),
+        created_by_id=user_id,
+        updated_by_id=user_id,
+    )
+    db.session.add(rev)
+    db.session.flush()
+    doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_ALTA, f"Documento MSGI {codigo}")
+    db.session.commit()
+    db.session.refresh(doc)
+    db.session.refresh(rev)
+    return doc, rev, None
+
+
+def _cleanup_msgi_anexos_embebidos_en_manuales(actor_label: str) -> list[str]:
+    """Quita QDV-ANEXO I–IV de la sección 8 de manuales (son documentos aparte)."""
+    logs: list[str] = []
+    manuales = db.session.scalars(
+        select(SgiDocumento).where(
+            SgiDocumento.tipo == TIPO_MSGI,
+            SgiDocumento.es_procedimiento_visual.is_(True),
+            ~func.upper(SgiDocumento.codigo).like("QDV-ANEXO%"),
+        )
+    ).all()
+    for manual in manuales:
+        rev = revision_en_trabajo(manual) or revision_actual(manual)
+        if rev is None:
+            continue
+        payload = revision_to_payload(rev)
+        anexos = payload.get("anexos") or []
+        filtrados = [
+            a for a in anexos if not _codigo_es_msgi_anexo_independiente(str(a.get("codigo") or ""))
+        ]
+        if len(filtrados) == len(anexos):
+            continue
+        payload["anexos"] = filtrados
+        base = json.loads(rev.contenido_json or "{}")
+        rev.contenido_json = json.dumps({**base, "anexos": filtrados}, ensure_ascii=False)
+        _sync_child_rows(rev, payload)
+        doc_svc.append_historial(
+            manual.id,
+            actor_label,
+            doc_svc.ACCION_EDICION,
+            "Anexos I–IV retirados del manual (documentos independientes en MSGI).",
+        )
+        logs.append(f"{manual.codigo}: anexos I–IV quitados de la sección 8.")
+    if logs:
+        db.session.commit()
+    return logs
+
+
 def save_anexo_file(
     anexo_id: int,
     storage: FileStorage | None,
@@ -1114,7 +1242,7 @@ def _msgi_anexos_data_dir() -> Path:
 
 
 def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
-    """Catálogo inicial de anexos del manual MSGI (QDV-ANEXO I–IV)."""
+    """Catálogo de documentos MSGI independientes (QDV-ANEXO I–IV)."""
     data_dir = _msgi_anexos_data_dir()
     manual_dir = Path(
         current_app.config.get("SGI_MSGI_MANUAL_SOURCE_DIR")
@@ -1175,6 +1303,96 @@ def _first_existing_path(*candidates: Path) -> Path | None:
     return None
 
 
+def ensure_msgi_documentos(
+    *,
+    user_id: int | None = None,
+    actor_label: str = "Sistema",
+    catalog: tuple[dict[str, Any], ...] | None = None,
+    refresh_organigrama: bool = False,
+) -> tuple[list[SgiDocumento], list[str]]:
+    """Registra QDV-ANEXO I–IV como documentos MSGI independientes (no anexos de un manual)."""
+    from app.services import sgi_anexo_service as anexo_svc
+
+    items = catalog or default_msgi_anexo_catalog()
+    logs: list[str] = []
+    docs: list[SgiDocumento] = []
+    uid = user_id or 0
+
+    for row in items:
+        codigo = str(row.get("codigo") or "").strip().upper()
+        if not codigo:
+            continue
+        nombre = (row.get("nombre") or codigo).strip().upper()
+        rev_label = str(row.get("revision") or "Rev. 00").strip() or "Rev. 00"
+        tipo = row.get("tipo_contenido") or ANEXO_TIPO_ARCHIVO
+
+        doc = db.session.scalar(
+            select(SgiDocumento).where(
+                SgiDocumento.tipo == TIPO_MSGI,
+                func.lower(SgiDocumento.codigo) == codigo.lower(),
+            )
+        )
+        if doc is None:
+            doc, rev, err = create_msgi_documento_catalogo(
+                codigo=codigo,
+                titulo=nombre,
+                tipo_contenido=tipo,
+                revision_label=rev_label,
+                user_id=uid,
+                actor_label=actor_label,
+            )
+            if doc is None:
+                logs.append(f"{codigo}: {err or 'no se pudo crear.'}")
+                continue
+        else:
+            doc.titulo = nombre[:512]
+            doc.revision = rev_label
+            doc.es_procedimiento_visual = True
+            doc.tipo_contenido = anexo_svc.normalize_tipo_contenido(tipo)
+            rev = revision_en_trabajo(doc) or revision_actual(doc)
+            if rev is None:
+                logs.append(f"{codigo}: sin revisión activa.")
+                continue
+
+        docs.append(doc)
+        rev = revision_en_trabajo(doc) or revision_actual(doc)
+        if rev is None:
+            continue
+
+        src = row.get("archivo")
+        docx_src = Path(src) if src and str(src).lower().endswith((".docx", ".doc")) else None
+        pptx_src = Path(src) if src and str(src).lower().endswith((".pptx", ".ppt")) else None
+        anexo_svc.ensure_documento_tipo_contenido(
+            doc,
+            rev,
+            tipo,
+            docx_path=docx_src,
+            pptx_path=pptx_src if tipo == ANEXO_TIPO_ORGANIGRAMA else None,
+            refresh_organigrama=refresh_organigrama and (tipo == ANEXO_TIPO_ORGANIGRAMA),
+        )
+        db.session.flush()
+
+        if tipo == ANEXO_TIPO_ORGANIGRAMA:
+            logs.append(f"{codigo}: organigrama interactivo listo.")
+        elif tipo == ANEXO_TIPO_DOCUMENTO:
+            logs.append(f"{codigo}: documento visual importado.")
+        if src and Path(src).is_file() and tipo == ANEXO_TIPO_ARCHIVO:
+            if doc.archivo_path:
+                logs.append(f"{codigo}: ya tenía archivo adjunto.")
+            else:
+                try:
+                    ok, msg = attach_msgi_documento_file_from_path(doc.id, Path(src))
+                    logs.append(f"{codigo}: {msg}" if ok else f"{codigo}: error — {msg}")
+                except OSError as exc:
+                    logs.append(f"{codigo}: error al leer archivo — {exc}")
+        elif tipo == ANEXO_TIPO_ARCHIVO and not (src and Path(src).is_file()):
+            logs.append(f"{codigo}: sin archivo fuente ({src or 'no configurado'}).")
+
+    logs.extend(_cleanup_msgi_anexos_embebidos_en_manuales(actor_label))
+    db.session.commit()
+    return docs, logs
+
+
 def ensure_msgi_manual_anexos(
     *,
     user_id: int | None = None,
@@ -1183,116 +1401,12 @@ def ensure_msgi_manual_anexos(
     doc_codigo: str | None = None,
     refresh_organigrama: bool = False,
 ) -> tuple[SgiDocumento | None, list[str]]:
-    """Registra o actualiza los anexos I–IV en el manual MSGI visual."""
-    from app.models.sgi import TIPO_CARATULA_LABELS
-
-    doc = None
-    if doc_codigo:
-        doc = db.session.scalar(
-            select(SgiDocumento).where(
-                SgiDocumento.tipo == TIPO_MSGI,
-                func.lower(SgiDocumento.codigo) == doc_codigo.strip().lower(),
-            )
-        )
-    if doc is None:
-        doc = db.session.scalar(
-            select(SgiDocumento)
-            .where(
-                SgiDocumento.tipo == TIPO_MSGI,
-                SgiDocumento.es_procedimiento_visual.is_(True),
-            )
-            .order_by(SgiDocumento.id)
-        )
-    if doc is None:
-        doc, rev, err = create_procedimiento_visual(
-            TIPO_MSGI,
-            user_id or 0,
-            actor_label,
-            titulo=TIPO_CARATULA_LABELS.get(TIPO_MSGI, "MANUAL DEL SISTEMA DE GESTIÓN INTEGRADO"),
-        )
-        if doc is None:
-            return None, [err or "No se pudo crear el manual MSGI."]
-
-    rev = revision_en_trabajo(doc) or revision_actual(doc)
-    if rev is None:
-        return doc, ["El manual MSGI no tiene revisión activa."]
-
-    from app.services import sgi_anexo_service as anexo_svc
-
-    items = catalog or default_msgi_anexo_catalog()
-    payload = revision_to_payload(rev)
-    existing = {str(a.get("codigo") or "").upper(): a for a in (payload.get("anexos") or [])}
-    merged: list[dict[str, Any]] = []
-    logs: list[str] = []
-
-    for i, row in enumerate(items):
-        codigo = anexo_codigo_auto(TIPO_MSGI, i, doc.codigo)
-        prev = existing.get(codigo.upper(), {})
-        merged.append(
-            {
-                "id": prev.get("id"),
-                "nombre": row.get("nombre") or prev.get("nombre") or "",
-                "codigo": codigo,
-                "revision": row.get("revision") or prev.get("revision") or "Rev. 00",
-                "fecha_vigencia": (
-                    row["fecha_vigencia"].isoformat()
-                    if isinstance(row.get("fecha_vigencia"), date)
-                    else row.get("fecha_vigencia") or prev.get("fecha_vigencia") or ""
-                ),
-                "tipo_contenido": row.get("tipo_contenido") or prev.get("tipo_contenido") or ANEXO_TIPO_ARCHIVO,
-            }
-        )
-
-    payload["anexos"] = merged
-    _sync_child_rows(rev, payload)
-    rev.contenido_json = json.dumps(
-        {
-            **json.loads(rev.contenido_json or "{}"),
-            "anexos": payload.get("anexos") or [],
-        },
-        ensure_ascii=False,
+    """Compatibilidad CLI: delega en documentos MSGI independientes."""
+    del doc_codigo
+    docs, logs = ensure_msgi_documentos(
+        user_id=user_id,
+        actor_label=actor_label,
+        catalog=catalog,
+        refresh_organigrama=refresh_organigrama,
     )
-    db.session.flush()
-
-    by_codigo = {a.codigo.upper(): a for a in rev.anexos.all()}
-    for row in items:
-        codigo = str(row.get("codigo") or "").upper()
-        anexo = by_codigo.get(codigo)
-        if anexo is None:
-            logs.append(f"{codigo}: no se pudo crear el anexo.")
-            continue
-        tipo = row.get("tipo_contenido") or ANEXO_TIPO_ARCHIVO
-        src = row.get("archivo")
-        docx_src = Path(src) if src and str(src).lower().endswith((".docx", ".doc")) else None
-        pptx_src = Path(src) if src and str(src).lower().endswith((".pptx", ".ppt")) else None
-        anexo_svc.ensure_anexo_tipo_contenido(
-            anexo,
-            tipo,
-            docx_path=docx_src,
-            pptx_path=pptx_src if tipo == ANEXO_TIPO_ORGANIGRAMA else None,
-            refresh_organigrama=refresh_organigrama and (tipo == ANEXO_TIPO_ORGANIGRAMA),
-        )
-        if tipo == ANEXO_TIPO_ORGANIGRAMA:
-            logs.append(f"{codigo}: organigrama interactivo listo.")
-        elif tipo == ANEXO_TIPO_DOCUMENTO:
-            logs.append(f"{codigo}: documento visual importado.")
-        if src and Path(src).is_file() and tipo != ANEXO_TIPO_ORGANIGRAMA:
-            if anexo.archivo_path:
-                logs.append(f"{codigo}: ya tenía archivo adjunto.")
-            else:
-                try:
-                    ok, msg = attach_anexo_file_from_path(anexo.id, Path(src))
-                    logs.append(f"{codigo}: {msg}" if ok else f"{codigo}: error — {msg}")
-                except OSError as exc:
-                    logs.append(f"{codigo}: error al leer archivo — {exc}")
-        elif tipo == ANEXO_TIPO_ARCHIVO and not (src and Path(src).is_file()):
-            logs.append(f"{codigo}: sin archivo fuente ({src or 'no configurado'}).")
-
-    doc_svc.append_historial(
-        doc.id,
-        actor_label,
-        doc_svc.ACCION_ALTA,
-        "Anexos MSGI I–IV registrados o actualizados.",
-    )
-    db.session.commit()
-    return doc, logs
+    return (docs[0] if docs else None), logs

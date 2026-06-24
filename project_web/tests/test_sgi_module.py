@@ -441,9 +441,9 @@ def test_msgi_anexo_codigo_auto():
     assert anexo_codigo_auto(TIPO_PG, 0, "QDV-PG-01") == "QDV-PG-01-A01"
 
 
-def test_ensure_msgi_manual_anexos(app, tmp_path):
+def test_ensure_msgi_documentos(app, tmp_path):
     from app.extensions import db
-    from app.models.sgi import SgiProcedimientoAnexo
+    from app.models.sgi import SgiDocumento
     from app.services import sgi_procedimiento_service as proc_svc
 
     src = tmp_path / "politica.docx"
@@ -454,40 +454,41 @@ def test_ensure_msgi_manual_anexos(app, tmp_path):
             "nombre": "POLÍTICA CSSA",
             "revision": "Rev. 00",
             "fecha_vigencia": None,
+            "tipo_contenido": "documento",
             "archivo": src,
         },
     )
 
     with app.app_context():
-        doc, logs = proc_svc.ensure_msgi_manual_anexos(
-            actor_label="test",
-            catalog=catalog,
-        )
-        assert doc is not None
-        assert doc.tipo == "MSGI"
+        docs, logs = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        assert len(docs) == 1
+        doc = docs[0]
+        assert doc.codigo == "QDV-ANEXO I"
+        assert doc.titulo == "POLÍTICA CSSA"
+        assert doc.tipo_contenido == "documento"
         rev = proc_svc.revision_actual(doc)
-        anexos = list(rev.anexos.all())
-        assert len(anexos) == 1
-        assert anexos[0].codigo == "QDV-ANEXO I"
-        assert anexos[0].nombre == "POLÍTICA CSSA"
-        assert anexos[0].archivo_path
-        assert any("politica.docx" in line.lower() for line in logs)
+        assert rev is not None
+        assert rev.anexos.count() == 0
+        assert any("documento visual" in line.lower() for line in logs)
 
-        doc2, logs2 = proc_svc.ensure_msgi_manual_anexos(
-            actor_label="test",
-            catalog=catalog,
-            doc_codigo=doc.codigo,
-        )
-        assert doc2.id == doc.id
-        assert any("ya tenía archivo" in line.lower() for line in logs2)
+        docs2, logs2 = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        assert docs2[0].id == doc.id
+        assert len(logs2) >= 1
 
-        from sqlalchemy import select
-
-        for a in db.session.scalars(select(SgiProcedimientoAnexo).where(SgiProcedimientoAnexo.revision_id == rev.id)):
-            db.session.delete(a)
-        db.session.delete(rev)
+        for r in list(doc.revisiones_proc):
+            db.session.delete(r)
         db.session.delete(doc)
         db.session.commit()
+
+
+def test_documento_es_especial():
+    from app.models.sgi import SgiDocumento
+    from app.services.sgi_anexo_service import documento_es_especial
+
+    doc = SgiDocumento(tipo="MSGI", codigo="QDV-ANEXO II", titulo="ORG", tipo_contenido="organigrama")
+    assert documento_es_especial(doc) is True
+    doc2 = SgiDocumento(tipo="MSGI", codigo="QDV-MSGI-01", titulo="MANUAL", tipo_contenido=None)
+    assert documento_es_especial(doc2) is False
 
 
 def test_anexo_vista_tipo():

@@ -59,7 +59,7 @@
       {% for r in rows %}
       <tr class="{{ estado_visual_row(r) }}">
         <td><strong>{{ r.codigo }}</strong></td>
-        <td>{{ r.titulo }}</td>
+        <td>{{ r.titulo }}{% if r.tipo_contenido == 'documento' %} <span class="badge text-bg-light border">Documento</span>{% elif r.tipo_contenido == 'organigrama' %} <span class="badge text-bg-light border">Organigrama</span>{% elif r.tipo_contenido == 'archivo' %} <span class="badge text-bg-light border">Imagen / archivo</span>{% endif %}</td>
         <td>{{ r.revision or '—' }}</td>
         <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
         <td>{{ r.fecha_aprobacion.strftime('%d/%m/%Y') if r.fecha_aprobacion else '—' }}</td>

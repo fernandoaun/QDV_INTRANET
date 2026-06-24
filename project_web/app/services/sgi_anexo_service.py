@@ -17,7 +17,9 @@ from app.models.sgi import (
     ANEXO_TIPO_DOCUMENTO,
     ANEXO_TIPO_ORGANIGRAMA,
     PROCEDIMIENTO_SECCIONES,
+    SgiDocumento,
     SgiProcedimientoAnexo,
+    SgiProcedimientoRevision,
 )
 from app.models.user import User
 from app.services import sgi_procedimiento_service as proc_svc
@@ -390,3 +392,139 @@ def ensure_anexo_tipo_contenido(
                     preserve = {}
             nodes = build_default_organigrama_nodes(preserve_users=preserve, pptx_path=pptx_path)
             anexo.contenido_json = json.dumps({"version": 1, "nodes": nodes}, ensure_ascii=False)
+
+
+class DocumentoViewItem:
+    """Adaptador para plantillas que esperan campos de anexo en documentos MSGI independientes."""
+
+    def __init__(self, doc: SgiDocumento, rev: SgiProcedimientoRevision | None = None) -> None:
+        self.id = doc.id
+        self.codigo = doc.codigo
+        self.nombre = doc.titulo
+        self.revision = doc.revision or (rev.revision_label if rev else "")
+        self.fecha_vigencia = rev.fecha_vigencia if rev else None
+        self.tipo_contenido = doc.tipo_contenido
+        self.archivo_path = doc.archivo_path
+
+
+def documento_es_especial(doc: SgiDocumento | None) -> bool:
+    if doc is None:
+        return False
+    return normalize_tipo_contenido(doc.tipo_contenido) in (
+        ANEXO_TIPO_DOCUMENTO,
+        ANEXO_TIPO_ORGANIGRAMA,
+        ANEXO_TIPO_ARCHIVO,
+    ) and bool((doc.tipo_contenido or "").strip())
+
+
+def documento_view_item(doc: SgiDocumento, rev: SgiProcedimientoRevision | None) -> DocumentoViewItem:
+    return DocumentoViewItem(doc, rev)
+
+
+def parse_documento_contenido(doc: SgiDocumento, rev: SgiProcedimientoRevision) -> dict[str, Any]:
+    try:
+        data = json.loads(rev.contenido_json or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    tipo = normalize_tipo_contenido(doc.tipo_contenido)
+    if tipo == ANEXO_TIPO_DOCUMENTO:
+        base = default_documento_contenido(doc.titulo)
+        base["titulo"] = (data.get("titulo") or doc.titulo or "").strip().upper()
+        secs = data.get("secciones") if isinstance(data.get("secciones"), dict) else {}
+        base["secciones"] = proc_svc.normalize_procedure_secciones(secs)
+        return base
+    if tipo == ANEXO_TIPO_ORGANIGRAMA:
+        nodes = data.get("nodes")
+        if not isinstance(nodes, list):
+            nodes = []
+        return {"version": int(data.get("version") or 1), "nodes": nodes}
+    return data
+
+
+def documento_payload_for_view(doc: SgiDocumento, rev: SgiProcedimientoRevision) -> dict[str, Any]:
+    data = parse_documento_contenido(doc, rev)
+    return {
+        "titulo": data.get("titulo") or doc.titulo,
+        "secciones": data.get("secciones") or {},
+        "control_cambios": [],
+        "registros": [],
+        "anexos": [],
+    }
+
+
+def ensure_documento_tipo_contenido(
+    doc: SgiDocumento,
+    rev: SgiProcedimientoRevision,
+    tipo: str,
+    *,
+    docx_path: Path | None = None,
+    pptx_path: Path | None = None,
+    refresh_organigrama: bool = False,
+) -> None:
+    doc.tipo_contenido = normalize_tipo_contenido(tipo)
+    if doc.tipo_contenido == ANEXO_TIPO_DOCUMENTO:
+        if not (rev.contenido_json or "").strip() or rev.contenido_json == "{}":
+            if docx_path and docx_path.is_file():
+                data = contenido_from_docx(docx_path, doc.titulo)
+            else:
+                data = default_documento_contenido(doc.titulo)
+            rev.contenido_json = json.dumps(data, ensure_ascii=False)
+    elif doc.tipo_contenido == ANEXO_TIPO_ORGANIGRAMA:
+        empty = not (rev.contenido_json or "").strip() or rev.contenido_json == "{}"
+        if empty or refresh_organigrama:
+            preserve: dict[str, int] = {}
+            if not empty:
+                try:
+                    prev = json.loads(rev.contenido_json or "{}")
+                    for n in prev.get("nodes") or []:
+                        if isinstance(n, dict) and n.get("id") and n.get("user_id"):
+                            preserve[str(n["id"])] = int(n["user_id"])
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    preserve = {}
+            nodes = build_default_organigrama_nodes(preserve_users=preserve, pptx_path=pptx_path)
+            rev.contenido_json = json.dumps({"version": 1, "nodes": nodes}, ensure_ascii=False)
+
+
+def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) -> tuple[bool, str]:
+    doc = db.session.get(SgiDocumento, int(doc_id))
+    rev = db.session.get(SgiProcedimientoRevision, int(rev_id))
+    if doc is None or rev is None or rev.documento_id != doc.id:
+        return False, "Documento no encontrado."
+    if not documento_es_especial(doc):
+        return False, "Este documento no admite edición de contenido especial."
+    tipo = normalize_tipo_contenido(doc.tipo_contenido)
+    if tipo == ANEXO_TIPO_DOCUMENTO:
+        titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
+        secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
+        rev.contenido_json = json.dumps({"titulo": titulo, "secciones": secciones}, ensure_ascii=False)
+        if titulo:
+            doc.titulo = titulo[:512]
+    elif tipo == ANEXO_TIPO_ORGANIGRAMA:
+        nodes = payload.get("nodes")
+        if not isinstance(nodes, list):
+            return False, "Estructura de organigrama inválida."
+        clean: list[dict[str, Any]] = []
+        for i, n in enumerate(nodes):
+            if not isinstance(n, dict):
+                continue
+            nid = (n.get("id") or f"n{i}").strip()[:64]
+            if not nid:
+                continue
+            uid = n.get("user_id")
+            clean.append(
+                {
+                    "id": nid,
+                    "titulo": (n.get("titulo") or "").strip().upper()[:256],
+                    "subtitulo": (n.get("subtitulo") or "").strip()[:256],
+                    "parent_id": (n.get("parent_id") or None) or None,
+                    "user_id": int(uid) if uid not in (None, "", 0) else None,
+                    "orden": int(n.get("orden") if n.get("orden") is not None else i),
+                }
+            )
+        rev.contenido_json = json.dumps({"version": 1, "nodes": clean}, ensure_ascii=False)
+    else:
+        return False, "Este documento no admite edición de contenido."
+    db.session.commit()
+    return True, "Contenido guardado."
