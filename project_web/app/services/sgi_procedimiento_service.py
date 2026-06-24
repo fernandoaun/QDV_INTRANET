@@ -974,7 +974,7 @@ def attach_msgi_documento_file_from_path(doc_id: int, source: Path) -> tuple[boo
     dest = base / fn
     shutil.copy2(src, dest)
     doc.archivo_path = (Path("sgi") / str(doc.id) / fn).as_posix()
-    db.session.commit()
+    db.session.flush()
     return True, f"Archivo guardado: {fn}"
 
 
@@ -988,7 +988,7 @@ def create_msgi_documento_catalogo(
     titulo: str,
     tipo_contenido: str,
     revision_label: str,
-    user_id: int,
+    user_id: int | None = None,
     actor_label: str,
 ) -> tuple[SgiDocumento | None, SgiProcedimientoRevision | None, str | None]:
     """Crea un documento MSGI con código fijo (QDV-ANEXO I, II, …)."""
@@ -1007,6 +1007,7 @@ def create_msgi_documento_catalogo(
     else:
         contenido = {}
 
+    uid = user_id if user_id else None
     doc = SgiDocumento(
         tipo=TIPO_MSGI,
         codigo=codigo,
@@ -1015,8 +1016,8 @@ def create_msgi_documento_catalogo(
         estado=ESTADO_BORRADOR,
         es_procedimiento_visual=True,
         tipo_contenido=tipo,
-        created_by_id=user_id,
-        updated_by_id=user_id,
+        created_by_id=uid,
+        updated_by_id=uid,
     )
     db.session.add(doc)
     db.session.flush()
@@ -1027,8 +1028,8 @@ def create_msgi_documento_catalogo(
         revision_label=revision_label or "Rev. 00",
         estado=ESTADO_BORRADOR,
         contenido_json=json.dumps(contenido, ensure_ascii=False),
-        created_by_id=user_id,
-        updated_by_id=user_id,
+        created_by_id=uid,
+        updated_by_id=uid,
     )
     db.session.add(rev)
     db.session.flush()
@@ -1244,10 +1245,15 @@ def _msgi_anexos_data_dir() -> Path:
 def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
     """Catálogo de documentos MSGI independientes (QDV-ANEXO I–IV)."""
     data_dir = _msgi_anexos_data_dir()
-    manual_dir = Path(
-        current_app.config.get("SGI_MSGI_MANUAL_SOURCE_DIR")
-        or r"c:\Users\ferna\OneDrive\Quimica del Valle\SGI\Manual de gestion"
-    )
+    manual_raw = (current_app.config.get("SGI_MSGI_MANUAL_SOURCE_DIR") or "").strip()
+    manual_dir = Path(manual_raw) if manual_raw else None
+
+    def _src(*names: str) -> Path | None:
+        paths = [data_dir / n for n in names]
+        if manual_dir is not None:
+            paths.extend(manual_dir / n for n in names)
+        return _first_existing_path(*paths)
+
     return (
         {
             "codigo": "QDV-ANEXO I",
@@ -1255,10 +1261,7 @@ def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
             "revision": "Rev. 00",
             "fecha_vigencia": None,
             "tipo_contenido": "documento",
-            "archivo": _first_existing_path(
-                data_dir / "QDV-ANEXO I Politica CSSA_Rev.00.docx",
-                manual_dir / "QDV-ANEXO I Politica CSSA_Rev.00.docx",
-            ),
+            "archivo": _src("QDV-ANEXO I Politica CSSA_Rev.00.docx"),
         },
         {
             "codigo": "QDV-ANEXO II",
@@ -1266,10 +1269,7 @@ def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
             "revision": "Rev. 00",
             "fecha_vigencia": None,
             "tipo_contenido": "organigrama",
-            "archivo": _first_existing_path(
-                data_dir / "QDV-ANEXO II Organigrama_Rev.00.pptx",
-                manual_dir / "QDV-ANEXO II Organigrama_Rev.00.pptx",
-            ),
+            "archivo": _src("QDV-ANEXO II Organigrama_Rev.00.pptx"),
         },
         {
             "codigo": "QDV-ANEXO III",
@@ -1277,10 +1277,7 @@ def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
             "revision": "Rev. 00",
             "fecha_vigencia": date(2026, 5, 12),
             "tipo_contenido": "archivo",
-            "archivo": _first_existing_path(
-                data_dir / "QDV-ANEXO III Mapa de Procesos.png",
-                manual_dir / "QDV-ANEXO III Mapa de Procesos.png",
-            ),
+            "archivo": _src("QDV-ANEXO III Mapa de Procesos.png"),
         },
         {
             "codigo": "QDV-ANEXO IV",
@@ -1288,10 +1285,7 @@ def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
             "revision": "Rev. 00",
             "fecha_vigencia": None,
             "tipo_contenido": "documento",
-            "archivo": _first_existing_path(
-                data_dir / "QDV-ANEXO IV Analisis FODA_Rev.00.docx",
-                manual_dir / "QDV-ANEXO IV Analisis FODA_Rev.00.docx",
-            ),
+            "archivo": _src("QDV-ANEXO IV Analisis FODA_Rev.00.docx"),
         },
     )
 
@@ -1316,7 +1310,7 @@ def ensure_msgi_documentos(
     items = catalog or default_msgi_anexo_catalog()
     logs: list[str] = []
     docs: list[SgiDocumento] = []
-    uid = user_id or 0
+    uid = user_id if user_id else None
 
     for row in items:
         codigo = str(row.get("codigo") or "").strip().upper()

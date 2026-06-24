@@ -466,6 +466,7 @@ def test_ensure_msgi_documentos(app, tmp_path):
         assert doc.codigo == "QDV-ANEXO I"
         assert doc.titulo == "POLÍTICA CSSA"
         assert doc.tipo_contenido == "documento"
+        assert doc.created_by_id is None
         rev = proc_svc.revision_actual(doc)
         assert rev is not None
         assert rev.anexos.count() == 0

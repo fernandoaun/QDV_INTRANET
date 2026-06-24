@@ -145,13 +145,18 @@ def register_cli(app: Flask) -> None:
     )
     def seed_msgi_anexos(codigo_manual: str, refresh_organigrama: bool) -> None:
         """Registra QDV-ANEXO I–IV como documentos MSGI independientes e importa archivos fuente."""
+        from app.extensions import db
         from app.services import sgi_procedimiento_service as proc_svc
 
         with app.app_context():
-            docs, logs = proc_svc.ensure_msgi_documentos(
-                actor_label="CLI seed-msgi-anexos",
-                refresh_organigrama=refresh_organigrama,
-            )
+            try:
+                docs, logs = proc_svc.ensure_msgi_documentos(
+                    actor_label="CLI seed-msgi-anexos",
+                    refresh_organigrama=refresh_organigrama,
+                )
+            except Exception as exc:
+                db.session.rollback()
+                raise click.ClickException(f"seed-msgi-anexos: {exc}") from exc
             if not docs and not logs:
                 raise click.ClickException("No se pudo registrar ningún documento MSGI.")
             summary = f"Documentos MSGI registrados: {len(docs)}"
