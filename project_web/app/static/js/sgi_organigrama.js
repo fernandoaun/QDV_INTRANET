@@ -81,7 +81,93 @@
     if (active) active.classList.add("is-active");
   }
 
-  function initZoom() {
+  const CONNECTOR_STROKE = "#1a5c22";
+  const CONNECTOR_WIDTH = 2.5;
+
+  function nodeBox(btn, container) {
+    const c = container.getBoundingClientRect();
+    const r = btn.getBoundingClientRect();
+    return {
+      top: r.top - c.top,
+      bottom: r.bottom - c.top,
+      cx: r.left - c.left + r.width / 2,
+    };
+  }
+
+  function svgLine(svg, x1, y1, x2, y2) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", String(Math.round(x1 * 10) / 10));
+    line.setAttribute("y1", String(Math.round(y1 * 10) / 10));
+    line.setAttribute("x2", String(Math.round(x2 * 10) / 10));
+    line.setAttribute("y2", String(Math.round(y2 * 10) / 10));
+    line.setAttribute("stroke", CONNECTOR_STROKE);
+    line.setAttribute("stroke-width", String(CONNECTOR_WIDTH));
+    line.setAttribute("stroke-linecap", "round");
+    svg.appendChild(line);
+  }
+
+  function drawConnectors() {
+    const wrap = qs("#sgiOrgChart");
+    if (!wrap) return;
+    let svg = qs("#sgiOrgConnectors", wrap);
+    if (!svg) {
+      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.id = "sgiOrgConnectors";
+      svg.classList.add("sgi-org-connectors");
+      svg.setAttribute("aria-hidden", "true");
+      wrap.insertBefore(svg, wrap.firstChild);
+    }
+
+    const w = Math.max(wrap.scrollWidth, wrap.offsetWidth);
+    const h = Math.max(wrap.scrollHeight, wrap.offsetHeight);
+    svg.setAttribute("width", String(w));
+    svg.setAttribute("height", String(h));
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.innerHTML = "";
+
+    qsa(".sgi-org-tree-item", wrap).forEach((item) => {
+      const parentBtn = qs(":scope > .sgi-org-tree-node-wrap > .sgi-org-node", item);
+      const childUl = qs(":scope > .sgi-org-tree-children", item);
+      if (!parentBtn || !childUl) return;
+
+      const childBtns = qsa(
+        ":scope > .sgi-org-tree-item > .sgi-org-tree-node-wrap > .sgi-org-node",
+        childUl
+      );
+      if (!childBtns.length) return;
+
+      const parent = nodeBox(parentBtn, wrap);
+      const children = childBtns.map((btn) => nodeBox(btn, wrap));
+
+      if (children.length === 1) {
+        svgLine(svg, parent.cx, parent.bottom, children[0].cx, children[0].top);
+        return;
+      }
+
+      const gap = children[0].top - parent.bottom;
+      const junctionY = parent.bottom + Math.max(14, gap * 0.5);
+      svgLine(svg, parent.cx, parent.bottom, parent.cx, junctionY);
+      const xs = children.map((c) => c.cx);
+      svgLine(svg, Math.min(...xs), junctionY, Math.max(...xs), junctionY);
+      children.forEach((c) => svgLine(svg, c.cx, junctionY, c.cx, c.top));
+    });
+  }
+
+  function initConnectors() {
+    function scheduleRedraw() {
+      requestAnimationFrame(drawConnectors);
+    }
+    window.addEventListener("resize", scheduleRedraw);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(scheduleRedraw).catch(() => scheduleRedraw());
+    }
+    scheduleRedraw();
+    setTimeout(scheduleRedraw, 150);
+    setTimeout(scheduleRedraw, 500);
+    return scheduleRedraw;
+  }
+
+  function initZoom(onLayout) {
     const viewport = qs("#sgiOrgViewport");
     const stage = qs("#sgiOrgStage");
     const label = qs("#sgiOrgZoomLabel");
@@ -118,6 +204,7 @@
         }
       }
       applyTransform();
+      onLayout?.();
     }
 
     qs("#sgiOrgZoomIn")?.addEventListener("click", () => setScale(scale + ZOOM_STEP));
@@ -156,15 +243,20 @@
       viewport.classList.remove("is-panning");
     });
 
-    window.addEventListener("resize", fitWidth);
+    window.addEventListener("resize", () => {
+      fitWidth();
+      onLayout?.();
+    });
     fitWidth();
+    onLayout?.();
     return { fitWidth };
   }
 
   function initView() {
     const chart = qs("#sgiOrgChart");
     if (!chart) return;
-    const zoom = initZoom();
+    const redrawConnectors = initConnectors();
+    const zoom = initZoom(redrawConnectors);
 
     qsa(".sgi-org-node", chart).forEach((btn) => {
       btn.addEventListener("click", (ev) => {

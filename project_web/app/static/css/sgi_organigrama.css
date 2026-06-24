@@ -77,107 +77,57 @@
 }
 
 .sgi-org-chart-wrap {
+  position: relative;
   text-align: center;
+  display: inline-block;
+  min-width: min-content;
 }
 
-/* —— Árbol jerárquico con conectores —— */
+.sgi-org-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+
+/* —— Árbol jerárquico (layout table para alinear niveles) —— */
 .sgi-org-tree,
-.sgi-org-tree ul,
-.sgi-org-tree li {
+.sgi-org-tree ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .sgi-org-tree {
+  position: relative;
+  z-index: 2;
   display: inline-block;
   text-align: center;
 }
 
 .sgi-org-tree-children {
-  display: flex;
-  justify-content: center;
-  flex-wrap: nowrap;
-  padding-top: 1.35rem;
-  position: relative;
+  display: table;
+  margin: 0 auto;
+  border-collapse: separate;
+  border-spacing: 0.4rem 0;
+  padding-top: 1.75rem;
 }
 
 .sgi-org-tree-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  padding: 1.35rem 0.35rem 0;
+  display: table-cell;
+  vertical-align: top;
+  text-align: center;
+  padding: 0 0.2rem;
 }
 
 .sgi-org-tree-node-wrap {
   position: relative;
   z-index: 2;
-}
-
-/* Conectores estilo SmartArt (líneas verdes) */
-.sgi-org-tree-item::before,
-.sgi-org-tree-item::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 50%;
-  width: 50%;
-  height: 1.35rem;
-  border-top: 2px solid #4ea72e;
-}
-
-.sgi-org-tree-item::after {
-  right: auto;
-  left: 50%;
-  border-left: 2px solid #4ea72e;
-  border-top: none;
-}
-
-.sgi-org-tree > .sgi-org-tree-item::before,
-.sgi-org-tree > .sgi-org-tree-item::after {
-  display: none;
-}
-
-.sgi-org-tree-item:only-child::before,
-.sgi-org-tree-item:only-child::after {
-  display: none;
-}
-
-.sgi-org-tree-item:first-child::before,
-.sgi-org-tree-item:last-child::after {
-  border: none;
-}
-
-.sgi-org-tree-item:last-child::before {
-  border-right: 2px solid #4ea72e;
-  border-radius: 0 4px 0 0;
-}
-
-.sgi-org-tree-item:first-child::after {
-  border-radius: 4px 0 0 0;
-}
-
-.sgi-org-tree-item:not(.sgi-org-tree-item--leaf) > .sgi-org-tree-node-wrap::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -1.35rem;
-  width: 0;
-  height: 1.35rem;
-  border-left: 2px solid #4ea72e;
-  transform: translateX(-50%);
-}
-
-.sgi-org-tree-children::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 0;
-  height: 1.35rem;
-  border-left: 2px solid #4ea72e;
-  transform: translateX(-50%);
+  display: inline-block;
 }
 
 /* —— Cajas de puesto (SmartArt verde) —— */
