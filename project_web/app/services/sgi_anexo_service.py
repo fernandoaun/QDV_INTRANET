@@ -145,6 +145,89 @@ ORGANIGRAMA_QDV_SPECS: tuple[dict[str, Any], ...] = (
     {"id": "servicios_externos", "titulo": "SERVICIOS EXTERNOS", "parent_id": "gerencia_general", "orden": 14, "rol": None},
 )
 
+# Posición en grilla (como QDV-ANEXO II / lámina de referencia)
+ORGANIGRAMA_QDV_GRID: tuple[dict[str, Any], ...] = (
+    {"id": "gerencia_general", "row": 1, "col": 7, "kind": "internal"},
+    {"id": "asesoria_legal_contable", "row": 2, "col": 12, "kind": "external"},
+    {"id": "responsable_administracion", "row": 3, "col": 2, "kind": "internal"},
+    {"id": "responsable_rrhh", "row": 3, "col": 4, "kind": "internal"},
+    {"id": "responsable_logistica", "row": 3, "col": 6, "kind": "internal"},
+    {"id": "responsable_planta", "row": 3, "col": 8, "kind": "internal"},
+    {"id": "asesoria_qhse", "row": 3, "col": 12, "kind": "external"},
+    {"id": "asesoria_impositiva_legal", "row": 4, "col": 2, "kind": "external"},
+    {"id": "asesoria_rrhh", "row": 4, "col": 4, "kind": "external"},
+    {"id": "choferes", "row": 4, "col": 6, "kind": "internal"},
+    {"id": "responsable_control_calidad", "row": 4, "col": 7, "kind": "internal"},
+    {"id": "responsable_turno", "row": 4, "col": 8, "kind": "internal"},
+    {"id": "responsable_mantenimiento", "row": 4, "col": 9, "kind": "internal"},
+    {"id": "operarios_planta", "row": 5, "col": 8, "kind": "internal"},
+)
+
+ORGANIGRAMA_QDV_LINKS: tuple[dict[str, Any], ...] = (
+    {"type": "bus", "from": "gerencia_general", "children": [
+        "responsable_administracion",
+        "responsable_rrhh",
+        "responsable_logistica",
+        "responsable_planta",
+    ], "style": "solid"},
+    {"type": "stem-side", "from": "gerencia_general", "to": "asesoria_legal_contable", "style": "dashed"},
+    {"type": "bus-tail", "from": "gerencia_general", "to": "asesoria_qhse", "style": "dashed",
+     "bus": "gerencia_internal"},
+    {"type": "direct", "from": "responsable_administracion", "to": "asesoria_impositiva_legal", "style": "dashed"},
+    {"type": "direct", "from": "responsable_rrhh", "to": "asesoria_rrhh", "style": "dashed"},
+    {"type": "direct", "from": "responsable_logistica", "to": "choferes", "style": "solid"},
+    {"type": "bus", "from": "responsable_planta", "children": [
+        "responsable_control_calidad",
+        "responsable_turno",
+        "responsable_mantenimiento",
+    ], "style": "solid"},
+    {"type": "direct", "from": "responsable_turno", "to": "operarios_planta", "style": "solid"},
+)
+
+
+def organigrama_flat_nodes(arbol: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
+
+    def walk(n: dict[str, Any]) -> None:
+        out[str(n.get("id") or "")] = n
+        for c in n.get("children") or []:
+            if isinstance(c, dict):
+                walk(c)
+
+    for root in arbol:
+        if isinstance(root, dict):
+            walk(root)
+    return out
+
+
+def organigrama_layout_items(arbol: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flat = organigrama_flat_nodes(arbol)
+    items: list[dict[str, Any]] = []
+    for spec in ORGANIGRAMA_QDV_GRID:
+        node = flat.get(spec["id"])
+        if not node:
+            continue
+        items.append({**spec, **node})
+    return items
+
+
+def organigrama_links_json() -> str:
+    return json.dumps(list(ORGANIGRAMA_QDV_LINKS), ensure_ascii=False)
+
+
+def organigrama_view_context(
+    *,
+    anexo: SgiProcedimientoAnexo | None = None,
+    doc: SgiDocumento | None = None,
+    rev: SgiProcedimientoRevision | None = None,
+) -> dict[str, Any]:
+    arbol = organigrama_view_arbol(anexo=anexo, doc=doc, rev=rev)
+    return {
+        "arbol": arbol,
+        "layout_items": organigrama_layout_items(arbol),
+        "org_links_json": organigrama_links_json(),
+    }
+
 
 def parse_organigrama_from_pptx(path: Path) -> list[dict[str, Any]] | None:
     """Intenta leer la jerarquía del organigrama desde el PPTX (SmartArt)."""

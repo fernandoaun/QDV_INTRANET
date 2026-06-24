@@ -2,9 +2,13 @@
   "use strict";
 
   const editorCfg = window.SGI_ORG_EDITOR;
-  const MIN_ZOOM = 0.45;
+  const MIN_ZOOM = 0.4;
   const MAX_ZOOM = 1.6;
   const ZOOM_STEP = 0.1;
+  const SOLID_STROKE = "#c45c26";
+  const DASHED_STROKE = "#222222";
+  const STROKE_WIDTH = 2.5;
+  const DASH = "7 5";
 
   function qs(sel, root) {
     return (root || document).querySelector(sel);
@@ -81,8 +85,10 @@
     if (active) active.classList.add("is-active");
   }
 
-  const CONNECTOR_STROKE = "#1a5c22";
-  const CONNECTOR_WIDTH = 2.5;
+  function nodeBtn(wrap, nodeId) {
+    return qs(`[data-node-id="${nodeId}"] > .sgi-org-node`, wrap)
+      || qs(`[data-node-id="${nodeId}"] .sgi-org-node`, wrap);
+  }
 
   function nodeBox(btn, container) {
     const c = container.getBoundingClientRect();
@@ -90,20 +96,114 @@
     return {
       top: r.top - c.top,
       bottom: r.bottom - c.top,
+      left: r.left - c.left,
+      right: r.right - c.left,
       cx: r.left - c.left + r.width / 2,
+      cy: r.top - c.top + r.height / 2,
     };
   }
 
-  function svgLine(svg, x1, y1, x2, y2) {
+  function strokeAttrs(style) {
+    return {
+      stroke: style === "dashed" ? DASHED_STROKE : SOLID_STROKE,
+      dash: style === "dashed" ? DASH : null,
+    };
+  }
+
+  function svgSeg(svg, x1, y1, x2, y2, style) {
+    const { stroke, dash } = strokeAttrs(style);
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", String(Math.round(x1 * 10) / 10));
-    line.setAttribute("y1", String(Math.round(y1 * 10) / 10));
-    line.setAttribute("x2", String(Math.round(x2 * 10) / 10));
-    line.setAttribute("y2", String(Math.round(y2 * 10) / 10));
-    line.setAttribute("stroke", CONNECTOR_STROKE);
-    line.setAttribute("stroke-width", String(CONNECTOR_WIDTH));
-    line.setAttribute("stroke-linecap", "round");
+    line.setAttribute("x1", String(x1));
+    line.setAttribute("y1", String(y1));
+    line.setAttribute("x2", String(x2));
+    line.setAttribute("y2", String(y2));
+    line.setAttribute("stroke", stroke);
+    line.setAttribute("stroke-width", String(STROKE_WIDTH));
+    line.setAttribute("stroke-linecap", "square");
+    if (dash) line.setAttribute("stroke-dasharray", dash);
     svg.appendChild(line);
+  }
+
+  function orthoDown(svg, x, y1, y2, style) {
+    svgSeg(svg, x, y1, x, y2, style);
+  }
+
+  function orthoElbow(svg, x1, y1, x2, y2, style) {
+    if (Math.abs(x1 - x2) < 1) {
+      orthoDown(svg, x1, y1, y2, style);
+      return;
+    }
+    const midY = y1 + (y2 - y1) / 2;
+    svgSeg(svg, x1, y1, x1, midY, style);
+    svgSeg(svg, x1, midY, x2, midY, style);
+    svgSeg(svg, x2, midY, x2, y2, style);
+  }
+
+  function drawBus(svg, wrap, parentId, childIds, style, busCache) {
+    const parent = nodeBtn(wrap, parentId);
+    if (!parent) return null;
+    const children = childIds.map((id) => nodeBtn(wrap, id)).filter(Boolean);
+    if (!children.length) return null;
+
+    const p = nodeBox(parent, wrap);
+    const boxes = children.map((btn) => nodeBox(btn, wrap));
+    const junctionY = p.bottom + Math.max(16, (boxes[0].top - p.bottom) * 0.5);
+
+    orthoDown(svg, p.cx, p.bottom, junctionY, style);
+    const xs = boxes.map((b) => b.cx);
+    const xMin = Math.min(...xs);
+    const xMax = Math.max(...xs);
+    svgSeg(svg, xMin, junctionY, xMax, junctionY, style);
+    boxes.forEach((b) => orthoDown(svg, b.cx, junctionY, b.top, style));
+
+    const info = { junctionY, xMin, xMax, parentCx: p.cx };
+    busCache[parentId] = info;
+    return info;
+  }
+
+  function drawDirect(svg, wrap, fromId, toId, style) {
+    const from = nodeBtn(wrap, fromId);
+    const to = nodeBtn(wrap, toId);
+    if (!from || !to) return;
+    const f = nodeBox(from, wrap);
+    const t = nodeBox(to, wrap);
+    orthoElbow(svg, f.cx, f.bottom, t.cx, t.top, style);
+  }
+
+  function drawStemSide(svg, wrap, fromId, toId, busCache) {
+    const from = nodeBtn(wrap, fromId);
+    const to = nodeBtn(wrap, toId);
+    if (!from || !to) return;
+    const f = nodeBox(from, wrap);
+    const t = nodeBox(to, wrap);
+    const bus = busCache[fromId];
+    let yBranch = f.bottom + 22;
+    if (bus) {
+      yBranch = f.bottom + (bus.junctionY - f.bottom) * 0.45;
+    } else {
+      yBranch = f.bottom + Math.max(18, (t.cy - f.bottom) * 0.42);
+    }
+    svgSeg(svg, f.cx, yBranch, t.left, yBranch, "dashed");
+    orthoDown(svg, t.left, yBranch, t.cy, "dashed");
+  }
+
+  function drawBusTail(svg, wrap, fromId, toId, busCache) {
+    const bus = busCache[fromId];
+    const to = nodeBtn(wrap, toId);
+    if (!bus || !to) return;
+    const t = nodeBox(to, wrap);
+    const y = bus.junctionY;
+    const xStart = Math.max(bus.xMax, bus.parentCx);
+    svgSeg(svg, xStart, y, t.cx, y, "dashed");
+    orthoDown(svg, t.cx, y, t.top, "dashed");
+  }
+
+  function parseLinks(wrap) {
+    try {
+      return JSON.parse(wrap.dataset.links || "[]");
+    } catch {
+      return [];
+    }
   }
 
   function drawConnectors() {
@@ -125,31 +225,22 @@
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.innerHTML = "";
 
-    qsa(".sgi-org-tree-item", wrap).forEach((item) => {
-      const parentBtn = qs(":scope > .sgi-org-tree-node-wrap > .sgi-org-node", item);
-      const childUl = qs(":scope > .sgi-org-tree-children", item);
-      if (!parentBtn || !childUl) return;
+    const links = parseLinks(wrap);
+    const busCache = {};
 
-      const childBtns = qsa(
-        ":scope > .sgi-org-tree-item > .sgi-org-tree-node-wrap > .sgi-org-node",
-        childUl
-      );
-      if (!childBtns.length) return;
-
-      const parent = nodeBox(parentBtn, wrap);
-      const children = childBtns.map((btn) => nodeBox(btn, wrap));
-
-      if (children.length === 1) {
-        svgLine(svg, parent.cx, parent.bottom, children[0].cx, children[0].top);
-        return;
+    links.forEach((link) => {
+      if (link.type === "bus" && link.from && link.children) {
+        drawBus(svg, wrap, link.from, link.children, link.style || "solid", busCache);
       }
-
-      const gap = children[0].top - parent.bottom;
-      const junctionY = parent.bottom + Math.max(14, gap * 0.5);
-      svgLine(svg, parent.cx, parent.bottom, parent.cx, junctionY);
-      const xs = children.map((c) => c.cx);
-      svgLine(svg, Math.min(...xs), junctionY, Math.max(...xs), junctionY);
-      children.forEach((c) => svgLine(svg, c.cx, junctionY, c.cx, c.top));
+    });
+    links.forEach((link) => {
+      if (link.type === "direct" && link.from && link.to) {
+        drawDirect(svg, wrap, link.from, link.to, link.style || "solid");
+      } else if (link.type === "stem-side" && link.from && link.to) {
+        drawStemSide(svg, wrap, link.from, link.to, busCache);
+      } else if (link.type === "bus-tail" && link.from && link.to) {
+        drawBusTail(svg, wrap, link.from, link.to, busCache);
+      }
     });
   }
 
@@ -162,8 +253,9 @@
       document.fonts.ready.then(scheduleRedraw).catch(() => scheduleRedraw());
     }
     scheduleRedraw();
-    setTimeout(scheduleRedraw, 150);
-    setTimeout(scheduleRedraw, 500);
+    setTimeout(scheduleRedraw, 120);
+    setTimeout(scheduleRedraw, 400);
+    setTimeout(scheduleRedraw, 900);
     return scheduleRedraw;
   }
 
@@ -256,7 +348,7 @@
     const chart = qs("#sgiOrgChart");
     if (!chart) return;
     const redrawConnectors = initConnectors();
-    const zoom = initZoom(redrawConnectors);
+    initZoom(redrawConnectors);
 
     qsa(".sgi-org-node", chart).forEach((btn) => {
       btn.addEventListener("click", (ev) => {
@@ -273,11 +365,9 @@
               telefono: btn.dataset.telefono || "",
             }
           : null;
-        const subtitulo = btn.querySelector(".sgi-org-node-sub")?.textContent?.trim() || "";
-        renderDetail(usuario, btn.querySelector(".sgi-org-node-title")?.textContent || "", subtitulo);
+        renderDetail(usuario, btn.querySelector(".sgi-org-node-title")?.textContent || "", "");
       });
     });
-
   }
 
   function buildRow(node, idx) {

@@ -282,6 +282,7 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
                 ),
             )
         if tc == ANEXO_TIPO_ORGANIGRAMA:
+            org_ctx = anexo_svc.organigrama_view_context(doc=doc, rev=rev)
             return render_template(
                 "sgi/anexo_organigrama.html",
                 slug=slug,
@@ -289,8 +290,8 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
                 rev=rev,
                 anexo=item,
                 standalone=True,
-                arbol=anexo_svc.organigrama_view_arbol(doc=doc, rev=rev),
                 puede_editar=puede_editar,
+                **org_ctx,
             )
         if not doc.archivo_path:
             abort(404)
@@ -553,14 +554,15 @@ def procedimiento_anexo_ver(slug: str, anexo_id: int):
             ),
         )
     if tipo == ANEXO_TIPO_ORGANIGRAMA:
+        org_ctx = anexo_svc.organigrama_view_context(anexo=anexo)
         return render_template(
             "sgi/anexo_organigrama.html",
             slug=slug,
             doc=doc,
             rev=rev,
             anexo=anexo,
-            arbol=anexo_svc.organigrama_view_arbol(anexo=anexo),
             puede_editar=puede_editar,
+            **org_ctx,
         )
 
     if not anexo.archivo_path:
