@@ -1,71 +1,324 @@
-.sgi-org-chart-wrap {
-  overflow-x: auto;
-  padding: 1rem 0.5rem 2rem;
+/* Organigrama QDV — estilo SmartArt del PPT (verde #196B24 / #4EA72E) */
+
+.sgi-org-workspace {
+  background: #e8eaed;
+  min-height: calc(100vh - 120px);
+  padding: 1rem 0.75rem 2rem;
 }
 
-.sgi-org-branch {
+.sgi-org-sheet {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 1.5rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.sgi-org-sheet-header {
+  margin-bottom: 1rem;
+}
+
+.sgi-org-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.sgi-org-toolbar-hint {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.sgi-org-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sgi-org-zoom-controls .btn {
+  min-width: 2rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.sgi-org-zoom-label {
+  font-size: 0.78rem;
+  color: #555;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.sgi-org-chart-viewport {
+  overflow: auto;
+  border: 1px solid #d5d8dc;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fafbfc 0%, #fff 100%);
+  min-height: 420px;
+  max-height: 72vh;
+  cursor: grab;
+}
+
+.sgi-org-chart-viewport.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.sgi-org-chart-stage {
+  display: inline-block;
+  min-width: 100%;
+  padding: 1.5rem 1rem 2rem;
+  transform-origin: top center;
+  transition: transform 0.12s ease-out;
+}
+
+.sgi-org-chart-wrap {
+  text-align: center;
+}
+
+/* —— Árbol jerárquico con conectores —— */
+.sgi-org-tree,
+.sgi-org-tree ul,
+.sgi-org-tree li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sgi-org-tree {
+  display: inline-block;
+  text-align: center;
+}
+
+.sgi-org-tree-children {
+  display: flex;
+  justify-content: center;
+  flex-wrap: nowrap;
+  padding-top: 1.35rem;
+  position: relative;
+}
+
+.sgi-org-tree-item {
   display: flex;
   flex-direction: column;
   align-items: center;
+  position: relative;
+  padding: 1.35rem 0.35rem 0;
 }
 
-.sgi-org-children {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.75rem 1rem;
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
-  border-top: 2px solid #dee2e6;
+.sgi-org-tree-node-wrap {
+  position: relative;
+  z-index: 2;
 }
 
-.sgi-org-children .sgi-org-children {
-  border-top-style: dashed;
-  border-top-width: 1px;
+/* Conectores estilo SmartArt (líneas verdes) */
+.sgi-org-tree-item::before,
+.sgi-org-tree-item::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 1.35rem;
+  border-top: 2px solid #4ea72e;
 }
 
-.sgi-org-node[data-nombre=""] .sgi-org-node-person,
-.sgi-org-node:not([data-nombre]) .sgi-org-node-person {
-  font-style: italic;
+.sgi-org-tree-item::after {
+  right: auto;
+  left: 50%;
+  border-left: 2px solid #4ea72e;
+  border-top: none;
 }
 
+.sgi-org-tree > .sgi-org-tree-item::before,
+.sgi-org-tree > .sgi-org-tree-item::after {
+  display: none;
+}
+
+.sgi-org-tree-item:only-child::before,
+.sgi-org-tree-item:only-child::after {
+  display: none;
+}
+
+.sgi-org-tree-item:first-child::before,
+.sgi-org-tree-item:last-child::after {
+  border: none;
+}
+
+.sgi-org-tree-item:last-child::before {
+  border-right: 2px solid #4ea72e;
+  border-radius: 0 4px 0 0;
+}
+
+.sgi-org-tree-item:first-child::after {
+  border-radius: 4px 0 0 0;
+}
+
+.sgi-org-tree-item:not(.sgi-org-tree-item--leaf) > .sgi-org-tree-node-wrap::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -1.35rem;
+  width: 0;
+  height: 1.35rem;
+  border-left: 2px solid #4ea72e;
+  transform: translateX(-50%);
+}
+
+.sgi-org-tree-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 1.35rem;
+  border-left: 2px solid #4ea72e;
+  transform: translateX(-50%);
+}
+
+/* —— Cajas de puesto (SmartArt verde) —— */
 .sgi-org-node {
-  min-width: 160px;
-  max-width: 220px;
-  border: 2px solid #1a5276;
-  border-radius: 8px;
-  background: #fff;
-  padding: 0.65rem 0.75rem;
+  display: block;
+  min-width: 118px;
+  max-width: 168px;
+  border: 2px solid #145218;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #1f7a2c 0%, #196b24 100%);
+  color: #fff;
+  padding: 0.5rem 0.55rem;
   text-align: center;
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s, filter 0.12s;
+  box-shadow: 0 2px 6px rgba(25, 107, 36, 0.35);
 }
 
-.sgi-org-node:hover,
+.sgi-org-node--root {
+  min-width: 150px;
+  max-width: 200px;
+  background: linear-gradient(180deg, #145218 0%, #0f4212 100%);
+  border-color: #0a2e0c;
+  padding: 0.65rem 0.75rem;
+}
+
+.sgi-org-tree-item--externo .sgi-org-node,
+.sgi-org-tree-item--asesoria .sgi-org-node {
+  background: linear-gradient(180deg, #5cb832 0%, #4ea72e 100%);
+  border-color: #3d8a24;
+}
+
+.sgi-org-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(25, 107, 36, 0.45);
+  filter: brightness(1.05);
+}
+
 .sgi-org-node.is-active {
-  border-color: #2980b9;
-  box-shadow: 0 4px 14px rgba(41, 128, 185, 0.25);
+  border-color: #f0a030;
+  box-shadow: 0 0 0 3px rgba(240, 160, 48, 0.45), 0 6px 16px rgba(25, 107, 36, 0.4);
+}
+
+.sgi-org-node.is-path {
+  border-color: #f0a030;
+  filter: brightness(1.08);
 }
 
 .sgi-org-node-title {
   display: block;
   font-weight: 700;
-  font-size: 0.8rem;
-  line-height: 1.25;
+  font-size: 0.62rem;
+  line-height: 1.2;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.sgi-org-node--root .sgi-org-node-title {
+  font-size: 0.72rem;
+}
+
+.sgi-org-node-sub {
+  display: block;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  margin-top: 0.2rem;
+  opacity: 0.92;
+  font-style: italic;
 }
 
 .sgi-org-node-person {
   display: block;
-  font-size: 0.78rem;
-  margin-top: 0.35rem;
-  color: #333;
+  font-size: 0.6rem;
+  line-height: 1.25;
+  margin-top: 0.3rem;
+  padding-top: 0.28rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  font-weight: 600;
 }
 
-.sgi-org-chart-wrap > .sgi-org-branch {
+.sgi-org-node-person--vacant {
+  font-weight: 400;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Panel detalle */
+.sgi-org-detail-card {
+  position: sticky;
+  top: 1rem;
+}
+
+.sgi-org-detail-card .app-card-body {
+  min-height: 200px;
+}
+
+.sgi-org-detail-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #196b24;
+  color: #fff;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
-.sgi-org-chart-wrap > .sgi-org-branch > .sgi-org-children {
-  justify-content: center;
+.sgi-org-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+@media (max-width: 991px) {
+  .sgi-org-chart-viewport {
+    max-height: 55vh;
+  }
+
+  .sgi-org-node {
+    min-width: 100px;
+    max-width: 140px;
+    font-size: 0.95em;
+  }
+}
+
+@media print {
+  .sgi-org-toolbar,
+  .sgi-org-detail-col,
+  .sgi-proc-no-print {
+    display: none !important;
+  }
+
+  .sgi-org-chart-viewport {
+    overflow: visible;
+    max-height: none;
+    border: none;
+  }
+
+  .sgi-org-chart-stage {
+    transform: none !important;
+  }
 }

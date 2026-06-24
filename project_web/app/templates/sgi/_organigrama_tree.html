@@ -1,27 +1,44 @@
-{% macro render_node(n) %}
-<div class="sgi-org-branch">
-  <button type="button" class="sgi-org-node" data-node-id="{{ n.id }}"
-          {% if n.usuario %}
-          data-nombre="{{ n.usuario.nombre|e }}"
-          data-username="{{ n.usuario.username|e }}"
-          data-rol="{{ n.usuario.rol|e }}"
-          data-puesto="{{ n.usuario.puesto|e }}"
-          data-area="{{ n.usuario.area|e }}"
-          data-email="{{ n.usuario.email|e }}"
-          data-telefono="{{ n.usuario.telefono|e }}"
-          {% endif %}>
-    <span class="sgi-org-node-title">{{ n.titulo }}</span>
-    {% if n.usuario %}
-    <span class="sgi-org-node-person">{{ n.usuario.nombre }}</span>
-    {% else %}
-    <span class="sgi-org-node-person text-muted">Sin usuario asignado</span>
-    {% endif %}
-  </button>
-  {% if n.children %}
-  <div class="sgi-org-children">
-    {% for c in n.children %}{{ render_node(c) }}{% endfor %}
+{% macro render_li(n, parent_id='') %}
+<li class="sgi-org-tree-item{% if n.id == 'servicios_externos' %} sgi-org-tree-item--externo{% elif n.subtitulo %} sgi-org-tree-item--asesoria{% endif %}{% if not n.children %} sgi-org-tree-item--leaf{% endif %}"
+    data-node-id="{{ n.id }}">
+  <div class="sgi-org-tree-node-wrap">
+    <button type="button"
+            class="sgi-org-node{% if not n.children %} sgi-org-node--leaf{% endif %}{% if n.id == 'gerencia_general' %} sgi-org-node--root{% endif %}"
+            data-node-id="{{ n.id }}"
+            data-parent-id="{{ parent_id }}"
+            {% if n.usuario %}
+            data-nombre="{{ n.usuario.nombre|e }}"
+            data-username="{{ n.usuario.username|e }}"
+            data-rol="{{ n.usuario.rol|e }}"
+            data-puesto="{{ n.usuario.puesto|e }}"
+            data-area="{{ n.usuario.area|e }}"
+            data-email="{{ n.usuario.email|e }}"
+            data-telefono="{{ n.usuario.telefono|e }}"
+            {% endif %}>
+      <span class="sgi-org-node-title">{{ n.titulo }}</span>
+      {% if n.subtitulo %}
+      <span class="sgi-org-node-sub">{{ n.subtitulo }}</span>
+      {% endif %}
+      {% if n.usuario %}
+      <span class="sgi-org-node-person">{{ n.usuario.nombre }}</span>
+      {% else %}
+      <span class="sgi-org-node-person sgi-org-node-person--vacant">Sin usuario asignado</span>
+      {% endif %}
+    </button>
   </div>
+  {% if n.children %}
+  <ul class="sgi-org-tree-children">
+    {% for c in n.children %}{{ render_li(c, n.id) }}{% endfor %}
+  </ul>
   {% endif %}
-</div>
+</li>
 {% endmacro %}
-{% for root in arbol %}{{ render_node(root) }}{% endfor %}
+{% if arbol %}
+<ul class="sgi-org-tree" role="tree" aria-label="Organigrama QDV">
+  {% for root in arbol %}{{ render_li(root) }}{% endfor %}
+</ul>
+{% else %}
+<div class="sgi-org-empty alert alert-warning mb-0">
+  No hay puestos cargados. {% if puede_editar|default(false) %}Usá <strong>Editar organigrama</strong> para definir la estructura.{% endif %}
+</div>
+{% endif %}

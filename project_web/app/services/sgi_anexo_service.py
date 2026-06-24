@@ -303,6 +303,44 @@ def organigrama_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [enrich(n) for n in by_parent.get(None, [])]
 
 
+def organigrama_pptx_path() -> Path | None:
+    try:
+        from flask import current_app
+
+        from app.services.sgi_procedimiento_service import _first_existing_path, _msgi_anexos_data_dir
+
+        data_dir = _msgi_anexos_data_dir()
+        manual_dir = Path(
+            current_app.config.get("SGI_MSGI_MANUAL_SOURCE_DIR")
+            or r"c:\Users\ferna\OneDrive\Quimica del Valle\SGI\Manual de gestion"
+        )
+        return _first_existing_path(
+            data_dir / "QDV-ANEXO II Organigrama_Rev.00.pptx",
+            manual_dir / "QDV-ANEXO II Organigrama_Rev.00.pptx",
+        )
+    except Exception:
+        return None
+
+
+def organigrama_view_arbol(
+    *,
+    anexo: SgiProcedimientoAnexo | None = None,
+    doc: SgiDocumento | None = None,
+    rev: SgiProcedimientoRevision | None = None,
+) -> list[dict[str, Any]]:
+    """Árbol listo para la vista; si no hay nodos guardados, carga la estructura QDV por defecto."""
+    if anexo is not None:
+        data = parse_anexo_contenido(anexo)
+    elif doc is not None and rev is not None:
+        data = parse_documento_contenido(doc, rev)
+    else:
+        data = {}
+    nodes = data.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        nodes = build_default_organigrama_nodes(pptx_path=organigrama_pptx_path())
+    return organigrama_tree(nodes)
+
+
 def organigrama_usuarios_opciones() -> list[dict[str, Any]]:
     rows = db.session.scalars(
         select(User).where(User.activo.is_(True)).order_by(User.nombre_completo, User.username)

@@ -2,6 +2,9 @@
   "use strict";
 
   const editorCfg = window.SGI_ORG_EDITOR;
+  const MIN_ZOOM = 0.45;
+  const MAX_ZOOM = 1.6;
+  const ZOOM_STEP = 0.1;
 
   function qs(sel, root) {
     return (root || document).querySelector(sel);
@@ -18,11 +21,22 @@
     el.classList.remove("d-none");
   }
 
-  function renderDetail(usuario, titulo) {
+  function initials(name) {
+    const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  function renderDetail(usuario, titulo, subtitulo) {
     const box = qs("#sgiOrgDetail");
     if (!box) return;
+    const sub = subtitulo ? `<p class="text-muted small mb-2">${subtitulo}</p>` : "";
     if (!usuario) {
-      box.innerHTML = `<p class="mb-1"><strong>${titulo || "Puesto"}</strong></p><p class="text-muted mb-0">Sin usuario asignado en la intranet.</p>`;
+      box.innerHTML = `
+        <p class="fw-semibold mb-1">${titulo || "Puesto"}</p>
+        ${sub}
+        <p class="text-muted mb-0">Sin usuario asignado en la intranet.</p>`;
       return;
     }
     const rows = [
@@ -35,18 +49,127 @@
       ["Teléfono", usuario.telefono],
     ]
       .filter(([, v]) => v)
-      .map(([k, v]) => `<dt class="col-sm-4">${k}</dt><dd class="col-sm-8">${v}</dd>`)
+      .map(([k, v]) => `<dt class="col-sm-5">${k}</dt><dd class="col-sm-7">${v}</dd>`)
       .join("");
-    box.innerHTML = `<p class="fw-semibold mb-2">${titulo || ""}</p><dl class="row mb-0 small">${rows}</dl>`;
+    box.innerHTML = `
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <div class="sgi-org-detail-avatar" aria-hidden="true">${initials(usuario.nombre)}</div>
+        <div>
+          <p class="fw-semibold mb-0">${usuario.nombre}</p>
+          <p class="text-muted small mb-0">${usuario.rol || ""}</p>
+        </div>
+      </div>
+      <p class="fw-semibold mb-1">${titulo || ""}</p>
+      ${sub}
+      <dl class="row mb-0 small">${rows}</dl>`;
+  }
+
+  function clearPath(chart) {
+    qsa(".sgi-org-node", chart).forEach((b) => b.classList.remove("is-path", "is-active"));
+  }
+
+  function highlightPath(chart, nodeId) {
+    clearPath(chart);
+    let current = qs(`.sgi-org-node[data-node-id="${nodeId}"]`, chart);
+    while (current) {
+      current.classList.add("is-path");
+      const parentId = current.dataset.parentId;
+      if (!parentId) break;
+      current = qs(`.sgi-org-node[data-node-id="${parentId}"]`, chart);
+    }
+    const active = qs(`.sgi-org-node[data-node-id="${nodeId}"]`, chart);
+    if (active) active.classList.add("is-active");
+  }
+
+  function initZoom() {
+    const viewport = qs("#sgiOrgViewport");
+    const stage = qs("#sgiOrgStage");
+    const label = qs("#sgiOrgZoomLabel");
+    if (!viewport || !stage) return null;
+
+    let scale = 1;
+    let panX = 0;
+    let panY = 0;
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let originX = 0;
+    let originY = 0;
+
+    function applyTransform() {
+      stage.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+      if (label) label.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    function setScale(next) {
+      scale = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
+      applyTransform();
+    }
+
+    function fitWidth() {
+      scale = 1;
+      panX = 0;
+      panY = 0;
+      const chart = qs("#sgiOrgChart");
+      if (chart && viewport.clientWidth > 0) {
+        const contentW = chart.scrollWidth;
+        if (contentW > viewport.clientWidth) {
+          scale = Math.max(MIN_ZOOM, (viewport.clientWidth - 24) / contentW);
+        }
+      }
+      applyTransform();
+    }
+
+    qs("#sgiOrgZoomIn")?.addEventListener("click", () => setScale(scale + ZOOM_STEP));
+    qs("#sgiOrgZoomOut")?.addEventListener("click", () => setScale(scale - ZOOM_STEP));
+    qs("#sgiOrgZoomReset")?.addEventListener("click", fitWidth);
+
+    viewport.addEventListener(
+      "wheel",
+      (ev) => {
+        if (!ev.ctrlKey) return;
+        ev.preventDefault();
+        setScale(scale + (ev.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+      },
+      { passive: false }
+    );
+
+    viewport.addEventListener("mousedown", (ev) => {
+      if (ev.button !== 0) return;
+      dragging = true;
+      viewport.classList.add("is-panning");
+      startX = ev.clientX;
+      startY = ev.clientY;
+      originX = panX;
+      originY = panY;
+    });
+
+    window.addEventListener("mousemove", (ev) => {
+      if (!dragging) return;
+      panX = originX + (ev.clientX - startX);
+      panY = originY + (ev.clientY - startY);
+      applyTransform();
+    });
+
+    window.addEventListener("mouseup", () => {
+      dragging = false;
+      viewport.classList.remove("is-panning");
+    });
+
+    window.addEventListener("resize", fitWidth);
+    fitWidth();
+    return { fitWidth };
   }
 
   function initView() {
     const chart = qs("#sgiOrgChart");
     if (!chart) return;
+    const zoom = initZoom();
+
     qsa(".sgi-org-node", chart).forEach((btn) => {
-      btn.addEventListener("click", () => {
-        qsa(".sgi-org-node", chart).forEach((b) => b.classList.remove("is-active"));
-        btn.classList.add("is-active");
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        highlightPath(chart, btn.dataset.nodeId || "");
         const usuario = btn.dataset.nombre
           ? {
               nombre: btn.dataset.nombre,
@@ -58,9 +181,11 @@
               telefono: btn.dataset.telefono || "",
             }
           : null;
-        renderDetail(usuario, btn.querySelector(".sgi-org-node-title")?.textContent || "");
+        const subtitulo = btn.querySelector(".sgi-org-node-sub")?.textContent?.trim() || "";
+        renderDetail(usuario, btn.querySelector(".sgi-org-node-title")?.textContent || "", subtitulo);
       });
     });
+
   }
 
   function buildRow(node, idx) {

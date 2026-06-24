@@ -6,10 +6,10 @@
 <link href="{{ url_for('static', filename='css/sgi_organigrama.css') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
-<div class="app-page-head">
+<div class="app-page-head sgi-proc-no-print">
   <div>
     <h1 class="app-page-title h5 mb-1">{{ anexo.codigo }} — Organigrama</h1>
-    <p class="text-muted small mb-0">Hacé clic en un puesto para ver el usuario asignado de la intranet.</p>
+    <p class="text-muted small mb-0">Organigrama interactivo vinculado a usuarios de la intranet.</p>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm"
@@ -20,19 +20,45 @@
     {% endif %}
   </div>
 </div>
-<div class="row g-3">
-  <div class="col-lg-8">
-    <div class="app-card">
-      <div class="app-card-body sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view">
-        {% include "sgi/_organigrama_tree.html" %}
+
+<div class="sgi-org-workspace">
+  <div class="row g-3">
+    <div class="col-lg-9">
+      <div class="sgi-org-sheet">
+        <div class="sgi-org-sheet-header">
+          {% set header_titulo = 'ORGANIGRAMA' %}
+          {% set doc_cover = doc %}
+          {% include "sgi/_procedure_page_header.html" %}
+        </div>
+
+        <div class="sgi-org-toolbar sgi-proc-no-print">
+          <span class="sgi-org-toolbar-hint">Clic en un puesto para ver el usuario · Arrastrá para desplazar · Ctrl + rueda para zoom</span>
+          <div class="sgi-org-zoom-controls">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomOut" title="Alejar">−</button>
+            <span class="sgi-org-zoom-label" id="sgiOrgZoomLabel">100%</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomIn" title="Acercar">+</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomReset" title="Restablecer">Ajustar</button>
+          </div>
+        </div>
+
+        <div class="sgi-org-chart-viewport" id="sgiOrgViewport">
+          <div class="sgi-org-chart-stage" id="sgiOrgStage">
+            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view">
+              {% include "sgi/_organigrama_tree.html" %}
+            </div>
+          </div>
+        </div>
+
+        <p class="text-center text-muted small mt-3 mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
       </div>
     </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="app-card">
-      <div class="app-card-header">Detalle</div>
-      <div class="app-card-body" id="sgiOrgDetail">
-        <p class="text-muted mb-0">Seleccioná un puesto del organigrama.</p>
+
+    <div class="col-lg-3 sgi-org-detail-col">
+      <div class="app-card sgi-org-detail-card sgi-proc-no-print">
+        <div class="app-card-header">Detalle del puesto</div>
+        <div class="app-card-body" id="sgiOrgDetail">
+          <p class="text-muted mb-0">Seleccioná un puesto del organigrama.</p>
+        </div>
       </div>
     </div>
   </div>
