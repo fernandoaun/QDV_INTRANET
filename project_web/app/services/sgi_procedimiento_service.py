@@ -1075,6 +1075,44 @@ def _cleanup_msgi_anexos_embebidos_en_manuales(actor_label: str) -> list[str]:
     return logs
 
 
+def save_documento_archivo(
+    doc_id: int,
+    storage: FileStorage | None,
+    user_id: int,
+    *,
+    actor_label: str = "",
+) -> tuple[bool, str]:
+    """Adjunta o reemplaza el archivo de un documento MSGI independiente (QDV-ANEXO, etc.)."""
+    doc = db.session.get(SgiDocumento, int(doc_id))
+    if doc is None:
+        return False, "Documento no encontrado."
+    if not storage or not (storage.filename or "").strip():
+        return False, "No se seleccionó archivo."
+
+    fn = secure_filename(storage.filename or "documento")
+    if not fn:
+        return False, "Nombre inválido."
+    if "." in fn:
+        stem, _, ext = fn.rpartition(".")
+        fn = f"{stem.upper()}.{ext.lower()}"
+    else:
+        fn = fn.upper()
+    data = storage.read()
+    if len(data) > doc_svc._upload_max_bytes():
+        return False, "Archivo demasiado grande."
+
+    base = uploads_workspace_root() / "sgi" / str(doc.id)
+    base.mkdir(parents=True, exist_ok=True)
+    dest = base / fn
+    dest.write_bytes(data)
+    doc.archivo_path = (Path("sgi") / str(doc.id) / fn).as_posix()
+    doc.updated_by_id = user_id
+    label = actor_label or "Sistema"
+    doc_svc.append_historial(doc.id, label, doc_svc.ACCION_ARCHIVO, f"Adjunto: {fn} ({len(data)} bytes)")
+    db.session.commit()
+    return True, f"Archivo guardado: {fn}"
+
+
 def save_anexo_file(
     anexo_id: int,
     storage: FileStorage | None,

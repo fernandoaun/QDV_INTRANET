@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ tipo_label }} · Procedimientos · SGI{% endblock %}
+{% block extra_head %}
+{% if puede_editar and tipo == 'MSGI' %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endif %}
+{% endblock %}
 {% block content %}
 <div class="app-page-head">
   <h1 class="app-page-title">{{ tipo_label }}</h1>
@@ -59,7 +64,7 @@
       {% for r in rows %}
       <tr class="{{ estado_visual_row(r) }}">
         <td><strong>{{ r.codigo }}</strong></td>
-        <td>{{ r.titulo }}{% if r.tipo_contenido == 'documento' %} <span class="badge text-bg-light border">Documento</span>{% elif r.tipo_contenido == 'organigrama' %} <span class="badge text-bg-light border">Organigrama</span>{% elif r.tipo_contenido == 'archivo' %} <span class="badge text-bg-light border">Imagen / archivo</span>{% endif %}</td>
+        <td>{{ r.titulo }}{% if r.tipo_contenido == 'documento' %} <span class="badge text-bg-light border">Documento</span>{% elif r.tipo_contenido == 'organigrama' %} <span class="badge text-bg-light border">Organigrama</span>{% elif r.tipo_contenido == 'archivo' %} <span class="badge text-bg-light border">Imagen / archivo</span>{% endif %}{% if row_meta.get(r.id, {}).get('tiene_archivo') %} <i class="bi bi-paperclip text-muted" title="Adjunto: {{ row_meta[r.id].archivo_nombre }}"></i>{% endif %}</td>
         <td>{{ r.revision or '—' }}</td>
         <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
         <td>{{ r.fecha_aprobacion.strftime('%d/%m/%Y') if r.fecha_aprobacion else '—' }}</td>
@@ -77,6 +82,18 @@
           {% if row_meta.get(r.id, {}).get('rev_id') %}
           <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='pdf') }}" target="_blank" rel="noopener" title="Exportar PDF">PDF</a>
           {% endif %}
+          {% if puede_editar and tipo == 'MSGI' %}
+          <button type="button"
+                  class="btn btn-sm btn-outline-success btn-msgi-adjuntar"
+                  data-doc-id="{{ r.id }}"
+                  title="{% if row_meta.get(r.id, {}).get('tiene_archivo') %}Reemplazar adjunto ({{ row_meta[r.id].archivo_nombre }}){% else %}Adjuntar documento{% endif %}">
+            Adjuntar
+          </button>
+          <input type="file"
+                 class="d-none msgi-adjunto-input"
+                 data-doc-id="{{ r.id }}"
+                 accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.7z">
+          {% endif %}
         </td>
       </tr>
       {% else %}
@@ -87,4 +104,68 @@
   </div>
 </div>
 <p class="text-muted small mt-2">En el editor definí los sectores/perfiles a los que aplica cada procedimiento. Al aprobarse, se notifica por la campanita a los usuarios activos con esos perfiles. Los borradores solo los ven editores SGI y quienes participan en la revisión.</p>
+{% endblock %}
+{% block scripts %}
+{% if puede_editar and tipo == 'MSGI' %}
+<script>
+(function () {
+  "use strict";
+  const slug = {{ slug|tojson }};
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
+
+  function flash(kind, msg) {
+    const el = document.createElement("div");
+    el.className = `alert alert-${kind} alert-dismissible fade show mt-2`;
+    el.setAttribute("role", "status");
+    el.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>`;
+    const head = document.querySelector(".app-page-head");
+    if (head) head.after(el);
+  }
+
+  document.querySelectorAll(".btn-msgi-adjuntar").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const docId = btn.dataset.docId;
+      document.querySelector(`.msgi-adjunto-input[data-doc-id="${docId}"]`)?.click();
+    });
+  });
+
+  document.querySelectorAll(".msgi-adjunto-input").forEach((input) => {
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const docId = input.dataset.docId;
+      const btn = document.querySelector(`.btn-msgi-adjuntar[data-doc-id="${docId}"]`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Subiendo…";
+      }
+      const fd = new FormData();
+      fd.append("archivo", file);
+      fetch(`/sgi/${slug}/procedimientos/${docId}/archivo`, {
+        method: "POST",
+        body: fd,
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrf,
+        },
+        credentials: "same-origin",
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          flash(res.ok ? "success" : "danger", res.message || (res.ok ? "Archivo guardado." : "No se pudo adjuntar."));
+          if (res.ok) window.setTimeout(() => window.location.reload(), 700);
+        })
+        .catch(() => flash("danger", "No se pudo adjuntar el archivo."))
+        .finally(() => {
+          input.value = "";
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Adjuntar";
+          }
+        });
+    });
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

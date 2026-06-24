@@ -85,7 +85,11 @@ def listado_procedimientos(slug: str):
     row_meta: dict[int, dict] = {}
     for r in rows:
         rev = proc_svc.revision_vigente_aprobada(r) or proc_svc.revision_en_trabajo(r) or proc_svc.revision_actual(r)
-        row_meta[r.id] = {"rev_id": rev.id if rev else None}
+        row_meta[r.id] = {
+            "rev_id": rev.id if rev else None,
+            "tiene_archivo": bool(r.archivo_path),
+            "archivo_nombre": proc_svc.anexo_archivo_nombre(r.archivo_path),
+        }
 
     return render_template(
         "sgi/procedure_list.html",
@@ -357,6 +361,39 @@ def procedimiento_guardar_contenido(slug: str, doc_id: int, rev_id: int):
     data = request.get_json(silent=True) or {}
     ok, msg = anexo_svc.save_documento_contenido(doc_id, rev_id, data)
     return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/archivo")
+@login_required
+def procedimiento_upload_archivo(slug: str, doc_id: int):
+    u, redir = _require_edit()
+    if redir is not None:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        return redir
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo:
+        return jsonify({"ok": False, "message": "Documento no encontrado."}), 404
+    f = request.files.get("archivo")
+    ok, msg = proc_svc.save_documento_archivo(
+        doc_id,
+        f,
+        u.id,
+        actor_label=user_display_name(u),
+    )
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        extra: dict = {}
+        if ok:
+            doc = doc_svc.get_documento(doc_id)
+            if doc is not None:
+                extra = {
+                    "archivo_nombre": proc_svc.anexo_archivo_nombre(doc.archivo_path),
+                    "vista_tipo": proc_svc.anexo_vista_tipo(doc.archivo_path),
+                }
+        return jsonify({"ok": ok, "message": msg, **extra}), (200 if ok else 400)
+    flash(msg, "success" if ok else "danger")
+    return redirect(request.referrer or url_for("sgi.listado_procedimientos", slug=slug))
 
 
 @bp.get("/<slug>/procedimientos/<int:doc_id>/archivo")
