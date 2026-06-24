@@ -1,0 +1,39 @@
+{# Documento anexo MSGI — mismo formato visual que PG/PO/MSGI #}
+<div class="sgi-proc-sheet">
+  <section class="sgi-proc-caratula">
+    <div class="sgi-proc-cover-logo-wrap">
+      {% include "sgi/_procedure_logo.html" %}
+    </div>
+    <div class="sgi-proc-cover-empresa">QUÍMICA DEL VALLE S.R.L.</div>
+    <h1 class="sgi-proc-cover-titulo">{{ payload.titulo or anexo.nombre }}</h1>
+    <div class="sgi-proc-cover-codigo">{{ anexo.codigo }}</div>
+    <div class="sgi-proc-cover-revision">{{ anexo.revision }}</div>
+    {% if anexo.fecha_vigencia %}
+    <p class="sgi-proc-cover-fecha text-center small mb-3">
+      Fecha de vigencia: {{ anexo.fecha_vigencia.strftime('%d/%m/%Y') }}
+    </p>
+    {% endif %}
+    <p class="text-center small text-muted mb-0">Anexo del {{ doc.codigo }}</p>
+  </section>
+
+  <div class="sgi-proc-page-break sgi-proc-header-block">
+    {% set header_titulo = payload.titulo or anexo.nombre %}
+    {% set doc_cover = doc %}
+    {% include "sgi/_procedure_page_header.html" %}
+  </div>
+
+  <section class="sgi-proc-cuerpo">
+    {% for key, label in secciones %}
+    {% if key not in ('control_registros', 'anexos') %}
+    {% set cuerpo = (payload.secciones or {}).get(key, '') %}
+    {% if cuerpo or key in ('objeto', 'desarrollo') %}
+    <div class="sgi-proc-seccion">
+      <div class="sgi-proc-seccion-titulo">{{ label }}</div>
+      <div class="sgi-proc-seccion-cuerpo">{{ cuerpo|safe }}</div>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+  </section>
+  {% include "sgi/_procedure_firma_gerente.html" %}
+</div>

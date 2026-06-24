@@ -520,6 +520,31 @@
   margin-bottom: 0.75rem;
 }
 
+.sgi-anexo-preview-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #dee2e6;
+  background: #fff;
+}
+
+.sgi-anexo-view-body {
+  padding: 1rem;
+}
+
+.sgi-anexo-view-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.sgi-anexo-view-pdf {
+  width: 100%;
+  min-height: 75vh;
+  border: 1px solid #dee2e6;
+}
+
 @media print {
   .sgi-proc-no-print,
   .sgi-proc-format-bar {

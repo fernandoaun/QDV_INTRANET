@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ anexo.codigo }} · Organigrama{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css') }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title h5 mb-1">{{ anexo.codigo }} — Organigrama</h1>
+    <p class="text-muted small mb-0">Hacé clic en un puesto para ver el usuario asignado de la intranet.</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">← Manual</a>
+    {% if puede_editar %}
+    <a class="btn btn-outline-primary btn-sm"
+       href="{{ url_for('sgi.procedimiento_anexo_editor', slug=slug, anexo_id=anexo.id) }}">Editar organigrama</a>
+    {% endif %}
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="app-card">
+      <div class="app-card-body sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view">
+        {% include "sgi/_organigrama_tree.html" %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="app-card">
+      <div class="app-card-header">Detalle</div>
+      <div class="app-card-body" id="sgiOrgDetail">
+        <p class="text-muted mb-0">Seleccioná un puesto del organigrama.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js') }}"></script>
+{% endblock %}

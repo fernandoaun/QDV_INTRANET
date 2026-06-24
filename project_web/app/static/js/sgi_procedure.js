@@ -1300,13 +1300,23 @@
     updateFormatBar();
   }
 
+  function anexoCodigoAuto(idx) {
+    if ((cfg.tipo || "").toUpperCase() === "MSGI") {
+      const romans = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+      const n = idx + 1;
+      if (n >= 1 && n <= romans.length) return `QDV-ANEXO ${romans[n - 1]}`;
+      return `QDV-ANEXO ${n}`;
+    }
+    return `${cfg.codigo}-A${String(idx + 1).padStart(2, "0")}`;
+  }
+
   function addAnexoCard(ax, idx) {
     const container = qs("#procAnexosContainer");
     if (!container) return;
     const card = document.createElement("div");
     card.className = "sgi-proc-anexo-card";
     if (ax?.id) card.dataset.anexoId = String(ax.id);
-    const codigoAuto = ax?.codigo || `${cfg.codigo}-A${String(idx + 1).padStart(2, "0")}`;
+    const codigoAuto = ax?.codigo || anexoCodigoAuto(idx);
     card.innerHTML = `
       <div class="row g-2">
         <div class="col-md-6">
@@ -1325,14 +1335,54 @@
           <label class="form-label small fw-bold">Fecha de vigencia</label>
           <input type="date" class="form-control form-control-sm ax-fecha" value="${ax?.fecha_vigencia || ""}" ${soloLectura ? "readonly" : ""}>
         </div>
-        <div class="col-md-8">
-          ${ax?.tiene_archivo ? '<span class="badge text-bg-success">Archivo adjunto</span>' : ""}
+        <div class="col-md-8 ax-archivo-wrap">
+          <label class="form-label small fw-bold">Archivo del anexo</label>
+          <div class="ax-archivo-status small mb-1">${ax?.tiene_archivo ? '<span class="badge text-bg-success">Archivo adjunto</span>' : '<span class="text-muted">Sin archivo</span>'}${ax?.archivo_nombre ? ` <span class="text-muted">${ax.archivo_nombre.replace(/</g, "&lt;")}</span>` : ""}</div>
+          ${soloLectura || !ax?.id ? "" : `<input type="file" class="form-control form-control-sm ax-archivo-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.ppt,.pptx">`}
+          ${!soloLectura && !ax?.id ? '<div class="form-text">Guardá el borrador para poder adjuntar un archivo.</div>' : ""}
         </div>
       </div>
       ${soloLectura ? "" : '<button type="button" class="btn btn-sm btn-link text-danger float-end btn-del-anexo">Quitar anexo</button>'}
     `;
     container.appendChild(card);
     card.querySelector(".btn-del-anexo")?.addEventListener("click", () => card.remove());
+    card.querySelector(".ax-archivo-input")?.addEventListener("change", (ev) => {
+      const input = ev.target;
+      const file = input.files && input.files[0];
+      if (!file || !card.dataset.anexoId) return;
+      uploadAnexoArchivo(parseInt(card.dataset.anexoId, 10), file, card);
+      input.value = "";
+    });
+  }
+
+  function uploadAnexoArchivo(anexoId, file, card) {
+    const fd = new FormData();
+    fd.append("archivo", file);
+    fd.append("csrf_token", cfg.csrf);
+    const status = card.querySelector(".ax-archivo-status");
+    if (status) status.innerHTML = '<span class="text-muted">Subiendo…</span>';
+    fetch(`/sgi/${cfg.slug}/procedimientos/anexo/${anexoId}/archivo`, {
+      method: "POST",
+      body: fd,
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+      credentials: "same-origin",
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!status) return;
+        if (res.ok) {
+          const name = (res.archivo_nombre || file.name || "").replace(/</g, "&lt;");
+          status.innerHTML = `<span class="badge text-bg-success">Archivo adjunto</span> <span class="text-muted">${name}</span>`;
+          flashMsg("success", res.message || "Archivo guardado.");
+        } else {
+          status.innerHTML = '<span class="text-danger">Error al subir</span>';
+          flashMsg("danger", res.message || "No se pudo subir el archivo.");
+        }
+      })
+      .catch(() => {
+        if (status) status.innerHTML = '<span class="text-danger">Error al subir</span>';
+        flashMsg("danger", "No se pudo subir el archivo.");
+      });
   }
 
   function hydrate() {

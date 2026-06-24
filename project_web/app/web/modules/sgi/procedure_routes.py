@@ -16,7 +16,13 @@ from app.auth_utils import (
     user_display_name,
 )
 from app.models.sgi import ESTADO_LABELS, PROCEDIMIENTO_SECCIONES, TIPO_CARATULA_LABELS, TIPO_LABELS
-from app.models.sgi import SgiDocumento
+from app.models.sgi import (
+    ANEXO_TIPO_ARCHIVO,
+    ANEXO_TIPO_DOCUMENTO,
+    ANEXO_TIPO_ORGANIGRAMA,
+    SgiDocumento,
+)
+from app.services import sgi_anexo_service as anexo_svc
 from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_procedimiento_service as proc_svc
 from app.services import sgi_service as doc_svc
@@ -371,26 +377,160 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
 def procedimiento_anexo_upload(slug: str, anexo_id: int):
     u, redir = _require_edit()
     if redir is not None:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
         return redir
     f = request.files.get("archivo")
     ok, msg = proc_svc.save_anexo_file(anexo_id, f, u.id)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        extra: dict = {}
+        if ok:
+            anexo, _ = proc_svc.get_anexo_for_access(anexo_id)
+            if anexo is not None:
+                extra = {
+                    "archivo_nombre": proc_svc.anexo_archivo_nombre(anexo.archivo_path),
+                    "vista_tipo": proc_svc.anexo_vista_tipo(anexo.archivo_path),
+                }
+        return jsonify({"ok": ok, "message": msg, **extra}), (200 if ok else 400)
     flash(msg, "success" if ok else "danger")
     return redirect(request.referrer or url_for("sgi.hub"))
+
+
+def _anexo_access(anexo_id: int, slug: str):
+    tipo, _ = _resolve_tipo(slug)
+    anexo, err = proc_svc.get_anexo_for_access(anexo_id, tipo_esperado=tipo)
+    if anexo is None:
+        abort(404)
+    rev = anexo.proc_revision
+    doc = rev.documento
+    u, redir = _require_procedure_read(doc)
+    if redir is not None:
+        return None, None, None, redir
+    if not user_can_edit_sgi_documentos(u) and rev.estado not in ("aprobado", "vigente"):
+        abort(404)
+    if not user_can_edit_sgi_documentos(u) and not proc_svc.documento_accesible_por_perfil(u, doc):
+        abort(404)
+    return anexo, doc, rev, None
+
+
+@bp.get("/<slug>/procedimientos/anexo/<int:anexo_id>/ver")
+@login_required
+def procedimiento_anexo_ver(slug: str, anexo_id: int):
+    anexo, doc, rev, redir = _anexo_access(anexo_id, slug)
+    if redir is not None:
+        return redir
+    puede_editar = user_can_edit_sgi_documentos(current_user())
+    tipo = (anexo.tipo_contenido or ANEXO_TIPO_ARCHIVO).lower()
+
+    if tipo == ANEXO_TIPO_DOCUMENTO:
+        return render_template(
+            "sgi/anexo_document_view.html",
+            **_procedure_render_kwargs(
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                anexo=anexo,
+                payload=anexo_svc.documento_payload_for_view(anexo),
+                secciones=PROCEDIMIENTO_SECCIONES,
+                puede_editar=puede_editar,
+            ),
+        )
+    if tipo == ANEXO_TIPO_ORGANIGRAMA:
+        data = anexo_svc.parse_anexo_contenido(anexo)
+        return render_template(
+            "sgi/anexo_organigrama.html",
+            slug=slug,
+            doc=doc,
+            rev=rev,
+            anexo=anexo,
+            arbol=anexo_svc.organigrama_tree(data.get("nodes") or []),
+            puede_editar=puede_editar,
+        )
+
+    if not anexo.archivo_path:
+        abort(404)
+    path = proc_svc.anexo_absolute_path(anexo.archivo_path)
+    if path is None:
+        abort(404)
+    vista = proc_svc.anexo_vista_tipo(anexo.archivo_path)
+    return render_template(
+        "sgi/anexo_view.html",
+        slug=slug,
+        doc=doc,
+        rev=rev,
+        anexo=anexo,
+        vista_tipo=vista,
+        archivo_nombre=proc_svc.anexo_archivo_nombre(anexo.archivo_path),
+    )
+
+
+@bp.get("/<slug>/procedimientos/anexo/<int:anexo_id>/editor")
+@login_required
+def procedimiento_anexo_editor(slug: str, anexo_id: int):
+    u, redir = _require_edit()
+    if redir is not None:
+        return redir
+    anexo, doc, rev, redir = _anexo_access(anexo_id, slug)
+    if redir is not None:
+        return redir
+    tipo = (anexo.tipo_contenido or ANEXO_TIPO_ARCHIVO).lower()
+    if tipo == ANEXO_TIPO_DOCUMENTO:
+        return render_template(
+            "sgi/anexo_document_editor.html",
+            slug=slug,
+            doc=doc,
+            rev=rev,
+            anexo=anexo,
+            payload=anexo_svc.documento_payload_for_view(anexo),
+            secciones=PROCEDIMIENTO_SECCIONES,
+            payload_json=json.dumps(anexo_svc.documento_payload_for_view(anexo), ensure_ascii=False),
+        )
+    if tipo == ANEXO_TIPO_ORGANIGRAMA:
+        data = anexo_svc.parse_anexo_contenido(anexo)
+        return render_template(
+            "sgi/anexo_organigrama_editor.html",
+            slug=slug,
+            doc=doc,
+            rev=rev,
+            anexo=anexo,
+            nodes=data.get("nodes") or [],
+            usuarios=anexo_svc.organigrama_usuarios_opciones(),
+            nodes_json=json.dumps(data.get("nodes") or [], ensure_ascii=False),
+            usuarios_json=json.dumps(anexo_svc.organigrama_usuarios_opciones(), ensure_ascii=False),
+        )
+    abort(404)
+
+
+@bp.post("/<slug>/procedimientos/anexo/<int:anexo_id>/contenido")
+@login_required
+def procedimiento_anexo_guardar_contenido(slug: str, anexo_id: int):
+    u, redir = _require_edit()
+    if redir is not None:
+        return jsonify({"ok": False, "error": "sin_permiso"}), 403
+    anexo, _, _, redir = _anexo_access(anexo_id, slug)
+    if redir is not None:
+        return jsonify({"ok": False, "error": "sin_permiso"}), 403
+    data = request.get_json(silent=True) or {}
+    ok, msg = anexo_svc.save_anexo_contenido(anexo_id, data)
+    return jsonify({"ok": ok, "message": msg}), (200 if ok else 400)
 
 
 @bp.get("/<slug>/procedimientos/anexo/<int:anexo_id>/archivo")
 @login_required
 def procedimiento_anexo_download(slug: str, anexo_id: int):
-    u, _, redir = _require_view()
+    anexo, _, _, redir = _anexo_access(anexo_id, slug)
     if redir is not None:
         return redir
-    from app.extensions import db
-    from app.models.sgi import SgiProcedimientoAnexo
-
-    anexo = db.session.get(SgiProcedimientoAnexo, anexo_id)
-    if anexo is None or not anexo.archivo_path:
-        abort(404)
     path = proc_svc.anexo_absolute_path(anexo.archivo_path)
     if path is None:
         abort(404)
-    return send_file(path, as_attachment=True, download_name=path.name, max_age=0)
+    inline = request.args.get("inline", "").strip().lower() in ("1", "true", "yes")
+    vista = proc_svc.anexo_vista_tipo(anexo.archivo_path)
+    as_attachment = not (inline and vista in ("image", "pdf"))
+    return send_file(
+        path,
+        as_attachment=as_attachment,
+        download_name=path.name,
+        mimetype=proc_svc.anexo_send_mimetype(path),
+        max_age=0,
+    )

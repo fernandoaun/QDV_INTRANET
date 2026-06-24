@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import zipfile
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -427,3 +428,181 @@ def test_ensure_documento_nombres_mayusculas(app):
         assert doc.responsable_aprobacion == "DIR. CALIDAD"
         db.session.delete(doc)
         db.session.commit()
+
+
+def test_msgi_anexo_codigo_auto():
+    from app.models.sgi import TIPO_MSGI, TIPO_PG
+    from app.services.sgi_procedimiento_service import anexo_codigo_auto, int_to_roman
+
+    assert int_to_roman(1) == "I"
+    assert int_to_roman(4) == "IV"
+    assert anexo_codigo_auto(TIPO_MSGI, 0, "QDV-MSGI-01") == "QDV-ANEXO I"
+    assert anexo_codigo_auto(TIPO_MSGI, 3, "QDV-MSGI-01") == "QDV-ANEXO IV"
+    assert anexo_codigo_auto(TIPO_PG, 0, "QDV-PG-01") == "QDV-PG-01-A01"
+
+
+def test_ensure_msgi_manual_anexos(app, tmp_path):
+    from app.extensions import db
+    from app.models.sgi import SgiProcedimientoAnexo
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    src = tmp_path / "politica.docx"
+    src.write_bytes(b"docx-test")
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO I",
+            "nombre": "POLÍTICA CSSA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "archivo": src,
+        },
+    )
+
+    with app.app_context():
+        doc, logs = proc_svc.ensure_msgi_manual_anexos(
+            actor_label="test",
+            catalog=catalog,
+        )
+        assert doc is not None
+        assert doc.tipo == "MSGI"
+        rev = proc_svc.revision_actual(doc)
+        anexos = list(rev.anexos.all())
+        assert len(anexos) == 1
+        assert anexos[0].codigo == "QDV-ANEXO I"
+        assert anexos[0].nombre == "POLÍTICA CSSA"
+        assert anexos[0].archivo_path
+        assert any("politica.docx" in line.lower() for line in logs)
+
+        doc2, logs2 = proc_svc.ensure_msgi_manual_anexos(
+            actor_label="test",
+            catalog=catalog,
+            doc_codigo=doc.codigo,
+        )
+        assert doc2.id == doc.id
+        assert any("ya tenía archivo" in line.lower() for line in logs2)
+
+        from sqlalchemy import select
+
+        for a in db.session.scalars(select(SgiProcedimientoAnexo).where(SgiProcedimientoAnexo.revision_id == rev.id)):
+            db.session.delete(a)
+        db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+
+
+def test_anexo_vista_tipo():
+    from app.services.sgi_procedimiento_service import anexo_vista_tipo
+
+    assert anexo_vista_tipo("sgi/x/anexos/MAPA.PNG") == "image"
+    assert anexo_vista_tipo("sgi/x/anexos/doc.PDF") == "pdf"
+    assert anexo_vista_tipo("sgi/x/anexos/org.PPTX") == "office"
+    assert anexo_vista_tipo("sgi/x/anexos/pol.DOCX") == "office"
+
+
+def test_docx_to_anexo_contenido(tmp_path):
+    from app.services.sgi_anexo_service import contenido_from_docx
+
+    p = tmp_path / "t.docx"
+    with zipfile.ZipFile(p, "w") as zf:
+        zf.writestr(
+            "word/document.xml",
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body><w:p><w:r><w:t>Política de prueba</w:t></w:r></w:p></w:body>
+</w:document>""",
+        )
+    data = contenido_from_docx(p, "POLÍTICA TEST")
+    assert "POLÍTICA TEST" in data["titulo"]
+    assert "Política de prueba" in data["secciones"]["desarrollo"]
+
+
+def test_organigrama_tree_users(app):
+    from app.extensions import db
+    from app.models.user import User
+    from app.services.sgi_anexo_service import ORGANIGRAMA_QDV_SPECS, build_default_organigrama_nodes, organigrama_tree
+
+    with app.app_context():
+        u = User(username="org_test", password_hash="x", rol="sgi", activo=True, nombre_completo="ORG TEST")
+        db.session.add(u)
+        db.session.commit()
+        nodes = build_default_organigrama_nodes(preserve_users={"asesoria_qhse": u.id})
+        assert len(nodes) == len(ORGANIGRAMA_QDV_SPECS)
+        assert nodes[0]["id"] == "gerencia_general"
+        planta = next(n for n in nodes if n["id"] == "responsable_planta")
+        assert planta["parent_id"] == "gerencia_general"
+        tree = organigrama_tree(nodes)
+        qhse = next((c for c in tree[0]["children"] if c["id"] == "asesoria_qhse"), None)
+        assert qhse is not None
+        assert qhse["usuario"]["nombre"] == "ORG TEST"
+        turno = next((c for c in tree[0]["children"] if c["id"] == "responsable_planta"), None)
+        assert turno is not None
+        assert any(c["id"] == "operarios_planta" for c in turno["children"][1]["children"])
+        db.session.delete(u)
+        db.session.commit()
+
+
+def test_parse_organigrama_from_pptx():
+    from pathlib import Path
+
+    from app.services.sgi_anexo_service import parse_organigrama_from_pptx
+
+    p = Path(__file__).resolve().parents[1] / "data" / "sgi" / "msgi-anexos" / "QDV-ANEXO II Organigrama_Rev.00.pptx"
+    if not p.is_file():
+        return
+    nodes = parse_organigrama_from_pptx(p)
+    assert nodes is not None
+    assert nodes[0]["titulo"] == "GERENCIA GENERAL"
+    assert any(n["titulo"] == "RESPONSABLE DE PLANTA" for n in nodes)
+
+
+def test_msgi_anexo_view_and_download(auth_client, app):
+    from app.extensions import db
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.services.upload_paths import uploads_workspace_root
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("MSGI", 1, "test", titulo="MANUAL TEST")
+        assert doc is not None and rev is not None
+        payload = proc_svc.revision_to_payload(rev)
+        payload["anexos"] = [
+            {
+                "nombre": "MAPA DE PROCESOS",
+                "codigo": "QDV-ANEXO III",
+                "revision": "Rev. 00",
+                "fecha_vigencia": "",
+            }
+        ]
+        proc_svc._sync_child_rows(rev, payload)
+        db.session.commit()
+        anexo = rev.anexos.first()
+        assert anexo is not None
+
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+            b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        base = uploads_workspace_root() / "sgi" / "procedimientos" / str(doc.id) / str(rev.id) / "anexos"
+        base.mkdir(parents=True, exist_ok=True)
+        (base / "MAPA.PNG").write_bytes(png)
+        anexo.archivo_path = f"sgi/procedimientos/{doc.id}/{rev.id}/anexos/MAPA.PNG"
+        db.session.commit()
+        anexo_id = anexo.id
+        doc_id = doc.id
+        rev_id = rev.id
+
+    r_ver = auth_client.get(f"/sgi/msgi/procedimientos/anexo/{anexo_id}/ver")
+    assert r_ver.status_code == 200
+    assert b"QDV-ANEXO III" in r_ver.data
+
+    r_inline = auth_client.get(f"/sgi/msgi/procedimientos/anexo/{anexo_id}/archivo?inline=1")
+    assert r_inline.status_code == 200
+    assert r_inline.headers.get("Content-Type", "").startswith("image/")
+
+    r_dl = auth_client.get(f"/sgi/msgi/procedimientos/anexo/{anexo_id}/archivo")
+    assert r_dl.status_code == 200
+    assert "attachment" in (r_dl.headers.get("Content-Disposition") or "").lower()
+
+    r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista/{rev_id}")
+    assert r_vista.status_code == 200
+    assert b"sgi-anexo-preview-img" in r_vista.data

@@ -1,0 +1,27 @@
+{% macro render_node(n) %}
+<div class="sgi-org-branch">
+  <button type="button" class="sgi-org-node" data-node-id="{{ n.id }}"
+          {% if n.usuario %}
+          data-nombre="{{ n.usuario.nombre|e }}"
+          data-username="{{ n.usuario.username|e }}"
+          data-rol="{{ n.usuario.rol|e }}"
+          data-puesto="{{ n.usuario.puesto|e }}"
+          data-area="{{ n.usuario.area|e }}"
+          data-email="{{ n.usuario.email|e }}"
+          data-telefono="{{ n.usuario.telefono|e }}"
+          {% endif %}>
+    <span class="sgi-org-node-title">{{ n.titulo }}</span>
+    {% if n.usuario %}
+    <span class="sgi-org-node-person">{{ n.usuario.nombre }}</span>
+    {% else %}
+    <span class="sgi-org-node-person text-muted">Sin usuario asignado</span>
+    {% endif %}
+  </button>
+  {% if n.children %}
+  <div class="sgi-org-children">
+    {% for c in n.children %}{{ render_node(c) }}{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+{% for root in arbol %}{{ render_node(root) }}{% endfor %}

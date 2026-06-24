@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ anexo.codigo }} · {{ anexo.nombre }} · SGI{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title h5 mb-1">{{ anexo.codigo }} — {{ anexo.nombre }}</h1>
+    <p class="text-muted small mb-0">
+      {{ doc.codigo }} · {{ anexo.revision }}
+      {% if anexo.fecha_vigencia %} · Vigencia {{ anexo.fecha_vigencia.strftime('%d/%m/%Y') }}{% endif %}
+    </p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">← Manual</a>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}">
+      <i class="bi bi-download me-1"></i>Descargar
+    </a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body sgi-anexo-view-body">
+    {% if vista_tipo == 'image' %}
+    <img src="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}"
+         alt="{{ anexo.nombre }}"
+         class="sgi-anexo-view-img">
+    {% elif vista_tipo == 'pdf' %}
+    <iframe class="sgi-anexo-view-pdf"
+            src="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}"
+            title="{{ anexo.nombre }}"></iframe>
+    {% elif vista_tipo == 'office' %}
+    <div class="text-center py-5">
+      <i class="bi bi-file-earmark-text display-4 text-muted d-block mb-3" aria-hidden="true"></i>
+      <p class="mb-2"><strong>{{ archivo_nombre }}</strong></p>
+      <p class="text-muted mb-3">Este anexo es un documento de Office. Descargalo para abrirlo en Word o PowerPoint.</p>
+      <a class="btn btn-primary"
+         href="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}">Descargar archivo</a>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <p class="text-muted mb-3">Descargá el archivo para consultarlo.</p>
+      <a class="btn btn-primary"
+         href="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}">Descargar</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

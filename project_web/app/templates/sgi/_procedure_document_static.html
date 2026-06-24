@@ -86,11 +86,7 @@
     <div class="sgi-proc-seccion">
       <div class="sgi-proc-seccion-titulo">8.- ANEXOS</div>
       {% for ax in payload.anexos or [] %}
-      <div class="sgi-proc-anexo-card mb-2">
-        <strong>{{ ax.nombre or 'Sin nombre' }}</strong> — {{ ax.codigo }} · {{ ax.revision }}
-        {% if ax.fecha_vigencia %} · Vigencia: {{ ax.fecha_vigencia }}{% endif %}
-        {% if ax.tiene_archivo %} <span class="badge text-bg-secondary">Adjunto</span>{% endif %}
-      </div>
+      {% include "sgi/_procedure_anexo_item.html" %}
       {% else %}
       <p class="text-muted">Sin anexos.</p>
       {% endfor %}

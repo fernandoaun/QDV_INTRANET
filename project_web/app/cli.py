@@ -131,3 +131,26 @@ def register_cli(app: Flask) -> None:
             click.echo(out.get("preview_subject") or "")
             click.echo("--- Planificación/Mantenimiento: cuerpo ---")
             click.echo(out.get("preview_body"))
+
+    @app.cli.command("seed-msgi-anexos")
+    @click.option(
+        "--codigo-manual",
+        default="",
+        help="Código del manual MSGI existente (p. ej. QDV-MSGI-01). Si no existe, se crea uno.",
+    )
+    def seed_msgi_anexos(codigo_manual: str) -> None:
+        """Registra los anexos QDV-ANEXO I–IV en el manual MSGI visual e importa archivos fuente."""
+        from app.services import sgi_procedimiento_service as proc_svc
+
+        with app.app_context():
+            doc, logs = proc_svc.ensure_msgi_manual_anexos(
+                actor_label="CLI seed-msgi-anexos",
+                doc_codigo=codigo_manual.strip() or None,
+            )
+            if doc is None:
+                raise click.ClickException("\n".join(logs) if logs else "No se pudo registrar el manual MSGI.")
+            summary = f"Manual MSGI: {doc.codigo} — {doc.titulo} (id={doc.id})"
+        click.echo(summary)
+        for line in logs:
+            click.echo(f"  · {line}")
+        click.echo("Listo. Abrí SGI -> MSGI -> Manuales -> Editar para revisar la sección 8.- ANEXOS.")

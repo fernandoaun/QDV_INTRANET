@@ -164,6 +164,8 @@
     payload: {{ payload_json|safe }},
     soloLectura: {{ 'true' if solo_lectura else 'false' }},
     codigo: {{ doc.codigo|tojson }},
+    tipo: {{ doc.tipo|tojson }},
+    slug: {{ slug|tojson }},
     revisionRef: {{ '%02d'|format(rev.numero_revision)|tojson }},
     csrf: {{ csrf_token()|tojson }},
     urls: {

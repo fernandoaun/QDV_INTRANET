@@ -1,0 +1,50 @@
+{# Ítem de anexo con acciones Ver / Descargar y vista previa embebida (imagen). #}
+<div class="sgi-proc-anexo-card mb-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+    <div>
+      <strong>{{ ax.nombre or 'Sin nombre' }}</strong>
+      <div class="small text-muted">
+        {{ ax.codigo }} · {{ ax.revision }}
+        {% if ax.fecha_vigencia %}
+        · Vigencia: {{ ax.fecha_vigencia[8:10] }}/{{ ax.fecha_vigencia[5:7] }}/{{ ax.fecha_vigencia[0:4] }}
+        {% endif %}
+        {% if ax.tipo_contenido == 'documento' %}
+        · Documento visual
+        {% elif ax.tipo_contenido == 'organigrama' %}
+        · Organigrama interactivo
+        {% elif ax.archivo_nombre %}
+        · {{ ax.archivo_nombre }}
+        {% endif %}
+      </div>
+    </div>
+    {% if ax.id %}
+    <div class="d-flex flex-wrap gap-1 sgi-proc-no-print">
+      {% if ax.tipo_contenido == 'documento' or ax.tipo_contenido == 'organigrama' %}
+      <a class="btn btn-sm btn-outline-primary"
+         href="{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=ax.id) }}">
+        {% if ax.tipo_contenido == 'organigrama' %}Ver organigrama{% else %}Ver documento{% endif %}
+      </a>
+      {% elif ax.tiene_archivo and ax.vista_tipo in ('image', 'pdf') %}
+      <a class="btn btn-sm btn-outline-primary"
+         href="{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=ax.id) }}">Ver</a>
+      {% elif ax.tiene_archivo and ax.vista_tipo == 'office' %}
+      <a class="btn btn-sm btn-outline-primary"
+         href="{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=ax.id) }}">Abrir</a>
+      {% endif %}
+      {% if ax.tiene_archivo and ax.tipo_contenido != 'organigrama' %}
+      <a class="btn btn-sm btn-outline-secondary"
+         href="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=ax.id) }}">Descargar</a>
+      {% endif %}
+    </div>
+    {% elif ax.tiene_archivo %}
+    <span class="badge text-bg-secondary">Adjunto</span>
+    {% endif %}
+  </div>
+  {% if ax.tiene_archivo and ax.id and ax.tipo_contenido == 'archivo' and ax.vista_tipo == 'image' %}
+  <a href="{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=ax.id) }}" class="d-block">
+    <img src="{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=ax.id, inline=1) }}"
+         alt="{{ ax.nombre or ax.codigo }}"
+         class="sgi-anexo-preview-img">
+  </a>
+  {% endif %}
+</div>

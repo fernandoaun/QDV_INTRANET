@@ -88,6 +88,16 @@ PROCEDIMIENTO_SECCIONES: tuple[tuple[str, str], ...] = (
 
 TIPOS_PROCEDIMIENTO_VISUAL: tuple[str, ...] = (TIPO_PG, TIPO_PO, TIPO_MSGI)
 
+ANEXO_TIPO_ARCHIVO = "archivo"
+ANEXO_TIPO_DOCUMENTO = "documento"
+ANEXO_TIPO_ORGANIGRAMA = "organigrama"
+
+ANEXO_TIPOS_CONTENIDO: tuple[str, ...] = (
+    ANEXO_TIPO_ARCHIVO,
+    ANEXO_TIPO_DOCUMENTO,
+    ANEXO_TIPO_ORGANIGRAMA,
+)
+
 
 class SgiDocumento(db.Model):
     __tablename__ = "sgi_documentos"
@@ -278,6 +288,8 @@ class SgiProcedimientoAnexo(db.Model):
     revision = db.Column(db.String(32), nullable=False, default="", server_default="")
     fecha_vigencia = db.Column(db.Date, nullable=True)
     archivo_path = db.Column(db.String(512), nullable=True)
+    tipo_contenido = db.Column(db.String(32), nullable=False, default=ANEXO_TIPO_ARCHIVO, server_default=ANEXO_TIPO_ARCHIVO)
+    contenido_json = db.Column(db.Text, nullable=False, default="{}", server_default="{}")
 
 
 class SgiNotificacion(db.Model):
