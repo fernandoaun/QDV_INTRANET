@@ -178,8 +178,23 @@
   box-shadow: 0 0 0 2px rgba(21, 96, 130, 0.35), 3px 3px 0 rgba(233, 113, 50, 0.25);
 }
 
+.sgi-org-node.is-connect-source {
+  border-color: #156082;
+  box-shadow: 0 0 0 3px rgba(21, 96, 130, 0.4), 3px 3px 0 rgba(233, 113, 50, 0.25);
+}
+
 .sgi-org-node.is-path {
   border-color: #156082;
+}
+
+.sgi-org-chart-viewport--editor {
+  min-height: 380px;
+  max-height: 52vh;
+  cursor: default;
+}
+
+.sgi-org-chart-viewport--editor .sgi-org-node {
+  cursor: crosshair;
 }
 
 .sgi-org-node-title {

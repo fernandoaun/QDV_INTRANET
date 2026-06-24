@@ -32,7 +32,7 @@
         </div>
 
         <div class="sgi-org-toolbar sgi-proc-no-print">
-          <span class="sgi-org-toolbar-hint">Clic en un puesto para ver el usuario · Arrastrá para desplazar · Ctrl + rueda para zoom</span>
+          <span class="sgi-org-toolbar-hint">Clic en un puesto para ver el usuario · Las líneas se dibujan según la dependencia de cada puesto · Arrastrá para desplazar · Ctrl + rueda para zoom</span>
           <div class="sgi-org-zoom-controls">
             <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomOut" title="Alejar">−</button>
             <span class="sgi-org-zoom-label" id="sgiOrgZoomLabel">100%</span>
@@ -65,6 +65,5 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>window.SGI_ORG_LINKS = {{ org_links|tojson }};</script>
 <script src="{{ url_for('static', filename='js/sgi_organigrama.js') }}"></script>
 {% endblock %}

@@ -266,7 +266,6 @@ def organigrama_view_context(
     return {
         "arbol": arbol,
         "layout_items": organigrama_layout_items(arbol),
-        "org_links": list(ORGANIGRAMA_QDV_LINKS),
     }
 
 

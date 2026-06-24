@@ -15,6 +15,21 @@
   </div>
 </div>
 <div id="sgiOrgFlash" class="alert d-none" role="status"></div>
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+      <p class="text-muted small mb-0">Interconectá puestos en el diagrama: clic en el puesto superior, luego en el que depende de él. Las líneas se dibujan solas.</p>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="btnOrgClearConnect">Cancelar conexión</button>
+    </div>
+    <div class="sgi-org-chart-viewport sgi-org-chart-viewport--editor" id="sgiOrgViewport">
+      <div class="sgi-org-chart-stage" id="sgiOrgStage">
+        <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="edit">
+          {% include "sgi/_organigrama_qdv_grid.html" %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="app-card">
   <div class="app-card-body">
     <p class="text-muted small">Definí puestos, jerarquía y usuario de la intranet asignado a cada nodo.</p>

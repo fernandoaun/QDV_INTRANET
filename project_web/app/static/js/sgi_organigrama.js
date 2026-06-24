@@ -197,9 +197,90 @@
     orthoDown(svg, t.cx, y, t.top, "dashed");
   }
 
-  function parseLinks() {
-    if (Array.isArray(window.SGI_ORG_LINKS)) return window.SGI_ORG_LINKS;
-    return [];
+  function collectGridNodes(wrap) {
+    return qsa(".sgi-org-grid-cell", wrap)
+      .map((cell) => {
+        const btn = qs(".sgi-org-node", cell);
+        if (!btn) return null;
+        return {
+          id: btn.dataset.nodeId || cell.dataset.nodeId || "",
+          parentId: btn.dataset.parentId || "",
+          row: parseInt(cell.dataset.row || "0", 10),
+          col: parseInt(cell.dataset.col || "0", 10),
+          kind: cell.classList.contains("sgi-org-grid-cell--external") ? "external" : "internal",
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function isLateral(parent, child) {
+    if (child.row < parent.row) return true;
+    return Math.abs(child.col - parent.col) >= 4;
+  }
+
+  function linkStyle(child) {
+    return child.kind === "external" ? "dashed" : "solid";
+  }
+
+  function buildLinksFromNodes(wrap) {
+    const nodes = collectGridNodes(wrap);
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    const childrenByParent = {};
+    nodes.forEach((n) => {
+      if (!n.parentId || !byId[n.parentId]) return;
+      (childrenByParent[n.parentId] ||= []).push(n);
+    });
+
+    const links = [];
+    const busParents = new Set();
+
+    Object.entries(childrenByParent).forEach(([parentId, children]) => {
+      const parent = byId[parentId];
+      const downstream = children.filter((c) => c.row > parent.row && !isLateral(parent, c));
+      if (!downstream.length) return;
+
+      const byRow = {};
+      downstream.forEach((c) => {
+        (byRow[c.row] ||= []).push(c);
+      });
+      const minRow = Math.min(...Object.keys(byRow).map(Number));
+      const busChildren = byRow[minRow] || [];
+
+      if (busChildren.length >= 2) {
+        links.push({
+          type: "bus",
+          from: parentId,
+          children: busChildren.map((c) => c.id),
+          style: busChildren.every((c) => c.kind === "external") ? "dashed" : "solid",
+        });
+        busParents.add(parentId);
+        downstream
+          .filter((c) => c.row !== minRow)
+          .forEach((c) => {
+            links.push({ type: "direct", from: parentId, to: c.id, style: linkStyle(c) });
+          });
+      } else {
+        downstream.forEach((c) => {
+          links.push({ type: "direct", from: parentId, to: c.id, style: linkStyle(c) });
+        });
+      }
+    });
+
+    Object.entries(childrenByParent).forEach(([parentId, children]) => {
+      const parent = byId[parentId];
+      children
+        .filter((c) => isLateral(parent, c))
+        .forEach((c) => {
+          links.push({
+            type: busParents.has(parentId) ? "bus-tail" : "stem-side",
+            from: parentId,
+            to: c.id,
+            style: linkStyle(c),
+          });
+        });
+    });
+
+    return links;
   }
 
   function drawConnectors() {
@@ -225,7 +306,7 @@
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.innerHTML = "";
 
-    const links = parseLinks();
+    const links = buildLinksFromNodes(wrap);
     const origin = grid;
     const busCache = {};
 
@@ -376,6 +457,86 @@
     });
   }
 
+  function findTableRow(nodeId) {
+    return qsa("#sgiOrgEditorTable tbody tr").find((tr) => tr.querySelector(".org-id")?.value?.trim() === nodeId);
+  }
+
+  function syncChartParent(nodeId, parentId) {
+    const chart = qs("#sgiOrgChart");
+    if (!chart) return;
+    const btn = qs(`.sgi-org-node[data-node-id="${nodeId}"]`, chart);
+    if (btn) btn.dataset.parentId = parentId || "";
+  }
+
+  function syncTableParent(nodeId, parentId) {
+    const tr = findTableRow(nodeId);
+    const input = tr?.querySelector(".org-parent");
+    if (input) input.value = parentId || "";
+  }
+
+  function initEditorConnect(redrawConnectors) {
+    const chart = qs("#sgiOrgChart");
+    if (!chart || chart.dataset.mode !== "edit") return;
+
+    let connectSourceId = null;
+
+    function clearConnectVisual() {
+      qsa(".sgi-org-node", chart).forEach((b) => b.classList.remove("is-connect-source"));
+    }
+
+    function clearConnectState() {
+      connectSourceId = null;
+      clearConnectVisual();
+    }
+
+    qsa(".sgi-org-node", chart).forEach((btn) => {
+      btn.addEventListener("mousedown", (ev) => ev.stopPropagation());
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const nodeId = btn.dataset.nodeId || "";
+        if (!nodeId) return;
+
+        if (!connectSourceId) {
+          clearConnectVisual();
+          connectSourceId = nodeId;
+          btn.classList.add("is-connect-source");
+          flash("info", `Origen: ${btn.querySelector(".sgi-org-node-title")?.textContent || nodeId}. Clic en el puesto dependiente.`);
+          return;
+        }
+
+        if (connectSourceId === nodeId) {
+          clearConnectState();
+          flash("secondary", "Conexión cancelada.");
+          return;
+        }
+
+        syncChartParent(nodeId, connectSourceId);
+        syncTableParent(nodeId, connectSourceId);
+        clearConnectState();
+        redrawConnectors?.();
+        flash("success", "Dependencia asignada. Las líneas se actualizaron.");
+      });
+    });
+
+    qs("#btnOrgClearConnect")?.addEventListener("click", () => {
+      clearConnectState();
+      const el = qs("#sgiOrgFlash");
+      if (el) el.classList.add("d-none");
+    });
+
+    qsa("#sgiOrgEditorTable tbody").forEach((tbody) => {
+      tbody.addEventListener("input", (ev) => {
+        if (!ev.target.classList.contains("org-parent")) return;
+        const tr = ev.target.closest("tr");
+        const nodeId = tr?.querySelector(".org-id")?.value?.trim();
+        if (!nodeId) return;
+        syncChartParent(nodeId, ev.target.value.trim());
+        redrawConnectors?.();
+      });
+    });
+  }
+
   function buildRow(node, idx) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
@@ -413,6 +574,9 @@
   function initEditor() {
     const tbody = qs("#sgiOrgEditorTable tbody");
     if (!tbody || !editorCfg) return;
+    const redrawConnectors = initConnectors();
+    initZoom(redrawConnectors);
+    initEditorConnect(redrawConnectors);
     (editorCfg.nodes || []).forEach((n, i) => tbody.appendChild(buildRow(n, i)));
     qs("#btnOrgAddRow")?.addEventListener("click", () => {
       const i = qsa("#sgiOrgEditorTable tbody tr").length;

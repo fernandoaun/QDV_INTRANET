@@ -1,7 +1,9 @@
 {% macro render_node(n) %}
 <div class="sgi-org-grid-cell sgi-org-grid-cell--{{ n.kind|default('internal') }}"
      style="grid-row: {{ n.row }}; grid-column: {{ n.col }};"
-     data-node-id="{{ n.id }}">
+     data-node-id="{{ n.id }}"
+     data-row="{{ n.row }}"
+     data-col="{{ n.col }}">
   <button type="button"
           class="sgi-org-node{% if n.id == 'gerencia_general' %} sgi-org-node--root{% endif %} sgi-org-node--{{ n.kind|default('internal') }}"
           data-node-id="{{ n.id }}"
