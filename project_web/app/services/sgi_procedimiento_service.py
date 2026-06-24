@@ -1181,6 +1181,7 @@ def ensure_msgi_manual_anexos(
     actor_label: str = "Sistema",
     catalog: tuple[dict[str, Any], ...] | None = None,
     doc_codigo: str | None = None,
+    refresh_organigrama: bool = False,
 ) -> tuple[SgiDocumento | None, list[str]]:
     """Registra o actualiza los anexos I–IV en el manual MSGI visual."""
     from app.models.sgi import TIPO_CARATULA_LABELS
@@ -1269,7 +1270,7 @@ def ensure_msgi_manual_anexos(
             tipo,
             docx_path=docx_src,
             pptx_path=pptx_src if tipo == ANEXO_TIPO_ORGANIGRAMA else None,
-            refresh_organigrama=(tipo == ANEXO_TIPO_ORGANIGRAMA),
+            refresh_organigrama=refresh_organigrama and (tipo == ANEXO_TIPO_ORGANIGRAMA),
         )
         if tipo == ANEXO_TIPO_ORGANIGRAMA:
             logs.append(f"{codigo}: organigrama interactivo listo.")

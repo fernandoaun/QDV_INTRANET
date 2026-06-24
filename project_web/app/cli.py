@@ -138,7 +138,12 @@ def register_cli(app: Flask) -> None:
         default="",
         help="Código del manual MSGI existente (p. ej. QDV-MSGI-01). Si no existe, se crea uno.",
     )
-    def seed_msgi_anexos(codigo_manual: str) -> None:
+    @click.option(
+        "--refresh-organigrama",
+        is_flag=True,
+        help="Reimportar la estructura del organigrama desde el PPT (conserva usuarios asignados).",
+    )
+    def seed_msgi_anexos(codigo_manual: str, refresh_organigrama: bool) -> None:
         """Registra los anexos QDV-ANEXO I–IV en el manual MSGI visual e importa archivos fuente."""
         from app.services import sgi_procedimiento_service as proc_svc
 
@@ -146,6 +151,7 @@ def register_cli(app: Flask) -> None:
             doc, logs = proc_svc.ensure_msgi_manual_anexos(
                 actor_label="CLI seed-msgi-anexos",
                 doc_codigo=codigo_manual.strip() or None,
+                refresh_organigrama=refresh_organigrama,
             )
             if doc is None:
                 raise click.ClickException("\n".join(logs) if logs else "No se pudo registrar el manual MSGI.")
