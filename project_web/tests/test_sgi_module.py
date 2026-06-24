@@ -543,6 +543,24 @@ def test_organigrama_tree_users(app):
         db.session.commit()
 
 
+def test_organigrama_layout_complete(app):
+    from app.services.sgi_anexo_service import (
+        ORGANIGRAMA_QDV_GRID,
+        organigrama_ensure_complete_nodes,
+        organigrama_layout_items,
+        organigrama_tree,
+    )
+
+    with app.app_context():
+        partial = [{"id": "gerencia_general", "titulo": "GERENCIA GENERAL", "parent_id": None, "user_id": None, "orden": 0}]
+        complete = organigrama_ensure_complete_nodes(partial)
+        assert len(complete) == len(ORGANIGRAMA_QDV_GRID)
+        items = organigrama_layout_items(organigrama_tree(complete))
+        assert len(items) == len(ORGANIGRAMA_QDV_GRID)
+        assert items[0]["id"] == "gerencia_general"
+        assert items[0]["row"] == 1
+
+
 def test_parse_organigrama_from_pptx():
     from pathlib import Path
 

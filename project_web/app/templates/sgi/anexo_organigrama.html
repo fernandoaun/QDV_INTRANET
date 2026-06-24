@@ -43,8 +43,7 @@
 
         <div class="sgi-org-chart-viewport" id="sgiOrgViewport">
             <div class="sgi-org-chart-stage" id="sgiOrgStage">
-            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view"
-                 data-links='{{ org_links_json|e }}'>
+            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view">
               {% include "sgi/_organigrama_qdv_grid.html" %}
             </div>
           </div>
@@ -66,5 +65,6 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script>window.SGI_ORG_LINKS = {{ org_links|tojson }};</script>
 <script src="{{ url_for('static', filename='js/sgi_organigrama.js') }}"></script>
 {% endblock %}

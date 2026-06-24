@@ -185,6 +185,41 @@ ORGANIGRAMA_QDV_LINKS: tuple[dict[str, Any], ...] = (
 )
 
 
+def _organigrama_spec_by_id() -> dict[str, dict[str, Any]]:
+    return {str(s["id"]): dict(s) for s in ORGANIGRAMA_QDV_SPECS}
+
+
+def organigrama_ensure_complete_nodes(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Garantiza los 14 puestos de la grilla QDV; conserva usuarios asignados por id."""
+    required = {str(s["id"]) for s in ORGANIGRAMA_QDV_GRID}
+    by_id: dict[str, dict[str, Any]] = {}
+    for n in nodes:
+        if isinstance(n, dict) and n.get("id"):
+            by_id[str(n["id"])] = n
+    if required.issubset(by_id.keys()):
+        specs = _organigrama_spec_by_id()
+        ordered: list[dict[str, Any]] = []
+        for gid in (s["id"] for s in ORGANIGRAMA_QDV_GRID):
+            base = dict(specs.get(gid, {}))
+            saved = by_id.get(gid, {})
+            ordered.append(
+                {
+                    "id": gid,
+                    "titulo": (saved.get("titulo") or base.get("titulo") or gid),
+                    "subtitulo": saved.get("subtitulo") or base.get("subtitulo") or "",
+                    "parent_id": saved.get("parent_id") if saved.get("parent_id") is not None else base.get("parent_id"),
+                    "user_id": saved.get("user_id"),
+                    "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
+                }
+            )
+        return ordered
+    preserve: dict[str, int] = {}
+    for nid, n in by_id.items():
+        if n.get("user_id"):
+            preserve[nid] = int(n["user_id"])
+    return build_default_organigrama_nodes(preserve_users=preserve, pptx_path=organigrama_pptx_path())
+
+
 def organigrama_flat_nodes(arbol: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
 
@@ -202,17 +237,23 @@ def organigrama_flat_nodes(arbol: list[dict[str, Any]]) -> dict[str, dict[str, A
 
 def organigrama_layout_items(arbol: list[dict[str, Any]]) -> list[dict[str, Any]]:
     flat = organigrama_flat_nodes(arbol)
+    specs = _organigrama_spec_by_id()
     items: list[dict[str, Any]] = []
-    for spec in ORGANIGRAMA_QDV_GRID:
-        node = flat.get(spec["id"])
-        if not node:
-            continue
-        items.append({**spec, **node})
+    for grid_spec in ORGANIGRAMA_QDV_GRID:
+        nid = str(grid_spec["id"])
+        node = flat.get(nid, {})
+        base = specs.get(nid, {})
+        items.append(
+            {
+                **grid_spec,
+                "id": nid,
+                "titulo": (node.get("titulo") or base.get("titulo") or nid),
+                "subtitulo": node.get("subtitulo") or base.get("subtitulo") or "",
+                "parent_id": node.get("parent_id") if node.get("parent_id") is not None else base.get("parent_id"),
+                "usuario": node.get("usuario"),
+            }
+        )
     return items
-
-
-def organigrama_links_json() -> str:
-    return json.dumps(list(ORGANIGRAMA_QDV_LINKS), ensure_ascii=False)
 
 
 def organigrama_view_context(
@@ -225,7 +266,7 @@ def organigrama_view_context(
     return {
         "arbol": arbol,
         "layout_items": organigrama_layout_items(arbol),
-        "org_links_json": organigrama_links_json(),
+        "org_links": list(ORGANIGRAMA_QDV_LINKS),
     }
 
 
@@ -421,6 +462,8 @@ def organigrama_view_arbol(
     nodes = data.get("nodes")
     if not isinstance(nodes, list) or not nodes:
         nodes = build_default_organigrama_nodes(pptx_path=organigrama_pptx_path())
+    else:
+        nodes = organigrama_ensure_complete_nodes(nodes)
     return organigrama_tree(nodes)
 
 

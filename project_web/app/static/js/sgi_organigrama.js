@@ -86,8 +86,7 @@
   }
 
   function nodeBtn(wrap, nodeId) {
-    return qs(`[data-node-id="${nodeId}"] > .sgi-org-node`, wrap)
-      || qs(`[data-node-id="${nodeId}"] .sgi-org-node`, wrap);
+    return qs(`.sgi-org-node[data-node-id="${nodeId}"]`, wrap);
   }
 
   function nodeBox(btn, container) {
@@ -139,14 +138,14 @@
     svgSeg(svg, x2, midY, x2, y2, style);
   }
 
-  function drawBus(svg, wrap, parentId, childIds, style, busCache) {
+  function drawBus(svg, wrap, origin, parentId, childIds, style, busCache) {
     const parent = nodeBtn(wrap, parentId);
     if (!parent) return null;
     const children = childIds.map((id) => nodeBtn(wrap, id)).filter(Boolean);
     if (!children.length) return null;
 
-    const p = nodeBox(parent, wrap);
-    const boxes = children.map((btn) => nodeBox(btn, wrap));
+    const p = nodeBox(parent, origin);
+    const boxes = children.map((btn) => nodeBox(btn, origin));
     const junctionY = p.bottom + Math.max(16, (boxes[0].top - p.bottom) * 0.5);
 
     orthoDown(svg, p.cx, p.bottom, junctionY, style);
@@ -161,21 +160,21 @@
     return info;
   }
 
-  function drawDirect(svg, wrap, fromId, toId, style) {
+  function drawDirect(svg, wrap, origin, fromId, toId, style) {
     const from = nodeBtn(wrap, fromId);
     const to = nodeBtn(wrap, toId);
     if (!from || !to) return;
-    const f = nodeBox(from, wrap);
-    const t = nodeBox(to, wrap);
+    const f = nodeBox(from, origin);
+    const t = nodeBox(to, origin);
     orthoElbow(svg, f.cx, f.bottom, t.cx, t.top, style);
   }
 
-  function drawStemSide(svg, wrap, fromId, toId, busCache) {
+  function drawStemSide(svg, wrap, origin, fromId, toId, busCache) {
     const from = nodeBtn(wrap, fromId);
     const to = nodeBtn(wrap, toId);
     if (!from || !to) return;
-    const f = nodeBox(from, wrap);
-    const t = nodeBox(to, wrap);
+    const f = nodeBox(from, origin);
+    const t = nodeBox(to, origin);
     const bus = busCache[fromId];
     let yBranch = f.bottom + 22;
     if (bus) {
@@ -187,59 +186,61 @@
     orthoDown(svg, t.left, yBranch, t.cy, "dashed");
   }
 
-  function drawBusTail(svg, wrap, fromId, toId, busCache) {
+  function drawBusTail(svg, wrap, origin, fromId, toId, busCache) {
     const bus = busCache[fromId];
     const to = nodeBtn(wrap, toId);
     if (!bus || !to) return;
-    const t = nodeBox(to, wrap);
+    const t = nodeBox(to, origin);
     const y = bus.junctionY;
     const xStart = Math.max(bus.xMax, bus.parentCx);
     svgSeg(svg, xStart, y, t.cx, y, "dashed");
     orthoDown(svg, t.cx, y, t.top, "dashed");
   }
 
-  function parseLinks(wrap) {
-    try {
-      return JSON.parse(wrap.dataset.links || "[]");
-    } catch {
-      return [];
-    }
+  function parseLinks() {
+    if (Array.isArray(window.SGI_ORG_LINKS)) return window.SGI_ORG_LINKS;
+    return [];
   }
 
   function drawConnectors() {
     const wrap = qs("#sgiOrgChart");
     if (!wrap) return;
-    let svg = qs("#sgiOrgConnectors", wrap);
+    const grid = qs(".sgi-org-qdv-grid", wrap);
+    if (!grid) return;
+    let svg = qs("#sgiOrgConnectors", grid);
     if (!svg) {
       svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.id = "sgiOrgConnectors";
       svg.classList.add("sgi-org-connectors");
       svg.setAttribute("aria-hidden", "true");
-      wrap.insertBefore(svg, wrap.firstChild);
+      grid.insertBefore(svg, grid.firstChild);
     }
 
-    const w = Math.max(wrap.scrollWidth, wrap.offsetWidth);
-    const h = Math.max(wrap.scrollHeight, wrap.offsetHeight);
+    const w = Math.max(grid.scrollWidth, grid.offsetWidth);
+    const h = Math.max(grid.scrollHeight, grid.offsetHeight);
+    svg.style.width = `${w}px`;
+    svg.style.height = `${h}px`;
     svg.setAttribute("width", String(w));
     svg.setAttribute("height", String(h));
     svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
     svg.innerHTML = "";
 
-    const links = parseLinks(wrap);
+    const links = parseLinks();
+    const origin = grid;
     const busCache = {};
 
     links.forEach((link) => {
       if (link.type === "bus" && link.from && link.children) {
-        drawBus(svg, wrap, link.from, link.children, link.style || "solid", busCache);
+        drawBus(svg, wrap, origin, link.from, link.children, link.style || "solid", busCache);
       }
     });
     links.forEach((link) => {
       if (link.type === "direct" && link.from && link.to) {
-        drawDirect(svg, wrap, link.from, link.to, link.style || "solid");
+        drawDirect(svg, wrap, origin, link.from, link.to, link.style || "solid");
       } else if (link.type === "stem-side" && link.from && link.to) {
-        drawStemSide(svg, wrap, link.from, link.to, busCache);
+        drawStemSide(svg, wrap, origin, link.from, link.to, busCache);
       } else if (link.type === "bus-tail" && link.from && link.to) {
-        drawBusTail(svg, wrap, link.from, link.to, busCache);
+        drawBusTail(svg, wrap, origin, link.from, link.to, busCache);
       }
     });
   }
@@ -247,6 +248,11 @@
   function initConnectors() {
     function scheduleRedraw() {
       requestAnimationFrame(drawConnectors);
+    }
+    const wrap = qs("#sgiOrgChart");
+    const grid = wrap && qs(".sgi-org-qdv-grid", wrap);
+    if (grid && typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(scheduleRedraw).observe(grid);
     }
     window.addEventListener("resize", scheduleRedraw);
     if (document.fonts && document.fonts.ready) {
