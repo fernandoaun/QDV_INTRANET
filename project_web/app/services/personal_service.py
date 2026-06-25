@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models import (
     EmpleadoPersonal,
+    Operador,
     PersonalApercibimiento,
     PersonalArt,
     PersonalCurso,
@@ -184,6 +185,53 @@ def _temp_legajo_for_user(user: User) -> str:
     return f"TMP-U{user.id}"[:32]
 
 
+def _find_orphan_legajo_for_user(user: User) -> EmpleadoPersonal | None:
+    """Legajo sin user_id que corresponde al usuario (evita duplicados tras migración)."""
+    username = (user.username or "").strip().lower()
+    if username:
+        by_legajo = (
+            db.session.query(EmpleadoPersonal)
+            .filter(
+                EmpleadoPersonal.user_id.is_(None),
+                func.lower(EmpleadoPersonal.legajo) == username,
+            )
+            .first()
+        )
+        if by_legajo is not None:
+            return by_legajo
+
+    apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or "")
+    if apellido and nombre:
+        by_name = (
+            db.session.query(EmpleadoPersonal)
+            .filter(
+                EmpleadoPersonal.user_id.is_(None),
+                func.lower(EmpleadoPersonal.apellido) == apellido.lower(),
+                func.lower(EmpleadoPersonal.nombre) == nombre.lower(),
+            )
+            .first()
+        )
+        if by_name is not None:
+            return by_name
+
+    op_names = {n for n in {username, (user.nombre_completo or "").strip().lower()} if n}
+    if not op_names:
+        return None
+    ops = db.session.query(Operador).filter(func.lower(Operador.nombre).in_(tuple(op_names))).all()
+    for op in ops:
+        emp = (
+            db.session.query(EmpleadoPersonal)
+            .filter(
+                EmpleadoPersonal.user_id.is_(None),
+                EmpleadoPersonal.operador_id == op.id,
+            )
+            .first()
+        )
+        if emp is not None:
+            return emp
+    return None
+
+
 def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal | None:
     """Crea el legajo RRHH para un usuario si aún no existe."""
     if not user_requires_legajo(user):
@@ -193,6 +241,13 @@ def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPers
     )
     if existing is not None:
         return existing
+
+    orphan = _find_orphan_legajo_for_user(user)
+    if orphan is not None:
+        orphan.user_id = user.id
+        if commit:
+            db.session.commit()
+        return orphan
 
     apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or "Sin nombre")
     emp = EmpleadoPersonal(
@@ -654,6 +709,32 @@ def list_entregas_epp_pendientes_empleado(empleado_id: int) -> list[PersonalEntr
     )
 
 
+def entrega_epp_puede_confirmar_usuario(entrega: PersonalEntregaEpp | None, *, user_id: int) -> tuple[bool, str]:
+    """Indica si el empleado titular puede confirmar la entrega y el motivo si no."""
+    if entrega is None:
+        return False, "Entrega no encontrada."
+    if entrega.estado != "pendiente":
+        return False, "Esta entrega ya fue confirmada."
+    emp = entrega.empleado
+    if emp is None:
+        return False, "No se encontró el legajo asociado a esta entrega."
+    if emp.user_id is None:
+        return (
+            False,
+            "Tu legajo no está vinculado a tu usuario. Pedí a RRHH que revise el legajo en Personal.",
+        )
+    if int(emp.user_id) != int(user_id):
+        return False, "Solo el empleado titular puede confirmar esta entrega."
+    if not item_epp_requiere_workflow(entrega.item):
+        return False, "Esta entrega no requiere confirmación del empleado."
+    if entrega.prenda_anterior_entrega_id is not None and not entrega.prenda_anterior_devuelta:
+        return (
+            False,
+            "RRHH debe registrar la devolución de la prenda anterior antes de que puedas confirmar.",
+        )
+    return True, ""
+
+
 def count_entregas_epp_pendientes_usuario(user_id: int) -> int:
     emp = get_empleado_by_user_id(user_id)
     if emp is None:
@@ -771,20 +852,9 @@ def save_entrega_epp(
 
 def confirmar_entrega_epp(entrega_id: int, *, user_id: int) -> tuple[bool, str]:
     entrega = db.session.get(PersonalEntregaEpp, entrega_id)
-    if entrega is None:
-        return False, "Entrega no encontrada."
-    if entrega.estado != "pendiente":
-        return False, "Esta entrega ya fue confirmada."
-    emp = entrega.empleado
-    if emp is None or emp.user_id is None or int(emp.user_id) != int(user_id):
-        return False, "Solo el empleado titular puede confirmar esta entrega."
-    if not item_epp_requiere_workflow(entrega.item):
-        return False, "Esta entrega no requiere confirmación del empleado."
-    if entrega.prenda_anterior_entrega_id is not None and not entrega.prenda_anterior_devuelta:
-        return (
-            False,
-            "RRHH debe registrar la devolución de la prenda anterior antes de que puedas confirmar.",
-        )
+    puede, motivo = entrega_epp_puede_confirmar_usuario(entrega, user_id=user_id)
+    if not puede:
+        return False, motivo
 
     entrega.estado = "confirmada"
     entrega.confirmada_at = datetime.now(timezone.utc)

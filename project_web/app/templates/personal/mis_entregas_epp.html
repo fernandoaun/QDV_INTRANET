@@ -16,11 +16,11 @@
   <div class="app-card-header">Pendientes de confirmación</div>
   <div class="app-card-body">
     <p class="small text-muted mb-3">
-      RRHH registró estas entregas. Para cerrarlas, confirmá que recibiste la prenda nueva
-      {% if pendientes|selectattr('prenda_anterior_entrega_id')|list %}y que devolviste la anterior{% endif %}.
+      RRHH registró estas entregas. Para cerrarlas, marcá la casilla de confirmación y luego pulsá <strong>Confirmar entrega</strong>.
+      {% if pendientes|selectattr('prenda_anterior_entrega_id')|list %}Si hay prenda anterior, también debe estar devuelta en RRHH.{% endif %}
     </p>
     {% for en in pendientes %}
-    <div class="border rounded p-3 mb-3 {% if not loop.last %}mb-3{% endif %}">
+    <div id="entrega-epp-{{ en.id }}" class="border rounded p-3 mb-3 {% if entrega_error_id == en.id %}border-danger{% endif %}">
       <div class="row g-2 align-items-start">
         <div class="col-md-8">
           <div class="fw-semibold">{{ en.item.nombre }}</div>
@@ -46,18 +46,21 @@
         </div>
         <div class="col-md-4">
           {% if en.prenda_anterior_entrega_id and not en.prenda_anterior_devuelta %}
-          <p class="small text-warning mb-0">Entregá la prenda anterior a RRHH para que puedan registrar la devolución y habilitar tu confirmación.</p>
+          <div class="alert alert-warning py-2 px-3 mb-0 small">
+            Entregá la prenda anterior a RRHH para que registren la devolución. Después vas a poder confirmar acá.
+          </div>
           {% else %}
-          <form method="post">
+          <form method="post" class="entrega-epp-confirm-form">
             {% include "_csrf.html" %}
             <input type="hidden" name="entrega_id" value="{{ en.id }}">
             <div class="form-check mb-2">
-              <input class="form-check-input" type="checkbox" value="1" name="confirmar_recepcion" id="confirm{{ en.id }}" required>
+              <input class="form-check-input entrega-epp-confirm-cb" type="checkbox" value="1" name="confirmar_recepcion" id="confirm{{ en.id }}" required>
               <label class="form-check-label small" for="confirm{{ en.id }}">
                 Confirmo haber recibido esta prenda{% if en.prenda_anterior_entrega %} y haber devuelto la anterior{% endif %}.
               </label>
             </div>
-            <button type="submit" class="btn btn-primary btn-sm w-100">Confirmar entrega</button>
+            <p class="small text-muted entrega-epp-confirm-hint mb-2">Marcá la casilla para habilitar el botón.</p>
+            <button type="submit" class="btn btn-primary btn-sm w-100 entrega-epp-confirm-btn" disabled>Confirmar entrega</button>
           </form>
           {% endif %}
         </div>
@@ -85,6 +88,9 @@
             <span class="badge {% if en.estado == 'pendiente' %}text-bg-warning{% else %}text-bg-success{% endif %}">
               {{ estado_entrega_labels.get(en.estado, en.estado) }}
             </span>
+            {% if en.estado == 'pendiente' %}
+            <a class="small ms-1" href="#entrega-epp-{{ en.id }}">Confirmar arriba</a>
+            {% endif %}
           </td>
           <td>
             {% if en.confirmada_at %}
@@ -99,4 +105,39 @@
     </table>
   </div>
 </div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  function syncConfirmForm(form) {
+    var cb = form.querySelector(".entrega-epp-confirm-cb");
+    var btn = form.querySelector(".entrega-epp-confirm-btn");
+    var hint = form.querySelector(".entrega-epp-confirm-hint");
+    if (!cb || !btn) return;
+    var ok = cb.checked;
+    btn.disabled = !ok;
+    if (hint) hint.classList.toggle("d-none", ok);
+  }
+
+  document.querySelectorAll(".entrega-epp-confirm-form").forEach(function (form) {
+    var cb = form.querySelector(".entrega-epp-confirm-cb");
+    if (cb) {
+      cb.addEventListener("change", function () { syncConfirmForm(form); });
+      cb.addEventListener("invalid", function () {
+        cb.setCustomValidity("Marcá la casilla para confirmar la recepción.");
+      });
+      cb.addEventListener("input", function () {
+        cb.setCustomValidity("");
+      });
+    }
+    syncConfirmForm(form);
+  });
+
+  {% if entrega_error_id %}
+  var errCard = document.getElementById("entrega-epp-{{ entrega_error_id }}");
+  if (errCard) errCard.scrollIntoView({ behavior: "smooth", block: "center" });
+  {% endif %}
+})();
+</script>
 {% endblock %}

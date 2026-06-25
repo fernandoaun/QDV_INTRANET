@@ -277,22 +277,45 @@ def epp_entregas():
 @login_required
 def mis_entregas_epp():
     u = current_user()
+    if ps.user_requires_legajo(u):
+        ps.ensure_empleado_for_user(u)
     emp = ps.get_empleado_by_user_id(u.id)
     if emp is None:
         flash("No tenés un legajo de personal vinculado a tu usuario.", "warning")
         return redirect(url_for("main.dashboard"))
 
+    entrega_error_id: int | None = None
     if request.method == "POST":
         entrega_id_raw = (request.form.get("entrega_id") or "").strip()
         if not entrega_id_raw.isdigit():
             flash("Entrega no válida.", "danger")
             return redirect(url_for("personal.mis_entregas_epp"))
+        entrega_error_id = int(entrega_id_raw)
         if (request.form.get("confirmar_recepcion") or "").strip() != "1":
-            flash("Debés confirmar que recibiste la prenda y devolviste la anterior (si correspondía).", "warning")
-            return redirect(url_for("personal.mis_entregas_epp"))
-        ok, msg = ps.confirmar_entrega_epp(int(entrega_id_raw), user_id=u.id)
+            flash(
+                "Marcá la casilla «Confirmo haber recibido esta prenda» antes de pulsar Confirmar entrega.",
+                "warning",
+            )
+            return render_template(
+                "personal/mis_entregas_epp.html",
+                empleado=emp,
+                pendientes=ps.list_entregas_epp_pendientes_empleado(emp.id),
+                historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
+                estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
+                entrega_error_id=entrega_error_id,
+            )
+        ok, msg = ps.confirmar_entrega_epp(entrega_error_id, user_id=u.id)
         flash(msg, "success" if ok else "danger")
-        return redirect(url_for("personal.mis_entregas_epp"))
+        if ok:
+            return redirect(url_for("personal.mis_entregas_epp"))
+        return render_template(
+            "personal/mis_entregas_epp.html",
+            empleado=emp,
+            pendientes=ps.list_entregas_epp_pendientes_empleado(emp.id),
+            historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
+            estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
+            entrega_error_id=entrega_error_id,
+        )
 
     return render_template(
         "personal/mis_entregas_epp.html",
@@ -300,6 +323,7 @@ def mis_entregas_epp():
         pendientes=ps.list_entregas_epp_pendientes_empleado(emp.id),
         historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
+        entrega_error_id=None,
     )
 
 

@@ -204,6 +204,63 @@ def test_entrega_epp_workflow_devolucion_y_confirmacion(auth_client, app):
         assert ps.list_entregas_epp_pendientes_empleado(emp_id) == []
 
 
+def test_mis_entregas_epp_sin_checkbox_muestra_aviso(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        item = PersonalEppItem(nombre="Casco test cb", categoria="epp", activo=True)
+        db.session.add(item)
+        db.session.commit()
+        ok, _ = ps.save_entrega_epp(
+            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-06-20"},
+            user_id=admin.id,
+        )
+        assert ok is True
+        pendiente = ps.list_entregas_epp_pendientes_empleado(emp.id)[0]
+
+    r = auth_client.post(
+        "/personal/mis-entregas-epp",
+        data={"entrega_id": str(pendiente.id)},
+        follow_redirects=True,
+    )
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "casilla" in html.lower()
+    assert "border-danger" in html or f"entrega-epp-{pendiente.id}" in html
+
+    with app.app_context():
+        from app.models import PersonalEntregaEpp
+
+        entrega = db.session.get(PersonalEntregaEpp, pendiente.id)
+        assert entrega is not None
+        assert entrega.estado == "pendiente"
+
+
+def test_ensure_empleado_vincula_legajo_huerfano_por_legajo(app, admin_user):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        user = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user.id).one()
+        emp.user_id = None
+        emp.legajo = user.username
+        db.session.commit()
+        emp_id = emp.id
+
+        linked = ps.ensure_empleado_for_user(user)
+        assert linked is not None
+        assert linked.id == emp_id
+        assert linked.user_id == user.id
+
+
 def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch):
     from app.extensions import db
     from app.models import EmpleadoPersonal, PersonalEppItem, User
