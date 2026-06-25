@@ -284,6 +284,7 @@
   const clientNow = new Date();
   const serverNow = parseIsoLocal(serverNowIso);
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
+  let emptyAnchorMs = null;
 
   function tickAnalisis8() {
     if (!timerText || !state || !msg) return;
@@ -298,10 +299,23 @@
       return;
     }
     if (!status || !status.has_records || !status.next_due_iso) {
-      timerText.textContent = fmt(intervalSec);
-      state.className = "badge app-badge-soft text-bg-danger";
-      state.textContent = "Pendiente";
-      msg.textContent = "No hay análisis registrados. Realizar primer análisis.";
+      if (emptyAnchorMs == null) {
+        emptyAnchorMs = Date.now() + clockOffsetMs;
+      }
+      const now = Date.now() + clockOffsetMs;
+      const dueMs = emptyAnchorMs + intervalSec * 1000;
+      const diffSec = (dueMs - now) / 1000;
+      if (diffSec >= 0) {
+        timerText.textContent = fmt(diffSec);
+        state.className = "badge app-badge-soft text-bg-danger";
+        state.textContent = "Pendiente";
+        msg.textContent = "No hay análisis registrados. Realizar primer análisis.";
+      } else {
+        timerText.textContent = fmt(-diffSec);
+        state.className = "badge app-badge-soft text-bg-danger";
+        state.textContent = "Vencido";
+        msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
+      }
       updateLast(null);
       return;
     }

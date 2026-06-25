@@ -40,10 +40,24 @@
 
     const pauseExtra = plantStop && plantStop.pause_extra_seconds ? Number(plantStop.pause_extra_seconds) : 0;
     if (!lastCreatedIso) {
-      timerText.textContent = fmtHhmmss(intervalSec);
-      timerSub.textContent = ctx.emptySub || "Sin registros en la fecha seleccionada.";
-      timerState.className = "badge text-bg-secondary app-badge-soft";
-      timerState.textContent = "En tiempo";
+      if (ctx._emptyAnchorMs == null) {
+        ctx._emptyAnchorMs = Date.now() + (clockOffsetMs || 0);
+      }
+      const now = Date.now() + (clockOffsetMs || 0);
+      const dueMs = ctx._emptyAnchorMs + intervalSec * 1000;
+      const diffSec = (dueMs - now) / 1000;
+      if (diffSec >= 0) {
+        timerText.textContent = fmtHhmmss(diffSec);
+        timerSub.textContent = ctx.emptySub || "Sin registros en la fecha seleccionada.";
+        timerState.className = "badge text-bg-secondary app-badge-soft";
+        timerState.textContent = "En tiempo";
+      } else {
+        const due = new Date(dueMs);
+        timerText.textContent = fmtHhmmss(-diffSec);
+        timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+        timerState.className = "badge text-bg-danger app-badge-soft";
+        timerState.textContent = "Atrasado";
+      }
       return;
     }
     const last = parseIsoLocal(lastCreatedIso);
