@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Instalar en el celular · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  .app-pwa-icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    box-shadow: 0 8px 24px rgba(26, 26, 46, 0.2);
+  }
+  .app-pwa-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: #1a1a2e;
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .app-pwa-step {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head mb-4">
+  <div>
+    <h1 class="app-page-title">Instalar QDV en el celular</h1>
+    <p class="app-intro mb-0">Gratis, sin Play Store ni App Store. Queda un ícono en la pantalla de inicio que abre la app a pantalla completa.</p>
+  </div>
+  <div class="app-page-actions">
+    {% if nav_user %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+    {% else %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.index') }}">← Inicio</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4 justify-content-center mb-4">
+  <div class="col-auto text-center">
+    <img class="app-pwa-icon mb-2" src="{{ url_for('static', filename='pwa/icon-192.png') }}" width="96" height="96" alt="Ícono QDV">
+    <div class="fw-semibold">QDV</div>
+    <div class="small app-text-secondary">Química del Valle — Planta</div>
+  </div>
+</div>
+
+<div id="pwa-installed" class="alert alert-success d-none" role="status">
+  <strong>Ya está instalada.</strong> Abrí QDV desde el ícono en tu pantalla de inicio.
+</div>
+
+<div id="pwa-install-actions" class="text-center mb-4">
+  <button type="button" class="btn btn-primary btn-lg d-none" id="pwa-install-btn">
+    <i class="bi bi-download me-1" aria-hidden="true"></i> Instalar aplicación
+  </button>
+  <p class="small app-text-secondary mt-2 mb-0 d-none" id="pwa-install-hint">Disponible en Chrome para Android.</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <article class="app-card h-100">
+      <div class="app-card-header">
+        <i class="bi bi-android2 me-1" aria-hidden="true"></i> Android (Chrome)
+      </div>
+      <div class="app-card-body">
+        <ol class="list-unstyled d-flex flex-column gap-3 mb-0">
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">1</span>
+            <span>Abrí esta página en <strong>Google Chrome</strong> (la URL del servidor de planta).</span>
+          </li>
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">2</span>
+            <span>Tocá el menú <strong>⋮</strong> (arriba a la derecha).</span>
+          </li>
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">3</span>
+            <span>Elegí <strong>Instalar aplicación</strong> o <strong>Agregar a pantalla de inicio</strong>.</span>
+          </li>
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">4</span>
+            <span>Confirmá. El ícono <strong>QDV</strong> aparece en el inicio del celular.</span>
+          </li>
+        </ol>
+      </div>
+    </article>
+  </div>
+  <div class="col-md-6">
+    <article class="app-card h-100">
+      <div class="app-card-header">
+        <i class="bi bi-apple me-1" aria-hidden="true"></i> iPhone (Safari)
+      </div>
+      <div class="app-card-body">
+        <ol class="list-unstyled d-flex flex-column gap-3 mb-0">
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">1</span>
+            <span>Abrí esta página en <strong>Safari</strong> (no en Chrome).</span>
+          </li>
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">2</span>
+            <span>Tocá el botón <strong>Compartir</strong> (cuadrado con flecha hacia arriba).</span>
+          </li>
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">3</span>
+            <span>Bajá y elegí <strong>Agregar a pantalla de inicio</strong>.</span>
+          </li>
+          <li class="app-pwa-step">
+            <span class="app-pwa-step-num">4</span>
+            <span>Dejá el nombre <strong>QDV</strong> y tocá <strong>Agregar</strong>.</span>
+          </li>
+        </ol>
+      </div>
+    </article>
+  </div>
+</div>
+
+<article class="app-card mt-4">
+  <div class="app-card-header">Requisitos</div>
+  <div class="app-card-body app-manual-prose mb-0">
+    <ul class="mb-0">
+      <li>El servidor debe estar accesible desde el celular (WiFi de planta o internet).</li>
+      <li>En producción conviene usar <strong>HTTPS</strong> (Render, Railway u otro hosting lo incluyen).</li>
+      <li>Después de instalar, entrá con tu usuario y contraseña como siempre.</li>
+      <li>La app necesita conexión para cargar datos; sin red no se actualizan los formularios.</li>
+    </ul>
+  </div>
+</article>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var standalone = window.matchMedia("(display-mode: standalone)").matches
+    || (window.navigator.standalone === true);
+  if (standalone) {
+    var installed = document.getElementById("pwa-installed");
+    if (installed) installed.classList.remove("d-none");
+    return;
+  }
+
+  var deferredPrompt = null;
+  var btn = document.getElementById("pwa-install-btn");
+  var hint = document.getElementById("pwa-install-hint");
+
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (btn) btn.classList.remove("d-none");
+    if (hint) hint.classList.remove("d-none");
+  });
+
+  if (btn) {
+    btn.addEventListener("click", function () {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(function () {
+        deferredPrompt = null;
+        btn.classList.add("d-none");
+      });
+    });
+  }
+})();
+</script>
+{% endblock %}

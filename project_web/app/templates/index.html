@@ -55,6 +55,9 @@
     {% endif %}
     {% else %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">Ingresar</a>
+    <a class="btn btn-outline-secondary ms-2" href="{{ url_for('main.instalar') }}">
+      <i class="bi bi-phone me-1" aria-hidden="true"></i> Instalar en el celular
+    </a>
     {% endif %}
   </div>
 </div>

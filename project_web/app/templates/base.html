@@ -4,8 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="QDV">
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-  <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='pwa/icon-192.png') }}">
   <link rel="manifest" href="{{ url_for('static', filename='pwa/site.webmanifest') }}">
   <title>{% block title %}QDV Salmuera{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -409,9 +413,8 @@
 <script>
 (function () {
   if (!("serviceWorker" in navigator)) return;
-  var swUrl = "{{ url_for('static', filename='pwa/sw.js') }}";
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register(swUrl).catch(function () {});
+    navigator.serviceWorker.register("{{ url_for('main.service_worker') }}", { scope: "/" }).catch(function () {});
   });
 })();
 </script>
@@ -709,7 +712,7 @@
   }, true);
 })();
 </script>
-{% block scripts %}{% endblock %}
 {% endif %}
+{% block scripts %}{% endblock %}
 </body>
 </html>

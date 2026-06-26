@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import Blueprint, render_template
+from flask import Blueprint, current_app, render_template, send_from_directory
 
 from app.auth_utils import current_user, login_required, permission_required
 from app.services import dashboard_service
@@ -12,6 +12,22 @@ bp = Blueprint("main", __name__)
 def healthz():
     """Comprobación ligera (sin plantillas ni sesión) para Render y diagnóstico."""
     return "ok", 200
+
+
+@bp.get("/sw.js")
+def service_worker():
+    """Service worker en la raíz para que el alcance cubra toda la app (requisito PWA)."""
+    return send_from_directory(
+        current_app.static_folder,
+        "pwa/sw.js",
+        mimetype="application/javascript",
+    )
+
+
+@bp.get("/instalar")
+def instalar():
+    """Guía para agregar QDV a la pantalla de inicio del celular (PWA)."""
+    return render_template("instalar.html")
 
 
 @bp.get("/")
