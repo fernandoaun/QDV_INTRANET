@@ -20,6 +20,7 @@ from flask import current_app
 
 from app.extensions import db
 from app.services.deadline_alert_email_service import merged_recipient_addresses, normalize_validate_email
+from app.services.mail_link_service import public_abs_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.services import vencimiento_service as vs
 from app.utils.datetime_operacion import now_operacion_naive_local
@@ -28,10 +29,7 @@ log = logging.getLogger(__name__)
 
 
 def _public_link(app: Any, vencimiento_id: int) -> str:
-    base = (app.config.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    if not base:
-        return ""
-    return f"{base}/vencimientos/{int(vencimiento_id)}"
+    return public_abs_url(app, "vencimientos.detalle", vid=int(vencimiento_id))
 
 
 def _build_html_body(app: Any, v: Any) -> tuple[str, str]:

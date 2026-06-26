@@ -7,29 +7,14 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from flask import url_for
-
 from app.extensions import db
 from app.models import PersonalVacacion, User
+from app.services.mail_link_service import public_abs_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.services.personal_epp_reminder_service import resolve_empleado_email
 from app.services import personal_service as ps
 
 log = logging.getLogger(__name__)
-
-
-def _abs_url(app: Any, endpoint: str, **values: Any) -> str:
-    base = (app.config.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    if base:
-        path = url_for(endpoint, **values)
-        if not path.startswith("/"):
-            path = "/" + path
-        return f"{base}{path}"
-    try:
-        with app.app_context():
-            return url_for(endpoint, _external=True, **values)
-    except RuntimeError:
-        return url_for(endpoint, **values)
 
 
 def resolve_responsable_email(app: Any) -> str | None:
@@ -66,7 +51,7 @@ def notify_solicitud_vacacion(app: Any, vac: PersonalVacacion) -> tuple[bool, st
 
     emp = vac.empleado
     nombre = emp.nombre_completo if emp else "—"
-    link = _abs_url(app, "personal.vacaciones")
+    link = public_abs_url(app, "personal.vacaciones")
     esc = html_lib.escape
     rango = _format_rango(vac)
     obs = (vac.observaciones or "").strip()
@@ -108,7 +93,7 @@ def notify_empleado_vacacion_gestionada(app: Any, vac: PersonalVacacion) -> tupl
         return False, "SMTP no configurado."
 
     estado = (vac.estado or "").strip()
-    link = _abs_url(app, "personal.mis_vacaciones")
+    link = public_abs_url(app, "personal.mis_vacaciones")
     esc = html_lib.escape
     nombre = emp.nombre_completo if emp else "—"
     motivo = (vac.motivo_responsable or "").strip()

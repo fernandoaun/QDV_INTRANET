@@ -55,6 +55,10 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
+      # Enlaces en correos (ropa/EPP, vacaciones). Render inyecta RENDER_EXTERNAL_URL si no está definida.
+      # Con dominio propio: APP_PUBLIC_BASE_URL=https://tudominio.com
+      - key: APP_PUBLIC_BASE_URL
+        sync: false
       - key: SMTP_PORT
         value: "587"
       - key: SMTP_USE_TLS

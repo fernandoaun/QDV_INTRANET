@@ -8,11 +8,10 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
-from flask import url_for
-
 from app.extensions import db
 from app.models import EmpleadoPersonal, PersonalEntregaEpp
 from app.services.deadline_alert_email_service import normalize_validate_email
+from app.services.mail_link_service import login_url_for_path
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -26,14 +25,12 @@ def resolve_empleado_email(emp: EmpleadoPersonal | None) -> str | None:
 
 
 def _mis_entregas_url(app: Any) -> str:
-    base = (app.config.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    if base:
-        return f"{base}/personal/mis-entregas-epp"
-    try:
-        with app.app_context():
-            return url_for("personal.mis_entregas_epp", _external=True)
-    except RuntimeError:
-        return "/personal/mis-entregas-epp"
+    with app.app_context():
+        with app.test_request_context():
+            from flask import url_for
+
+            dest = url_for("personal.mis_entregas_epp", _external=False)
+    return login_url_for_path(app, dest)
 
 
 def _format_entrega_line(en: PersonalEntregaEpp) -> str:

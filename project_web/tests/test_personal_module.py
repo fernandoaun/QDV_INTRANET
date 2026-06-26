@@ -271,6 +271,7 @@ def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch
     def _fake_mail(app, **kwargs):
         sent.append(kwargs)
 
+    monkeypatch.setitem(app.config, "APP_PUBLIC_BASE_URL", "https://intranet.test.example")
     monkeypatch.setattr("app.services.personal_epp_reminder_service.enviar_mail", _fake_mail)
     monkeypatch.setattr("app.services.personal_epp_reminder_service.is_mail_fully_configured", lambda _app: True)
 
@@ -299,6 +300,23 @@ def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch
     assert len(sent) == 1
     assert sent[0]["destinatarios"] == ["empleado@test.example"]
     assert "Casco test mail" in sent[0]["asunto"]
+    body = (sent[0].get("cuerpo_texto") or "") + (sent[0].get("cuerpo_html") or "")
+    assert "https://intranet.test.example/login" in body
+    assert "mis-entregas-epp" in body
+
+
+def test_entrega_epp_mail_link_usa_render_external_url(app, monkeypatch):
+    from app.services.personal_epp_reminder_service import _mis_entregas_url
+
+    monkeypatch.setitem(app.config, "APP_PUBLIC_BASE_URL", "")
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://qdv-demo.onrender.com")
+    # Recargar config no es necesario: probamos el helper con base vacía simulando Render.
+    with app.app_context():
+        app.config["APP_PUBLIC_BASE_URL"] = "https://qdv-demo.onrender.com"
+        link = _mis_entregas_url(app)
+    assert link.startswith("https://qdv-demo.onrender.com/login")
+    assert "next=" in link
+    assert "mis-entregas-epp" in link
 
 
 def test_run_entrega_epp_reminders_agrupa_por_empleado(app, monkeypatch):

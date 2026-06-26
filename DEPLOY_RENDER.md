@@ -106,6 +106,16 @@ python -m flask --app run send-deadline-reminders
 
 Referencia local: bloque «Avisos por correo» al final de `project_web/.env.example`.
 
+### Enlaces en correos (ropa/EPP, vacaciones)
+
+Los mails incluyen un enlace al login del sistema. Para que funcione desde el celular o el correo, la URL debe ser **absoluta** (`https://…`).
+
+- En **Render**, si no definís nada, la app usa automáticamente **`RENDER_EXTERNAL_URL`** (la URL `*.onrender.com` del servicio).
+- Si tenés **dominio propio** (sección 5), agregá en **Environment** del servicio web:
+  - `APP_PUBLIC_BASE_URL` = `https://tudominio.com` (sin barra final)
+
+Sin esto, los correos de entrega de ropa pueden llevar un enlace roto (`/personal/mis-entregas-epp` sin dominio).
+
 ## 8) Si el deploy falla
 
 Revisá en Render -> **Logs**:

@@ -258,6 +258,11 @@ def get_config_dict(base_dir: Path) -> dict:
         vencimiento_auto_mail_startup_delay_sec = 30
     vencimiento_auto_mail_startup_delay_sec = max(5, min(vencimiento_auto_mail_startup_delay_sec, 600))
     app_public_base_url = (os.environ.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if not app_public_base_url:
+        # Render inyecta RENDER_EXTERNAL_URL (https://servicio.onrender.com) si no hay dominio propio.
+        render_url = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip().rstrip("/")
+        if render_url:
+            app_public_base_url = render_url
 
     # Postgres (p. ej. Render): evitar OperationalError SSL SYSCALL EOF al reutilizar
     # conexiones cerradas por el servidor o timeouts. pool_pre_ping valida antes de usar;
