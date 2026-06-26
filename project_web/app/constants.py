@@ -53,6 +53,10 @@ HIPOCLORITO_PRODUCTO_TERMINADO_NOMBRE: str = "Hipoclorito de Sodio"
 # Variantes históricas u otras grafías de `Entrega.producto` / `ProductoTerminado.stock_producto` equivalentes al mismo producto.
 HIPOCLORITO_ENTREGA_ALIASES_ADICIONALES: tuple[str, ...] = ()
 
+# Placeholders hasta que logística asigne cliente y destino tras la carga en camión (operaciones).
+ENTREGA_CLIENTE_PENDIENTE_LOGISTICA: str = "Pendiente logística"
+ENTREGA_LUGAR_PENDIENTE_LOGISTICA: str = "Sin destino"
+
 MODULE_LABELS: dict[str, str] = {
     "salmuera": "CONTROL HIPOCLORITO",
     "reactor": "CIRCUITO DE SALMUERA",

@@ -14,6 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.constants import (
+    ENTREGA_CLIENTE_PENDIENTE_LOGISTICA,
+    ENTREGA_LUGAR_PENDIENTE_LOGISTICA,
     ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA,
     ENTREGAS_STOCK_CATEGORIA,
     HIPOCLORITO_STOCK_NOMBRE_PRODUCTO,
@@ -238,6 +240,63 @@ def api_marcas_producto_terminado_payload(pt_id: int) -> dict[str, Any]:
         "requiere_equipo": req_eq,
         "marca_traza_fija": (ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA if hipo else None),
     }
+
+
+def producto_terminado_hipo_default() -> ProductoTerminado | None:
+    for pt in entregas_catalog_service.productos_terminados_activos():
+        if stock_service.producto_entrega_es_stock_hipoclorito(str(pt.stock_producto or "")):
+            return pt
+    return None
+
+
+def create_carga_camion_from_form(form: Any, u: User | None) -> tuple[Entrega, tuple[str, str] | None]:
+    """Operaciones: volumen cargado, chofer y fecha automática (hoy). Logística completa destino después."""
+    chid = parse_entrega_positive_int(form.get("chofer_entrega_id"))
+    cantidad = parse_entrega_float(form.get("cantidad"))
+    ptid = parse_entrega_positive_int(form.get("producto_terminado_id"))
+    if cantidad <= 0 or cantidad != cantidad:
+        raise ValueError("El volumen cargado debe ser un número válido y mayor a cero.")
+    if not chid:
+        raise ValueError("El chofer es obligatorio.")
+    ch = entregas_catalog_service.get_chofer_activo(chid)
+    if ch is None:
+        raise ValueError("Chofer inválido o inactivo.")
+    pt = entregas_catalog_service.get_producto_terminado_activo(ptid) if ptid else producto_terminado_hipo_default()
+    if pt is None:
+        raise ValueError(
+            "No hay producto terminado de hipoclorito activo. Un administrador debe cargarlo en Catálogos de entregas."
+        )
+    prod_stock = str(pt.stock_producto or "").strip()
+    stock_cat, stock_marca, stock_eq = stock_fields_entrega(prod_stock, form.get("stock_equipo_id") or "")
+    if stock_service.producto_entrega_es_stock_hipoclorito(prod_stock):
+        cat_key = clave_catalogo_stock_producto_terminado(prod_stock)
+        if stock_service.producto_requiere_equipo(ENTREGAS_STOCK_CATEGORIA, cat_key) and stock_eq is None:
+            raise ValueError("Este producto requiere equipo en el consumo de stock.")
+    else:
+        stock_cat, stock_marca, stock_eq = None, None, None
+
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    ahora = now_operacion_naive_local()
+    en = Entrega(
+        cliente=ENTREGA_CLIENTE_PENDIENTE_LOGISTICA,
+        lugar_entrega=ENTREGA_LUGAR_PENDIENTE_LOGISTICA,
+        producto=prod_stock,
+        cantidad=cantidad,
+        cantidad_programada=cantidad,
+        unidad=UNIDAD_ENTREGA,
+        fecha_prevista=ahora.date().isoformat(),
+        chofer_previsto=str(ch.nombre).strip(),
+        estado="programada",
+        created_by_user_id=int(u.id) if u else None,
+        stock_categoria=stock_cat,
+        stock_marca=stock_marca,
+        stock_equipo_id=stock_eq,
+        producto_terminado_id=int(pt.id),
+        chofer_entrega_id=int(ch.id),
+    )
+    stock_mut = entregas_service.crear_y_ejecutar_carga_camion(en, u, ahora, cantidad)
+    return en, stock_mut
 
 
 def create_programada_entrega_from_form(form: Any, u: User | None) -> Entrega:

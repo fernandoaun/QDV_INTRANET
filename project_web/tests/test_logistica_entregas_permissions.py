@@ -45,37 +45,39 @@ def test_logistica_can_operate_entregas_even_with_stale_session(app):
         assert user_can_edit_entregas_any_action(user)
 
 
-def test_gestion_shows_quick_entry_row(auth_client):
+def test_gestion_shows_carga_camion_row(auth_client):
     r = auth_client.get("/entregas/gestion")
 
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert 'id="entregaQuickForm"' in html
-    assert "GUARDAR" in html
-    assert "+ Programar" not in html
+    assert 'id="entregaCargaCamionForm"' in html
+    assert "CARGAR CAMIÓN" in html
+    assert 'value="programar_rapido"' not in html
+    assert "GUARDAR" not in html
 
 
-def test_quick_entry_creates_programada(auth_client, app):
+def test_carga_camion_creates_cargada_pending_logistica(auth_client, app, monkeypatch):
+    from app.constants import ENTREGA_CLIENTE_PENDIENTE_LOGISTICA
     from app.extensions import db
-    from app.models import ChoferEntrega, ClienteEntrega, Entrega, LugarEntrega, ProductoTerminado
+    from app.models import ChoferEntrega, Entrega, ProductoTerminado
+    from app.services import operational_informed_stock
+    from app.services.entregas_service import entrega_pendiente_logistica
+
+    monkeypatch.setattr(operational_informed_stock, "get_instant_stock", lambda: 99999.0)
 
     now = "2026-04-24T12:00:00"
     with app.app_context():
-        cli = ClienteEntrega(nombre="Cliente Pytest", activo=True, created_at_iso=now, updated_at_iso=now)
-        db.session.add(cli)
-        db.session.flush()
-        lug = LugarEntrega(nombre="Planta Cliente", cliente_id=int(cli.id), activo=True, created_at_iso=now, updated_at_iso=now)
         pt = ProductoTerminado(
-            nombre="Producto Pytest",
-            stock_producto="Producto Pytest",
+            nombre="Hipoclorito Pytest",
+            stock_producto="Hipoclorito",
             activo=True,
             created_at_iso=now,
             updated_at_iso=now,
         )
         ch = ChoferEntrega(nombre="Chofer Pytest", activo=True, created_at_iso=now, updated_at_iso=now)
-        db.session.add_all([lug, pt, ch])
+        db.session.add_all([pt, ch])
         db.session.commit()
-        ids = (int(cli.id), int(lug.id), int(pt.id), int(ch.id))
+        ids = (int(pt.id), int(ch.id))
 
     r = auth_client.get("/entregas/gestion")
     html = r.get_data(as_text=True)
@@ -86,27 +88,22 @@ def test_quick_entry_creates_programada(auth_client, app):
         "/entregas/gestion",
         data={
             "csrf_token": m.group(1),
-            "action": "programar_rapido",
-            "fecha_prevista": "2026-04-25",
-            "hora_prevista": "09:30",
-            "cliente_id": str(ids[0]),
-            "lugar_entrega_id": str(ids[1]),
-            "producto_terminado_id": str(ids[2]),
-            "cantidad": "1200",
-            "chofer_entrega_id": str(ids[3]),
-            "observaciones": "Alta rapida",
+            "action": "cargar_camion",
+            "producto_terminado_id": str(ids[0]),
+            "cantidad": "1500",
+            "chofer_entrega_id": str(ids[1]),
         },
         follow_redirects=False,
     )
 
     assert r.status_code in (302, 303)
-    assert "quick_fecha=2026-04-25" in (r.headers.get("Location") or "")
     with app.app_context():
-        ent = db.session.query(Entrega).filter_by(cliente="Cliente Pytest").one()
-        assert ent.estado == "programada"
-        assert ent.fecha_prevista == "2026-04-25"
-        assert ent.chofer_previsto == "Chofer Pytest"
-        assert ent.observaciones == "Hora prevista: 09:30\nAlta rapida"
+        ent = db.session.query(Entrega).filter_by(chofer_previsto="Chofer Pytest").one()
+        assert ent.estado == "cargada"
+        assert ent.cantidad_real_cargada == 1500.0
+        assert ent.cantidad_programada == 1500.0
+        assert ent.cliente == ENTREGA_CLIENTE_PENDIENTE_LOGISTICA
+        assert entrega_pendiente_logistica(ent)
 
 
 def test_gestion_includes_previous_week_cargada_pending_delivery(app, monkeypatch):

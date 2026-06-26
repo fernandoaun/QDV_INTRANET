@@ -6,7 +6,7 @@
   <div>
     <h1 class="app-page-title">{% if entrega %}Editar entrega #{{ entrega.id }}{% else %}Programar entrega{% endif %}</h1>
     <p class="app-intro mb-0">
-      {% if st == 'entregada' %}Solo podés agregar texto en observaciones.{% elif st == 'cargada' %}Podés ajustar datos logísticos; volumen y producto no se modifican porque ya impactaron en stock.{% elif entrega %}Estado: <strong>{{ st }}</strong>.{% else %}Volúmenes siempre en <strong>litros (L)</strong>. Elegí cliente y luego el lugar de entrega asociado a ese cliente.{% endif %}
+      {% if st == 'entregada' %}Solo podés agregar texto en observaciones.{% elif st == 'cargada' %}Asigná <strong>cliente</strong>, <strong>destino</strong> y podés ajustar el <strong>volumen a descargar</strong>. El volumen cargado en planta no se modifica.{% elif entrega %}Estado: <strong>{{ st }}</strong>.{% else %}Volúmenes siempre en <strong>litros (L)</strong>. Elegí cliente y luego el lugar de entrega asociado a ese cliente.{% endif %}
     </p>
   </div>
   <div class="app-page-actions">
@@ -90,9 +90,15 @@
         <label class="form-label">Producto terminado</label>
         <input class="form-control" value="{{ entrega.producto_terminado.nombre if entrega.producto_terminado else entrega.producto }}" readonly tabindex="-1">
       </div>
-      <div class="col-md-2">
-        <label class="form-label">Volumen (L)</label>
-        <input class="form-control" value="{{ entrega.cantidad_programada if entrega.cantidad_programada is not none else entrega.cantidad }}" readonly tabindex="-1">
+      <div class="col-md-4">
+        <label class="form-label">Volumen cargado (L)</label>
+        <input class="form-control text-end" value="{{ entrega.cantidad_real_cargada if entrega.cantidad_real_cargada is not none else entrega.cantidad }}" readonly tabindex="-1">
+        <div class="form-text">Registrado por operaciones al cargar el camión.</div>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Volumen a descargar (L) <span class="text-danger">*</span></label>
+        <input class="form-control text-end" name="cantidad_descargar" type="number" step="any" min="0" value="{{ entrega.cantidad_programada if entrega.cantidad_programada is not none else entrega.cantidad }}" required inputmode="decimal">
+        <div class="form-text">Logística puede ajustarlo antes de marcar entregado.</div>
       </div>
       {% endif %}
 

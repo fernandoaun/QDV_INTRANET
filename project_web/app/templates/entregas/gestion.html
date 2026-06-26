@@ -113,7 +113,11 @@
 </div>
 {% elif user_can_entregas_cargar() %}
 <div class="alert alert-info small mb-3" role="status">
-  Para cargar un camión, buscá entregas en estado <strong>programada</strong> y usá el botón amarillo <strong>Cargar</strong> en la columna Acciones.
+  Completá <strong>volumen cargado</strong> y <strong>chofer</strong>; la fecha se registra sola. Usá el botón <strong>CARGAR CAMIÓN</strong> en la primera fila del listado. Logística asignará cliente, destino y volumen a descargar.
+</div>
+{% elif user_can_entregas_programar() %}
+<div class="alert alert-info small mb-3" role="status">
+  Asigná <strong>cliente</strong>, <strong>destino</strong> y, si hace falta, ajustá el <strong>volumen a descargar</strong> en camiones ya cargados (estado <strong>Cargada</strong> sin destino). Después podés marcar <strong>Entregado</strong>.
 </div>
 {% endif %}
 
@@ -164,11 +168,13 @@
     <span class="small app-text-secondary">{{ entregas|length }} registro(s)</span>
   </div>
   <div class="app-card-body--flush table-responsive app-table-scroll entregas-list-wrap">
-    {% if user_can_entregas_programar() %}
-    <form id="entregaQuickForm" method="post" action="{{ url_for('entregas.gestion') }}">
+    {% if user_can_entregas_cargar() %}
+    <form id="entregaCargaCamionForm" method="post" action="{{ url_for('entregas.gestion') }}">
       {% include "_csrf.html" %}
-      <input type="hidden" name="action" value="programar_rapido">
-      <input type="hidden" name="hora_prevista" value="">
+      <input type="hidden" name="action" value="cargar_camion">
+      {% if quick_producto_terminado_id %}
+      <input type="hidden" name="producto_terminado_id" value="{{ quick_producto_terminado_id }}">
+      {% endif %}
     </form>
     {% endif %}
     <table class="table table-app table-compact mb-0 align-middle entregas-list-table">
@@ -195,44 +201,34 @@
         </tr>
       </thead>
       <tbody>
-        {% if user_can_entregas_programar() %}
-        <tr class="entregas-quick-row" id="entregaQuickRow">
+        {% if user_can_entregas_cargar() %}
+        <tr class="entregas-quick-row" id="entregaCargaCamionRow">
           <td class="entregas-quick-cell--sm">
-            <label class="entregas-quick-label" for="quickFecha">Fecha *</label>
-            <input class="form-control entregas-quick-input" id="quickFecha" form="entregaQuickForm" name="fecha_prevista" type="date" value="{{ quick_fecha or '' }}" required autocomplete="off">
+            <label class="entregas-quick-label" for="cargaFecha">Fecha</label>
+            <input class="form-control entregas-quick-input" id="cargaFecha" type="date" value="{{ quick_fecha or '' }}" readonly tabindex="-1" aria-readonly="true">
+          </td>
+          <td colspan="2" class="entregas-quick-cell--lg">
+            <span class="entregas-quick-label">Cliente / destino</span>
+            <div class="entregas-quick-input d-flex align-items-center text-muted small px-2">Lo completa logística</div>
           </td>
           <td class="entregas-quick-cell--lg">
-            <label class="entregas-quick-label" for="quickCliente">Cliente *</label>
-            <select class="form-select entregas-quick-input" id="quickCliente" form="entregaQuickForm" name="cliente_id" required autocomplete="off">
-              <option value="">Cliente...</option>
-              {% for c in clientes_entrega %}
-              <option value="{{ c.id }}">{{ c.nombre }}</option>
-              {% endfor %}
-            </select>
-          </td>
-          <td class="entregas-quick-cell--lg">
-            <label class="entregas-quick-label" for="quickLugar">Lugar *</label>
-            <select class="form-select entregas-quick-input" id="quickLugar" form="entregaQuickForm" name="lugar_entrega_id" required autocomplete="off" disabled>
-              <option value="">Elegí cliente...</option>
-            </select>
-          </td>
-          <td class="entregas-quick-cell--lg">
-            <label class="entregas-quick-label" for="quickProducto">Producto *</label>
-            <select class="form-select entregas-quick-input" id="quickProducto" form="entregaQuickForm" name="producto_terminado_id" required autocomplete="off">
-              <option value="">Producto...</option>
-              {% for p in productos_terminados %}
-              <option value="{{ p.id }}" {% if quick_producto_terminado_id and quick_producto_terminado_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
-              {% endfor %}
-            </select>
+            <span class="entregas-quick-label">Producto</span>
+            <div class="entregas-quick-input d-flex align-items-center small px-2">
+              {% if quick_producto_terminado_id %}
+                {% for p in productos_terminados if p.id == quick_producto_terminado_id %}{{ p.nombre }}{% endfor %}
+              {% else %}
+                <span class="text-danger">Sin producto activo</span>
+              {% endif %}
+            </div>
           </td>
           <td class="entregas-quick-cell--sm">
-            <label class="entregas-quick-label" for="quickCantidad">Cantidad *</label>
-            <input class="form-control entregas-quick-input text-end" id="quickCantidad" form="entregaQuickForm" name="cantidad" type="number" step="any" min="0" required inputmode="decimal" autocomplete="off">
+            <label class="entregas-quick-label" for="cargaCantidad">Volumen cargado *</label>
+            <input class="form-control entregas-quick-input text-end" id="cargaCantidad" form="entregaCargaCamionForm" name="cantidad" type="number" step="any" min="0" required inputmode="decimal" autocomplete="off">
           </td>
-          <td><span class="badge rounded-pill text-bg-secondary">Programada</span></td>
+          <td><span class="badge rounded-pill text-bg-warning text-dark">Nueva carga</span></td>
           <td class="entregas-quick-cell--lg">
-            <label class="entregas-quick-label" for="quickChofer">Chofer *</label>
-            <select class="form-select entregas-quick-input" id="quickChofer" form="entregaQuickForm" name="chofer_entrega_id" required autocomplete="off">
+            <label class="entregas-quick-label" for="cargaChofer">Chofer *</label>
+            <select class="form-select entregas-quick-input" id="cargaChofer" form="entregaCargaCamionForm" name="chofer_entrega_id" required autocomplete="off">
               <option value="">Chofer...</option>
               {% for ch in choferes_entrega %}
               <option value="{{ ch.id }}" {% if quick_chofer_entrega_id and quick_chofer_entrega_id == ch.id %}selected{% endif %}>{{ ch.nombre }}</option>
@@ -240,27 +236,50 @@
             </select>
           </td>
           <td class="text-end entregas-list-actions">
-            <button type="submit" form="entregaQuickForm" class="btn btn-primary btn-lg fw-semibold px-4">GUARDAR</button>
+            <button type="submit" form="entregaCargaCamionForm" class="btn btn-warning btn-lg fw-semibold px-3" {% if not quick_producto_terminado_id %}disabled title="Falta producto terminado activo"{% endif %}>CARGAR CAMIÓN</button>
           </td>
         </tr>
         {% endif %}
         {% for e in entregas %}
         {% set st = e.estado or '' %}
         {% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
-        {% set cantidad_real = e.cantidad_real_entregada if e.cantidad_real_entregada is not none else (e.cantidad_real_cargada if e.cantidad_real_cargada is not none else none) %}
-        <tr class="{% if st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
+        {% set cantidad_cargada = e.cantidad_real_cargada if e.cantidad_real_cargada is not none else none %}
+        {% set cantidad_entregada = e.cantidad_real_entregada if e.cantidad_real_entregada is not none else none %}
+        {% set pendiente_log = entrega_pendiente_logistica(e) %}
+        <tr class="{% if pendiente_log %}table-warning{% elif st == 'programada' %}table-light{% elif st == 'cargada' %}border-start border-warning border-3{% elif st == 'entregada' %}border-start border-success border-3{% endif %}">
           <td data-label="Fecha">{{ e.fecha_prevista }}</td>
-          <td data-label="Cliente"><strong>{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}</strong></td>
-          <td data-label="Lugar">{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</td>
+          <td data-label="Cliente">
+            {% if pendiente_log %}
+            <span class="text-muted fst-italic">Sin asignar</span>
+            {% elif e.cliente_row %}
+            <strong>{{ e.cliente_row.nombre }}</strong>
+            {% else %}
+            <strong>{{ e.cliente }}</strong>
+            {% endif %}
+          </td>
+          <td data-label="Lugar">
+            {% if pendiente_log %}
+            <span class="text-muted fst-italic">Sin destino</span>
+            {% elif e.lugar_row %}
+            {{ e.lugar_row.nombre }}
+            {% else %}
+            {{ e.lugar_entrega }}
+            {% endif %}
+          </td>
           <td data-label="Producto">{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
           <td class="text-end" data-label="Cantidades">
-            <div><span class="text-muted small">Programado:</span> {{ cantidad_programada }} L</div>
-            {% if cantidad_real is not none %}
-            <div><span class="fw-semibold">Real:</span> {{ cantidad_real }} L</div>
+            {% if cantidad_cargada is not none %}
+            <div><span class="text-muted small">Cargado:</span> {{ cantidad_cargada }} L</div>
+            {% endif %}
+            <div><span class="text-muted small">A descargar:</span> {{ cantidad_programada }} L</div>
+            {% if cantidad_entregada is not none %}
+            <div><span class="fw-semibold">Entregado:</span> {{ cantidad_entregada }} L</div>
             {% endif %}
           </td>
           <td data-label="Estado">
-            {% if st == 'programada' %}
+            {% if pendiente_log %}
+            <span class="badge rounded-pill text-bg-warning text-dark">Cargada · sin destino</span>
+            {% elif st == 'programada' %}
             <span class="badge rounded-pill text-bg-secondary">Programada</span>
             {% elif st == 'cargada' %}
             <span class="badge rounded-pill text-bg-warning text-dark">Cargada</span>
@@ -280,13 +299,15 @@
             {% endif %}
           </td>
           <td class="text-end entregas-list-actions" data-label="Acciones">
-            {% if user_can_entregas_programar() or (user_can_entregas_cargar() and st == 'cargada') %}
-            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Editar</a>
+            {% if user_can_entregas_programar() and (st == 'cargada' or st == 'programada') %}
+            <a class="btn btn-sm {% if pendiente_log %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('entregas.editar', eid=e.id) }}">{% if pendiente_log %}Completar{% else %}Editar{% endif %}</a>
+            {% elif user_can_entregas_cargar() and st == 'cargada' %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('entregas.editar', eid=e.id) }}">Ver</a>
             {% endif %}
-            {% if user_can_entregas_cargar() and st == 'programada' %}
+            {% if user_can_entregas_cargar() and st == 'programada' and e.cliente_id %}
             <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#modalCargar{{ e.id }}">Cargar</button>
             {% endif %}
-            {% if user_can_entregas_entregar() and st != 'entregada' %}
+            {% if user_can_entregas_entregar() and st != 'entregada' and not pendiente_log %}
               {% if e.producto|es_hipoclorito_entrega and st != 'cargada' %}
               {# hipoclorito exige carga previa #}
               {% else %}
@@ -304,7 +325,7 @@
 </div>
 
 {% for e in entregas %}
-{% if user_can_entregas_cargar() and (e.estado or '') == 'programada' %}
+{% if user_can_entregas_cargar() and (e.estado or '') == 'programada' and e.cliente_id %}
 {% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
 <div class="modal fade" id="modalCargar{{ e.id }}" tabindex="-1" aria-labelledby="mc{{ e.id }}" aria-hidden="true">
   <div class="modal-dialog">
@@ -315,25 +336,25 @@
         <input type="hidden" name="entrega_id" value="{{ e.id }}">
         <input type="hidden" name="confirm" value="1">
       <div class="modal-header">
-        <h2 class="modal-title fs-5" id="mc{{ e.id }}">Confirmar carga</h2>
+        <h2 class="modal-title fs-5" id="mc{{ e.id }}">Confirmar carga (programada)</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
       </div>
       <div class="modal-body">
-        <p class="mb-0">¿Confirmás que la entrega fue <strong>cargada</strong> en el camión?</p>
+        <p class="mb-0">Entrega programada con destino ya definido. ¿Confirmás la <strong>carga</strong> en el camión?</p>
         <p class="small app-text-secondary mt-2 mb-3">{{ e.cliente }} · {% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %}</p>
         <div class="row g-2 align-items-end">
           <div class="col-6">
-            <label class="form-label small mb-1">Cantidad programada</label>
+            <label class="form-label small mb-1">Volumen programado</label>
             <input class="form-control text-end" value="{{ cantidad_programada }}" readonly tabindex="-1">
           </div>
           <div class="col-6">
-            <label class="form-label small mb-1" for="cantidadCargar{{ e.id }}">Cantidad a cargar</label>
+            <label class="form-label small mb-1" for="cantidadCargar{{ e.id }}">Volumen cargado</label>
             <input class="form-control text-end entrega-real-input" id="cantidadCargar{{ e.id }}" name="cantidad_real" type="number" step="any" min="0" value="{{ cantidad_programada }}" data-programada="{{ cantidad_programada }}" required inputmode="decimal" autocomplete="off">
           </div>
         </div>
         <p class="small text-warning mt-2 mb-0 d-none entrega-real-warning">Atención: la cantidad real difiere más de 20% de la programada.</p>
         {% if e.producto|es_hipoclorito_entrega %}
-        <p class="small text-danger mt-2 mb-0">Se validará el <strong>stock disponible en planta</strong> (mismo criterio que el Panel). Si no alcanza, no se podrá cargar. Si alcanza, se registrará el <strong>consumo</strong> de <strong>{{ hipoclorito_nombre_catalogo }}</strong> con marca <strong>{{ entrega_marca_pt_traza|default('QDV', true) }}</strong> con fecha y hora de esta confirmación.</p>
+        <p class="small text-danger mt-2 mb-0">Se validará el <strong>stock disponible en planta</strong> (mismo criterio que el Panel).</p>
         {% endif %}
       </div>
       <div class="modal-footer">
@@ -345,7 +366,7 @@
   </div>
 </div>
 {% endif %}
-{% if user_can_entregas_entregar() and (e.estado or '') != 'entregada' %}
+{% if user_can_entregas_entregar() and (e.estado or '') != 'entregada' and not entrega_pendiente_logistica(e) %}
   {% set puede_ent = (e.estado or '') == 'cargada' or not (e.producto|es_hipoclorito_entrega) %}
   {% if puede_ent %}
 {% set cantidad_programada = e.cantidad_programada if e.cantidad_programada is not none else e.cantidad %}
@@ -367,11 +388,11 @@
         <p class="small app-text-secondary mt-2 mb-3">Lugar: <strong>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</strong>. Fecha y hora del registro serán las del momento en que confirmes. El responsable se registrará como <strong>{{ nav_user.nombre_completo or nav_user.username }}</strong>.</p>
         <div class="row g-2 align-items-end">
           <div class="col-6">
-            <label class="form-label small mb-1">Cantidad programada</label>
+            <label class="form-label small mb-1">Volumen a descargar</label>
             <input class="form-control text-end" value="{{ cantidad_programada }}" readonly tabindex="-1">
           </div>
           <div class="col-6">
-            <label class="form-label small mb-1" for="cantidadEntregar{{ e.id }}">Cantidad a entregar</label>
+            <label class="form-label small mb-1" for="cantidadEntregar{{ e.id }}">Volumen entregado</label>
             <input class="form-control text-end entrega-real-input" id="cantidadEntregar{{ e.id }}" name="cantidad_real" type="number" step="any" min="0" value="{{ cantidad_entregar_default }}" data-programada="{{ cantidad_programada }}" required inputmode="decimal" autocomplete="off">
           </div>
         </div>
@@ -392,50 +413,21 @@
 {% block scripts %}
 <script>
 (() => {
-  const form = document.getElementById("entregaQuickForm");
-  const row = document.getElementById("entregaQuickRow");
+  const form = document.getElementById("entregaCargaCamionForm");
+  const row = document.getElementById("entregaCargaCamionRow");
   if (!form || !row) return;
 
-  const lugaresCatalogo = {{ lugares_entrega_catalogo | default([]) | tojson }};
-  const clienteSel = document.getElementById("quickCliente");
-  const lugarSel = document.getElementById("quickLugar");
   const fields = Array.from(row.querySelectorAll("input, select, button"));
-
-  function setLugarOptions(clienteId) {
-    if (!lugarSel) return;
-    const cid = Number(clienteId || 0);
-    lugarSel.innerHTML = "";
-    if (!cid) {
-      lugarSel.disabled = true;
-      lugarSel.append(new Option("Elegí cliente...", ""));
-      return;
-    }
-    const lugares = (Array.isArray(lugaresCatalogo) ? lugaresCatalogo : []).filter((l) => Number(l.cliente_id) === cid);
-    lugarSel.disabled = false;
-    lugarSel.append(new Option(lugares.length ? "Lugar..." : "Sin lugares activos", ""));
-    lugares.forEach((l) => lugarSel.append(new Option(l.nombre || "", String(l.id || ""))));
-  }
-
-  function focusRelative(current, delta) {
-    const activeFields = Array.from(row.querySelectorAll("input, select, button")).filter((el) => !el.disabled);
-    const idx = activeFields.indexOf(current);
-    const next = activeFields[idx + delta];
-    if (next) {
-      next.focus();
-      if (typeof next.select === "function" && next.tagName !== "SELECT") next.select();
-    }
-  }
-
-  if (clienteSel) {
-    clienteSel.addEventListener("change", () => setLugarOptions(clienteSel.value));
-    setLugarOptions(clienteSel.value);
-  }
 
   form.addEventListener("submit", (ev) => {
     if (!form.checkValidity()) {
       return;
     }
-    if (!window.confirm("¿Desea programar esta entrega?")) {
+    const qty = document.getElementById("cargaCantidad");
+    const ch = document.getElementById("cargaChofer");
+    const vol = qty ? qty.value : "";
+    const choferLabel = ch && ch.selectedIndex > 0 ? ch.options[ch.selectedIndex].text : "";
+    if (!window.confirm(`¿Confirmás CARGAR CAMIÓN con ${vol} L y chofer ${choferLabel}?`)) {
       ev.preventDefault();
     }
   });
@@ -445,16 +437,6 @@
       if (ev.key === "Enter" && field.tagName !== "BUTTON") {
         ev.preventDefault();
         form.requestSubmit();
-        return;
-      }
-      if (ev.key === "ArrowRight") {
-        ev.preventDefault();
-        focusRelative(field, 1);
-        return;
-      }
-      if (ev.key === "ArrowLeft") {
-        ev.preventDefault();
-        focusRelative(field, -1);
       }
     });
   });

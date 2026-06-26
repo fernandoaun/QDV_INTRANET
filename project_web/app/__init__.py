@@ -312,6 +312,7 @@ def create_app() -> Flask:
         from app.constants import MODULE_LABELS
         from app.services import planificacion_service as _planificacion_service
         from app.services import personal_service as _personal_service
+        from app.services.entregas_service import entrega_pendiente_logistica as _entrega_pendiente_logistica
         from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label, user_is_global_read_only
         from flask import request
 
@@ -355,6 +356,7 @@ def create_app() -> Flask:
             "user_can_entregas_programar_view": lambda: user_may_view_entregas_programar(u),
             "user_can_entregas_cargar": lambda: user_can_entregas_cargar_effective(u),
             "user_can_entregas_entregar": lambda: user_can_entregas_entregar_effective(u),
+            "entrega_pendiente_logistica": _entrega_pendiente_logistica,
             "user_can_stock_hub": user_can_access_stock_hub(u),
             "user_can_stock_ingreso_mp": user_can_view_stock_ingreso_categoria(u, "materia_prima"),
             "user_can_stock_ingreso_lab": user_can_view_stock_ingreso_categoria(u, "laboratorio"),

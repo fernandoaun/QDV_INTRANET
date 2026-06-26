@@ -10,7 +10,12 @@ from sqlalchemy import and_, func, not_, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
-from app.constants import ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA, ENTREGAS_STOCK_CATEGORIA
+from app.constants import (
+    ENTREGA_CLIENTE_PENDIENTE_LOGISTICA,
+    ENTREGA_LUGAR_PENDIENTE_LOGISTICA,
+    ENTREGAS_MARCA_PRODUCTO_TERMINADO_TRAZA,
+    ENTREGAS_STOCK_CATEGORIA,
+)
 from app.models import ConsumoStock, Entrega, EntregaEvento, User
 from app.services import operational_informed_stock as informed_stock
 from app.services import stock_service
@@ -175,6 +180,16 @@ def append_evento(
     )
 
 
+def entrega_pendiente_logistica(entrega: Entrega) -> bool:
+    """Carga en camión sin cliente/destino asignados por logística."""
+    if str(entrega.estado or "") != "cargada":
+        return False
+    if entrega.cliente_id is None:
+        return True
+    cliente = (entrega.cliente or "").strip()
+    return not cliente or cliente == ENTREGA_CLIENTE_PENDIENTE_LOGISTICA
+
+
 def puede_editar_campos_completos(entrega: Entrega) -> bool:
     return str(entrega.estado or "") == "programada"
 
@@ -207,6 +222,8 @@ def puede_marcar_cargada(entrega: Entrega) -> bool:
 
 def puede_marcar_entregada(entrega: Entrega) -> bool:
     if str(entrega.estado or "") == "entregada":
+        return False
+    if entrega_pendiente_logistica(entrega):
         return False
     if stock_service.producto_entrega_es_stock_hipoclorito(str(entrega.producto or "")):
         return str(entrega.estado or "") == "cargada"
@@ -282,7 +299,47 @@ def ejecutar_cargada(
     return None
 
 
+def crear_y_ejecutar_carga_camion(
+    entrega: Entrega,
+    actor: User | None,
+    ahora: datetime,
+    cantidad_real: float,
+) -> tuple[str, str] | None:
+    """Alta directa de carga en camión (operaciones): crea la entrega y ejecuta el consumo de stock."""
+    qty = validate_cantidad_real(cantidad_real, "El volumen cargado")
+    if qty <= 0:
+        raise ValueError("El volumen cargado debe ser mayor a cero.")
+    iso = ahora.isoformat(timespec="seconds")
+    fecha = ahora.date().isoformat()
+    entrega.cantidad = qty
+    entrega.cantidad_programada = qty
+    entrega.fecha_prevista = fecha
+    entrega.estado = "programada"
+    entrega.created_at_iso = iso
+    entrega.updated_at_iso = iso
+    db.session.add(entrega)
+    db.session.flush()
+    from app.auth_utils import user_display_name
+
+    append_evento(
+        int(entrega.id),
+        "creada",
+        iso,
+        actor,
+        user_display_name(actor),
+        {
+            "origen": "carga_camion_operaciones",
+            "cantidad_cargada": qty,
+            "fecha_carga": fecha,
+            "chofer_previsto": (entrega.chofer_previsto or "").strip() or None,
+        },
+    )
+    return ejecutar_cargada(entrega, actor, ahora, qty)
+
+
 def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime, cantidad_real: float | None = None) -> None:
+    if entrega_pendiente_logistica(entrega):
+        raise ValueError("Asigná cliente y destino antes de marcar la entrega como entregada.")
     if not puede_marcar_entregada(entrega):
         raise ValueError("Esta entrega no admite la acción «Entregado».")
     iso = ahora.isoformat(timespec="seconds")

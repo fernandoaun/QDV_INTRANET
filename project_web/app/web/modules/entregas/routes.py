@@ -114,6 +114,22 @@ def gestion():
                 flash(str(ex), "danger")
                 return redirect(url_for("entregas.gestion"))
 
+        if act == "cargar_camion":
+            if not user_can_entregas_cargar_effective(u):
+                return _no_edit()
+            try:
+                _, stock_mut = ews.create_carga_camion_from_form(request.form, u)
+                db.session.commit()
+                if stock_mut is not None:
+                    stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
+                flash("Camión cargado. Logística asignará cliente y destino.", "success")
+                keep = {"quick_chofer_entrega_id": (request.form.get("chofer_entrega_id") or "").strip()}
+                return redirect(url_for("entregas.gestion", **{k: v for k, v in keep.items() if v}))
+            except Exception as ex:  # noqa: BLE001
+                db.session.rollback()
+                flash(str(ex) or "No se pudo registrar la carga del camión.", "danger")
+                return redirect(url_for("entregas.gestion"))
+
         eid_raw = (request.form.get("entrega_id") or "").strip()
         if not eid_raw.isdigit():
             flash("Solicitud inválida.", "danger")
@@ -182,13 +198,15 @@ def gestion():
     entregas_kpis = entregas_service.entregas_kpis_rolling()
     sem_lunes, _sem_domingo = entregas_service.rango_semana_operacion_actual()
     catalog_bundle = ews.form_catalog_bundle(None)
+    pt_default = ews.producto_terminado_hipo_default()
+    hoy = now_operacion_naive_local().date().isoformat()
     return render_template(
         "entregas/gestion.html",
         entregas=rows,
         entregas_kpis=entregas_kpis,
         entregas_vista_semana_lunes=sem_lunes,
-        quick_fecha=request.args.get("quick_fecha", ""),
-        quick_producto_terminado_id=ews.parse_entrega_positive_int(request.args.get("quick_producto_terminado_id")),
+        quick_fecha=hoy,
+        quick_producto_terminado_id=int(pt_default.id) if pt_default else None,
         quick_chofer_entrega_id=ews.parse_entrega_positive_int(request.args.get("quick_chofer_entrega_id")),
         entrega_lugares_api_prefix=_entrega_lugares_api_prefix(),
         **catalog_bundle,
@@ -337,7 +355,7 @@ def editar(eid: int):
             if not user_can_entregas_programar_effective(u):
                 return _no_edit()
         elif entregas_service.puede_editar_logistica_tras_carga(ent):
-            if not user_can_entregas_programar_effective(u) and not user_can_entregas_cargar_effective(u):
+            if not user_can_entregas_programar_effective(u):
                 return _no_edit()
         elif not user_can_entregas_programar_effective(u):
             return _no_edit()
@@ -442,10 +460,14 @@ def editar(eid: int):
             chid = ews.parse_entrega_positive_int(request.form.get("chofer_entrega_id"))
             fecha_prev = (request.form.get("fecha_prevista") or "").strip()
             obs = (request.form.get("observaciones") or "").strip() or None
+            cantidad_desc = ews.parse_entrega_float(request.form.get("cantidad_descargar"))
 
             err, cli, lug, ch = ews.validar_solo_logistica(cid, lid, chid)
             if err:
                 flash(err, "danger")
+                return redirect(url_for("entregas.editar", eid=eid))
+            if cantidad_desc <= 0 or cantidad_desc != cantidad_desc:
+                flash("El volumen a descargar debe ser un número válido y mayor a cero.", "danger")
                 return redirect(url_for("entregas.editar", eid=eid))
             if not fecha_prev:
                 flash("La fecha prevista es obligatoria.", "danger")
@@ -453,6 +475,7 @@ def editar(eid: int):
 
             ews.assign_logistica_entrega(ent, cli, lug, ch)
             ent.fecha_prevista = fecha_prev
+            ent.cantidad_programada = cantidad_desc
             ent.observaciones = obs
             ent.updated_at_iso = iso
             entregas_service.append_evento(
@@ -461,10 +484,14 @@ def editar(eid: int):
                 iso,
                 u,
                 user_display_name(u),
-                {"alcance": "logística (estado cargada)"},
+                {
+                    "alcance": "logística (estado cargada)",
+                    "cantidad_descargar": cantidad_desc,
+                    "cantidad_real_cargada": entregas_service.cantidad_cargada_operativa(ent),
+                },
             )
             db.session.commit()
-            flash("Cambios guardados.", "success")
+            flash("Datos logísticos guardados.", "success")
             return redirect(url_for("entregas.gestion"))
 
         flash("No se puede editar esta entrega en su estado actual.", "warning")
