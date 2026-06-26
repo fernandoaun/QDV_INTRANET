@@ -301,6 +301,7 @@ def create_app() -> Flask:
             user_can_entregas_programar_effective,
         )
         from app.auth_utils import user_may_view_entregas_programar
+        from app.auth_utils import user_may_view_entregas_historial, user_may_view_entregas_catalogos
         from app.auth_utils import (
             user_can_access_stock_hub,
             user_can_edit_stock_catalogo_alta,
@@ -354,6 +355,8 @@ def create_app() -> Flask:
             "user_can_mantenimiento": user_can_access_mantenimiento(u),
             "user_can_entregas_programar": lambda: user_can_entregas_programar_effective(u),
             "user_can_entregas_programar_view": lambda: user_may_view_entregas_programar(u),
+            "user_may_view_entregas_historial": lambda: user_may_view_entregas_historial(u),
+            "user_may_view_entregas_catalogos": lambda: user_may_view_entregas_catalogos(u),
             "user_can_entregas_cargar": lambda: user_can_entregas_cargar_effective(u),
             "user_can_entregas_entregar": lambda: user_can_entregas_entregar_effective(u),
             "entrega_pendiente_logistica": _entrega_pendiente_logistica,

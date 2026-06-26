@@ -56,6 +56,52 @@ def test_gestion_shows_carga_camion_row(auth_client):
     assert "GUARDAR" not in html
 
 
+def test_operador_hub_muestra_historial_y_catalogos(client, app):
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import PermisoUsuario, User
+    from app.user_roles import ROLE_OPERACIONES
+
+    with app.app_context():
+        u = User(
+            username="pytest_oper_hub",
+            password_hash=generate_password_hash("pytest-oper-pw"),
+            is_admin=False,
+            activo=True,
+            rol=ROLE_OPERACIONES,
+        )
+        db.session.add(u)
+        db.session.flush()
+        for p, edit in (("entregas", True), ("entregas_cargar", True)):
+            db.session.add(
+                PermisoUsuario(
+                    user_id=int(u.id),
+                    permiso=p,
+                    habilitado=True,
+                    puede_editar=edit,
+                )
+            )
+        db.session.commit()
+
+    lg = client.get("/login")
+    m = re.search(r'name="csrf_token"\s+value="([^"]+)"', lg.get_data(as_text=True))
+    assert m is not None
+    r = client.post(
+        "/login",
+        data={"username": "pytest_oper_hub", "password": "pytest-oper-pw", "csrf_token": m.group(1)},
+        follow_redirects=False,
+    )
+    assert r.status_code in (302, 303)
+
+    r = client.get("/entregas/")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "Historial de entregas" in html
+    assert "Catálogos de entregas" in html
+    assert "Programar entrega" in html
+
+
 def test_carga_camion_creates_cargada_pending_logistica(auth_client, app, monkeypatch):
     from app.constants import ENTREGA_CLIENTE_PENDIENTE_LOGISTICA
     from app.extensions import db

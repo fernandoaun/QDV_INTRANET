@@ -14,6 +14,7 @@ from app.auth_utils import (
     user_can_entregas_entregar_effective,
     user_can_entregas_programar_effective,
     user_can_view_admin_configuration,
+    user_may_view_entregas_catalogos,
     user_display_name,
     user_may_view_entregas_programar,
 )
@@ -539,7 +540,7 @@ def historial(eid: int):
 @login_required
 def catalogos_hub():
     u = current_user()
-    if u is None or not user_can_view_admin_configuration(u):
+    if u is None or not user_may_view_entregas_catalogos(u):
         flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
         return redirect(url_for("entregas.hub"))
     return render_template("entregas/catalogos_hub.html", viewer_may_edit_catalogos=bool(u.is_admin))
@@ -564,7 +565,7 @@ def catalogos_productos():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_productos"))
 
-    if not user_can_view_admin_configuration(u):
+    if not user_may_view_entregas_catalogos(u):
         flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
         return redirect(url_for("entregas.hub"))
 
@@ -595,7 +596,7 @@ def catalogos_clientes():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_clientes"))
 
-    if not user_can_view_admin_configuration(u):
+    if not user_may_view_entregas_catalogos(u):
         flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
         return redirect(url_for("entregas.hub"))
 
@@ -626,7 +627,7 @@ def catalogos_lugares():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_lugares"))
 
-    if not user_can_view_admin_configuration(u):
+    if not user_may_view_entregas_catalogos(u):
         flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
         return redirect(url_for("entregas.hub"))
 
@@ -659,7 +660,7 @@ def catalogos_choferes():
             flash(str(e), "danger")
         return redirect(url_for("entregas.catalogos_choferes"))
 
-    if not user_can_view_admin_configuration(u):
+    if not user_may_view_entregas_catalogos(u):
         flash("No tenés permiso para acceder a catálogos de entregas.", "warning")
         return redirect(url_for("entregas.hub"))
 

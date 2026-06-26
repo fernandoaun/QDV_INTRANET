@@ -13,19 +13,21 @@
 <div class="app-module-grid">
   <a class="app-module-card app-module-card--featured" href="{{ url_for('entregas.gestion') }}">
     <h2>Gestión de entregas</h2>
-    <p>Semana en curso: operaciones registran <strong>Cargar camión</strong>; logística completa destino y marca <strong>Entregado</strong>. Historial completo aparte.</p>
+    <p>Semana en curso: operaciones registran <strong>Cargar camión</strong>; logística completa destino y marca <strong>Entregado</strong>.</p>
   </a>
+  {% if user_may_view_entregas_historial() %}
   <a class="app-module-card" href="{{ url_for('entregas.historial_entregas_lista') }}">
     <h2>Historial de entregas</h2>
     <p>Buscar por cliente, lugar, chofer, estado, fechas y descargar Excel.</p>
   </a>
+  {% endif %}
   {% if user_can_entregas_programar_view() %}
   <a class="app-module-card" href="{{ url_for('entregas.nueva') }}">
     <h2>Programar entrega</h2>
     <p>Cliente, lugar, producto terminado, volumen en litros y fecha prevista.</p>
   </a>
   {% endif %}
-  {% if user_can_view_admin_configuration() %}
+  {% if user_may_view_entregas_catalogos() %}
   <a class="app-module-card" href="{{ url_for('entregas.catalogos_hub') }}">
     <h2>Catálogos de entregas</h2>
     <p>Productos terminados, clientes, lugares y choferes{% if not nav_user.is_admin %} (solo consulta){% endif %}.</p>

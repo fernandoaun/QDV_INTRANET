@@ -235,6 +235,20 @@ def user_may_view_entregas_programar(user: User | None) -> bool:
     return user_can(user, "entregas_programar") or user_can(user, "entregas")
 
 
+def user_may_view_entregas_historial(user: User | None) -> bool:
+    """Historial y export: cualquier usuario con acceso al módulo Entregas."""
+    return user_can_access_entregas_hub(user)
+
+
+def user_may_view_entregas_catalogos(user: User | None) -> bool:
+    """Catálogos de entregas: administración o consulta para quien opera el módulo."""
+    if user is None:
+        return False
+    if user_can_view_admin_configuration(user):
+        return True
+    return user_can_access_entregas_hub(user)
+
+
 def user_can_entregas_programar_effective(user: User | None) -> bool:
     """Edición de programación / altas (no amplía por otros módulos)."""
     if user is None:
@@ -532,13 +546,15 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         # Endpoints JSON auxiliares; no habilitan edición de página (formularios usan otros endpoints).
         return False
     if ep.startswith("entregas.catalogos"):
-        return bool(user and user.is_admin)
+        return bool(user and user_may_view_entregas_catalogos(user))
     if ep == "entregas.nueva":
         return user_can_entregas_programar_effective(user)
     if ep == "entregas.editar":
         return user_can_edit(user, "entregas_programar") or user_can_edit(user, "entregas_cargar")
     if ep == "entregas.historial":
-        return user_can_entregas_programar_effective(user)
+        return user_may_view_entregas_historial(user)
+    if ep in ("entregas.historial_entregas_lista", "entregas.historial_entregas_export_xlsx"):
+        return user_may_view_entregas_historial(user)
     if ep.startswith("entregas."):
         return user_can_edit_entregas_any_action(user)
     if ep.startswith("vencimientos."):
