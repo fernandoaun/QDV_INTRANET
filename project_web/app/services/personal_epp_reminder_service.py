@@ -11,7 +11,7 @@ from typing import Any
 from app.extensions import db
 from app.models import EmpleadoPersonal, PersonalEntregaEpp
 from app.services.deadline_alert_email_service import normalize_validate_email
-from app.services.mail_link_service import login_url_for_path
+from app.services.mail_link_service import login_url_for_path, require_absolute_mail_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -49,9 +49,9 @@ def _build_mail_bodies(
     empleado: EmpleadoPersonal,
     entregas: list[PersonalEntregaEpp],
     es_recordatorio: bool,
+    link: str,
 ) -> tuple[str, str, str]:
     nombre = empleado.nombre_completo
-    link = _mis_entregas_url(app)
     esc = html_lib.escape
 
     if len(entregas) == 1:
@@ -131,8 +131,13 @@ def _send_to_empleado(
     if not is_mail_fully_configured(app):
         return False, "SMTP no configurado (SMTP_HOST / MAIL_FROM)."
 
+    link = _mis_entregas_url(app)
+    ok_link, link_detail = require_absolute_mail_url(app, link, context="entrega EPP/ropa")
+    if not ok_link:
+        return False, link_detail
+
     asunto, plain, html_body = _build_mail_bodies(
-        app, empleado=empleado, entregas=entregas, es_recordatorio=es_recordatorio
+        app, empleado=empleado, entregas=entregas, es_recordatorio=es_recordatorio, link=link
     )
     try:
         enviar_mail(
