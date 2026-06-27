@@ -202,6 +202,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             complete = anexo_svc.organigrama_ensure_complete_nodes(nodes)
             arbol = anexo_svc.organigrama_tree(complete)
             editor_nodes = anexo_svc.organigrama_nodes_for_editor(complete)
+            chart_levels = anexo_svc.organigrama_chart_levels(complete)
             return render_template(
                 "sgi/anexo_organigrama_editor.html",
                 slug=slug,
@@ -210,6 +211,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
                 anexo=item,
                 standalone=True,
                 nodes=editor_nodes,
+                chart_levels=chart_levels,
                 layout_items=anexo_svc.organigrama_layout_items(arbol),
                 usuarios=anexo_svc.organigrama_usuarios_opciones(),
                 nodes_json=json.dumps(editor_nodes, ensure_ascii=False),
@@ -651,6 +653,7 @@ def procedimiento_anexo_editor(slug: str, anexo_id: int):
         complete = anexo_svc.organigrama_ensure_complete_nodes(nodes)
         arbol = anexo_svc.organigrama_tree(complete)
         editor_nodes = anexo_svc.organigrama_nodes_for_editor(complete)
+        chart_levels = anexo_svc.organigrama_chart_levels(complete)
         return render_template(
             "sgi/anexo_organigrama_editor.html",
             slug=slug,
@@ -658,6 +661,7 @@ def procedimiento_anexo_editor(slug: str, anexo_id: int):
             rev=rev,
             anexo=anexo,
             nodes=editor_nodes,
+            chart_levels=chart_levels,
             layout_items=anexo_svc.organigrama_layout_items(arbol),
             usuarios=anexo_svc.organigrama_usuarios_opciones(),
             nodes_json=json.dumps(editor_nodes, ensure_ascii=False),

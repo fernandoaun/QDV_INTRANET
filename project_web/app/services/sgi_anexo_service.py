@@ -287,24 +287,97 @@ def organigrama_flat_nodes(arbol: list[dict[str, Any]]) -> dict[str, dict[str, A
 
 
 def organigrama_layout_items(arbol: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Compatibilidad: delega en el layout dinámico por niveles."""
     flat = organigrama_flat_nodes(arbol)
-    specs = _organigrama_spec_by_id()
+    nodes = [
+        {
+            "id": nid,
+            "titulo": node.get("titulo") or nid,
+            "subtitulo": node.get("subtitulo") or "",
+            "parent_id": node.get("parent_id"),
+            "orden": node.get("orden") or 0,
+        }
+        for nid, node in flat.items()
+    ]
+    levels = organigrama_chart_levels(nodes)
     items: list[dict[str, Any]] = []
-    for grid_spec in ORGANIGRAMA_QDV_GRID:
-        nid = str(grid_spec["id"])
-        node = flat.get(nid, {})
-        base = specs.get(nid, {})
-        items.append(
-            {
-                **grid_spec,
-                "id": nid,
-                "titulo": (node.get("titulo") or base.get("titulo") or nid),
-                "subtitulo": node.get("subtitulo") or base.get("subtitulo") or "",
-                "parent_id": node.get("parent_id") if node.get("parent_id") is not None else base.get("parent_id"),
-                "usuario": node.get("usuario"),
-            }
-        )
+    for level_idx, row in enumerate(levels, start=1):
+        for col_idx, node in enumerate(row, start=1):
+            items.append({**node, "row": level_idx, "col": col_idx})
     return items
+
+
+ORGANIGRAMA_EXTERNAL_IDS: frozenset[str] = frozenset(
+    {
+        "asesoria_impositiva_legal",
+        "asesoria_rrhh",
+        "asesoria_legal_contable",
+        "asesoria_qhse",
+        "servicios_externos",
+    }
+)
+
+
+def _organigrama_node_kind(node: dict[str, Any]) -> str:
+    nid = str(node.get("id") or "")
+    if nid in ORGANIGRAMA_EXTERNAL_IDS:
+        return "external"
+    sub = (node.get("subtitulo") or "").lower()
+    if "extern" in sub or "servicio" in sub:
+        return "external"
+    return "internal"
+
+
+def _organigrama_node_depth(node_id: str, by_id: dict[str, dict[str, Any]], cache: dict[str, int], chain: set[str] | None = None) -> int:
+    if node_id in cache:
+        return cache[node_id]
+    chain = chain or set()
+    if node_id in chain:
+        cache[node_id] = 1
+        return 1
+    chain.add(node_id)
+    node = by_id.get(node_id)
+    if not node:
+        cache[node_id] = 1
+        return 1
+    parent_id = node.get("parent_id")
+    if not parent_id or str(parent_id) not in by_id:
+        cache[node_id] = 1
+        return 1
+    depth = _organigrama_node_depth(str(parent_id), by_id, cache, chain) + 1
+    cache[node_id] = depth
+    return depth
+
+
+def organigrama_chart_levels(nodes: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Agrupa puestos por nivel jerárquico para dibujar el organigrama."""
+    clean = [n for n in nodes if isinstance(n, dict) and n.get("id")]
+    if not clean:
+        return []
+    by_id = {str(n["id"]): n for n in clean}
+    arbol = organigrama_tree(clean)
+    flat = organigrama_flat_nodes(arbol)
+    depth_cache: dict[str, int] = {}
+    by_level: dict[int, list[dict[str, Any]]] = {}
+    for nid, base in by_id.items():
+        enriched = flat.get(nid, {})
+        level = _organigrama_node_depth(nid, by_id, depth_cache)
+        usuarios = enriched.get("usuarios") or []
+        item = {
+            "id": nid,
+            "titulo": (enriched.get("titulo") or base.get("titulo") or nid),
+            "subtitulo": enriched.get("subtitulo") or base.get("subtitulo") or "",
+            "parent_id": base.get("parent_id"),
+            "kind": _organigrama_node_kind({**base, **enriched}),
+            "usuario": enriched.get("usuario"),
+            "usuarios": usuarios,
+            "level": level,
+            "orden": int(base.get("orden") or 0),
+        }
+        by_level.setdefault(level, []).append(item)
+    for lvl in by_level:
+        by_level[lvl].sort(key=lambda x: (x["orden"], x["titulo"]))
+    return [by_level[k] for k in sorted(by_level.keys())]
 
 
 def organigrama_view_context(
@@ -314,8 +387,17 @@ def organigrama_view_context(
     rev: SgiProcedimientoRevision | None = None,
 ) -> dict[str, Any]:
     arbol = organigrama_view_arbol(anexo=anexo, doc=doc, rev=rev)
+    if anexo is not None:
+        data = parse_anexo_contenido(anexo)
+    elif doc is not None and rev is not None:
+        data = parse_documento_contenido(doc, rev)
+    else:
+        data = {}
+    nodes = organigrama_ensure_complete_nodes(data.get("nodes") or [])
+    chart_levels = organigrama_chart_levels(nodes)
     return {
         "arbol": arbol,
+        "chart_levels": chart_levels,
         "layout_items": organigrama_layout_items(arbol),
     }
 

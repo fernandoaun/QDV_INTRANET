@@ -32,40 +32,93 @@
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
-  function renderDetail(usuario, titulo, subtitulo) {
+  function renderDetail(usuarioOrList, titulo, subtitulo) {
     const box = qs("#sgiOrgDetail");
     if (!box) return;
     const sub = subtitulo ? `<p class="text-muted small mb-2">${subtitulo}</p>` : "";
-    if (!usuario) {
+    const usuarios = Array.isArray(usuarioOrList)
+      ? usuarioOrList
+      : usuarioOrList
+        ? [usuarioOrList]
+        : [];
+    if (!usuarios.length) {
       box.innerHTML = `
         <p class="fw-semibold mb-1">${titulo || "Puesto"}</p>
         ${sub}
         <p class="text-muted mb-0">Sin usuario asignado en la intranet.</p>`;
       return;
     }
-    const rows = [
-      ["Nombre", usuario.nombre],
-      ["Usuario", usuario.username],
-      ["Perfil", usuario.rol],
-      ["Puesto", usuario.puesto],
-      ["Área", usuario.area],
-      ["Email", usuario.email],
-      ["Teléfono", usuario.telefono],
-    ]
-      .filter(([, v]) => v)
-      .map(([k, v]) => `<dt class="col-sm-5">${k}</dt><dd class="col-sm-7">${v}</dd>`)
+    if (usuarios.length === 1) {
+      const usuario = usuarios[0];
+      const rows = [
+        ["Nombre", usuario.nombre],
+        ["Usuario", usuario.username],
+        ["Perfil", usuario.rol],
+        ["Puesto", usuario.puesto],
+        ["Área", usuario.area],
+        ["Email", usuario.email],
+        ["Teléfono", usuario.telefono],
+      ]
+        .filter(([, v]) => v)
+        .map(([k, v]) => `<dt class="col-sm-5">${k}</dt><dd class="col-sm-7">${v}</dd>`)
+        .join("");
+      box.innerHTML = `
+        <div class="d-flex align-items-center gap-2 mb-3">
+          <div class="sgi-org-detail-avatar" aria-hidden="true">${initials(usuario.nombre)}</div>
+          <div>
+            <p class="fw-semibold mb-0">${usuario.nombre}</p>
+            <p class="text-muted small mb-0">${usuario.rol || ""}</p>
+          </div>
+        </div>
+        <p class="fw-semibold mb-1">${titulo || ""}</p>
+        ${sub}
+        <dl class="row mb-0 small">${rows}</dl>`;
+      return;
+    }
+    const list = usuarios
+      .map(
+        (u) => `
+        <li class="mb-2">
+          <span class="fw-semibold">${u.nombre || ""}</span>
+          ${u.rol ? `<span class="text-muted small"> · ${u.rol}</span>` : ""}
+        </li>`
+      )
       .join("");
     box.innerHTML = `
-      <div class="d-flex align-items-center gap-2 mb-3">
-        <div class="sgi-org-detail-avatar" aria-hidden="true">${initials(usuario.nombre)}</div>
-        <div>
-          <p class="fw-semibold mb-0">${usuario.nombre}</p>
-          <p class="text-muted small mb-0">${usuario.rol || ""}</p>
-        </div>
-      </div>
-      <p class="fw-semibold mb-1">${titulo || ""}</p>
+      <p class="fw-semibold mb-1">${titulo || "Puesto"}</p>
       ${sub}
-      <dl class="row mb-0 small">${rows}</dl>`;
+      <p class="text-muted small mb-2">${usuarios.length} usuarios asignados</p>
+      <ul class="list-unstyled mb-0 small">${list}</ul>`;
+  }
+
+  function parseNodeUsuarios(btn) {
+    if (!btn) return [];
+    if (btn.dataset.usuarios) {
+      try {
+        const parsed = JSON.parse(btn.dataset.usuarios);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    if (btn.dataset.nombre) {
+      return [
+        {
+          nombre: btn.dataset.nombre,
+          username: btn.dataset.username || "",
+          rol: btn.dataset.rol || "",
+          puesto: btn.dataset.puesto || "",
+          area: btn.dataset.area || "",
+          email: btn.dataset.email || "",
+          telefono: btn.dataset.telefono || "",
+        },
+      ];
+    }
+    return [];
+  }
+
+  function chartContainer(wrap) {
+    return qs(".sgi-org-tree-chart", wrap) || qs(".sgi-org-qdv-grid", wrap);
   }
 
   function clearPath(chart) {
@@ -197,25 +250,23 @@
     orthoDown(svg, t.cx, y, t.top, "dashed");
   }
 
-  function collectGridNodes(wrap) {
-    return qsa(".sgi-org-grid-cell", wrap)
+  function collectChartNodes(wrap) {
+    const chart = chartContainer(wrap);
+    if (!chart) return [];
+    return qsa(".sgi-org-tree-slot, .sgi-org-grid-cell", chart)
       .map((cell) => {
         const btn = qs(".sgi-org-node", cell);
         if (!btn) return null;
+        const level = parseInt(btn.dataset.level || cell.dataset.level || "0", 10);
+        const kind = cell.dataset.kind || (btn.classList.contains("sgi-org-node--external") ? "external" : "internal");
         return {
           id: btn.dataset.nodeId || cell.dataset.nodeId || "",
           parentId: btn.dataset.parentId || "",
-          row: parseInt(cell.dataset.row || "0", 10),
-          col: parseInt(cell.dataset.col || "0", 10),
-          kind: cell.classList.contains("sgi-org-grid-cell--external") ? "external" : "internal",
+          level,
+          kind,
         };
       })
       .filter(Boolean);
-  }
-
-  function isLateral(parent, child) {
-    if (child.row < parent.row) return true;
-    return Math.abs(child.col - parent.col) >= 4;
   }
 
   function linkStyle(child) {
@@ -223,7 +274,7 @@
   }
 
   function buildLinksFromNodes(wrap) {
-    const nodes = collectGridNodes(wrap);
+    const nodes = collectChartNodes(wrap);
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
     const childrenByParent = {};
     nodes.forEach((n) => {
@@ -236,15 +287,15 @@
 
     Object.entries(childrenByParent).forEach(([parentId, children]) => {
       const parent = byId[parentId];
-      const downstream = children.filter((c) => c.row > parent.row && !isLateral(parent, c));
+      const downstream = children.filter((c) => c.level > parent.level);
       if (!downstream.length) return;
 
-      const byRow = {};
+      const byLevel = {};
       downstream.forEach((c) => {
-        (byRow[c.row] ||= []).push(c);
+        (byLevel[c.level] ||= []).push(c);
       });
-      const minRow = Math.min(...Object.keys(byRow).map(Number));
-      const busChildren = byRow[minRow] || [];
+      const minLevel = Math.min(...Object.keys(byLevel).map(Number));
+      const busChildren = byLevel[minLevel] || [];
 
       if (busChildren.length >= 2) {
         links.push({
@@ -255,7 +306,7 @@
         });
         busParents.add(parentId);
         downstream
-          .filter((c) => c.row !== minRow)
+          .filter((c) => c.level !== minLevel)
           .forEach((c) => {
             links.push({ type: "direct", from: parentId, to: c.id, style: linkStyle(c) });
           });
@@ -269,7 +320,7 @@
     Object.entries(childrenByParent).forEach(([parentId, children]) => {
       const parent = byId[parentId];
       children
-        .filter((c) => isLateral(parent, c))
+        .filter((c) => c.level <= parent.level)
         .forEach((c) => {
           links.push({
             type: busParents.has(parentId) ? "bus-tail" : "stem-side",
@@ -286,9 +337,44 @@
   function drawConnectors() {
     const wrap = qs("#sgiOrgChart");
     if (!wrap) return;
-    const grid = qs(".sgi-org-qdv-grid", wrap);
-    if (!grid) return;
-    qs("#sgiOrgConnectors", grid)?.remove();
+    const chart = chartContainer(wrap);
+    if (!chart) return;
+    let svg = qs("#sgiOrgConnectors", chart);
+    if (!svg) {
+      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.id = "sgiOrgConnectors";
+      svg.classList.add("sgi-org-connectors");
+      svg.setAttribute("aria-hidden", "true");
+      chart.insertBefore(svg, chart.firstChild);
+    }
+
+    const w = Math.max(chart.scrollWidth, chart.offsetWidth);
+    const h = Math.max(chart.scrollHeight, chart.offsetHeight);
+    svg.style.width = `${w}px`;
+    svg.style.height = `${h}px`;
+    svg.setAttribute("width", String(w));
+    svg.setAttribute("height", String(h));
+    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    svg.innerHTML = "";
+
+    const links = buildLinksFromNodes(wrap);
+    const origin = chart;
+    const busCache = {};
+
+    links.forEach((link) => {
+      if (link.type === "bus" && link.from && link.children) {
+        drawBus(svg, wrap, origin, link.from, link.children, link.style || "solid", busCache);
+      }
+    });
+    links.forEach((link) => {
+      if (link.type === "direct" && link.from && link.to) {
+        drawDirect(svg, wrap, origin, link.from, link.to, link.style || "solid");
+      } else if (link.type === "stem-side" && link.from && link.to) {
+        drawStemSide(svg, wrap, origin, link.from, link.to, busCache);
+      } else if (link.type === "bus-tail" && link.from && link.to) {
+        drawBusTail(svg, wrap, origin, link.from, link.to, busCache);
+      }
+    });
   }
 
   function initConnectors() {
@@ -296,9 +382,9 @@
       requestAnimationFrame(drawConnectors);
     }
     const wrap = qs("#sgiOrgChart");
-    const grid = wrap && qs(".sgi-org-qdv-grid", wrap);
-    if (grid && typeof ResizeObserver !== "undefined") {
-      new ResizeObserver(scheduleRedraw).observe(grid);
+    const chart = wrap && chartContainer(wrap);
+    if (chart && typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(scheduleRedraw).observe(chart);
     }
     window.addEventListener("resize", scheduleRedraw);
     if (document.fonts && document.fonts.ready) {
@@ -396,30 +482,112 @@
     return { fitWidth };
   }
 
+  function bindChartClicks(chart) {
+    qsa(".sgi-org-node", chart).forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        highlightPath(chart, btn.dataset.nodeId || "");
+        renderDetail(
+          parseNodeUsuarios(btn),
+          btn.querySelector(".sgi-org-node-title")?.textContent || "",
+          ""
+        );
+      });
+    });
+  }
+
+  function nodeKindFromData(node) {
+    const sub = (node.subtitulo || "").toLowerCase();
+    if (sub.includes("extern") || sub.includes("servicio")) return "external";
+    return node.kind || "internal";
+  }
+
+  function resolveEditorUsuarios(node) {
+    const ids = Array.isArray(node.user_ids)
+      ? node.user_ids
+      : node.user_id
+        ? [node.user_id]
+        : [];
+    const catalog = editorCfg?.usuarios || [];
+    return ids
+      .map((id) => catalog.find((u) => String(u.id) === String(id)))
+      .filter(Boolean)
+      .map((u) => ({
+        id: u.id,
+        nombre: u.label,
+        username: "",
+        rol: u.rol,
+        puesto: u.puesto || "",
+        area: "",
+        email: "",
+        telefono: "",
+      }));
+  }
+
+  function renderChartFromNodes(nodes, wrap, onReady) {
+    if (!wrap) return;
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    const levels = computeLevels(nodes);
+    const byLevel = {};
+    nodes.forEach((n) => {
+      const lvl = levels[n.id] || 1;
+      (byLevel[lvl] ||= []).push(n);
+    });
+
+    const levelKeys = Object.keys(byLevel)
+      .map(Number)
+      .sort((a, b) => a - b);
+    if (!levelKeys.length) {
+      wrap.innerHTML = `<div class="sgi-org-empty alert alert-light mb-0">Agregá puestos en la tabla para ver el organigrama.</div>`;
+      onReady?.();
+      return;
+    }
+
+    let html = `<div class="sgi-org-tree-chart" role="tree" aria-label="Organigrama QDV">`;
+    levelKeys.forEach((lvl) => {
+      html += `<div class="sgi-org-tree-level" data-level="${lvl}">`;
+      byLevel[lvl]
+        .sort((a, b) => (a.orden || 0) - (b.orden || 0) || (a.titulo || "").localeCompare(b.titulo || ""))
+        .forEach((n) => {
+          const kind = nodeKindFromData(n);
+          const usuarios = resolveEditorUsuarios(n);
+          const isRoot = !n.parent_id || !byId[n.parent_id];
+          const usersLabel = usuarios.map((u) => u.nombre).join(", ");
+          const usersAttr = usuarios.length
+            ? ` data-usuarios='${JSON.stringify(usuarios).replace(/'/g, "&#39;")}'`
+            : "";
+          html += `
+            <div class="sgi-org-tree-slot" data-node-id="${escHtml(n.id)}" data-level="${lvl}" data-kind="${kind}">
+              <button type="button"
+                      class="sgi-org-node${isRoot ? " sgi-org-node--root" : ""} sgi-org-node--${kind}"
+                      data-node-id="${escHtml(n.id)}"
+                      data-parent-id="${escHtml(n.parent_id || "")}"
+                      data-level="${lvl}"${usersAttr}>
+                <span class="sgi-org-node-title">${escHtml(n.titulo || n.id)}</span>
+                ${usersLabel ? `<span class="sgi-org-node-users">${escHtml(usersLabel)}</span>` : ""}
+              </button>
+            </div>`;
+        });
+      html += `</div>`;
+    });
+    html += `</div>
+      <div class="sgi-org-qdv-footer">
+        <div class="sgi-org-legend">
+          <span class="sgi-org-legend-swatch sgi-org-legend-swatch--external" aria-hidden="true"></span>
+          <span>Servicios Externos</span>
+        </div>
+      </div>`;
+    wrap.innerHTML = html;
+    bindChartClicks(wrap);
+    onReady?.();
+  }
+
   function initView() {
     const chart = qs("#sgiOrgChart");
     if (!chart) return;
     const redrawConnectors = initConnectors();
     initZoom(redrawConnectors);
-
-    qsa(".sgi-org-node", chart).forEach((btn) => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        highlightPath(chart, btn.dataset.nodeId || "");
-        const usuario = btn.dataset.nombre
-          ? {
-              nombre: btn.dataset.nombre,
-              username: btn.dataset.username || "",
-              rol: btn.dataset.rol || "",
-              puesto: btn.dataset.puesto || "",
-              area: btn.dataset.area || "",
-              email: btn.dataset.email || "",
-              telefono: btn.dataset.telefono || "",
-            }
-          : null;
-        renderDetail(usuario, btn.querySelector(".sgi-org-node-title")?.textContent || "", "");
-      });
-    });
+    bindChartClicks(chart);
   }
 
   function escHtml(value) {
@@ -521,6 +689,11 @@
       const parentNode = currentParent ? byId[currentParent] : null;
       tr.title = parentNode ? `Depende de: ${parentNode.titulo || parentNode.id}` : "";
     });
+
+    const chart = qs("#sgiOrgChart");
+    if (chart) {
+      renderChartFromNodes(nodes, chart, editorRedrawConnectors);
+    }
   }
 
   function buildRow(node, idx) {
@@ -573,6 +746,7 @@
 
     tr.querySelector(".org-titulo")?.addEventListener("input", refreshEditorTable);
     tr.querySelector(".org-parent")?.addEventListener("change", refreshEditorTable);
+    tr.querySelector(".org-users")?.addEventListener("change", refreshEditorTable);
     tr.querySelector(".org-del")?.addEventListener("click", () => {
       tr.remove();
       refreshEditorTable();
@@ -584,9 +758,13 @@
     return collectNodesFromTable();
   }
 
+  let editorRedrawConnectors = null;
+
   function initEditor() {
     const tbody = qs("#sgiOrgEditorTable tbody");
     if (!tbody || !editorCfg) return;
+    editorRedrawConnectors = initConnectors();
+    initZoom(editorRedrawConnectors);
     (editorCfg.nodes || []).forEach((n, i) => tbody.appendChild(buildRow(n, i)));
     refreshEditorTable();
     qs("#btnOrgAddRow")?.addEventListener("click", () => {
