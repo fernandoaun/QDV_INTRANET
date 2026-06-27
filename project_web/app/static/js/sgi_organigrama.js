@@ -288,42 +288,7 @@
     if (!wrap) return;
     const grid = qs(".sgi-org-qdv-grid", wrap);
     if (!grid) return;
-    let svg = qs("#sgiOrgConnectors", grid);
-    if (!svg) {
-      svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.id = "sgiOrgConnectors";
-      svg.classList.add("sgi-org-connectors");
-      svg.setAttribute("aria-hidden", "true");
-      grid.insertBefore(svg, grid.firstChild);
-    }
-
-    const w = Math.max(grid.scrollWidth, grid.offsetWidth);
-    const h = Math.max(grid.scrollHeight, grid.offsetHeight);
-    svg.style.width = `${w}px`;
-    svg.style.height = `${h}px`;
-    svg.setAttribute("width", String(w));
-    svg.setAttribute("height", String(h));
-    svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-    svg.innerHTML = "";
-
-    const links = buildLinksFromNodes(wrap);
-    const origin = grid;
-    const busCache = {};
-
-    links.forEach((link) => {
-      if (link.type === "bus" && link.from && link.children) {
-        drawBus(svg, wrap, origin, link.from, link.children, link.style || "solid", busCache);
-      }
-    });
-    links.forEach((link) => {
-      if (link.type === "direct" && link.from && link.to) {
-        drawDirect(svg, wrap, origin, link.from, link.to, link.style || "solid");
-      } else if (link.type === "stem-side" && link.from && link.to) {
-        drawStemSide(svg, wrap, origin, link.from, link.to, busCache);
-      } else if (link.type === "bus-tail" && link.from && link.to) {
-        drawBusTail(svg, wrap, origin, link.from, link.to, busCache);
-      }
-    });
+    qs("#sgiOrgConnectors", grid)?.remove();
   }
 
   function initConnectors() {
