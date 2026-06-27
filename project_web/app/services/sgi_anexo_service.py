@@ -185,6 +185,55 @@ ORGANIGRAMA_QDV_LINKS: tuple[dict[str, Any], ...] = (
 )
 
 
+def _organigrama_node_user_ids(node: dict[str, Any]) -> list[int]:
+    raw = node.get("user_ids")
+    if isinstance(raw, list):
+        out: list[int] = []
+        for item in raw:
+            try:
+                uid = int(item)
+            except (TypeError, ValueError):
+                continue
+            if uid > 0 and uid not in out:
+                out.append(uid)
+        if out:
+            return out
+    uid = node.get("user_id")
+    if uid not in (None, "", 0):
+        try:
+            return [int(uid)]
+        except (TypeError, ValueError):
+            return []
+    return []
+
+
+def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | None:
+    nid = (n.get("id") or f"n{index}").strip()[:64]
+    if not nid:
+        return None
+    user_ids = _organigrama_node_user_ids(n)
+    return {
+        "id": nid,
+        "titulo": (n.get("titulo") or "").strip().upper()[:256],
+        "subtitulo": (n.get("subtitulo") or "").strip()[:256],
+        "parent_id": (n.get("parent_id") or None) or None,
+        "user_id": user_ids[0] if user_ids else None,
+        "user_ids": user_ids,
+        "orden": int(n.get("orden") if n.get("orden") is not None else index),
+    }
+
+
+def organigrama_nodes_for_editor(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for i, n in enumerate(nodes):
+        if not isinstance(n, dict):
+            continue
+        clean = _organigrama_clean_node(n, i)
+        if clean:
+            out.append(clean)
+    return out
+
+
 def _organigrama_spec_by_id() -> dict[str, dict[str, Any]]:
     return {str(s["id"]): dict(s) for s in ORGANIGRAMA_QDV_SPECS}
 
@@ -202,13 +251,15 @@ def organigrama_ensure_complete_nodes(nodes: list[dict[str, Any]]) -> list[dict[
         for gid in (s["id"] for s in ORGANIGRAMA_QDV_GRID):
             base = dict(specs.get(gid, {}))
             saved = by_id.get(gid, {})
+            user_ids = _organigrama_node_user_ids(saved)
             ordered.append(
                 {
                     "id": gid,
                     "titulo": (saved.get("titulo") or base.get("titulo") or gid),
                     "subtitulo": saved.get("subtitulo") or base.get("subtitulo") or "",
                     "parent_id": saved.get("parent_id") if saved.get("parent_id") is not None else base.get("parent_id"),
-                    "user_id": saved.get("user_id"),
+                    "user_id": user_ids[0] if user_ids else saved.get("user_id"),
+                    "user_ids": user_ids,
                     "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
                 }
             )
@@ -390,7 +441,9 @@ def organigrama_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for kids in by_parent.values():
         kids.sort(key=lambda x: int(x.get("orden") or 0))
 
-    user_ids = {int(n["user_id"]) for n in nodes if n.get("user_id")}
+    user_ids: set[int] = set()
+    for n in nodes:
+        user_ids.update(_organigrama_node_user_ids(n))
     users: dict[int, User] = {}
     if user_ids:
         for u in db.session.scalars(select(User).where(User.id.in_(user_ids))).all():
@@ -401,25 +454,34 @@ def organigrama_tree(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if emp.user_id:
                 legajos[int(emp.user_id)] = emp
 
+    def _usuario_payload(uid: int) -> dict[str, Any]:
+        u = users.get(uid)
+        if u is None:
+            return {}
+        emp = legajos.get(uid)
+        return {
+            "id": u.id,
+            "nombre": (u.nombre_completo or u.username or "").strip(),
+            "username": u.username,
+            "rol": role_label(u.rol),
+            "rol_key": normalize_stored_rol(u.rol),
+            "puesto": (emp.puesto if emp else "") or ROLE_LABELS.get(normalize_stored_rol(u.rol), ""),
+            "area": (emp.area if emp else "") or "",
+            "email": (emp.email if emp else "") or "",
+            "telefono": (emp.telefono if emp else "") or "",
+        }
+
     def enrich(node: dict[str, Any]) -> dict[str, Any]:
         row = dict(node)
-        uid = row.get("user_id")
-        u = users.get(int(uid)) if uid else None
-        emp = legajos.get(int(uid)) if uid else None
-        if u is not None:
-            row["usuario"] = {
-                "id": u.id,
-                "nombre": (u.nombre_completo or u.username or "").strip(),
-                "username": u.username,
-                "rol": role_label(u.rol),
-                "rol_key": normalize_stored_rol(u.rol),
-                "puesto": (emp.puesto if emp else "") or ROLE_LABELS.get(normalize_stored_rol(u.rol), ""),
-                "area": (emp.area if emp else "") or "",
-                "email": (emp.email if emp else "") or "",
-                "telefono": (emp.telefono if emp else "") or "",
-            }
-        else:
-            row["usuario"] = None
+        node_user_ids = _organigrama_node_user_ids(row)
+        row["user_ids"] = node_user_ids
+        usuarios = []
+        for uid in node_user_ids:
+            payload = _usuario_payload(uid)
+            if payload:
+                usuarios.append(payload)
+        row["usuarios"] = usuarios
+        row["usuario"] = usuarios[0] if usuarios else None
         row["children"] = [enrich(c) for c in by_parent.get(row.get("id"), [])]
         return row
 
@@ -504,20 +566,9 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
         for i, n in enumerate(nodes):
             if not isinstance(n, dict):
                 continue
-            nid = (n.get("id") or f"n{i}").strip()[:64]
-            if not nid:
-                continue
-            uid = n.get("user_id")
-            clean.append(
-                {
-                    "id": nid,
-                    "titulo": (n.get("titulo") or "").strip().upper()[:256],
-                    "subtitulo": (n.get("subtitulo") or "").strip()[:256],
-                    "parent_id": (n.get("parent_id") or None) or None,
-                    "user_id": int(uid) if uid not in (None, "", 0) else None,
-                    "orden": int(n.get("orden") if n.get("orden") is not None else i),
-                }
-            )
+            row = _organigrama_clean_node(n, i)
+            if row:
+                clean.append(row)
         anexo.contenido_json = json.dumps({"version": 1, "nodes": clean}, ensure_ascii=False)
     else:
         return False, "Este anexo no admite edición de contenido."
@@ -672,20 +723,9 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
         for i, n in enumerate(nodes):
             if not isinstance(n, dict):
                 continue
-            nid = (n.get("id") or f"n{i}").strip()[:64]
-            if not nid:
-                continue
-            uid = n.get("user_id")
-            clean.append(
-                {
-                    "id": nid,
-                    "titulo": (n.get("titulo") or "").strip().upper()[:256],
-                    "subtitulo": (n.get("subtitulo") or "").strip()[:256],
-                    "parent_id": (n.get("parent_id") or None) or None,
-                    "user_id": int(uid) if uid not in (None, "", 0) else None,
-                    "orden": int(n.get("orden") if n.get("orden") is not None else i),
-                }
-            )
+            row = _organigrama_clean_node(n, i)
+            if row:
+                clean.append(row)
         rev.contenido_json = json.dumps({"version": 1, "nodes": clean}, ensure_ascii=False)
     else:
         return False, "Este documento no admite edición de contenido."

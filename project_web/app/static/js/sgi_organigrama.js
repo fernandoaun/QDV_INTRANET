@@ -422,130 +422,177 @@
     });
   }
 
-  function findTableRow(nodeId) {
-    return qsa("#sgiOrgEditorTable tbody tr").find((tr) => tr.querySelector(".org-id")?.value?.trim() === nodeId);
+  function escHtml(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
   }
 
-  function syncChartParent(nodeId, parentId) {
-    const chart = qs("#sgiOrgChart");
-    if (!chart) return;
-    const btn = qs(`.sgi-org-node[data-node-id="${nodeId}"]`, chart);
-    if (btn) btn.dataset.parentId = parentId || "";
+  function slugId(text, fallback) {
+    const slug = String(text || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 48);
+    return slug || fallback;
   }
 
-  function syncTableParent(nodeId, parentId) {
-    const tr = findTableRow(nodeId);
-    const input = tr?.querySelector(".org-parent");
-    if (input) input.value = parentId || "";
-  }
-
-  function initEditorConnect(redrawConnectors) {
-    const chart = qs("#sgiOrgChart");
-    if (!chart || chart.dataset.mode !== "edit") return;
-
-    let connectSourceId = null;
-
-    function clearConnectVisual() {
-      qsa(".sgi-org-node", chart).forEach((b) => b.classList.remove("is-connect-source"));
-    }
-
-    function clearConnectState() {
-      connectSourceId = null;
-      clearConnectVisual();
-    }
-
-    qsa(".sgi-org-node", chart).forEach((btn) => {
-      btn.addEventListener("mousedown", (ev) => ev.stopPropagation());
-      btn.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const nodeId = btn.dataset.nodeId || "";
-        if (!nodeId) return;
-
-        if (!connectSourceId) {
-          clearConnectVisual();
-          connectSourceId = nodeId;
-          btn.classList.add("is-connect-source");
-          flash("info", `Origen: ${btn.querySelector(".sgi-org-node-title")?.textContent || nodeId}. Clic en el puesto dependiente.`);
-          return;
-        }
-
-        if (connectSourceId === nodeId) {
-          clearConnectState();
-          flash("secondary", "Conexión cancelada.");
-          return;
-        }
-
-        syncChartParent(nodeId, connectSourceId);
-        syncTableParent(nodeId, connectSourceId);
-        clearConnectState();
-        redrawConnectors?.();
-        flash("success", "Dependencia asignada. Las líneas se actualizaron.");
-      });
+  function collectNodesFromTable() {
+    return qsa("#sgiOrgEditorTable tbody tr").map((tr, i) => {
+      const titulo = tr.querySelector(".org-titulo")?.value?.trim() || "";
+      const idInput = tr.querySelector(".org-id");
+      const id = idInput?.value?.trim() || slugId(titulo, `n${i}`);
+      if (idInput && !idInput.value.trim()) idInput.value = id;
+      const userIds = Array.from(tr.querySelector(".org-users")?.selectedOptions || [])
+        .map((opt) => parseInt(opt.value, 10))
+        .filter((uid) => Number.isFinite(uid) && uid > 0);
+      return {
+        id,
+        titulo,
+        subtitulo: tr.dataset.subtitulo || "",
+        parent_id: tr.querySelector(".org-parent")?.value?.trim() || null,
+        user_ids: userIds,
+        user_id: userIds[0] || null,
+        orden: parseInt(tr.dataset.orden || String(i), 10),
+      };
     });
+  }
 
-    qs("#btnOrgClearConnect")?.addEventListener("click", () => {
-      clearConnectState();
-      const el = qs("#sgiOrgFlash");
-      if (el) el.classList.add("d-none");
+  function computeLevels(nodes) {
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+    const cache = {};
+    function level(id) {
+      if (!id) return 0;
+      if (cache[id] !== undefined) return cache[id];
+      const node = byId[id];
+      if (!node?.parent_id || !byId[node.parent_id]) {
+        cache[id] = 1;
+        return 1;
+      }
+      cache[id] = level(node.parent_id) + 1;
+      return cache[id];
+    }
+    nodes.forEach((n) => {
+      level(n.id);
     });
+    return cache;
+  }
 
-    qsa("#sgiOrgEditorTable tbody").forEach((tbody) => {
-      tbody.addEventListener("input", (ev) => {
-        if (!ev.target.classList.contains("org-parent")) return;
-        const tr = ev.target.closest("tr");
-        const nodeId = tr?.querySelector(".org-id")?.value?.trim();
-        if (!nodeId) return;
-        syncChartParent(nodeId, ev.target.value.trim());
-        redrawConnectors?.();
-      });
+  function childrenLabels(nodeId, nodes) {
+    const labels = nodes
+      .filter((n) => n.parent_id === nodeId)
+      .map((n) => n.titulo || n.id)
+      .filter(Boolean);
+    return labels.length ? labels.join(", ") : "—";
+  }
+
+  function refreshEditorTable() {
+    const nodes = collectNodesFromTable();
+    const levels = computeLevels(nodes);
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+
+    qsa("#sgiOrgEditorTable tbody tr").forEach((tr) => {
+      const nodeId = tr.querySelector(".org-id")?.value?.trim() || "";
+      const parentSel = tr.querySelector(".org-parent");
+      const belowCell = tr.querySelector(".org-below");
+      const levelCell = tr.querySelector(".org-level");
+      const currentParent = parentSel?.value || "";
+
+      if (parentSel) {
+        const selected = currentParent;
+        parentSel.innerHTML = `<option value="">— Sin superior —</option>`;
+        nodes.forEach((n) => {
+          if (n.id === nodeId) return;
+          const opt = document.createElement("option");
+          opt.value = n.id;
+          opt.textContent = n.titulo || n.id;
+          if (n.id === selected) opt.selected = true;
+          parentSel.appendChild(opt);
+        });
+      }
+
+      if (belowCell) belowCell.textContent = childrenLabels(nodeId, nodes);
+      if (levelCell) levelCell.textContent = nodeId ? String(levels[nodeId] || 1) : "—";
+
+      const parentNode = currentParent ? byId[currentParent] : null;
+      tr.title = parentNode ? `Depende de: ${parentNode.titulo || parentNode.id}` : "";
     });
   }
 
   function buildRow(node, idx) {
     const tr = document.createElement("tr");
+    const userIds = Array.isArray(node.user_ids)
+      ? node.user_ids.map(String)
+      : node.user_id
+        ? [String(node.user_id)]
+        : [];
+    const nodeId = node.id || slugId(node.titulo, `nuevo_${idx}`);
+    tr.dataset.subtitulo = node.subtitulo || "";
+    tr.dataset.orden = String(node.orden ?? idx);
     tr.innerHTML = `
-      <td><input type="text" class="form-control form-control-sm org-id" value="${(node.id || "").replace(/"/g, "&quot;")}"></td>
-      <td><input type="text" class="form-control form-control-sm org-titulo" value="${(node.titulo || "").replace(/"/g, "&quot;")}"></td>
-      <td><input type="text" class="form-control form-control-sm org-sub" value="${(node.subtitulo || "").replace(/"/g, "&quot;")}"></td>
-      <td><input type="text" class="form-control form-control-sm org-parent" value="${(node.parent_id || "").replace(/"/g, "&quot;")}" placeholder="id padre"></td>
-      <td><select class="form-select form-select-sm org-user"><option value="">—</option></select></td>
-      <td><input type="number" class="form-control form-control-sm org-orden" value="${node.orden ?? idx}"></td>
+      <td>
+        <input type="hidden" class="org-id" value="${escHtml(nodeId)}">
+        <input type="text" class="form-control form-control-sm org-titulo" value="${escHtml(node.titulo || "")}" placeholder="Ej. Gerente General">
+      </td>
+      <td>
+        <select class="form-select form-select-sm org-parent">
+          <option value="">— Sin superior —</option>
+        </select>
+      </td>
+      <td class="org-below text-muted small">—</td>
+      <td class="org-level text-muted small text-center">—</td>
+      <td>
+        <select class="form-select form-select-sm org-users" multiple size="3" aria-label="Usuarios del puesto">
+        </select>
+        <div class="form-text">Ctrl + clic para varios</div>
+      </td>
       <td><button type="button" class="btn btn-sm btn-link text-danger org-del">Quitar</button></td>
     `;
-    const sel = qs(".org-user", tr);
+
+    const parentSel = qs(".org-parent", tr);
+    if (node.parent_id) {
+      const opt = document.createElement("option");
+      opt.value = node.parent_id;
+      opt.textContent = node.parent_id;
+      opt.selected = true;
+      parentSel.appendChild(opt);
+    }
+
+    const usersSel = qs(".org-users", tr);
     (editorCfg.usuarios || []).forEach((u) => {
       const opt = document.createElement("option");
       opt.value = String(u.id);
       opt.textContent = `${u.label} (${u.rol})`;
-      if (String(node.user_id || "") === String(u.id)) opt.selected = true;
-      sel.appendChild(opt);
+      if (userIds.includes(String(u.id))) opt.selected = true;
+      usersSel.appendChild(opt);
     });
-    tr.querySelector(".org-del")?.addEventListener("click", () => tr.remove());
+
+    tr.querySelector(".org-titulo")?.addEventListener("input", refreshEditorTable);
+    tr.querySelector(".org-parent")?.addEventListener("change", refreshEditorTable);
+    tr.querySelector(".org-del")?.addEventListener("click", () => {
+      tr.remove();
+      refreshEditorTable();
+    });
     return tr;
   }
 
   function collectNodes() {
-    return qsa("#sgiOrgEditorTable tbody tr").map((tr, i) => ({
-      id: tr.querySelector(".org-id")?.value?.trim() || `n${i}`,
-      titulo: tr.querySelector(".org-titulo")?.value?.trim() || "",
-      subtitulo: tr.querySelector(".org-sub")?.value?.trim() || "",
-      parent_id: tr.querySelector(".org-parent")?.value?.trim() || null,
-      user_id: tr.querySelector(".org-user")?.value || null,
-      orden: parseInt(tr.querySelector(".org-orden")?.value || String(i), 10),
-    }));
+    return collectNodesFromTable();
   }
 
   function initEditor() {
     const tbody = qs("#sgiOrgEditorTable tbody");
     if (!tbody || !editorCfg) return;
-    const redrawConnectors = initConnectors();
-    initZoom(redrawConnectors);
-    initEditorConnect(redrawConnectors);
     (editorCfg.nodes || []).forEach((n, i) => tbody.appendChild(buildRow(n, i)));
+    refreshEditorTable();
     qs("#btnOrgAddRow")?.addEventListener("click", () => {
       const i = qsa("#sgiOrgEditorTable tbody tr").length;
       tbody.appendChild(buildRow({ id: `nuevo_${i}`, orden: i }, i));
+      refreshEditorTable();
     });
     qs("#btnGuardarOrganigrama")?.addEventListener("click", () => {
       fetch(editorCfg.guardarUrl, {

@@ -190,6 +190,24 @@
   cursor: crosshair;
 }
 
+#sgiOrgEditorTable .org-users {
+  min-width: 12rem;
+}
+
+#sgiOrgEditorTable .org-below {
+  min-width: 10rem;
+  max-width: 16rem;
+}
+
+#sgiOrgEditorTable .org-level {
+  width: 4rem;
+}
+
+#sgiOrgEditorTable .form-text {
+  font-size: 0.68rem;
+  margin-top: 0.15rem;
+}
+
 .sgi-org-node-title {
   display: block;
   font-weight: 700;
