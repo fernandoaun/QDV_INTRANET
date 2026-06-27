@@ -207,11 +207,33 @@ def _organigrama_node_user_ids(node: dict[str, Any]) -> list[int]:
     return []
 
 
+def _organigrama_node_nivel(node_id: str, by_id: dict[str, dict[str, Any]], depth_cache: dict[str, int]) -> int:
+    """Altura visual del recuadro: 0 = fila superior, 1 = siguiente, etc."""
+    node = by_id.get(node_id)
+    if not node:
+        return 0
+    raw = node.get("nivel")
+    if raw is not None and raw != "":
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            pass
+    depth = _organigrama_node_depth(node_id, by_id, depth_cache)
+    return max(0, depth - 1)
+
+
 def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | None:
     nid = (n.get("id") or f"n{index}").strip()[:64]
     if not nid:
         return None
     user_ids = _organigrama_node_user_ids(n)
+    nivel: int | None = None
+    raw_nivel = n.get("nivel")
+    if raw_nivel is not None and raw_nivel != "":
+        try:
+            nivel = max(0, int(raw_nivel))
+        except (TypeError, ValueError):
+            nivel = None
     return {
         "id": nid,
         "titulo": (n.get("titulo") or "").strip().upper()[:256],
@@ -220,6 +242,7 @@ def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | N
         "user_id": user_ids[0] if user_ids else None,
         "user_ids": user_ids,
         "orden": int(n.get("orden") if n.get("orden") is not None else index),
+        "nivel": nivel,
     }
 
 
@@ -261,6 +284,7 @@ def organigrama_ensure_complete_nodes(nodes: list[dict[str, Any]]) -> list[dict[
                     "user_id": user_ids[0] if user_ids else saved.get("user_id"),
                     "user_ids": user_ids,
                     "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
+                    "nivel": saved.get("nivel") if saved.get("nivel") is not None else base.get("nivel"),
                 }
             )
         return ordered
@@ -361,7 +385,7 @@ def organigrama_chart_levels(nodes: list[dict[str, Any]]) -> list[list[dict[str,
     by_level: dict[int, list[dict[str, Any]]] = {}
     for nid, base in by_id.items():
         enriched = flat.get(nid, {})
-        level = _organigrama_node_depth(nid, by_id, depth_cache)
+        level = _organigrama_node_nivel(nid, by_id, depth_cache)
         usuarios = enriched.get("usuarios") or []
         item = {
             "id": nid,

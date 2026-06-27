@@ -527,10 +527,10 @@
   function renderChartFromNodes(nodes, wrap, onReady) {
     if (!wrap) return;
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-    const levels = computeLevels(nodes);
+    const levels = nodeLevels(nodes);
     const byLevel = {};
     nodes.forEach((n) => {
-      const lvl = levels[n.id] || 1;
+      const lvl = levels[n.id] ?? 0;
       (byLevel[lvl] ||= []).push(n);
     });
 
@@ -618,6 +618,9 @@
       const userIds = Array.from(tr.querySelector(".org-users")?.selectedOptions || [])
         .map((opt) => parseInt(opt.value, 10))
         .filter((uid) => Number.isFinite(uid) && uid > 0);
+      const nivelRaw = tr.querySelector(".org-nivel")?.value;
+      const nivelParsed = nivelRaw === "" || nivelRaw === undefined ? null : parseInt(nivelRaw, 10);
+      const nivel = Number.isFinite(nivelParsed) ? Math.max(0, nivelParsed) : null;
       return {
         id,
         titulo,
@@ -626,49 +629,71 @@
         user_ids: userIds,
         user_id: userIds[0] || null,
         orden: parseInt(tr.dataset.orden || String(i), 10),
+        nivel,
       };
     });
   }
 
-  function computeLevels(nodes) {
-    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
-    const cache = {};
-    function level(id) {
-      if (!id) return 0;
-      if (cache[id] !== undefined) return cache[id];
-      const node = byId[id];
-      if (!node?.parent_id || !byId[node.parent_id]) {
-        cache[id] = 1;
-        return 1;
-      }
-      cache[id] = level(node.parent_id) + 1;
-      return cache[id];
+  function inferNivel(nodeId, nodes, cache) {
+    const memo = cache || {};
+    if (memo[nodeId] !== undefined) return memo[nodeId];
+    const node = nodes.find((n) => n.id === nodeId);
+    if (!node) {
+      memo[nodeId] = 0;
+      return 0;
     }
-    nodes.forEach((n) => {
-      level(n.id);
-    });
-    return cache;
+    if (node.nivel !== null && node.nivel !== undefined && Number.isFinite(node.nivel)) {
+      memo[nodeId] = Math.max(0, node.nivel);
+      return memo[nodeId];
+    }
+    if (!node.parent_id || !nodes.some((n) => n.id === node.parent_id)) {
+      memo[nodeId] = 0;
+      return 0;
+    }
+    memo[nodeId] = inferNivel(node.parent_id, nodes, memo) + 1;
+    return memo[nodeId];
   }
 
-  function childrenLabels(nodeId, nodes) {
-    const labels = nodes
-      .filter((n) => n.parent_id === nodeId)
-      .map((n) => n.titulo || n.id)
-      .filter(Boolean);
-    return labels.length ? labels.join(", ") : "—";
+  function nodeLevels(nodes) {
+    const cache = {};
+    const out = {};
+    nodes.forEach((n) => {
+      out[n.id] = inferNivel(n.id, nodes, cache);
+    });
+    return out;
+  }
+
+  function childIds(nodeId, nodes) {
+    return nodes.filter((n) => n.parent_id === nodeId).map((n) => n.id);
+  }
+
+  function syncChildrenFromSelect(tr, nodeId) {
+    const selected = Array.from(tr.querySelector(".org-children")?.selectedOptions || []).map((opt) => opt.value);
+    qsa("#sgiOrgEditorTable tbody tr").forEach((otherTr) => {
+      const otherId = otherTr.querySelector(".org-id")?.value?.trim() || "";
+      if (!otherId || otherId === nodeId) return;
+      const parentSel = otherTr.querySelector(".org-parent");
+      if (!parentSel) return;
+      if (selected.includes(otherId)) {
+        parentSel.value = nodeId;
+      } else if (parentSel.value === nodeId) {
+        parentSel.value = "";
+      }
+    });
   }
 
   function refreshEditorTable() {
     const nodes = collectNodesFromTable();
-    const levels = computeLevels(nodes);
+    const levels = nodeLevels(nodes);
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
     qsa("#sgiOrgEditorTable tbody tr").forEach((tr) => {
       const nodeId = tr.querySelector(".org-id")?.value?.trim() || "";
       const parentSel = tr.querySelector(".org-parent");
-      const belowCell = tr.querySelector(".org-below");
-      const levelCell = tr.querySelector(".org-level");
+      const childrenSel = tr.querySelector(".org-children");
+      const nivelInput = tr.querySelector(".org-nivel");
       const currentParent = parentSel?.value || "";
+      const currentChildren = childIds(nodeId, nodes);
 
       if (parentSel) {
         const selected = currentParent;
@@ -683,8 +708,35 @@
         });
       }
 
-      if (belowCell) belowCell.textContent = childrenLabels(nodeId, nodes);
-      if (levelCell) levelCell.textContent = nodeId ? String(levels[nodeId] || 1) : "—";
+      if (childrenSel) {
+        const hadFocus = document.activeElement === childrenSel;
+        childrenSel.innerHTML = "";
+        nodes.forEach((n) => {
+          if (n.id === nodeId) return;
+          const opt = document.createElement("option");
+          opt.value = n.id;
+          opt.textContent = n.titulo || n.id;
+          if (currentChildren.includes(n.id)) opt.selected = true;
+          childrenSel.appendChild(opt);
+        });
+        if (!childrenSel.options.length) {
+          const empty = document.createElement("option");
+          empty.value = "";
+          empty.textContent = "— Sin puestos —";
+          empty.disabled = true;
+          childrenSel.appendChild(empty);
+        }
+        if (hadFocus) childrenSel.focus();
+      }
+
+      if (nivelInput && document.activeElement !== nivelInput) {
+        const node = byId[nodeId];
+        if (node?.nivel !== null && node?.nivel !== undefined) {
+          nivelInput.value = String(node.nivel);
+        } else {
+          nivelInput.value = String(levels[nodeId] ?? 0);
+        }
+      }
 
       const parentNode = currentParent ? byId[currentParent] : null;
       tr.title = parentNode ? `Depende de: ${parentNode.titulo || parentNode.id}` : "";
@@ -706,6 +758,10 @@
     const nodeId = node.id || slugId(node.titulo, `nuevo_${idx}`);
     tr.dataset.subtitulo = node.subtitulo || "";
     tr.dataset.orden = String(node.orden ?? idx);
+    const nivelVal =
+      node.nivel !== null && node.nivel !== undefined && Number.isFinite(node.nivel)
+        ? Math.max(0, node.nivel)
+        : 0;
     tr.innerHTML = `
       <td>
         <input type="hidden" class="org-id" value="${escHtml(nodeId)}">
@@ -716,8 +772,15 @@
           <option value="">— Sin superior —</option>
         </select>
       </td>
-      <td class="org-below text-muted small">—</td>
-      <td class="org-level text-muted small text-center">—</td>
+      <td>
+        <select class="form-select form-select-sm org-children" multiple size="3" aria-label="Puestos por debajo">
+        </select>
+        <div class="form-text">Ctrl + clic para varios</div>
+      </td>
+      <td>
+        <input type="number" class="form-control form-control-sm org-nivel text-center" min="0" step="1" value="${nivelVal}" aria-label="Nivel visual">
+        <div class="form-text">0 = arriba</div>
+      </td>
       <td>
         <select class="form-select form-select-sm org-users" multiple size="3" aria-label="Usuarios del puesto">
         </select>
@@ -746,6 +809,11 @@
 
     tr.querySelector(".org-titulo")?.addEventListener("input", refreshEditorTable);
     tr.querySelector(".org-parent")?.addEventListener("change", refreshEditorTable);
+    tr.querySelector(".org-children")?.addEventListener("change", () => {
+      syncChildrenFromSelect(tr, nodeId);
+      refreshEditorTable();
+    });
+    tr.querySelector(".org-nivel")?.addEventListener("input", refreshEditorTable);
     tr.querySelector(".org-users")?.addEventListener("change", refreshEditorTable);
     tr.querySelector(".org-del")?.addEventListener("click", () => {
       tr.remove();
