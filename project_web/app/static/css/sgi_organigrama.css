@@ -238,17 +238,13 @@
   cursor: pointer;
 }
 
-#sgiOrgEditorTable .org-users {
+#sgiOrgEditorTable .org-users,
+#sgiOrgEditorTable .org-children {
   min-width: 12rem;
 }
 
-#sgiOrgEditorTable .org-below {
-  min-width: 10rem;
-  max-width: 16rem;
-}
-
-#sgiOrgEditorTable .org-level {
-  width: 4rem;
+#sgiOrgEditorTable .org-nivel {
+  width: 4.5rem;
 }
 
 #sgiOrgEditorTable .form-text {

@@ -810,7 +810,8 @@
     tr.querySelector(".org-titulo")?.addEventListener("input", refreshEditorTable);
     tr.querySelector(".org-parent")?.addEventListener("change", refreshEditorTable);
     tr.querySelector(".org-children")?.addEventListener("change", () => {
-      syncChildrenFromSelect(tr, nodeId);
+      const currentId = tr.querySelector(".org-id")?.value?.trim() || nodeId;
+      syncChildrenFromSelect(tr, currentId);
       refreshEditorTable();
     });
     tr.querySelector(".org-nivel")?.addEventListener("input", refreshEditorTable);

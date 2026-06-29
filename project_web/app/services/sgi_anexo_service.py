@@ -254,6 +254,12 @@ def organigrama_nodes_for_editor(nodes: list[dict[str, Any]]) -> list[dict[str, 
         clean = _organigrama_clean_node(n, i)
         if clean:
             out.append(clean)
+    if out:
+        by_id = {str(n["id"]): n for n in out}
+        depth_cache: dict[str, int] = {}
+        for row in out:
+            if row.get("nivel") is None:
+                row["nivel"] = _organigrama_node_nivel(str(row["id"]), by_id, depth_cache)
     return out
 
 
