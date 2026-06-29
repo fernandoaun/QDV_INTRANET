@@ -669,15 +669,21 @@
 
   function syncChildrenFromSelect(tr, nodeId) {
     const selected = Array.from(tr.querySelector(".org-children")?.selectedOptions || []).map((opt) => opt.value);
+    const nodes = collectNodesFromTable();
+    const levels = nodeLevels(nodes);
+    const parentNivel = levels[nodeId] ?? 0;
     qsa("#sgiOrgEditorTable tbody tr").forEach((otherTr) => {
       const otherId = otherTr.querySelector(".org-id")?.value?.trim() || "";
       if (!otherId || otherId === nodeId) return;
       const parentSel = otherTr.querySelector(".org-parent");
       if (!parentSel) return;
+      const childNivel = otherTr.querySelector(".org-nivel");
       if (selected.includes(otherId)) {
         parentSel.value = nodeId;
+        if (childNivel) childNivel.value = String(parentNivel + 1);
       } else if (parentSel.value === nodeId) {
         parentSel.value = "";
+        if (childNivel) childNivel.value = "0";
       }
     });
   }
@@ -808,7 +814,17 @@
     });
 
     tr.querySelector(".org-titulo")?.addEventListener("input", refreshEditorTable);
-    tr.querySelector(".org-parent")?.addEventListener("change", refreshEditorTable);
+    tr.querySelector(".org-parent")?.addEventListener("change", () => {
+      const parentId = tr.querySelector(".org-parent")?.value?.trim() || "";
+      const nivelInput = tr.querySelector(".org-nivel");
+      if (nivelInput) {
+        const nodes = collectNodesFromTable();
+        const levels = nodeLevels(nodes);
+        const parentNivel = parentId ? levels[parentId] ?? 0 : -1;
+        nivelInput.value = String(parentId ? parentNivel + 1 : 0);
+      }
+      refreshEditorTable();
+    });
     tr.querySelector(".org-children")?.addEventListener("change", () => {
       const currentId = tr.querySelector(".org-id")?.value?.trim() || nodeId;
       syncChildrenFromSelect(tr, currentId);

@@ -30,7 +30,7 @@
 {% if chart_levels %}
 <div class="sgi-org-tree-chart" role="tree" aria-label="Organigrama QDV">
   {% for level in chart_levels %}
-  <div class="sgi-org-tree-level" data-level="{{ loop.index }}">
+  <div class="sgi-org-tree-level" data-level="{{ level[0].level if level else loop.index0 }}">
     {% for n in level %}{{ render_node(n) }}{% endfor %}
   </div>
   {% endfor %}
