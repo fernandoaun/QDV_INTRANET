@@ -570,6 +570,11 @@ def procedimiento_workflow(slug: str, doc_id: int, rev_id: int):
     elif accion == "marcar_revisado":
         if not proc_svc.user_can_marcar_revisado(u, rev):
             return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        if any(k in payload for k in ("aprobo", "aprobador_correo", "reviso", "revisor_correo")):
+            proc_svc.save_workflow_caratula(rev_id, payload, u.id, label)
+            rev = proc_svc.get_revision(rev_id)
+            if rev is None:
+                return jsonify({"ok": False, "message": "Revisión no encontrada."}), 404
         ok, msg = proc_svc.marcar_como_revisado(rev_id, u.id, label)
     elif accion == "aprobar":
         if not proc_svc.user_can_aprobar_revision(u, rev):

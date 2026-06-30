@@ -46,6 +46,7 @@
   </div>
 </div>
 
+{% set mostrar_toolbar_workflow = (rev.estado == 'en_revision' and puede_marcar_revisado) or (rev.estado == 'revisado' and puede_aprobar) or (rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso) %}
 {% if not solo_lectura %}
 <div class="sgi-proc-toolbar sgi-proc-no-print d-flex flex-wrap align-items-center gap-2">
   <div class="flex-grow-1" style="min-width:200px">
@@ -73,6 +74,32 @@
     {% endif %}
     <button type="button" class="btn btn-outline-danger btn-sm" id="btnExportPdf"><i class="bi bi-file-pdf me-1"></i>Exportar PDF</button>
     <button type="button" class="btn btn-outline-secondary btn-sm" id="btnExportWord"><i class="bi bi-file-word me-1"></i>Exportar Word</button>
+  </div>
+</div>
+{% elif mostrar_toolbar_workflow %}
+<div class="sgi-proc-toolbar sgi-proc-no-print mb-2">
+  <div class="alert alert-light border py-2 mb-2">
+  {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <strong>Revisión pendiente.</strong> Leé el procedimiento, completá «Aprobó» y «Correo del aprobador» en la carátula si faltan, y confirmá con el botón de abajo.
+  {% elif rev.estado == 'revisado' and puede_aprobar %}
+    <strong>Pendiente de tu aprobación.</strong> Revisá el documento y confirmá con el botón de abajo.
+  {% else %}
+    <strong>Flujo de aprobación.</strong> Podés reenviar el aviso por correo si hace falta.
+  {% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-1">
+    {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <button type="button" class="btn btn-info btn-sm" id="btnMarcarRevisado"><i class="bi bi-check2-square me-1"></i>Marcar como revisado</button>
+    {% endif %}
+    {% if rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReenviarAviso" title="Reenviar correo al revisor o aprobador">
+      <i class="bi bi-envelope-arrow-up me-1"></i>Reenviar aviso por correo
+    </button>
+    {% endif %}
+    {% if rev.estado == 'revisado' and puede_aprobar %}
+    <button type="button" class="btn btn-success btn-sm" id="btnAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
+    {% endif %}
+    <button type="button" class="btn btn-outline-danger btn-sm" id="btnExportPdf"><i class="bi bi-file-pdf me-1"></i>Exportar PDF</button>
   </div>
 </div>
 {% else %}

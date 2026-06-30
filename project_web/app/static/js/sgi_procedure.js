@@ -1540,15 +1540,18 @@
       const data = collectPayload();
       const res = await postJson(cfg.urls.guardar, data);
       if (!res.ok) {
-        flashMsg("danger", res.message || "No se pudo guardar antes de continuar.");
-        return;
+        // El endpoint workflow también persiste la carátula; no bloquear si falló el guardado previo.
+        console.warn("Guardado previo de carátula:", res.message || res.error);
       }
     }
     const token = qs('meta[name="csrf-token"]')?.content || cfg.csrf || "";
     const body = { accion };
-    if (accion === "reenviar_aviso") {
+    if (accion === "reenviar_aviso" || accion === "marcar_revisado") {
       body.revisor_correo = qs("#procRevisorCorreo")?.value || "";
       body.aprobador_correo = qs("#procAprobadorCorreo")?.value || "";
+    }
+    if (accion === "marcar_revisado") {
+      body.aprobo = qs("#procAprobo")?.value || "";
     }
     const res = await fetch(cfg.urls.workflow, {
       method: "POST",

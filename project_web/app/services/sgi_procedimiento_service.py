@@ -874,7 +874,11 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
     if rev is None or rev.estado != ESTADO_EN_REVISION:
         return False, "Solo un documento en revisión puede marcarse como revisado."
     if not (rev.aprobo or "").strip():
-        return False, "Indicá quién aprueba (campo «Aprobó» en la carátula) antes de continuar."
+        correo_aprob = (rev.aprobador_correo or "").strip()
+        if correo_aprob:
+            rev.aprobo = correo_aprob[:256]
+        else:
+            return False, "Indicá quién aprueba (campo «Aprobó» en la carátula) antes de continuar."
     app = current_app._get_current_object()
     recipients = workflow_svc.resolve_approval_recipients(app, rev)
     if not recipients:
