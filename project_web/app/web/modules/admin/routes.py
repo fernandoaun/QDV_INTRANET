@@ -470,6 +470,28 @@ def entrega_epp_reminders_send():
     return redirect(url_for("admin_users.deadline_alert_emails"))
 
 
+@bp.post("/avisos-correo/sgi-reenviar-avisos")
+@login_required
+@admin_required
+def sgi_workflow_reminders_resend():
+    if not is_mail_fully_configured(current_app):
+        flash("SMTP no configurado: revisá SMTP_HOST y MAIL_FROM en el servidor.", "warning")
+        return redirect(url_for("admin_users.deadline_alert_emails"))
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    out = proc_svc.reenviar_avisos_pendientes(current_app, dry_run=False)
+    msg = out.get("message") or "Proceso de avisos SGI finalizado."
+    sent = int(out.get("sent") or 0)
+    failed = int(out.get("failed") or 0)
+    if sent > 0 and not failed:
+        flash(msg, "success")
+    elif sent > 0 or failed > 0:
+        flash(msg, "warning")
+    else:
+        flash(msg, "info")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
+
+
 @bp.post("/avisos-correo/probar-envio")
 @login_required
 @admin_required

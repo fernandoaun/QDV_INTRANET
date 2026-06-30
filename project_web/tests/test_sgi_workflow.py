@@ -94,6 +94,26 @@ def test_reenviar_aviso_revision(app, sgi_editor):
         assert "reenviado" in msg.lower()
 
 
+def test_reenviar_avisos_pendientes_bulk(app, sgi_editor):
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="BULK")
+        assert err is None and doc and rev
+
+        from app.services import sgi_documento_perfil_service as perfil_svc
+
+        rev.reviso = "Revisor"
+        rev.revisor_correo = "revisor@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+
+        ok, _ = proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        assert ok
+
+        out = proc_svc.reenviar_avisos_pendientes(app, dry_run=True)
+        assert out["total"] >= 1
+        assert any(i.get("codigo") == doc.codigo for i in out["items"])
+
+
 def test_aprobar_requires_revisado_state(app, sgi_editor):
     from app.services import sgi_documento_perfil_service as perfil_svc
 

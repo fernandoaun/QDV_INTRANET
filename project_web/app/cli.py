@@ -11,6 +11,7 @@ from app.models import User
 from app.services.deadline_reminder_service import run_deadline_reminders
 from app.services.personal_birthday_reminder_service import run_birthday_reminders
 from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
+from app.services import sgi_procedimiento_service as proc_svc
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.user_roles import ROLE_ADMINISTRADOR
 
@@ -131,6 +132,27 @@ def register_cli(app: Flask) -> None:
             click.echo(out.get("preview_subject") or "")
             click.echo("--- Planificación/Mantenimiento: cuerpo ---")
             click.echo(out.get("preview_body"))
+
+    @app.cli.command("sgi-reenviar-avisos")
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        help="Listar documentos y destinatarios sin enviar correos.",
+    )
+    def sgi_reenviar_avisos(dry_run: bool) -> None:
+        """Reenvía avisos SGI a documentos en revisión o pendientes de aprobación."""
+        with app.app_context():
+            out = proc_svc.reenviar_avisos_pendientes(app, dry_run=dry_run)
+        click.echo(out.get("message") or "")
+        click.echo(
+            f"Total: {out.get('total')} · enviados: {out.get('sent')} · "
+            f"fallidos: {out.get('failed')} · omitidos: {out.get('skipped')}"
+        )
+        for item in out.get("items") or []:
+            click.echo(
+                f"  - {item.get('codigo')} ({item.get('estado')}): "
+                f"{item.get('status')} — {item.get('message')}"
+            )
 
     @app.cli.command("seed-msgi-anexos")
     @click.option(

@@ -866,6 +866,136 @@ def reenviar_aviso_workflow(rev_id: int, payload: dict[str, Any] | None = None) 
     return False, "Solo se puede reenviar el aviso si el documento está en revisión o pendiente de aprobación."
 
 
+def reenviar_avisos_pendientes(app: Any, *, dry_run: bool = False) -> dict[str, Any]:
+    """Reenvía correos del flujo SGI a todas las revisiones en revisión o pendientes de aprobación."""
+    from app.services.mail_service import is_mail_fully_configured
+
+    revs = list(
+        db.session.scalars(
+            select(SgiProcedimientoRevision)
+            .where(SgiProcedimientoRevision.estado.in_((ESTADO_EN_REVISION, ESTADO_REVISADO)))
+            .order_by(SgiProcedimientoRevision.id)
+        ).all()
+    )
+    items: list[dict[str, Any]] = []
+    sent = 0
+    failed = 0
+    skipped = 0
+    smtp_ok = is_mail_fully_configured(app)
+
+    if not revs:
+        return {
+            "total": 0,
+            "sent": 0,
+            "failed": 0,
+            "skipped": 0,
+            "dry_run": dry_run,
+            "smtp_configured": smtp_ok,
+            "items": [],
+            "message": "No hay documentos en revisión ni pendientes de aprobación.",
+        }
+
+    if not smtp_ok and not dry_run:
+        return {
+            "total": len(revs),
+            "sent": 0,
+            "failed": 0,
+            "skipped": len(revs),
+            "dry_run": dry_run,
+            "smtp_configured": False,
+            "items": [],
+            "message": "SMTP no configurado (SMTP_HOST / MAIL_FROM). No se envió ningún aviso.",
+        }
+
+    for rev in revs:
+        doc = rev.documento
+        codigo = (doc.codigo or "").strip() or f"doc#{doc.id}"
+        if rev.estado == ESTADO_EN_REVISION:
+            recipients = workflow_svc.resolve_revision_recipients(app, rev)
+            tipo_aviso = "revisión"
+        else:
+            recipients = workflow_svc.resolve_approval_recipients(app, rev)
+            tipo_aviso = "aprobación"
+
+        if not recipients:
+            skipped += 1
+            items.append(
+                {
+                    "rev_id": rev.id,
+                    "codigo": codigo,
+                    "estado": rev.estado,
+                    "status": "skipped",
+                    "message": f"Sin correo de {tipo_aviso} en carátula ni respaldo en servidor.",
+                }
+            )
+            continue
+
+        if dry_run:
+            items.append(
+                {
+                    "rev_id": rev.id,
+                    "codigo": codigo,
+                    "estado": rev.estado,
+                    "status": "dry_run",
+                    "destinatarios": recipients,
+                    "message": f"Se enviaría aviso de {tipo_aviso} a {', '.join(recipients)}.",
+                }
+            )
+            continue
+
+        if rev.estado == ESTADO_EN_REVISION:
+            mail_sent = workflow_svc.notify_revision_requested(app, doc, rev)
+        else:
+            mail_sent = workflow_svc.notify_pending_approval(app, doc, rev)
+
+        if mail_sent:
+            sent += 1
+            items.append(
+                {
+                    "rev_id": rev.id,
+                    "codigo": codigo,
+                    "estado": rev.estado,
+                    "status": "sent",
+                    "destinatarios": recipients,
+                    "message": f"Aviso de {tipo_aviso} enviado.",
+                }
+            )
+        else:
+            failed += 1
+            items.append(
+                {
+                    "rev_id": rev.id,
+                    "codigo": codigo,
+                    "estado": rev.estado,
+                    "status": "failed",
+                    "destinatarios": recipients,
+                    "message": f"No se pudo enviar aviso de {tipo_aviso}.",
+                }
+            )
+
+    if dry_run:
+        msg = f"Dry-run: {len(revs)} documento(s) en cola; {skipped} sin correo."
+    elif sent and not failed:
+        msg = f"Se reenviaron {sent} aviso(s) SGI."
+    elif sent:
+        msg = f"Se enviaron {sent} aviso(s); {failed} fallaron; {skipped} omitidos (sin correo)."
+    elif failed:
+        msg = f"No se pudo enviar ningún aviso ({failed} fallo(s), {skipped} omitidos)."
+    else:
+        msg = f"Ningún aviso enviado: {skipped} documento(s) sin correo configurado."
+
+    return {
+        "total": len(revs),
+        "sent": sent,
+        "failed": failed,
+        "skipped": skipped,
+        "dry_run": dry_run,
+        "smtp_configured": smtp_ok,
+        "items": items,
+        "message": msg,
+    }
+
+
 def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool, str]:
     rev = get_revision(rev_id)
     if rev is None or rev.estado != ESTADO_REVISADO:
