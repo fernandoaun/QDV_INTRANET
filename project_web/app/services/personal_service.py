@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
@@ -185,70 +185,251 @@ def _temp_legajo_for_user(user: User) -> str:
     return f"TMP-U{user.id}"[:32]
 
 
-def _find_orphan_legajo_for_user(user: User) -> EmpleadoPersonal | None:
-    """Legajo sin user_id que corresponde al usuario (evita duplicados tras migración)."""
+def _is_ephemeral_legajo(emp: EmpleadoPersonal) -> bool:
+    """Legajo auto-generado al crear usuario (sin datos RRHH previos)."""
+    code = (emp.legajo or "").strip()
+    return code.startswith("TMP-U") or code.startswith("TMP-R")
+
+
+def _empleado_matches_user(emp: EmpleadoPersonal, user: User) -> bool:
+    """True si el legajo corresponde al usuario (sin mirar user_id)."""
     username = (user.username or "").strip().lower()
-    if username:
-        by_legajo = (
-            db.session.query(EmpleadoPersonal)
-            .filter(
-                EmpleadoPersonal.user_id.is_(None),
-                func.lower(EmpleadoPersonal.legajo) == username,
-            )
-            .first()
-        )
-        if by_legajo is not None:
-            return by_legajo
+    legajo_code = (emp.legajo or "").strip().lower()
+    if username and legajo_code and username == legajo_code:
+        return True
+
+    email = (emp.email or "").strip().lower()
+    if username and email and "@" in email:
+        local = email.split("@", 1)[0].strip().lower()
+        if local and local == username:
+            return True
 
     apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or "")
     if apellido and nombre:
-        by_name = (
-            db.session.query(EmpleadoPersonal)
-            .filter(
-                EmpleadoPersonal.user_id.is_(None),
-                func.lower(EmpleadoPersonal.apellido) == apellido.lower(),
-                func.lower(EmpleadoPersonal.nombre) == nombre.lower(),
-            )
-            .first()
-        )
-        if by_name is not None:
-            return by_name
+        if (
+            (emp.apellido or "").strip().lower() == apellido.lower()
+            and (emp.nombre or "").strip().lower() == nombre.lower()
+        ):
+            return True
+
+    if username:
+        ap_emp = (emp.apellido or "").strip().lower()
+        nom_emp = (emp.nombre or "").strip().lower()
+        if username == ap_emp or username == nom_emp:
+            return True
+        full_user = (user.nombre_completo or "").strip().lower()
+        if full_user and full_user == f"{ap_emp}, {nom_emp}":
+            return True
 
     op_names = {n for n in {username, (user.nombre_completo or "").strip().lower()} if n}
-    if not op_names:
-        return None
-    ops = db.session.query(Operador).filter(func.lower(Operador.nombre).in_(tuple(op_names))).all()
-    for op in ops:
-        emp = (
-            db.session.query(EmpleadoPersonal)
-            .filter(
-                EmpleadoPersonal.user_id.is_(None),
-                EmpleadoPersonal.operador_id == op.id,
-            )
-            .first()
-        )
-        if emp is not None:
+    if op_names and emp.operador_id is not None:
+        op = db.session.get(Operador, int(emp.operador_id))
+        if op is not None and (op.nombre or "").strip().lower() in op_names:
+            return True
+    return False
+
+
+def _orphan_empleados_query():
+    return db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id.is_(None))
+
+
+def _find_orphan_legajo_for_user(user: User) -> EmpleadoPersonal | None:
+    """Legajo sin user_id que corresponde al usuario (evita duplicados tras migración)."""
+    for emp in _orphan_empleados_query().order_by(EmpleadoPersonal.id.asc()).all():
+        if _empleado_matches_user(emp, user):
             return emp
     return None
 
 
-def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal | None:
-    """Crea el legajo RRHH para un usuario si aún no existe."""
+def _find_orphan_with_pending_entregas_for_user(user: User) -> EmpleadoPersonal | None:
+    """Legajo huérfano con entregas EPP pendientes que coincide con el usuario."""
+    pendiente = exists().where(
+        PersonalEntregaEpp.empleado_id == EmpleadoPersonal.id,
+        PersonalEntregaEpp.estado == "pendiente",
+    )
+    rows = (
+        _orphan_empleados_query()
+        .filter(pendiente)
+        .order_by(EmpleadoPersonal.id.asc())
+        .all()
+    )
+    for emp in rows:
+        if _empleado_matches_user(emp, user):
+            return emp
+    return None
+
+
+def _empleado_has_rrhh_records(empleado_id: int) -> bool:
+    if (
+        db.session.query(PersonalEntregaEpp.id)
+        .filter(PersonalEntregaEpp.empleado_id == empleado_id)
+        .limit(1)
+        .first()
+        is not None
+    ):
+        return True
+    if (
+        db.session.query(PersonalVacacion.id)
+        .filter(PersonalVacacion.empleado_id == empleado_id)
+        .limit(1)
+        .first()
+        is not None
+    ):
+        return True
+    if (
+        db.session.query(PersonalCurso.id)
+        .filter(PersonalCurso.empleado_id == empleado_id)
+        .limit(1)
+        .first()
+        is not None
+    ):
+        return True
+    return False
+
+
+def _count_entregas_epp_pendientes(empleado_id: int) -> int:
+    return int(
+        db.session.query(func.count(PersonalEntregaEpp.id))
+        .filter(
+            PersonalEntregaEpp.empleado_id == empleado_id,
+            PersonalEntregaEpp.estado == "pendiente",
+        )
+        .scalar()
+        or 0
+    )
+
+
+def _should_prefer_orphan_over_linked(linked: EmpleadoPersonal, orphan: EmpleadoPersonal) -> bool:
+    """Prioriza el legajo con entregas pendientes o datos RRHH reales."""
+    if not _is_ephemeral_legajo(linked):
+        return False
+    orphan_pending = _count_entregas_epp_pendientes(orphan.id)
+    linked_pending = _count_entregas_epp_pendientes(linked.id)
+    if orphan_pending > linked_pending:
+        return True
+    if orphan_pending > 0 and linked_pending == 0:
+        return True
+    if _empleado_has_rrhh_records(orphan.id) and not _empleado_has_rrhh_records(linked.id):
+        return True
+    return False
+
+
+def _reconcile_linked_and_orphan(
+    linked: EmpleadoPersonal,
+    orphan: EmpleadoPersonal,
+    user: User,
+    *,
+    commit: bool,
+) -> EmpleadoPersonal:
+    if linked.id == orphan.id:
+        return linked
+    if _should_prefer_orphan_over_linked(linked, orphan):
+        if _is_ephemeral_legajo(linked) and not _empleado_has_rrhh_records(linked.id):
+            linked.user_id = None
+            db.session.delete(linked)
+            db.session.flush()
+        orphan.user_id = user.id
+        if commit:
+            db.session.commit()
+        return orphan
+    return linked
+
+
+def find_user_for_empleado(emp: EmpleadoPersonal) -> User | None:
+    """Usuario activo que corresponde a un legajo (para auto-vincular al registrar entregas)."""
+    matches: list[User] = []
+    legajo_code = (emp.legajo or "").strip().lower()
+    if legajo_code:
+        by_legajo = (
+            db.session.query(User)
+            .filter(User.activo.is_(True), func.lower(User.username) == legajo_code)
+            .first()
+        )
+        if by_legajo is not None:
+            matches.append(by_legajo)
+
+    email = (emp.email or "").strip().lower()
+    if email and "@" in email:
+        local = email.split("@", 1)[0].strip().lower()
+        if local:
+            by_mail = (
+                db.session.query(User)
+                .filter(User.activo.is_(True), func.lower(User.username) == local)
+                .first()
+            )
+            if by_mail is not None and by_mail not in matches:
+                matches.append(by_mail)
+
+    for user in db.session.query(User).filter(User.activo.is_(True)).order_by(User.id.asc()).all():
+        if user in matches:
+            continue
+        if user_requires_legajo(user) and _empleado_matches_user(emp, user):
+            matches.append(user)
+
+    if not matches:
+        return None
+    if len(matches) == 1:
+        return matches[0]
+    for user in matches:
+        if (user.username or "").strip().lower() == legajo_code:
+            return user
+    return matches[0]
+
+
+def try_auto_link_empleado_user(emp: EmpleadoPersonal, *, commit: bool = False) -> bool:
+    """Vincula el legajo al usuario correspondiente antes de avisar por correo."""
+    if emp.user_id is not None:
+        return False
+    user = find_user_for_empleado(emp)
+    if user is None or not user_requires_legajo(user):
+        return False
+    resolved = resolve_empleado_for_user(user, commit=False)
+    if resolved is not None and resolved.id == emp.id:
+        if commit:
+            db.session.commit()
+        return True
+    linked = get_empleado_by_user_id(user.id)
+    if linked is not None and linked.id != emp.id:
+        if _should_prefer_orphan_over_linked(linked, emp):
+            _reconcile_linked_and_orphan(linked, emp, user, commit=commit)
+            return emp.user_id == user.id
+        return False
+    emp.user_id = user.id
+    if commit:
+        db.session.commit()
+    return True
+
+
+def resolve_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal | None:
+    """
+    Legajo RRHH del usuario: vincula huérfanos existentes, evita duplicados TMP-U
+  y crea uno nuevo solo si hace falta.
+    """
     if not user_requires_legajo(user):
         return None
-    existing = (
-        db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == user.id).first()
-    )
-    if existing is not None:
-        return existing
 
+    linked = get_empleado_by_user_id(user.id)
     orphan = _find_orphan_legajo_for_user(user)
-    if orphan is not None:
+    if orphan is None:
+        orphan = _find_orphan_with_pending_entregas_for_user(user)
+
+    if linked is None and orphan is None:
+        return _create_empleado_for_user(user, commit=commit)
+
+    if linked is None and orphan is not None:
         orphan.user_id = user.id
         if commit:
             db.session.commit()
         return orphan
 
+    if linked is not None and orphan is None:
+        return linked
+
+    assert linked is not None and orphan is not None
+    return _reconcile_linked_and_orphan(linked, orphan, user, commit=commit)
+
+
+def _create_empleado_for_user(user: User, *, commit: bool) -> EmpleadoPersonal:
     apellido, nombre = split_nombre_completo(user.nombre_completo, fallback=user.username or "Sin nombre")
     emp = EmpleadoPersonal(
         user_id=user.id,
@@ -264,6 +445,11 @@ def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPers
     if commit:
         db.session.commit()
     return emp
+
+
+def ensure_empleado_for_user(user: User, *, commit: bool = True) -> EmpleadoPersonal | None:
+    """Crea o vincula el legajo RRHH para un usuario si aún no existe."""
+    return resolve_empleado_for_user(user, commit=commit)
 
 
 def sync_empleados_from_users() -> None:
@@ -736,22 +922,20 @@ def entrega_epp_puede_confirmar_usuario(entrega: PersonalEntregaEpp | None, *, u
 
 
 def count_entregas_epp_pendientes_usuario(user_id: int) -> int:
-    emp = get_empleado_by_user_id(user_id)
+    user = db.session.get(User, user_id)
+    if user is None:
+        return 0
+    emp = resolve_empleado_for_user(user, commit=False)
     if emp is None:
         return 0
-    return int(
-        db.session.query(func.count(PersonalEntregaEpp.id))
-        .filter(
-            PersonalEntregaEpp.empleado_id == emp.id,
-            PersonalEntregaEpp.estado == "pendiente",
-        )
-        .scalar()
-        or 0
-    )
+    return _count_entregas_epp_pendientes(emp.id)
 
 
 def count_vacaciones_pendientes_empleado(user_id: int) -> int:
-    emp = get_empleado_by_user_id(user_id)
+    user = db.session.get(User, user_id)
+    if user is None:
+        return 0
+    emp = resolve_empleado_for_user(user, commit=False)
     if emp is None:
         return 0
     return int(
@@ -782,6 +966,7 @@ def save_entrega_epp(
     item = db.session.get(PersonalEppItem, int(item_id_raw))
     if emp is None or item is None:
         return False, "Empleado o ítem no encontrado."
+    try_auto_link_empleado_user(emp, commit=False)
     fecha = parse_iso_date(data.get("fecha")) or today_operacion()
     cant_raw = (data.get("cantidad") or "1").strip()
     cantidad = int(cant_raw) if cant_raw.isdigit() and int(cant_raw) > 0 else 1
@@ -852,6 +1037,10 @@ def save_entrega_epp(
 
 def confirmar_entrega_epp(entrega_id: int, *, user_id: int) -> tuple[bool, str]:
     entrega = db.session.get(PersonalEntregaEpp, entrega_id)
+    if entrega is not None and entrega.empleado is not None:
+        user = db.session.get(User, user_id)
+        if user is not None:
+            try_auto_link_empleado_user(entrega.empleado, commit=False)
     puede, motivo = entrega_epp_puede_confirmar_usuario(entrega, user_id=user_id)
     if not puede:
         return False, motivo

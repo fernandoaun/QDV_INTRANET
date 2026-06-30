@@ -328,9 +328,13 @@ def create_app() -> Flask:
         cumpleanos_hoy_lista: list = []
         if u is not None:
             try:
-                user_tiene_legajo_personal = (
-                    _personal_service.get_empleado_by_user_id(int(u.id)) is not None
-                )
+                if _personal_service.user_requires_legajo(u):
+                    emp_nav = _personal_service.resolve_empleado_for_user(u, commit=True)
+                    user_tiene_legajo_personal = emp_nav is not None
+                else:
+                    user_tiene_legajo_personal = (
+                        _personal_service.get_empleado_by_user_id(int(u.id)) is not None
+                    )
                 personal_entregas_pendientes = _personal_service.count_entregas_epp_pendientes_usuario(int(u.id))
                 personal_vacaciones_pendientes = _personal_service.count_vacaciones_pendientes_empleado(int(u.id))
             except Exception:

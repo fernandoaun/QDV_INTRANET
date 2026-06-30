@@ -153,7 +153,7 @@ def user_can_solicitar_vacaciones(user: User | None) -> bool:
 
     if not ps.user_requires_legajo(user):
         return False
-    emp = ps.get_empleado_by_user_id(user.id)
+    emp = ps.resolve_empleado_for_user(user, commit=False)
     return emp is not None and (emp.estado or "").strip() == "activo"
 
 

@@ -277,11 +277,13 @@ def epp_entregas():
 @login_required
 def mis_entregas_epp():
     u = current_user()
-    if ps.user_requires_legajo(u):
-        ps.ensure_empleado_for_user(u)
-    emp = ps.get_empleado_by_user_id(u.id)
+    emp = ps.resolve_empleado_for_user(u) if ps.user_requires_legajo(u) else ps.get_empleado_by_user_id(u.id)
     if emp is None:
-        flash("No tenés un legajo de personal vinculado a tu usuario.", "warning")
+        flash(
+            "No tenés un legajo de personal vinculado a tu usuario. "
+            "Pedí a RRHH que revise tu legajo en Personal (usuario y email deben coincidir).",
+            "warning",
+        )
         return redirect(url_for("main.dashboard"))
 
     entrega_error_id: int | None = None
@@ -331,7 +333,7 @@ def mis_entregas_epp():
 @login_required
 def mi_legajo():
     u = current_user()
-    emp = ps.get_empleado_by_user_id(u.id)
+    emp = ps.resolve_empleado_for_user(u) if ps.user_requires_legajo(u) else ps.get_empleado_by_user_id(u.id)
     if emp is None:
         flash("No tenés un legajo de personal vinculado a tu usuario.", "warning")
         return redirect(url_for("main.dashboard"))
@@ -530,7 +532,7 @@ def mis_vacaciones():
         flash("No tenés un legajo activo para solicitar vacaciones.", "warning")
         return redirect(url_for("main.dashboard"))
 
-    emp = ps.get_empleado_by_user_id(u.id)
+    emp = ps.resolve_empleado_for_user(u)
     assert emp is not None
 
     from app.services.personal_vacacion_mail_service import maybe_notify_solicitud_vacacion

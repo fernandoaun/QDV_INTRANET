@@ -11,7 +11,7 @@ from typing import Any
 from app.extensions import db
 from app.models import EmpleadoPersonal, PersonalEntregaEpp
 from app.services.deadline_alert_email_service import normalize_validate_email
-from app.services.mail_link_service import login_url_for_path, require_absolute_mail_url
+from app.services.mail_link_service import require_absolute_mail_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -25,12 +25,9 @@ def resolve_empleado_email(emp: EmpleadoPersonal | None) -> str | None:
 
 
 def _mis_entregas_url(app: Any) -> str:
-    with app.app_context():
-        with app.test_request_context():
-            from flask import url_for
+    from app.services.mail_link_service import public_abs_url
 
-            dest = url_for("personal.mis_entregas_epp", _external=False)
-    return login_url_for_path(app, dest)
+    return public_abs_url(app, "personal.mis_entregas_epp")
 
 
 def _format_entrega_line(en: PersonalEntregaEpp) -> str:

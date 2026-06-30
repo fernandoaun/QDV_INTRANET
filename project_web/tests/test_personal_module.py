@@ -301,7 +301,7 @@ def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch
     assert sent[0]["destinatarios"] == ["empleado@test.example"]
     assert "Casco test mail" in sent[0]["asunto"]
     body = (sent[0].get("cuerpo_texto") or "") + (sent[0].get("cuerpo_html") or "")
-    assert "https://intranet.test.example/login" in body
+    assert "https://intranet.test.example/personal/mis-entregas-epp" in body
     assert "mis-entregas-epp" in body
 
 
@@ -314,8 +314,7 @@ def test_entrega_epp_mail_link_usa_render_external_url(app, monkeypatch):
     with app.app_context():
         app.config["APP_PUBLIC_BASE_URL"] = "https://qdv-demo.onrender.com"
         link = _mis_entregas_url(app)
-    assert link.startswith("https://qdv-demo.onrender.com/login")
-    assert "next=" in link
+    assert link.startswith("https://qdv-demo.onrender.com/personal/mis-entregas-epp")
     assert "mis-entregas-epp" in link
 
 
@@ -1044,3 +1043,122 @@ def test_vacaciones_periodo_independiente_entre_anios(app, admin_user):
         assert saldo_2025["disponibles"] == 14
         assert saldo_2026["usados"] == 5
         assert saldo_2026["disponibles"] == 9
+
+
+def test_resolve_empleado_prefiere_legajo_con_entrega_pendiente(app):
+    from datetime import date
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+    from app.services import personal_service as ps
+    from app.user_roles import ROLE_ADMINISTRACION
+
+    with app.app_context():
+        user = User(
+            username="ana.admin",
+            password_hash="x",
+            is_admin=False,
+            activo=True,
+            rol=ROLE_ADMINISTRACION,
+            nombre_completo="García, Ana",
+        )
+        db.session.add(user)
+        db.session.flush()
+        temp = EmpleadoPersonal(
+            user_id=user.id,
+            legajo=f"TMP-U{user.id}",
+            apellido="García",
+            nombre="Ana",
+            fecha_ingreso=date.today(),
+            estado="activo",
+        )
+        orphan = EmpleadoPersonal(
+            user_id=None,
+            legajo="2020-010",
+            apellido="García",
+            nombre="Ana",
+            email="ana.admin@empresa.test",
+            fecha_ingreso=date(2020, 3, 1),
+            estado="activo",
+        )
+        db.session.add_all([temp, orphan])
+        db.session.commit()
+        ps.ensure_default_epp_catalog()
+        item = db.session.query(PersonalEppItem).first()
+        ok, _ = ps.save_entrega_epp(
+            {"empleado_id": str(orphan.id), "item_id": str(item.id), "fecha": "2026-06-18"},
+            user_id=1,
+        )
+        assert ok
+        user_id = user.id
+        orphan_id = orphan.id
+
+        resolved = ps.resolve_empleado_for_user(user, commit=True)
+        assert resolved is not None
+        assert resolved.id == orphan_id
+        assert resolved.user_id == user_id
+        assert ps.get_empleado_by_user_id(user_id) is not None
+        assert ps.list_entregas_epp_pendientes_empleado(orphan_id)
+
+
+def test_mis_entregas_epp_login_next_administracion(app):
+    import re
+    from datetime import date
+
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+    from app.services import personal_service as ps
+    from app.user_roles import ROLE_ADMINISTRACION
+
+    with app.app_context():
+        user = User(
+            username="maria.adm",
+            password_hash=generate_password_hash("clave-test"),
+            is_admin=False,
+            activo=True,
+            rol=ROLE_ADMINISTRACION,
+            nombre_completo="López, María",
+        )
+        db.session.add(user)
+        db.session.flush()
+        emp = EmpleadoPersonal(
+            user_id=None,
+            legajo="2019-007",
+            apellido="López",
+            nombre="María",
+            email="maria.adm@empresa.test",
+            fecha_ingreso=date(2019, 1, 1),
+            estado="activo",
+        )
+        db.session.add(emp)
+        db.session.commit()
+        ps.ensure_default_epp_catalog()
+        item = db.session.query(PersonalEppItem).first()
+        ok, _ = ps.save_entrega_epp(
+            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-06-18"},
+            user_id=1,
+        )
+        assert ok
+        assert emp.user_id == user.id
+
+    client = app.test_client()
+    r = client.get("/login?next=/personal/mis-entregas-epp")
+    assert r.status_code == 200
+    csrf = re.search(r'name="csrf_token"\s+value="([^"]+)"', r.get_data(as_text=True)).group(1)
+    r2 = client.post(
+        "/login",
+        data={
+            "username": "maria.adm",
+            "password": "clave-test",
+            "csrf_token": csrf,
+            "next": "/personal/mis-entregas-epp",
+        },
+        follow_redirects=False,
+    )
+    assert r2.status_code in (302, 303)
+    assert "/personal/mis-entregas-epp" in (r2.headers.get("Location") or "")
+    r3 = client.get("/personal/mis-entregas-epp")
+    assert r3.status_code == 200
+    assert b"Confirmar entrega" in r3.data
