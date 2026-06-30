@@ -29,6 +29,31 @@ def is_mail_fully_configured(app: Any) -> bool:
     return bool(cfg["host"] and cfg["mail_from"])
 
 
+def smtp_diagnostic_summary(app: Any) -> dict[str, Any]:
+    """Estado de SMTP y URL pública para diagnóstico en administración."""
+    from app.services.mail_link_service import resolve_public_base
+
+    cfg = smtp_settings_from_app(app)
+    public_base = resolve_public_base(app)
+    return {
+        "host_configured": bool(cfg["host"]),
+        "mail_from_configured": bool(cfg["mail_from"]),
+        "user_configured": bool(cfg["user"]),
+        "password_configured": bool(cfg["password"]),
+        "port": cfg["port"],
+        "use_tls": cfg["use_tls"],
+        "fully_configured": bool(cfg["host"] and cfg["mail_from"]),
+        "public_base_url": public_base,
+        "public_url_ok": bool(public_base),
+        "sgi_revision_fallback": [
+            str(x).strip() for x in (app.config.get("SGI_REVISION_MAIL_TO") or []) if str(x).strip()
+        ],
+        "sgi_aprobacion_fallback": [
+            str(x).strip() for x in (app.config.get("SGI_APROBACION_MAIL_TO") or []) if str(x).strip()
+        ],
+    }
+
+
 def _dedupe_emails(addresses: list[str]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []

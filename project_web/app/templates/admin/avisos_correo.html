@@ -26,6 +26,65 @@
 </div>
 {% endif %}
 
+{% if smtp_diagnostic is defined %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Diagnóstico SMTP y correos SGI</div>
+  <div class="app-card-body">
+    <ul class="small mb-2 ps-3">
+      <li>
+        <strong>SMTP_HOST:</strong>
+        {% if smtp_diagnostic.host_configured %}<span class="text-success">configurado</span>{% else %}<span class="text-danger">falta</span>{% endif %}
+      </li>
+      <li>
+        <strong>MAIL_FROM:</strong>
+        {% if smtp_diagnostic.mail_from_configured %}<span class="text-success">configurado</span>{% else %}<span class="text-danger">falta</span>{% endif %}
+      </li>
+      <li>
+        <strong>SMTP_USER / contraseña:</strong>
+        {% if smtp_diagnostic.user_configured and smtp_diagnostic.password_configured %}
+          <span class="text-success">configurados</span>
+        {% elif smtp_diagnostic.user_configured %}
+          <span class="text-warning">usuario sí, contraseña no</span>
+        {% else %}
+          <span class="text-muted">sin autenticación (puede ser válido en algunos servidores)</span>
+        {% endif %}
+      </li>
+      <li>
+        <strong>Puerto / TLS:</strong> {{ smtp_diagnostic.port }} · TLS {{ 'sí' if smtp_diagnostic.use_tls else 'no' }}
+      </li>
+      <li>
+        <strong>URL pública (enlaces en correos):</strong>
+        {% if smtp_diagnostic.public_url_ok %}
+          <code>{{ smtp_diagnostic.public_base_url }}</code>
+        {% else %}
+          <span class="text-warning">no definida — configurá <code>APP_PUBLIC_BASE_URL</code> en Render</span>
+        {% endif %}
+      </li>
+      <li>
+        <strong>SGI revisión (respaldo):</strong>
+        {% if smtp_diagnostic.sgi_revision_fallback %}
+          {% for m in smtp_diagnostic.sgi_revision_fallback %}<code class="me-1">{{ m }}</code>{% endfor %}
+        {% else %}
+          <span class="text-muted">ninguno — usá el correo en la carátula del documento</span>
+        {% endif %}
+      </li>
+      <li>
+        <strong>SGI aprobación (respaldo):</strong>
+        {% if smtp_diagnostic.sgi_aprobacion_fallback %}
+          {% for m in smtp_diagnostic.sgi_aprobacion_fallback %}<code class="me-1">{{ m }}</code>{% endfor %}
+        {% else %}
+          <span class="text-muted">ninguno</span>
+        {% endif %}
+      </li>
+    </ul>
+    <p class="small text-muted mb-0">
+      Los avisos de <strong>revisión/aprobación de procedimientos SGI</strong> usan el mismo SMTP.
+      Probá el envío abajo; si la prueba llega, el problema suele ser el correo vacío en la carátula del documento.
+    </p>
+  </div>
+</div>
+{% endif %}
+
 <div class="app-card mb-3">
   <div class="app-card-header">Destinatarios efectivos (unión base de datos + variable de entorno)</div>
   <div class="app-card-body">

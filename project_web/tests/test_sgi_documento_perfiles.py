@@ -51,7 +51,9 @@ def test_sync_and_notify_operaciones_only(app, sgi_editor):
         doc, rev, _ = proc_svc.create_procedimiento_visual("PG", sgi_editor, "T", titulo="PERFIL TEST")
         perfil_svc.sync_perfiles_documento(doc.id, [ROLE_OPERACIONES])
         rev.reviso = "R"
+        rev.revisor_correo = "revisor@example.com"
         rev.aprobo = "A"
+        rev.aprobador_correo = "aprobador@example.com"
         db.session.commit()
 
         proc_svc.enviar_a_revision(rev.id, sgi_editor, "T")

@@ -366,6 +366,16 @@ def user_can_aprobar_revision(user: User | None, rev: SgiProcedimientoRevision) 
     return _label_matches_user(rev.aprobo, user)
 
 
+def user_can_reenviar_aviso(user: User | None, rev: SgiProcedimientoRevision) -> bool:
+    if user is None:
+        return False
+    if rev.estado == ESTADO_EN_REVISION:
+        return user_can_edit_sgi_documentos(user) or user_can_marcar_revisado(user, rev)
+    if rev.estado == ESTADO_REVISADO:
+        return user_can_edit_sgi_documentos(user) or user_can_aprobar_revision(user, rev)
+    return False
+
+
 def user_participates_workflow(user: User | None, rev: SgiProcedimientoRevision) -> bool:
     if user is None:
         return False
@@ -764,6 +774,14 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
         return False, "Indicá quién revisa (campo «Revisó» en la carátula) antes de enviar."
     if not perfil_svc.perfiles_aplica_documento(doc.id):
         return False, "Seleccioná al menos un sector/perfil al que aplica el procedimiento."
+    app = current_app._get_current_object()
+    recipients = workflow_svc.resolve_revision_recipients(app, rev)
+    if not recipients:
+        return (
+            False,
+            "Indicá el correo del revisor (campo «Correo del revisor» en la carátula) "
+            "o configurá SGI_REVISION_MAIL_TO en el servidor.",
+        )
     rev.estado = ESTADO_EN_REVISION
     rev.updated_by_id = user_id
     doc.estado = ESTADO_EN_REVISION
@@ -771,12 +789,9 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     _log_aprobacion(rev, ACCION_ENVIAR_REVISION, user_id, actor_label, "Enviado a revisión")
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, "Borrador → En revisión")
     db.session.commit()
-    app = current_app._get_current_object()
-    try:
-        workflow_svc.notify_revision_requested(app, doc, rev)
-    except Exception:
-        current_app.logger.exception("SGI: fallo aviso correo a revisor rev_id=%s", rev_id)
-    return True, "Documento enviado a revisión. Se notificó al revisor por correo."
+    mail_sent = workflow_svc.notify_revision_requested(app, doc, rev)
+    aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="revisor")
+    return True, f"Documento enviado a revisión. {aviso}"
 
 
 def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[bool, str]:
@@ -785,6 +800,14 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
         return False, "Solo un documento en revisión puede marcarse como revisado."
     if not (rev.aprobo or "").strip():
         return False, "Indicá quién aprueba (campo «Aprobó» en la carátula) antes de continuar."
+    app = current_app._get_current_object()
+    recipients = workflow_svc.resolve_approval_recipients(app, rev)
+    if not recipients:
+        return (
+            False,
+            "Indicá el correo del aprobador (campo «Correo del aprobador» en la carátula) "
+            "o configurá SGI_APROBACION_MAIL_TO en el servidor.",
+        )
     hoy = date.today()
     rev.estado = ESTADO_REVISADO
     rev.fecha_revision = rev.fecha_revision or hoy
@@ -799,12 +822,48 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
         doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, "En revisión → Revisado (pendiente aprobación)"
     )
     db.session.commit()
+    mail_sent = workflow_svc.notify_pending_approval(app, doc, rev)
+    aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="aprobador")
+    return True, f"Revisión registrada. {aviso}"
+
+
+def reenviar_aviso_workflow(rev_id: int, payload: dict[str, Any] | None = None) -> tuple[bool, str]:
+    rev = get_revision(rev_id)
+    if rev is None:
+        return False, "Revisión no encontrada."
+    doc = rev.documento
+    data = payload or {}
+    if "revisor_correo" in data:
+        rev.revisor_correo = (data.get("revisor_correo") or "").strip()[:256]
+    if "aprobador_correo" in data:
+        rev.aprobador_correo = (data.get("aprobador_correo") or "").strip()[:256]
+    if "revisor_correo" in data or "aprobador_correo" in data:
+        db.session.commit()
     app = current_app._get_current_object()
-    try:
-        workflow_svc.notify_pending_approval(app, doc, rev)
-    except Exception:
-        current_app.logger.exception("SGI: fallo aviso correo a aprobador rev_id=%s", rev_id)
-    return True, "Revisión registrada. Se notificó al aprobador por correo."
+
+    if rev.estado == ESTADO_EN_REVISION:
+        recipients = workflow_svc.resolve_revision_recipients(app, rev)
+        if not recipients:
+            return False, (
+                "No hay correo del revisor. Completá «Correo del revisor» en la carátula "
+                "o configurá SGI_REVISION_MAIL_TO en el servidor."
+            )
+        mail_sent = workflow_svc.notify_revision_requested(app, doc, rev)
+        aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="revisor")
+        return True, f"Aviso de revisión reenviado. {aviso}"
+
+    if rev.estado == ESTADO_REVISADO:
+        recipients = workflow_svc.resolve_approval_recipients(app, rev)
+        if not recipients:
+            return False, (
+                "No hay correo del aprobador. Completá «Correo del aprobador» en la carátula "
+                "o configurá SGI_APROBACION_MAIL_TO en el servidor."
+            )
+        mail_sent = workflow_svc.notify_pending_approval(app, doc, rev)
+        aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="aprobador")
+        return True, f"Aviso de aprobación reenviado. {aviso}"
+
+    return False, "Solo se puede reenviar el aviso si el documento está en revisión o pendiente de aprobación."
 
 
 def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool, str]:

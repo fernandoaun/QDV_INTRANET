@@ -72,11 +72,38 @@ def test_workflow_enviar_marcar_aprobar(app, sgi_editor):
         assert int(n or 0) >= 1
 
 
-def test_aprobar_requires_revisado_state(app, sgi_editor):
+def test_reenviar_aviso_revision(app, sgi_editor):
     with app.app_context():
-        _doc, rev, _ = proc_svc.create_procedimiento_visual("PO", sgi_editor, "Tester", titulo="WF PO")
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="REENVIO")
+        assert err is None and doc and rev
+
+        from app.services import sgi_documento_perfil_service as perfil_svc
+
+        rev.reviso = "Revisor Test"
+        rev.revisor_correo = "revisor@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+
+        ok, msg = proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        assert ok, msg
+        db.session.refresh(rev)
+        assert rev.estado == ESTADO_EN_REVISION
+
+        ok, msg = proc_svc.reenviar_aviso_workflow(rev.id, {"revisor_correo": "revisor@example.com"})
+        assert ok, msg
+        assert "reenviado" in msg.lower()
+
+
+def test_aprobar_requires_revisado_state(app, sgi_editor):
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
+    with app.app_context():
+        doc, rev, _ = proc_svc.create_procedimiento_visual("PO", sgi_editor, "Tester", titulo="WF PO")
         rev.reviso = "R"
+        rev.revisor_correo = "revisor@example.com"
         rev.aprobo = "A"
+        rev.aprobador_correo = "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
         db.session.commit()
         proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
         ok, msg = proc_svc.aprobar_revision(rev.id, sgi_editor, "Tester")

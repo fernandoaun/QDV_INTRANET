@@ -6,10 +6,9 @@ import logging
 import re
 from typing import Any
 
-from flask import url_for
-
 from app.models.sgi import SgiDocumento, SgiProcedimientoRevision, TIPO_SLUGS
 from app.services.deadline_alert_email_service import normalize_validate_email
+from app.services.mail_link_service import public_abs_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 
 log = logging.getLogger(__name__)
@@ -61,8 +60,7 @@ def resolve_approval_recipients(app: Any, rev: SgiProcedimientoRevision) -> list
 
 def _editor_url(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> str:
     slug = TIPO_SLUGS.get(doc.tipo or "", "pg")
-    with app.app_context():
-        return url_for("sgi.procedimiento_editor", slug=slug, doc_id=doc.id, rev_id=rev.id, _external=True)
+    return public_abs_url(app, "sgi.procedimiento_editor", slug=slug, doc_id=doc.id, rev_id=rev.id)
 
 
 def _send_workflow_mail(
@@ -73,13 +71,13 @@ def _send_workflow_mail(
     cuerpo_html: str,
     cuerpo_texto: str,
     context: str,
-) -> None:
+) -> bool:
     if not destinatarios:
         log.warning("SGI workflow %s: sin destinatarios de correo", context)
-        return
+        return False
     if not is_mail_fully_configured(app):
         log.warning("SGI workflow %s: SMTP no configurado", context)
-        return
+        return False
     try:
         enviar_mail(
             app,
@@ -88,11 +86,25 @@ def _send_workflow_mail(
             cuerpo_html=cuerpo_html,
             cuerpo_texto=cuerpo_texto,
         )
+        return True
     except Exception:
         log.exception("SGI workflow %s: fallo envío de correo", context)
+        return False
 
 
-def notify_revision_requested(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> None:
+def workflow_mail_status_message(app: Any, *, mail_sent: bool, rol: str) -> str:
+    """Mensaje honesto tras cambiar estado del flujo (revisor / aprobador)."""
+    if mail_sent:
+        return f"Se notificó al {rol} por correo."
+    if is_mail_fully_configured(app):
+        return f"No se pudo enviar el aviso por correo al {rol} (revisá los logs del servidor)."
+    return (
+        f"El {rol} no recibirá correo hasta configurar SMTP en el servidor "
+        "(SMTP_HOST y MAIL_FROM en Render o .env)."
+    )
+
+
+def notify_revision_requested(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> bool:
     recipients = resolve_revision_recipients(app, rev)
     link = _editor_url(app, doc, rev)
     revisor = (rev.reviso or doc.responsable_revision or "—").strip()
@@ -110,7 +122,7 @@ def notify_revision_requested(app: Any, doc: SgiDocumento, rev: SgiProcedimiento
         f"Revisor: {revisor}\n"
         f"Abrir: {link}"
     )
-    _send_workflow_mail(
+    return _send_workflow_mail(
         app,
         destinatarios=recipients,
         asunto=asunto,
@@ -120,7 +132,7 @@ def notify_revision_requested(app: Any, doc: SgiDocumento, rev: SgiProcedimiento
     )
 
 
-def notify_pending_approval(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> None:
+def notify_pending_approval(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> bool:
     recipients = resolve_approval_recipients(app, rev)
     link = _editor_url(app, doc, rev)
     aprobador = (rev.aprobo or doc.responsable_aprobacion or "—").strip()
@@ -139,7 +151,7 @@ def notify_pending_approval(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRe
         f"Revisó: {revisor}\nAprobador: {aprobador}\n"
         f"Abrir: {link}"
     )
-    _send_workflow_mail(
+    return _send_workflow_mail(
         app,
         destinatarios=recipients,
         asunto=asunto,

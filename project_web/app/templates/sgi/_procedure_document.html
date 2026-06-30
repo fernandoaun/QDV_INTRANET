@@ -49,13 +49,13 @@
         <label class="form-label small mb-0" for="procRevisorCorreo">Correo del revisor (aviso automático)</label>
         <input type="email" class="form-control form-control-sm" id="procRevisorCorreo"
                value="{{ rev.revisor_correo or '' }}" placeholder="revisor@empresa.com"
-               {% if solo_lectura|default(false) %}readonly{% endif %}>
+               {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
       </div>
       <div class="col-md-6">
         <label class="form-label small mb-0" for="procAprobadorCorreo">Correo del aprobador (aviso automático)</label>
         <input type="email" class="form-control form-control-sm" id="procAprobadorCorreo"
                value="{{ rev.aprobador_correo or '' }}" placeholder="aprobador@empresa.com"
-               {% if solo_lectura|default(false) %}readonly{% endif %}>
+               {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
       </div>
     </div>
 

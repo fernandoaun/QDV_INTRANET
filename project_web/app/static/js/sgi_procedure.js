@@ -1481,7 +1481,12 @@
   }
 
   async function workflow(accion) {
-    if (cfg.soloLectura && accion !== "marcar_revisado" && accion !== "aprobar") {
+    if (
+      cfg.soloLectura &&
+      accion !== "marcar_revisado" &&
+      accion !== "aprobar" &&
+      accion !== "reenviar_aviso"
+    ) {
       flashMsg("danger", "No tenés permiso para esta acción.");
       return;
     }
@@ -1489,6 +1494,43 @@
       const perfiles = qsa(".proc-perfil-check:checked");
       if (!perfiles.length) {
         flashMsg("danger", "Seleccioná al menos un sector/perfil al que aplica el procedimiento.");
+        return;
+      }
+      const revisorCorreo = (qs("#procRevisorCorreo")?.value || "").trim();
+      const revisoTexto = (qs("#procReviso")?.value || "").trim();
+      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${revisorCorreo} ${revisoTexto}`);
+      if (!tieneEmail) {
+        flashMsg(
+          "danger",
+          "Completá el campo «Correo del revisor» en la carátula para enviar el aviso automático."
+        );
+        return;
+      }
+    }
+    if (accion === "marcar_revisado") {
+      const aprobadorCorreo = (qs("#procAprobadorCorreo")?.value || "").trim();
+      const aproboTexto = (qs("#procAprobo")?.value || "").trim();
+      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${aprobadorCorreo} ${aproboTexto}`);
+      if (!tieneEmail) {
+        flashMsg(
+          "danger",
+          "Completá el campo «Correo del aprobador» en la carátula para enviar el aviso automático."
+        );
+        return;
+      }
+    }
+    if (accion === "reenviar_aviso") {
+      const esRevision = (cfg.revEstado || "") === "en_revision";
+      const correo = (qs(esRevision ? "#procRevisorCorreo" : "#procAprobadorCorreo")?.value || "").trim();
+      const texto = (qs(esRevision ? "#procReviso" : "#procAprobo")?.value || "").trim();
+      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${correo} ${texto}`);
+      if (!tieneEmail) {
+        flashMsg(
+          "danger",
+          esRevision
+            ? "Completá «Correo del revisor» en la carátula antes de reenviar."
+            : "Completá «Correo del aprobador» en la carátula antes de reenviar."
+        );
         return;
       }
     }
@@ -1503,14 +1545,20 @@
       }
     }
     const token = qs('meta[name="csrf-token"]')?.content || cfg.csrf || "";
+    const body = { accion };
+    if (accion === "reenviar_aviso") {
+      body.revisor_correo = qs("#procRevisorCorreo")?.value || "";
+      body.aprobador_correo = qs("#procAprobadorCorreo")?.value || "";
+    }
     const res = await fetch(cfg.urls.workflow, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRFToken": token },
-      body: JSON.stringify({ accion }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
     if (data.ok) {
-      flashMsg("success", data.message);
+      const kind = accion === "reenviar_aviso" && data.message && !/notificó/i.test(data.message) ? "warning" : "success";
+      flashMsg(kind, data.message);
       if (data.rev_id) {
         window.location.href = cfg.urls.editorBase + data.rev_id;
       } else {
@@ -1547,6 +1595,7 @@
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
     qs("#btnEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
     qs("#btnMarcarRevisado")?.addEventListener("click", () => workflow("marcar_revisado"));
+    qs("#btnReenviarAviso")?.addEventListener("click", () => workflow("reenviar_aviso"));
     qs("#btnAprobar")?.addEventListener("click", () => workflow("aprobar"));
     qs("#btnNuevaRevision")?.addEventListener("click", () => workflow("nueva_revision"));
     qs("#btnAddRegistro")?.addEventListener("click", () => addRegistroRow({}));

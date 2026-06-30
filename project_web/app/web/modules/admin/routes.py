@@ -22,7 +22,7 @@ from app.services.deadline_alert_email_service import (
 from app.services import plant_stop_service as plant_stop_svc
 from app.services import personal_service as personal_svc
 from app.services import stock_alert_email_service as stock_alert_svc
-from app.services.mail_service import enviar_mail, is_mail_fully_configured
+from app.services.mail_service import enviar_mail, is_mail_fully_configured, smtp_diagnostic_summary
 from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
@@ -423,6 +423,7 @@ def deadline_alert_emails():
         env_addresses=env_addrs,
         viewer_may_edit_deadline_mails=bool(u.is_admin),
         smtp_configured=is_mail_fully_configured(current_app),
+        smtp_diagnostic=smtp_diagnostic_summary(current_app),
         viewer_is_admin=bool(u.is_admin),
         plant_stop_db_rows=plant_stop_svc.list_alert_emails_ordered() if u.is_admin else [],
         plant_stop_merged=plant_stop_svc.merged_plant_stop_recipients(current_app) if u.is_admin else [],

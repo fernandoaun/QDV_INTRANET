@@ -292,6 +292,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
     payload = proc_svc.revision_to_payload(rev)
     puede_marcar_revisado = proc_svc.user_can_marcar_revisado(u, rev)
     puede_aprobar = proc_svc.user_can_aprobar_revision(u, rev)
+    puede_reenviar_aviso = proc_svc.user_can_reenviar_aviso(u, rev)
     solo_lectura = not puede_editar or rev.estado not in ("borrador", "en_revision")
     if rev.estado in ("en_revision", "revisado") and (puede_marcar_revisado or puede_aprobar):
         solo_lectura = True
@@ -312,6 +313,8 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             puede_editar=puede_editar,
             puede_marcar_revisado=puede_marcar_revisado,
             puede_aprobar=puede_aprobar,
+            puede_reenviar_aviso=puede_reenviar_aviso,
+            correo_aviso_editable=puede_reenviar_aviso,
             perfiles_aplica=perfil_svc.perfiles_aplica_documento(doc.id),
             perfiles_opciones=perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
         ),
@@ -549,6 +552,10 @@ def procedimiento_workflow(slug: str, doc_id: int, rev_id: int):
         if err:
             return jsonify({"ok": False, "message": err}), 400
         return jsonify({"ok": True, "message": "Nueva revisión creada.", "rev_id": rev_new.id})
+    elif accion == "reenviar_aviso":
+        if not proc_svc.user_can_reenviar_aviso(u, rev):
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        ok, msg = proc_svc.reenviar_aviso_workflow(rev_id, payload)
     else:
         return jsonify({"ok": False, "message": "Acción no reconocida."}), 400
 

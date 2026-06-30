@@ -226,6 +226,10 @@ def get_config_dict(base_dir: Path) -> dict:
     mail_from = (os.environ.get("MAIL_FROM") or "").strip()
     deadline_mail_raw = (os.environ.get("DEADLINE_ALERT_EMAIL_TO") or "").strip()
     deadline_alert_email_to = [e.strip() for e in deadline_mail_raw.split(",") if e.strip()]
+    sgi_revision_mail_raw = (os.environ.get("SGI_REVISION_MAIL_TO") or "").strip()
+    sgi_revision_mail_to = [e.strip() for e in sgi_revision_mail_raw.replace(";", ",").split(",") if e.strip()]
+    sgi_aprobacion_mail_raw = (os.environ.get("SGI_APROBACION_MAIL_TO") or "").strip()
+    sgi_aprobacion_mail_to = [e.strip() for e in sgi_aprobacion_mail_raw.replace(";", ",").split(",") if e.strip()]
     plant_stop_mail_raw = (os.environ.get("PLANT_STOP_ALERT_EMAIL_TO") or "").strip()
     plant_stop_alert_email_to = [e.strip() for e in plant_stop_mail_raw.split(",") if e.strip()]
     stock_critical_mail_raw = (os.environ.get("STOCK_CRITICAL_ALERT_EMAIL_TO") or "").strip()
@@ -345,6 +349,8 @@ def get_config_dict(base_dir: Path) -> dict:
         "SMTP_USE_TLS": smtp_use_tls,
         "MAIL_FROM": mail_from,
         "DEADLINE_ALERT_EMAIL_TO": deadline_alert_email_to,
+        "SGI_REVISION_MAIL_TO": sgi_revision_mail_to,
+        "SGI_APROBACION_MAIL_TO": sgi_aprobacion_mail_to,
         "PLANT_STOP_ALERT_EMAIL_TO": plant_stop_alert_email_to,
         "STOCK_CRITICAL_ALERT_EMAIL_TO": stock_critical_alert_email_to,
         "DEADLINE_REMINDER_DAYS_BEFORE": deadline_reminder_days_before,
