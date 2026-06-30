@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import html as html_lib
 import logging
-from pathlib import Path
+from datetime import date
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
+
+from app.extensions import db
 from app.models import EmpleadoPersonal
+from app.models.birthday_reminder_sent import (
+    KIND_CONGRATS,
+    KIND_TEAM,
+    TEAM_ENTITY_ID,
+    BirthdayReminderSent,
+)
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.services.personal_epp_reminder_service import resolve_empleado_email
 from app.services.personal_service import cumpleanos_hoy, today_operacion
@@ -15,32 +24,41 @@ from app.services.personal_service import cumpleanos_hoy, today_operacion
 log = logging.getLogger(__name__)
 
 
-def _congrats_mail_lock_path(app: Any, iso_date: str, empleado_id: int) -> Path:
-    p = Path(app.instance_path) / "locks"
-    p.mkdir(parents=True, exist_ok=True)
-    return p / f"birthday_congrats_{iso_date}_{empleado_id}.lock"
+def _already_sent(operacion_date: date, kind: str, empleado_id: int) -> bool:
+    return (
+        db.session.query(BirthdayReminderSent.id)
+        .filter_by(operacion_date=operacion_date, kind=kind, empleado_id=empleado_id)
+        .first()
+        is not None
+    )
 
 
-def _congrats_mail_already_sent(app: Any, iso_date: str, empleado_id: int) -> bool:
-    return _congrats_mail_lock_path(app, iso_date, empleado_id).exists()
+def _claim_send_slot(operacion_date: date, kind: str, empleado_id: int) -> bool:
+    """Reserva atómica en BD; True si este proceso puede enviar."""
+    if _already_sent(operacion_date, kind, empleado_id):
+        return False
+    try:
+        db.session.add(
+            BirthdayReminderSent(
+                operacion_date=operacion_date,
+                kind=kind,
+                empleado_id=empleado_id,
+            )
+        )
+        db.session.commit()
+        return True
+    except IntegrityError:
+        db.session.rollback()
+        return False
 
 
-def _mark_congrats_mail_sent(app: Any, iso_date: str, empleado_id: int) -> None:
-    _congrats_mail_lock_path(app, iso_date, empleado_id).touch()
-
-
-def _team_mail_lock_path(app: Any, iso_date: str) -> Path:
-    p = Path(app.instance_path) / "locks"
-    p.mkdir(parents=True, exist_ok=True)
-    return p / f"birthday_team_mail_{iso_date}.lock"
-
-
-def _team_mail_already_sent(app: Any, iso_date: str) -> bool:
-    return _team_mail_lock_path(app, iso_date).exists()
-
-
-def _mark_team_mail_sent(app: Any, iso_date: str) -> None:
-    _team_mail_lock_path(app, iso_date).touch()
+def _release_send_slot(operacion_date: date, kind: str, empleado_id: int) -> None:
+    db.session.query(BirthdayReminderSent).filter_by(
+        operacion_date=operacion_date,
+        kind=kind,
+        empleado_id=empleado_id,
+    ).delete()
+    db.session.commit()
 
 
 def _empleados_activos_con_email() -> list[tuple[EmpleadoPersonal, str]]:
@@ -109,14 +127,16 @@ def _build_team_bodies(festejados: list[EmpleadoPersonal]) -> tuple[str, str, st
 
 def _send_congrats(app: Any, empleado: EmpleadoPersonal, *, dry_run: bool) -> tuple[bool, str]:
     hoy = today_operacion()
-    iso = hoy.isoformat()
-    if _congrats_mail_already_sent(app, iso, int(empleado.id)):
+    empleado_id = int(empleado.id)
+    if _already_sent(hoy, KIND_CONGRATS, empleado_id):
         return True, "Ya enviado hoy."
     to_addr = resolve_empleado_email(empleado)
     if not to_addr:
         return False, f"Sin email válido en legajo de {empleado.nombre_completo}."
     if dry_run:
         return True, f"Dry-run: felicitación a {to_addr}."
+    if not _claim_send_slot(hoy, KIND_CONGRATS, empleado_id):
+        return True, "Ya enviado hoy."
     asunto, plain, html_body = _build_congrats_bodies(empleado)
     try:
         enviar_mail(
@@ -127,9 +147,9 @@ def _send_congrats(app: Any, empleado: EmpleadoPersonal, *, dry_run: bool) -> tu
             cuerpo_texto=plain,
         )
     except Exception as exc:
+        _release_send_slot(hoy, KIND_CONGRATS, empleado_id)
         log.exception("Fallo envío cumpleaños empleado_id=%s", empleado.id)
         return False, f"Error SMTP: {exc}"
-    _mark_congrats_mail_sent(app, iso, int(empleado.id))
     return True, f"Felicitación enviada a {to_addr}."
 
 
@@ -139,8 +159,8 @@ def _send_team_announcement(
     *,
     dry_run: bool,
 ) -> tuple[int, list[str]]:
-    iso = today_operacion().isoformat()
-    if _team_mail_already_sent(app, iso):
+    hoy = today_operacion()
+    if _already_sent(hoy, KIND_TEAM, TEAM_ENTITY_ID):
         return 0, []
     recipients = _empleados_activos_con_email()
     if not recipients:
@@ -150,6 +170,8 @@ def _send_team_announcement(
     errors: list[str] = []
     if dry_run:
         return len(recipients), errors
+    if not _claim_send_slot(hoy, KIND_TEAM, TEAM_ENTITY_ID):
+        return 0, []
     for emp, addr in recipients:
         try:
             enviar_mail(
@@ -163,8 +185,8 @@ def _send_team_announcement(
         except Exception as exc:
             log.exception("Fallo aviso grupal cumpleaños a %s", addr)
             errors.append(f"{emp.nombre_completo} ({addr}): {exc}")
-    if sent:
-        _mark_team_mail_sent(app, iso)
+    if not sent:
+        _release_send_slot(hoy, KIND_TEAM, TEAM_ENTITY_ID)
     return sent, errors
 
 
@@ -197,7 +219,7 @@ def run_birthday_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
         result["congrats_attempted"] += 1
         if dry_run:
             addr = resolve_empleado_email(emp)
-            if addr and not _congrats_mail_already_sent(app, hoy.isoformat(), int(emp.id)):
+            if addr and not _already_sent(hoy, KIND_CONGRATS, int(emp.id)):
                 result["congrats_sent"] += 1
             elif not addr:
                 result["errors"].append(f"{emp.nombre_completo}: sin email válido.")

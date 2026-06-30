@@ -662,6 +662,59 @@ def test_birthday_reminders_dry_run(app, admin_user):
         assert out["cumpleaneros"] >= 1
 
 
+def test_birthday_reminders_once_per_day(app, admin_user, monkeypatch):
+    from datetime import date
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.models.birthday_reminder_sent import (
+        KIND_CONGRATS,
+        KIND_TEAM,
+        TEAM_ENTITY_ID,
+        BirthdayReminderSent,
+    )
+    from app.services import personal_service as ps
+    from app.services.personal_birthday_reminder_service import run_birthday_reminders
+
+    sent_calls: list[list[str]] = []
+
+    def fake_enviar_mail(_app, *, destinatarios, **kwargs):
+        sent_calls.append(list(destinatarios))
+
+    monkeypatch.setattr(
+        "app.services.personal_birthday_reminder_service.enviar_mail",
+        fake_enviar_mail,
+    )
+    monkeypatch.setattr(
+        "app.services.personal_birthday_reminder_service.is_mail_fully_configured",
+        lambda _app: True,
+    )
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        hoy = ps.today_operacion()
+        emp.fecha_nacimiento = date(1985, hoy.month, hoy.day)
+        emp.email = "cumple@test.local"
+        emp.estado = "activo"
+        db.session.commit()
+
+        first = run_birthday_reminders(app, dry_run=False)
+        second = run_birthday_reminders(app, dry_run=False)
+
+        assert first["congrats_sent"] == 1
+        assert first["team_emails_sent"] >= 1
+        assert second["congrats_sent"] == 0
+        assert second["team_emails_sent"] == 0
+        assert len(sent_calls) == first["congrats_sent"] + first["team_emails_sent"]
+
+        rows = db.session.query(BirthdayReminderSent).filter_by(operacion_date=hoy).all()
+        kinds = {(r.kind, r.empleado_id) for r in rows}
+        assert (KIND_CONGRATS, emp.id) in kinds
+        assert (KIND_TEAM, TEAM_ENTITY_ID) in kinds
+
+
 def test_vacaciones_workflow_solicitud_aprobacion(auth_client, app):
     from app.extensions import db
     from app.models import EmpleadoPersonal, User
