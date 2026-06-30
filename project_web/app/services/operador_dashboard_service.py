@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Callable
 
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
@@ -429,6 +430,270 @@ def produccion_por_operador_en_mes(year: int, month: int) -> dict[str, Any]:
         "promedio_por_operador_liters": round(promedio_operador, 1),
         "promedio_por_operador_display": format_header_liters(promedio_operador),
         "turnos_contados": turnos_total,
+    }
+
+
+@dataclass(frozen=True)
+class _CampoAnalisisSpec:
+    key: str
+    label: str
+    threshold_op: str | None = None
+    threshold: float | None = None
+    umbral_label: str | None = None
+
+
+def _campo_desviado(value: float, spec: _CampoAnalisisSpec) -> bool:
+    if spec.threshold_op is None or spec.threshold is None:
+        return False
+    if spec.threshold_op == "gt":
+        return value > spec.threshold
+    if spec.threshold_op == "lt":
+        return value < spec.threshold
+    return False
+
+
+def _safe_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+def _promedio_campos(
+    rows: list[Any],
+    specs: tuple[_CampoAnalisisSpec, ...],
+    getter: Callable[[Any, str], Any],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for spec in specs:
+        vals: list[float] = []
+        desvios = 0
+        for row in rows:
+            fv = _safe_float(getter(row, spec.key))
+            if fv is None:
+                continue
+            vals.append(fv)
+            if _campo_desviado(fv, spec):
+                desvios += 1
+        if not vals:
+            continue
+        promedio = sum(vals) / len(vals)
+        out.append(
+            {
+                "key": spec.key,
+                "label": spec.label,
+                "promedio": round(promedio, 2),
+                "registros": len(vals),
+                "desvios": desvios,
+                "umbral_label": spec.umbral_label,
+                "tiene_umbral": spec.umbral_label is not None,
+            }
+        )
+    return out
+
+
+_HIPO_CAMPOS: tuple[_CampoAnalisisSpec, ...] = (
+    _CampoAnalisisSpec("amperaje", "Amperaje"),
+    _CampoAnalisisSpec("voltaje_total", "V Σ celdas"),
+    _CampoAnalisisSpec("voltaje_total_trafo", "V trafo"),
+    _CampoAnalisisSpec("caudal_agua_l_h", "Caudal agua (L/h)"),
+    _CampoAnalisisSpec("caudal_salmuera_l_h", "Caudal salmuera (L/h)"),
+    _CampoAnalisisSpec("hipo_conc", "Hipo conc"),
+    _CampoAnalisisSpec("hipo_exceso_soda", "Exceso soda", "gt", 9.0, "> 9"),
+    _CampoAnalisisSpec("sal_temp", "Temp. salmuera"),
+    _CampoAnalisisSpec("sal_conc", "Conc. salmuera", "lt", 260.0, "< 260 g/L"),
+    _CampoAnalisisSpec("sal_ph", "pH salmuera", "gt", 5.0, "> 5"),
+    _CampoAnalisisSpec("soda_conc", "Conc. soda"),
+    _CampoAnalisisSpec("declor_ph", "pH declor.", "gt", 1.9, "> 1.9"),
+    _CampoAnalisisSpec("orp", "ORP"),
+)
+
+_REACTOR_CAMPOS: tuple[_CampoAnalisisSpec, ...] = (
+    _CampoAnalisisSpec("ph", "pH"),
+    _CampoAnalisisSpec("temperatura", "Temperatura"),
+    _CampoAnalisisSpec("densidad", "Densidad"),
+    _CampoAnalisisSpec("concentracion_tabla", "Conc. salmuera", "lt", 200.0, "< 200"),
+    _CampoAnalisisSpec("exceso_naoh", "Exceso soda", "gt", 0.16, "> 0.16"),
+    _CampoAnalisisSpec("exceso_na2co3", "Exceso carbonato", "gt", 0.45, "> 0.45"),
+    _CampoAnalisisSpec("orp", "ORP"),
+)
+
+_AGUA_CAMPOS: tuple[_CampoAnalisisSpec, ...] = (
+    _CampoAnalisisSpec("temperatura", "Temperatura"),
+    _CampoAnalisisSpec("dureza", "Dureza", "gt", 1.0, "> 1 ppm"),
+    _CampoAnalisisSpec("numero_columna", "Columna"),
+)
+
+_ANALISIS_8HS_CAMPOS: tuple[_CampoAnalisisSpec, ...] = (
+    _CampoAnalisisSpec("dureza_salmuera", "Dureza salmuera"),
+    _CampoAnalisisSpec("cloro_libre_salmuera", "Cloro libre"),
+)
+
+
+def _getter_attr(row: Any, key: str) -> Any:
+    return getattr(row, key, None)
+
+
+def analisis_promedios_por_operador_en_mes(year: int, month: int) -> dict[str, list[dict[str, Any]]]:
+    """
+    Promedios de análisis por operador en el mes, con conteo de desvíos (umbrales operativos).
+    Excluye voltajes por celda individual; incluye V Σ celdas y V trafo.
+    """
+    start, end = _month_bounds_iso(year, month)
+
+    hip_rows = db.session.scalars(
+        select(SalmueraRegistro)
+        .where(SalmueraRegistro.created_at_iso >= start, SalmueraRegistro.created_at_iso < end)
+        .order_by(SalmueraRegistro.created_at_iso.asc(), SalmueraRegistro.id.asc())
+    ).all()
+
+    by_op_e: dict[tuple[str, int], list[SalmueraRegistro]] = defaultdict(list)
+    for r in hip_rows:
+        op = _norm_operador(r.operador)
+        by_op_e[(op, int(r.electrolizador))].append(r)
+
+    reactor_rows = db.session.scalars(
+        select(ReactorRegistro)
+        .where(ReactorRegistro.created_at_iso >= start, ReactorRegistro.created_at_iso < end)
+        .order_by(ReactorRegistro.created_at_iso.asc(), ReactorRegistro.id.asc())
+    ).all()
+    by_op_reactor: dict[str, list[ReactorRegistro]] = defaultdict(list)
+    for r in reactor_rows:
+        by_op_reactor[_norm_operador(r.operador)].append(r)
+
+    agua_rows = db.session.scalars(
+        select(AguaRegistro)
+        .where(AguaRegistro.created_at_iso >= start, AguaRegistro.created_at_iso < end)
+        .order_by(AguaRegistro.created_at_iso.asc(), AguaRegistro.id.asc())
+    ).all()
+    by_op_agua: dict[str, list[AguaRegistro]] = defaultdict(list)
+    for r in agua_rows:
+        by_op_agua[_norm_operador(r.operador)].append(r)
+
+    a8_rows = db.session.scalars(
+        select(SalmueraAnalisis8hs)
+        .where(SalmueraAnalisis8hs.fecha_hora_iso >= start, SalmueraAnalisis8hs.fecha_hora_iso < end)
+        .order_by(SalmueraAnalisis8hs.fecha_hora_iso.asc(), SalmueraAnalisis8hs.id.asc())
+    ).all()
+    by_op_a8: dict[str, list[SalmueraAnalisis8hs]] = defaultdict(list)
+    for r in a8_rows:
+        by_op_a8[_norm_operador(r.operador)].append(r)
+
+    all_ops: set[str] = set()
+    all_ops.update(op for op, _ in by_op_e)
+    all_ops.update(by_op_reactor)
+    all_ops.update(by_op_agua)
+    all_ops.update(by_op_a8)
+
+    por_operador: dict[str, list[dict[str, Any]]] = {}
+    for op in sorted(all_ops, key=lambda s: s.lower()):
+        bloques: list[dict[str, Any]] = []
+        for eid in sorted({e for o, e in by_op_e if o == op}):
+            rows_e = by_op_e[(op, eid)]
+            campos = _promedio_campos(rows_e, _HIPO_CAMPOS, _getter_attr)
+            if campos:
+                bloques.append(
+                    {
+                        "tipo": f"hipoclorito_e{eid}",
+                        "label": f"{MODULE_LABELS['salmuera']} · Electrolizador {eid}",
+                        "registros": len(rows_e),
+                        "campos": campos,
+                        "total_desvios": sum(c["desvios"] for c in campos),
+                    }
+                )
+        if op in by_op_reactor:
+            rows_r = by_op_reactor[op]
+            campos = _promedio_campos(rows_r, _REACTOR_CAMPOS, _getter_attr)
+            if campos:
+                bloques.append(
+                    {
+                        "tipo": "reactor",
+                        "label": MODULE_LABELS["reactor"],
+                        "registros": len(rows_r),
+                        "campos": campos,
+                        "total_desvios": sum(c["desvios"] for c in campos),
+                    }
+                )
+        if op in by_op_agua:
+            rows_a = by_op_agua[op]
+            campos = _promedio_campos(rows_a, _AGUA_CAMPOS, _getter_attr)
+            if campos:
+                bloques.append(
+                    {
+                        "tipo": "agua",
+                        "label": MODULE_LABELS["agua"],
+                        "registros": len(rows_a),
+                        "campos": campos,
+                        "total_desvios": sum(c["desvios"] for c in campos),
+                    }
+                )
+        if op in by_op_a8:
+            rows_8 = by_op_a8[op]
+            campos = _promedio_campos(rows_8, _ANALISIS_8HS_CAMPOS, _getter_attr)
+            if campos:
+                bloques.append(
+                    {
+                        "tipo": "analisis_8hs",
+                        "label": "Análisis 8 hs",
+                        "registros": len(rows_8),
+                        "campos": campos,
+                        "total_desvios": sum(c["desvios"] for c in campos),
+                    }
+                )
+        if bloques:
+            por_operador[op] = bloques
+
+    return por_operador
+
+
+def _produccion_lookup(mes_prod: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {o["operador"]: o for o in mes_prod.get("operadores", [])}
+
+
+def reporte_operador_mes(year: int, month: int) -> dict[str, Any]:
+    """Reporte mensual por operador: producción + promedios de análisis con desvíos."""
+    produccion = produccion_por_operador_en_mes(year, month)
+    analisis = analisis_promedios_por_operador_en_mes(year, month)
+    prod_by_op = _produccion_lookup(produccion)
+
+    all_ops: set[str] = set(prod_by_op) | set(analisis)
+    operadores: list[dict[str, Any]] = []
+    for op in sorted(all_ops, key=lambda s: s.lower()):
+        prod = prod_by_op.get(op)
+        bloques = analisis.get(op, [])
+        total_desvios = sum(b.get("total_desvios", 0) for b in bloques)
+        operadores.append(
+            {
+                "operador": op,
+                "produccion_liters": prod["produccion_liters"] if prod else None,
+                "produccion_display": prod["produccion_display"] if prod else "—",
+                "turnos": prod["turnos"] if prod else 0,
+                "promedio_por_turno_display": prod["promedio_por_turno_display"] if prod else "—",
+                "analisis": bloques,
+                "total_desvios": total_desvios,
+            }
+        )
+
+    return {
+        "year": year,
+        "month": month,
+        "label": _month_label(year, month),
+        "produccion": produccion,
+        "operadores": operadores,
+    }
+
+
+def build_inicio_reporte_context() -> dict[str, Any]:
+    """Contexto del reporte por operador en inicio (mes en curso y mes anterior)."""
+    now = now_operacion_naive_local()
+    cy, cm = now.year, now.month
+    py, pm = _prev_month(cy, cm)
+    return {
+        "reporte_mes_actual": reporte_operador_mes(cy, cm),
+        "reporte_mes_anterior": reporte_operador_mes(py, pm),
     }
 
 

@@ -32,7 +32,12 @@ def instalar():
 
 @bp.get("/")
 def index():
-    return render_template("index.html")
+    ctx: dict = {}
+    if current_user():
+        from app.services.operador_dashboard_service import build_inicio_reporte_context
+
+        ctx.update(build_inicio_reporte_context())
+    return render_template("index.html", **ctx)
 
 
 @bp.get("/dashboard")

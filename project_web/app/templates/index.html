@@ -61,4 +61,8 @@
     {% endif %}
   </div>
 </div>
+
+{% if nav_user and reporte_mes_actual is defined %}
+{% include "panel/_inicio_reporte_operadores.html" %}
+{% endif %}
 {% endblock %}

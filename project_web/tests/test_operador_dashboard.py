@@ -138,3 +138,94 @@ def test_dashboard_operadores_route_ok(auth_client):
     assert r.status_code == 200
     assert b"Ranking de atrasos" in r.data
     assert b"Producci" in r.data
+
+
+def test_analisis_promedios_con_desvios(app):
+    from app.extensions import db
+    from app.models import ReactorRegistro, SalmueraRegistro
+    from app.services.operador_dashboard_service import analisis_promedios_por_operador_en_mes
+
+    with app.app_context():
+        db.session.add(
+            SalmueraRegistro(
+                fecha_iso="2026-06-10",
+                hora_hm="08:00",
+                electrolizador=2,
+                cantidad_celdas=6,
+                turno="M",
+                voltajes_json="[3.0,3.0,3.0,3.0,3.0,3.0]",
+                voltaje_total=18.0,
+                voltaje_total_trafo=110.0,
+                amperaje=50.0,
+                caudal_agua_l_h=10.0,
+                caudal_salmuera_l_h=12.0,
+                hipo_conc=1.0,
+                hipo_exceso_soda=10.0,
+                sal_temp=25.0,
+                sal_conc=250.0,
+                sal_ph=5.5,
+                soda_conc=1.0,
+                declor_ph=2.0,
+                operador="op_reporte",
+                created_at_iso="2026-06-10T08:00:00",
+            )
+        )
+        db.session.add(
+            SalmueraRegistro(
+                fecha_iso="2026-06-11",
+                hora_hm="08:00",
+                electrolizador=2,
+                cantidad_celdas=6,
+                turno="M",
+                voltajes_json="[3.0,3.0,3.0,3.0,3.0,3.0]",
+                voltaje_total=18.0,
+                voltaje_total_trafo=110.0,
+                amperaje=52.0,
+                caudal_agua_l_h=10.0,
+                caudal_salmuera_l_h=12.0,
+                hipo_conc=1.0,
+                hipo_exceso_soda=8.0,
+                sal_temp=25.0,
+                sal_conc=270.0,
+                sal_ph=4.5,
+                soda_conc=1.0,
+                declor_ph=1.5,
+                operador="op_reporte",
+                created_at_iso="2026-06-11T08:00:00",
+            )
+        )
+        db.session.add(
+            ReactorRegistro(
+                fecha_iso="2026-06-10",
+                hora_hm="09:00",
+                operador="op_reporte",
+                lote="L1",
+                ph=7.0,
+                temperatura=30.0,
+                densidad=1.2,
+                concentracion_tabla=195.0,
+                exceso_naoh=0.2,
+                exceso_na2co3=0.5,
+                created_at_iso="2026-06-10T09:00:00",
+            )
+        )
+        db.session.commit()
+
+        data = analisis_promedios_por_operador_en_mes(2026, 6)
+        assert "op_reporte" in data
+        bloques = {b["tipo"]: b for b in data["op_reporte"]}
+        hipo = bloques["hipoclorito_e2"]
+        exceso = next(c for c in hipo["campos"] if c["key"] == "hipo_exceso_soda")
+        assert exceso["promedio"] == 9.0
+        assert exceso["desvios"] == 1
+        assert hipo["total_desvios"] >= 3
+
+        reactor = bloques["reactor"]
+        assert reactor["total_desvios"] == 3
+
+
+def test_inicio_reporte_visible_auth(auth_client):
+    r = auth_client.get("/")
+    assert r.status_code == 200
+    assert b"Reporte por operador" in r.data
+    assert b"desv" in r.data.lower()

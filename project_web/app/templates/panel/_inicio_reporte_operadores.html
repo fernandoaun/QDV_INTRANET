@@ -1,0 +1,125 @@
+{# Reporte mensual por operador: producción y promedios de análisis con desvíos #}
+{% macro render_mes_reporte(reporte, es_actual) %}
+<div class="app-card h-100 mb-0">
+  <div class="app-card-header app-card-header--split">
+    <span>{{ reporte.label }}</span>
+    <span class="small app-text-secondary">{% if es_actual %}Mes en curso{% else %}Mes anterior{% endif %}</span>
+  </div>
+  <div class="app-card-body border-bottom py-2">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <span class="small text-uppercase app-text-secondary">Producción total</span>
+        <div class="fw-semibold fs-5">{{ reporte.produccion.total_display }}</div>
+      </div>
+      <div class="col-auto small app-text-secondary">
+        {{ reporte.produccion.turnos_contados }} turno(s) ·
+        Prom. operador: <strong>{{ reporte.produccion.promedio_por_operador_display }}</strong>
+      </div>
+    </div>
+  </div>
+  {% if reporte.operadores %}
+  <div class="accordion accordion-flush" id="reporte-{{ 'actual' if es_actual else 'anterior' }}">
+    {% for op in reporte.operadores %}
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#reporte-op-{{ 'a' if es_actual else 'p' }}-{{ loop.index }}"
+                aria-expanded="{{ 'true' if loop.first else 'false' }}">
+          <span class="me-2"><strong>{{ op.operador }}</strong></span>
+          <span class="badge text-bg-primary app-badge-soft me-1">{{ op.produccion_display }}</span>
+          {% if op.total_desvios > 0 %}
+          <span class="badge text-bg-danger" title="Registros fuera de umbral operativo">{{ op.total_desvios }} desv.</span>
+          {% endif %}
+        </button>
+      </h2>
+      <div id="reporte-op-{{ 'a' if es_actual else 'p' }}-{{ loop.index }}"
+           class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+           data-bs-parent="#reporte-{{ 'actual' if es_actual else 'anterior' }}">
+        <div class="accordion-body pt-2 pb-3">
+          <p class="small app-text-secondary mb-3">
+            Producción: <strong>{{ op.produccion_display }}</strong>
+            {% if op.turnos > 0 %}
+            · {{ op.turnos }} turno(s) · Prom./turno: {{ op.promedio_por_turno_display }}
+            {% endif %}
+          </p>
+          {% if op.analisis %}
+          {% for bloque in op.analisis %}
+          <div class="mb-3">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+              <span class="fw-semibold small">{{ bloque.label }}</span>
+              <span class="badge text-bg-secondary app-badge-soft">{{ bloque.registros }} reg.</span>
+              {% if bloque.total_desvios > 0 %}
+              <span class="badge text-bg-danger">{{ bloque.total_desvios }} desvío(s)</span>
+              {% endif %}
+            </div>
+            <div class="table-responsive">
+              <table class="table table-app table-compact table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>Parámetro</th>
+                    <th class="text-end">Promedio</th>
+                    <th class="text-end">Reg.</th>
+                    <th class="text-end">Desvíos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for c in bloque.campos %}
+                  <tr{% if c.desvios > 0 %} class="table-warning"{% endif %}>
+                    <td>
+                      {{ c.label }}
+                      {% if c.umbral_label %}
+                      <span class="text-muted small">({{ c.umbral_label }})</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end font-monospace">{{ c.promedio }}</td>
+                    <td class="text-end text-muted">{{ c.registros }}</td>
+                    <td class="text-end">
+                      {% if c.desvios > 0 %}
+                      <span class="badge text-bg-danger">{{ c.desvios }}</span>
+                      {% else %}
+                      <span class="text-muted">0</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <p class="app-text-secondary small mb-0">Sin análisis cargados en este mes.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="app-card-body">
+    <p class="app-text-secondary mb-0">Sin datos de operadores en este mes.</p>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+<div class="app-card mt-3">
+  <div class="app-card-body">
+    <h2 class="h5 mb-2">Reporte por operador</h2>
+    <p class="app-text-secondary small mb-0">
+      Promedios mensuales de producción (L) y de todos los análisis operativos.
+      Los <strong>desvíos</strong> marcan registros fuera del umbral operativo (excesos de soda, concentraciones, pH, dureza, etc.).
+      No incluye voltajes por celda individual.
+    </p>
+  </div>
+</div>
+
+<div class="row g-3 mt-0">
+  <div class="col-xl-6">
+    {{ render_mes_reporte(reporte_mes_actual, true) }}
+  </div>
+  <div class="col-xl-6">
+    {{ render_mes_reporte(reporte_mes_anterior, false) }}
+  </div>
+</div>
