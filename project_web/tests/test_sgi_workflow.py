@@ -160,3 +160,45 @@ def test_users_to_notify_uses_documento_perfiles(app, sgi_editor):
         usernames = {u.username for u in users}
         assert "pytest_sgi_wf_op" in usernames
         assert "pytest_sgi_wf_mant" not in usernames
+
+
+def test_revisor_por_correo_legajo_puede_marcar_revisado(app, sgi_editor):
+    from app.models import EmpleadoPersonal
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="CORREO WF")
+        assert err is None and doc and rev
+
+        revisor = User(
+            username="pytest_sgi_wf_revisor",
+            password_hash=generate_password_hash("x"),
+            rol="operaciones",
+            activo=True,
+        )
+        db.session.add(revisor)
+        db.session.flush()
+        db.session.add(
+            EmpleadoPersonal(
+                user_id=revisor.id,
+                legajo="WF-REV-01",
+                apellido="Revisor",
+                nombre="Correo",
+                email="revisor.correo@example.com",
+            )
+        )
+        rev.reviso = "Otra persona"
+        rev.revisor_correo = "revisor.correo@example.com"
+        rev.aprobo = "Aprobador Test"
+        rev.aprobador_correo = "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+
+        proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        db.session.refresh(rev)
+        assert proc_svc.user_can_marcar_revisado(revisor, rev)
+
+        ok, msg = proc_svc.marcar_como_revisado(rev.id, revisor.id, "Revisor Correo")
+        assert ok, msg
+        db.session.refresh(rev)
+        assert rev.estado == ESTADO_REVISADO

@@ -20,6 +20,7 @@ from app.models.sgi import (
     ANEXO_TIPO_ARCHIVO,
     ANEXO_TIPO_DOCUMENTO,
     ANEXO_TIPO_ORGANIGRAMA,
+    ESTADO_EN_REVISION,
     SgiDocumento,
     TIPO_MSGI,
 )
@@ -38,6 +39,18 @@ def _require_procedure_read(doc: SgiDocumento | None = None):
     if user_can_access_sgi(u):
         return u, None
     if doc is not None and proc_svc.documento_accesible_por_perfil(u, doc):
+        return u, None
+    return None, _no_access()
+
+
+def _require_procedure_workflow(rev: SgiProcedimientoRevision | None = None):
+    """Acceso al editor/flujo: módulo SGI o participante asignado por nombre/correo en la carátula."""
+    u = current_user()
+    if u is None:
+        return None, _no_access()
+    if user_can_access_sgi(u):
+        return u, None
+    if rev is not None and proc_svc.user_participates_workflow(u, rev):
         return u, None
     return None, _no_access()
 
@@ -221,9 +234,6 @@ def procedimiento_nuevo(slug: str):
 @bp.route("/<slug>/procedimientos/<int:doc_id>/editor/<int:rev_id>")
 @login_required
 def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
-    u, _, redir = _require_view()
-    if redir is not None:
-        return redir
     tipo, _ = _resolve_tipo(slug)
     doc = doc_svc.get_documento(doc_id)
     if doc is None or doc.tipo != tipo or not doc.es_procedimiento_visual:
@@ -233,14 +243,6 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
         flash("Este procedimiento está en la papelera. Recuperalo desde «Documentos eliminados».", "warning")
         return redirect(url_for("sgi.listado_eliminados", slug=slug))
 
-    puede_editar = user_can_edit_sgi_documentos(u)
-    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar, user=u):
-        flash("Solo puede visualizarse la versión aprobada.", "warning")
-        vig = proc_svc.revision_vigente_aprobada(doc)
-        if vig:
-            return redirect(url_for("sgi.procedimiento_vista", slug=slug, doc_id=doc_id, rev_id=vig.id))
-        return redirect(url_for("sgi.listado_procedimientos", slug=slug))
-
     if rev_id:
         rev = proc_svc.get_revision(rev_id)
         if rev is None or rev.documento_id != doc.id:
@@ -249,6 +251,18 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
         rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
         if rev is None:
             abort(404)
+
+    u, redir = _require_procedure_workflow(rev)
+    if redir is not None:
+        return redir
+
+    puede_editar = user_can_edit_sgi_documentos(u)
+    if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar, user=u):
+        flash("Solo puede visualizarse la versión aprobada.", "warning")
+        vig = proc_svc.revision_vigente_aprobada(doc)
+        if vig:
+            return redirect(url_for("sgi.procedimiento_vista", slug=slug, doc_id=doc_id, rev_id=vig.id))
+        return redirect(url_for("sgi.listado_procedimientos", slug=slug))
 
     if anexo_svc.documento_es_especial(doc):
         tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)
@@ -427,19 +441,35 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
 @bp.post("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/guardar")
 @login_required
 def procedimiento_guardar(slug: str, doc_id: int, rev_id: int):
-    u, redir = _require_edit()
-    if redir is not None:
-        return jsonify({"ok": False, "error": "sin_permiso"}), 403
-    tipo, _ = _resolve_tipo(slug)
-    doc = doc_svc.get_documento(doc_id)
-    if doc is None or doc.tipo != tipo:
+    rev = proc_svc.get_revision(rev_id)
+    if rev is None or rev.documento_id != doc_id:
         return jsonify({"ok": False, "error": "no_encontrado"}), 404
 
+    u = current_user()
+    if u is None:
+        return jsonify({"ok": False, "error": "sin_permiso"}), 403
+
     data = request.get_json(silent=True) or {}
-    ok, msg, control_cambios = proc_svc.save_revision_content(
-        rev_id, data, u.id, user_display_name(u), actor=u
-    )
-    return jsonify({"ok": ok, "message": msg, "control_cambios": control_cambios}), (200 if ok else 400)
+    label = user_display_name(u)
+
+    if user_can_edit_sgi_documentos(u):
+        u_edit, redir = _require_edit()
+        if redir is not None:
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        tipo, _ = _resolve_tipo(slug)
+        doc = doc_svc.get_documento(doc_id)
+        if doc is None or doc.tipo != tipo:
+            return jsonify({"ok": False, "error": "no_encontrado"}), 404
+        ok, msg, control_cambios = proc_svc.save_revision_content(
+            rev_id, data, u.id, label, actor=u
+        )
+        return jsonify({"ok": ok, "message": msg, "control_cambios": control_cambios}), (200 if ok else 400)
+
+    if proc_svc.user_can_marcar_revisado(u, rev) and rev.estado == ESTADO_EN_REVISION:
+        ok, msg = proc_svc.save_workflow_caratula(rev_id, data, u.id, label)
+        return jsonify({"ok": ok, "message": msg, "control_cambios": []}), (200 if ok else 400)
+
+    return jsonify({"ok": False, "error": "sin_permiso"}), 403
 
 
 @bp.post("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/contenido")
@@ -520,13 +550,13 @@ def procedimiento_archivo(slug: str, doc_id: int):
 @bp.post("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/workflow")
 @login_required
 def procedimiento_workflow(slug: str, doc_id: int, rev_id: int):
-    u, _, redir = _require_view()
-    if redir is not None:
-        return jsonify({"ok": False, "error": "sin_permiso"}), 403
-
     rev = proc_svc.get_revision(rev_id)
     if rev is None or rev.documento_id != doc_id:
         return jsonify({"ok": False, "message": "Revisión no encontrada."}), 404
+
+    u, redir = _require_procedure_workflow(rev)
+    if redir is not None:
+        return jsonify({"ok": False, "error": "sin_permiso"}), 403
 
     payload = request.get_json(silent=True) or {}
     accion = (request.form.get("accion") or payload.get("accion") or "") or ""

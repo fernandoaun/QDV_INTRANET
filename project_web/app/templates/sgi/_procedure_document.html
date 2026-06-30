@@ -22,7 +22,7 @@
         <tr>
           <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
           <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) and not (puede_marcar_revisado|default(false) and rev.estado == 'en_revision') %}readonly{% endif %}></td>
         </tr>
       </tbody>
     </table>

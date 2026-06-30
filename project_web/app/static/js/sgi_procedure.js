@@ -1536,7 +1536,7 @@
     }
     if (!cfg.soloLectura) {
       await guardarBorrador();
-    } else if (accion === "marcar_revisado" || accion === "aprobar") {
+    } else if (accion === "marcar_revisado") {
       const data = collectPayload();
       const res = await postJson(cfg.urls.guardar, data);
       if (!res.ok) {

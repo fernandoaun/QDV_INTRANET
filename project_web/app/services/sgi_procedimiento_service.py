@@ -38,8 +38,11 @@ from app.models.sgi import (
     TIPO_SLUGS,
     TIPOS_PROCEDIMIENTO_VISUAL,
 )
+from app.models.personal import EmpleadoPersonal
 from app.models.user import User
 from app.auth_utils import user_can_edit_sgi_documentos, user_display_name
+from app.services.deadline_alert_email_service import normalize_validate_email
+from app.services.personal_epp_reminder_service import resolve_empleado_email
 from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_notification_service as notif_svc
 from app.services import sgi_service as doc_svc
@@ -53,6 +56,7 @@ ACCION_APROBAR = "aprobar"
 ACCION_NUEVA_REVISION = "nueva_revision"
 
 _CODIGO_RE = re.compile(r"^QDV-(PG|PO|MSGI)-(\d+)$", re.IGNORECASE)
+_EMAIL_IN_TEXT_RE = re.compile(r"[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}")
 _ROMAN_VALUES: tuple[tuple[int, str], ...] = (
     (1000, "M"),
     (900, "CM"),
@@ -350,20 +354,60 @@ def _label_matches_user(label: str, user: User) -> bool:
     return False
 
 
+def _user_workflow_emails(user: User) -> set[str]:
+    emails: set[str] = set()
+    emp = getattr(user, "empleado_personal", None)
+    if emp is None:
+        emp = db.session.execute(
+            select(EmpleadoPersonal).where(EmpleadoPersonal.user_id == user.id)
+        ).scalar_one_or_none()
+    addr = resolve_empleado_email(emp)
+    if addr:
+        emails.add(addr.lower())
+    uname = (user.username or "").strip()
+    if "@" in uname:
+        norm = normalize_validate_email(uname)
+        if norm:
+            emails.add(norm.lower())
+    return emails
+
+
+def _correo_matches_user(user: User, *parts: str | None) -> bool:
+    user_emails = _user_workflow_emails(user)
+    if not user_emails:
+        return False
+    for part in parts:
+        for m in _EMAIL_IN_TEXT_RE.finditer(part or ""):
+            if m.group(0).lower() in user_emails:
+                return True
+        norm = normalize_validate_email((part or "").strip())
+        if norm and norm.lower() in user_emails:
+            return True
+    return False
+
+
 def user_can_marcar_revisado(user: User | None, rev: SgiProcedimientoRevision) -> bool:
     if user is None or rev.estado != ESTADO_EN_REVISION:
         return False
-    if user.is_admin or user_can_edit_sgi_documentos(user):
+    if user.is_admin:
         return True
-    return _label_matches_user(rev.reviso, user)
+    if _label_matches_user(rev.reviso, user):
+        return True
+    if _correo_matches_user(user, rev.revisor_correo, rev.reviso):
+        return True
+    return user_can_edit_sgi_documentos(user)
 
 
 def user_can_aprobar_revision(user: User | None, rev: SgiProcedimientoRevision) -> bool:
     if user is None or rev.estado != ESTADO_REVISADO:
         return False
-    if user.is_admin or user_can_edit_sgi_documentos(user):
+    if user.is_admin:
         return True
-    return _label_matches_user(rev.aprobo, user)
+    if _label_matches_user(rev.aprobo, user):
+        return True
+    if _correo_matches_user(user, rev.aprobador_correo, rev.aprobo):
+        return True
+    return user_can_edit_sgi_documentos(user)
 
 
 def user_can_reenviar_aviso(user: User | None, rev: SgiProcedimientoRevision) -> bool:
@@ -751,6 +795,37 @@ def save_revision_content(
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Guardado {rev.revision_label}")
     db.session.commit()
     return True, "Borrador guardado.", contenido.get("control_cambios") or []
+
+
+def save_workflow_caratula(
+    rev_id: int,
+    payload: dict[str, Any],
+    user_id: int,
+    actor_label: str,
+) -> tuple[bool, str]:
+    """Actualiza solo firmas/correos de carátula para quien participa del flujo sin editar el contenido."""
+    rev = get_revision(rev_id)
+    if rev is None:
+        return False, "Revisión no encontrada."
+    if rev.estado not in (ESTADO_EN_REVISION, ESTADO_REVISADO):
+        return False, "Solo se pueden actualizar datos de carátula durante revisión o aprobación."
+    doc = rev.documento
+    if "reviso" in payload:
+        rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
+        doc.responsable_revision = rev.reviso
+    if "revisor_correo" in payload:
+        rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
+    if "aprobo" in payload:
+        rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
+        doc.responsable_aprobacion = rev.aprobo
+    if "aprobador_correo" in payload:
+        rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
+    rev.updated_at = _utc_now()
+    rev.updated_by_id = user_id
+    doc.updated_at = _utc_now()
+    doc.updated_by_id = user_id
+    db.session.commit()
+    return True, "Datos de carátula guardados."
 
 
 def _log_aprobacion(rev: SgiProcedimientoRevision, accion: str, user_id: int, label: str, detalle: str) -> None:
