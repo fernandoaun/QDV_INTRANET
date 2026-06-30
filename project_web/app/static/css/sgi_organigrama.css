@@ -182,10 +182,10 @@
   display: inline-block;
   width: 2.6rem;
   height: 1.1rem;
-  border-radius: 3px;
-  border: 2px solid #4ea72e;
-  background: #f4faf0;
-  box-shadow: 2px 2px 0 rgba(78, 167, 46, 0.35);
+  border-radius: 4px;
+  border: 2px solid #4caf50;
+  background: #f1f8e9;
+  box-shadow: 2px 2px 0 rgba(76, 175, 80, 0.35);
 }
 
 /* —— Cajas de puesto —— */
@@ -212,9 +212,9 @@
 }
 
 .sgi-org-node--external {
-  border-color: #4ea72e;
-  background: #f4faf0;
-  box-shadow: 3px 3px 0 rgba(78, 167, 46, 0.3);
+  border-color: #4caf50;
+  background: #f1f8e9;
+  box-shadow: 3px 3px 0 rgba(76, 175, 80, 0.3);
 }
 
 .sgi-org-node:hover {
@@ -249,6 +249,10 @@
 #sgiOrgEditorTable .org-users,
 #sgiOrgEditorTable .org-children {
   min-width: 12rem;
+}
+
+#sgiOrgEditorTable .org-kind {
+  min-width: 8.5rem;
 }
 
 #sgiOrgEditorTable .org-nivel {

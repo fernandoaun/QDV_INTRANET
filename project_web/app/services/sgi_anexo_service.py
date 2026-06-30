@@ -243,6 +243,7 @@ def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | N
         "user_ids": user_ids,
         "orden": int(n.get("orden") if n.get("orden") is not None else index),
         "nivel": nivel,
+        "kind": _organigrama_node_kind(n),
     }
 
 
@@ -281,18 +282,18 @@ def organigrama_ensure_complete_nodes(nodes: list[dict[str, Any]]) -> list[dict[
             base = dict(specs.get(gid, {}))
             saved = by_id.get(gid, {})
             user_ids = _organigrama_node_user_ids(saved)
-            ordered.append(
-                {
-                    "id": gid,
-                    "titulo": (saved.get("titulo") or base.get("titulo") or gid),
-                    "subtitulo": saved.get("subtitulo") or base.get("subtitulo") or "",
-                    "parent_id": saved.get("parent_id") if saved.get("parent_id") is not None else base.get("parent_id"),
-                    "user_id": user_ids[0] if user_ids else saved.get("user_id"),
-                    "user_ids": user_ids,
-                    "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
-                    "nivel": saved.get("nivel") if saved.get("nivel") is not None else base.get("nivel"),
-                }
-            )
+            merged = {
+                "id": gid,
+                "titulo": (saved.get("titulo") or base.get("titulo") or gid),
+                "subtitulo": saved.get("subtitulo") or base.get("subtitulo") or "",
+                "parent_id": saved.get("parent_id") if saved.get("parent_id") is not None else base.get("parent_id"),
+                "user_id": user_ids[0] if user_ids else saved.get("user_id"),
+                "user_ids": user_ids,
+                "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
+                "nivel": saved.get("nivel") if saved.get("nivel") is not None else base.get("nivel"),
+            }
+            merged["kind"] = _organigrama_node_kind({**base, **saved, **merged})
+            ordered.append(merged)
         return ordered
     preserve: dict[str, int] = {}
     for nid, n in by_id.items():
@@ -349,6 +350,11 @@ ORGANIGRAMA_EXTERNAL_IDS: frozenset[str] = frozenset(
 
 
 def _organigrama_node_kind(node: dict[str, Any]) -> str:
+    raw_kind = (node.get("kind") or "").strip().lower()
+    if raw_kind in ("external", "externo"):
+        return "external"
+    if raw_kind in ("internal", "interno"):
+        return "internal"
     nid = str(node.get("id") or "")
     if nid in ORGANIGRAMA_EXTERNAL_IDS:
         return "external"
@@ -532,16 +538,16 @@ def build_default_organigrama_nodes(
             rol = rol_by_id.get(nid) or spec.get("rol")
             if rol:
                 uid = _first_user_for_rol(rol)
-        nodes.append(
-            {
-                "id": nid,
-                "titulo": (spec.get("titulo") or "").strip().upper()[:256],
-                "subtitulo": (spec.get("subtitulo") or "")[:256],
-                "parent_id": spec.get("parent_id"),
-                "user_id": uid,
-                "orden": int(spec.get("orden") if spec.get("orden") is not None else i),
-            }
-        )
+        node = {
+            "id": nid,
+            "titulo": (spec.get("titulo") or "").strip().upper()[:256],
+            "subtitulo": (spec.get("subtitulo") or "")[:256],
+            "parent_id": spec.get("parent_id"),
+            "user_id": uid,
+            "orden": int(spec.get("orden") if spec.get("orden") is not None else i),
+        }
+        node["kind"] = _organigrama_node_kind(node)
+        nodes.append(node)
     return nodes
 
 

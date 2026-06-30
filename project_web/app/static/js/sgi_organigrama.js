@@ -206,7 +206,13 @@
     const xMin = Math.min(...xs);
     const xMax = Math.max(...xs);
     svgSeg(svg, xMin, junctionY, xMax, junctionY, style);
-    boxes.forEach((b) => orthoDown(svg, b.cx, junctionY, b.top, style));
+    boxes.forEach((b, i) => {
+      const btn = children[i];
+      const cell = btn?.closest(".sgi-org-tree-slot, .sgi-org-grid-cell");
+      const kind = cell?.dataset.kind || (btn?.classList.contains("sgi-org-node--external") ? "external" : "internal");
+      const segStyle = kind === "external" ? "dashed" : style;
+      orthoDown(svg, b.cx, junctionY, b.top, segStyle);
+    });
 
     const info = { junctionY, xMin, xMax, parentCx: p.cx };
     busCache[parentId] = info;
@@ -222,7 +228,7 @@
     orthoElbow(svg, f.cx, f.bottom, t.cx, t.top, style);
   }
 
-  function drawStemSide(svg, wrap, origin, fromId, toId, busCache) {
+  function drawStemSide(svg, wrap, origin, fromId, toId, busCache, style) {
     const from = nodeBtn(wrap, fromId);
     const to = nodeBtn(wrap, toId);
     if (!from || !to) return;
@@ -235,19 +241,21 @@
     } else {
       yBranch = f.bottom + Math.max(18, (t.cy - f.bottom) * 0.42);
     }
-    svgSeg(svg, f.cx, yBranch, t.left, yBranch, "dashed");
-    orthoDown(svg, t.left, yBranch, t.cy, "dashed");
+    const lineStyle = style || "dashed";
+    svgSeg(svg, f.cx, yBranch, t.left, yBranch, lineStyle);
+    orthoDown(svg, t.left, yBranch, t.cy, lineStyle);
   }
 
-  function drawBusTail(svg, wrap, origin, fromId, toId, busCache) {
+  function drawBusTail(svg, wrap, origin, fromId, toId, busCache, style) {
     const bus = busCache[fromId];
     const to = nodeBtn(wrap, toId);
     if (!bus || !to) return;
     const t = nodeBox(to, origin);
     const y = bus.junctionY;
     const xStart = Math.max(bus.xMax, bus.parentCx);
-    svgSeg(svg, xStart, y, t.cx, y, "dashed");
-    orthoDown(svg, t.cx, y, t.top, "dashed");
+    const lineStyle = style || "dashed";
+    svgSeg(svg, xStart, y, t.cx, y, lineStyle);
+    orthoDown(svg, t.cx, y, t.top, lineStyle);
   }
 
   function collectChartNodes(wrap) {
@@ -370,9 +378,9 @@
       if (link.type === "direct" && link.from && link.to) {
         drawDirect(svg, wrap, origin, link.from, link.to, link.style || "solid");
       } else if (link.type === "stem-side" && link.from && link.to) {
-        drawStemSide(svg, wrap, origin, link.from, link.to, busCache);
+        drawStemSide(svg, wrap, origin, link.from, link.to, busCache, link.style || "dashed");
       } else if (link.type === "bus-tail" && link.from && link.to) {
-        drawBusTail(svg, wrap, origin, link.from, link.to, busCache);
+        drawBusTail(svg, wrap, origin, link.from, link.to, busCache, link.style || "dashed");
       }
     });
   }
@@ -497,9 +505,12 @@
   }
 
   function nodeKindFromData(node) {
+    const rawKind = (node.kind || "").toLowerCase();
+    if (rawKind === "external" || rawKind === "externo") return "external";
+    if (rawKind === "internal" || rawKind === "interno") return "internal";
     const sub = (node.subtitulo || "").toLowerCase();
     if (sub.includes("extern") || sub.includes("servicio")) return "external";
-    return node.kind || "internal";
+    return "internal";
   }
 
   function resolveEditorUsuarios(node) {
@@ -625,6 +636,7 @@
         id,
         titulo,
         subtitulo: tr.dataset.subtitulo || "",
+        kind: tr.querySelector(".org-kind")?.value === "external" ? "external" : "internal",
         parent_id: tr.querySelector(".org-parent")?.value?.trim() || null,
         user_ids: userIds,
         user_id: userIds[0] || null,
@@ -762,6 +774,7 @@
         ? [String(node.user_id)]
         : [];
     const nodeId = node.id || slugId(node.titulo, `nuevo_${idx}`);
+    const nodeKind = nodeKindFromData(node);
     tr.dataset.subtitulo = node.subtitulo || "";
     tr.dataset.orden = String(node.orden ?? idx);
     const nivelVal =
@@ -772,6 +785,12 @@
       <td>
         <input type="hidden" class="org-id" value="${escHtml(nodeId)}">
         <input type="text" class="form-control form-control-sm org-titulo" value="${escHtml(node.titulo || "")}" placeholder="Ej. Gerente General">
+      </td>
+      <td>
+        <select class="form-select form-select-sm org-kind" aria-label="Tipo de puesto">
+          <option value="internal"${nodeKind === "internal" ? " selected" : ""}>Interno</option>
+          <option value="external"${nodeKind === "external" ? " selected" : ""}>Servicio externo</option>
+        </select>
       </td>
       <td>
         <select class="form-select form-select-sm org-parent">
@@ -814,6 +833,7 @@
     });
 
     tr.querySelector(".org-titulo")?.addEventListener("input", refreshEditorTable);
+    tr.querySelector(".org-kind")?.addEventListener("change", refreshEditorTable);
     tr.querySelector(".org-parent")?.addEventListener("change", () => {
       const parentId = tr.querySelector(".org-parent")?.value?.trim() || "";
       const nivelInput = tr.querySelector(".org-nivel");
