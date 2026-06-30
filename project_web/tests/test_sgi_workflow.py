@@ -202,3 +202,41 @@ def test_revisor_por_correo_legajo_puede_marcar_revisado(app, sgi_editor):
         assert ok, msg
         db.session.refresh(rev)
         assert rev.estado == ESTADO_REVISADO
+
+
+def test_angel_profile_can_aprobar_revision(app, sgi_editor):
+    """Perfil Angel (solo lectura total) puede aprobar procedimientos en estado revisado."""
+    from app.services import sgi_documento_perfil_service as perfil_svc
+    from app.user_roles import ROLE_SOLO_LECTURA_TOTAL
+
+    with app.app_context():
+        angel = User(
+            username="pytest_sgi_wf_angel",
+            password_hash=generate_password_hash("x"),
+            rol=ROLE_SOLO_LECTURA_TOTAL,
+            activo=True,
+        )
+        db.session.add(angel)
+        db.session.flush()
+
+        doc, rev, _ = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="ANGEL WF")
+        rev.reviso = "Revisor"
+        rev.revisor_correo = "revisor@example.com"
+        rev.aprobo = "Gerencia"
+        rev.aprobador_correo = "gerencia@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+
+        proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        proc_svc.marcar_como_revisado(rev.id, sgi_editor, "Tester")
+        db.session.refresh(rev)
+        assert rev.estado == ESTADO_REVISADO
+
+        assert proc_svc.user_can_aprobar_revision(angel, rev)
+        ok, msg = proc_svc.aprobar_revision(rev.id, angel.id, "Angel Test")
+        assert ok, msg
+        db.session.refresh(rev)
+        assert rev.estado == "aprobado"
+
+        db.session.delete(angel)
+        db.session.commit()

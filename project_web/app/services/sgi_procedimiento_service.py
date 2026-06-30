@@ -41,6 +41,7 @@ from app.models.sgi import (
 from app.models.personal import EmpleadoPersonal
 from app.models.user import User
 from app.auth_utils import user_can_edit_sgi_documentos, user_display_name
+from app.user_roles import user_is_global_read_only
 from app.services.deadline_alert_email_service import normalize_validate_email
 from app.services.personal_epp_reminder_service import resolve_empleado_email
 from app.services import sgi_documento_perfil_service as perfil_svc
@@ -402,6 +403,8 @@ def user_can_aprobar_revision(user: User | None, rev: SgiProcedimientoRevision) 
     if user is None or rev.estado != ESTADO_REVISADO:
         return False
     if user.is_admin:
+        return True
+    if user_is_global_read_only(user):
         return True
     if _label_matches_user(rev.aprobo, user):
         return True

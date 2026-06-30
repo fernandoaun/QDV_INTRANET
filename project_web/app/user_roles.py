@@ -1,7 +1,7 @@
 """
 Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 
-- «solo_lectura_total» (Angel): ve todos los módulos y datos; no puede mutar nada (vista completa, edición vacía en sesión).
+- «solo_lectura_total» (Angel): ve todos los módulos y datos; no puede mutar datos operativos, pero sí ejecutar aprobaciones (SGI, vacaciones si es responsable, etc.).
 - «sgi»: vista global en todo el sistema, con edición limitada al módulo SGI.
 - «administracion»: carga ingresos de materia prima y laboratorio (stock); no toma turno operativo.
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
