@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Eliminados · {{ tipo_label }}{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Documentos eliminados — {{ tipo_label }}</h1>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Procedimientos vigentes</a>
+</div>
+
+<p class="text-muted small mb-3">Los procedimientos eliminados se guardan aquí. Podés recuperarlos con un clic; no se borran definitivamente.</p>
+
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Título</th>
+          <th>Revisión</th>
+          <th>Estado al eliminar</th>
+          <th>Eliminado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><strong>{{ documento_codigo_visible(r) }}</strong></td>
+          <td>{{ r.titulo }}</td>
+          <td>{{ r.revision or '—' }}</td>
+          <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
+          <td>{{ r.deleted_at.strftime('%d/%m/%Y %H:%M') if r.deleted_at else '—' }}</td>
+          <td class="text-end text-nowrap">
+            <form method="post" action="{{ url_for('sgi.procedimiento_recuperar', slug=slug, doc_id=r.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Recuperar {{ documento_codigo_visible(r) }}?');">
+              {% include "_csrf.html" %}
+              <button type="submit" class="btn btn-sm btn-outline-success">Recuperar</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">No hay documentos eliminados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

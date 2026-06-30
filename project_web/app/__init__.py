@@ -496,6 +496,12 @@ def create_app() -> Flask:
             return {"chat_nav": None}
 
     @app.context_processor
+    def inject_app_release():
+        from app.services.app_release_service import app_release_context
+
+        return app_release_context()
+
+    @app.context_processor
     def inject_primera_vez():
         """Aviso si aún no hay usuarios (no existe clave por defecto en la web)."""
         from sqlalchemy import func, select

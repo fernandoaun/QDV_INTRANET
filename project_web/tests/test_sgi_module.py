@@ -258,6 +258,9 @@ def test_sgi_perm_user_cannot_delete(sgi_perm_client):
 
 
 def test_sgi_role_can_delete(sgi_role_client):
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+
     r_form = sgi_role_client.get("/sgi/msgi/nuevo")
     csrf = _csrf_from_html(r_form.get_data(as_text=True))
     sgi_role_client.post(
@@ -274,7 +277,7 @@ def test_sgi_role_can_delete(sgi_role_client):
     html = r_list.get_data(as_text=True)
     m = re.search(r"/sgi/msgi/(\d+)", html)
     assert m is not None
-    doc_id = m.group(1)
+    doc_id = int(m.group(1))
 
     lg = sgi_role_client.get("/sgi/msgi/")
     csrf2 = _csrf_from_html(lg.get_data(as_text=True))
@@ -284,6 +287,15 @@ def test_sgi_role_can_delete(sgi_role_client):
         follow_redirects=False,
     )
     assert r.status_code in (302, 303)
+
+    with sgi_role_client.application.app_context():
+        row = db.session.get(SgiDocumento, doc_id)
+        assert row is not None
+        assert row.deleted_at is not None
+        assert row.codigo_archivado == "MSGI-SGI-DEL-01"
+
+    r_list2 = sgi_role_client.get("/sgi/msgi/")
+    assert f"/sgi/msgi/{doc_id}".encode() not in r_list2.data
 
 
 def test_sgi_visual_manual_create(auth_client):
@@ -295,6 +307,53 @@ def test_sgi_visual_manual_create(auth_client):
     r_list = auth_client.get("/sgi/msgi/procedimientos/")
     assert r_list.status_code == 200
     assert b"QDV-MSGI-" in r_list.data
+
+
+def test_sgi_visual_procedure_soft_delete_and_restore(auth_client):
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+
+    auth_client.get("/sgi/pg/procedimientos/nuevo", follow_redirects=True)
+    r_list = auth_client.get("/sgi/pg/procedimientos/")
+    html = r_list.get_data(as_text=True)
+    m = re.search(r"/sgi/pg/procedimientos/(\d+)/editor", html)
+    assert m is not None
+    doc_id = int(m.group(1))
+    codigo_m = re.search(r"<strong>(QDV-PG-\d+)</strong>", html)
+    assert codigo_m is not None
+    codigo = codigo_m.group(1)
+
+    lg = auth_client.get("/sgi/pg/procedimientos/")
+    csrf = _csrf_from_html(lg.get_data(as_text=True))
+    r_del = auth_client.post(
+        f"/sgi/pg/procedimientos/{doc_id}/eliminar",
+        data={"csrf_token": csrf},
+        follow_redirects=True,
+    )
+    assert r_del.status_code == 200
+    assert b"movido a la papelera" in r_del.data.lower() or b"papelera" in r_del.data.lower()
+
+    r_vigentes = auth_client.get("/sgi/pg/procedimientos/")
+    assert codigo.encode() not in r_vigentes.data
+
+    r_papelera = auth_client.get("/sgi/pg/procedimientos/eliminados/")
+    assert r_papelera.status_code == 200
+    assert codigo.encode() in r_papelera.data
+
+    csrf2 = _csrf_from_html(r_papelera.get_data(as_text=True))
+    r_rec = auth_client.post(
+        f"/sgi/pg/procedimientos/{doc_id}/recuperar",
+        data={"csrf_token": csrf2},
+        follow_redirects=True,
+    )
+    assert r_rec.status_code == 200
+    assert codigo.encode() in auth_client.get("/sgi/pg/procedimientos/").data
+
+    with auth_client.application.app_context():
+        row = db.session.get(SgiDocumento, doc_id)
+        assert row is not None
+        assert row.deleted_at is None
+        assert row.codigo == codigo
 
 
 def test_sgi_msgi_firma_gerente_upload(sgi_perm_client, app):
@@ -480,6 +539,49 @@ def test_ensure_msgi_documentos(app, tmp_path):
             db.session.delete(r)
         db.session.delete(doc)
         db.session.commit()
+
+
+def test_msgi_vista_muestra_adjunto_no_plantilla_procedimiento(auth_client, app, tmp_path):
+    from app.extensions import db
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.services.upload_paths import uploads_workspace_root
+
+    src = tmp_path / "politica.pdf"
+    src.write_bytes(b"%PDF-1.4 test")
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO I",
+            "nombre": "POLÍTICA CSSA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "documento",
+            "archivo": src,
+        },
+    )
+
+    with app.app_context():
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        assert doc.archivo_path
+        doc_id = doc.id
+
+    r = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
+    assert r.status_code == 200
+    assert b"sgi-anexo-view-pdf" in r.data
+    assert b"sgi-proc-workspace" not in r.data
+    assert b"sgi_procedure.css" in r.data
+
+    with app.app_context():
+        import shutil
+
+        from app.models.sgi import SgiDocumento
+
+        doc = db.session.get(SgiDocumento, doc_id)
+        for rev in list(doc.revisiones_proc):
+            db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+        shutil.rmtree(uploads_workspace_root().joinpath("sgi", str(doc_id)), ignore_errors=True)
 
 
 def test_documento_es_especial():

@@ -119,6 +119,10 @@ class SgiDocumento(db.Model):
     tipo_contenido = db.Column(db.String(32), nullable=True)
     fecha_aprobacion = db.Column(db.Date, nullable=True, index=True)
 
+    codigo_archivado = db.Column(db.String(64), nullable=True)
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+    deleted_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
@@ -126,6 +130,7 @@ class SgiDocumento(db.Model):
 
     created_by = db.relationship("User", foreign_keys=[created_by_id])
     updated_by = db.relationship("User", foreign_keys=[updated_by_id])
+    deleted_by = db.relationship("User", foreign_keys=[deleted_by_id])
 
     perfiles_aplica = db.relationship(
         "SgiDocumentoPerfil",

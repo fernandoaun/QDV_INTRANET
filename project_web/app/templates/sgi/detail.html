@@ -18,7 +18,7 @@
     {% endif %}
     {% if puede_eliminar %}
     <form method="post" action="{{ url_for('sgi.eliminar', slug=slug, doc_id=doc.id) }}" class="d-inline"
-          onsubmit="return confirm('¿Eliminar permanentemente este documento?');">
+          onsubmit="return confirm('¿Mover este documento a la papelera?');">
       {% include "_csrf.html" %}
       <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar</button>
     </form>

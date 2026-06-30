@@ -21,6 +21,7 @@ from app.models.sgi import (
     ANEXO_TIPO_DOCUMENTO,
     ANEXO_TIPO_ORGANIGRAMA,
     SgiDocumento,
+    TIPO_MSGI,
 )
 from app.services import sgi_anexo_service as anexo_svc
 from app.services import sgi_documento_perfil_service as perfil_svc
@@ -89,6 +90,7 @@ def listado_procedimientos(slug: str):
             "rev_id": rev.id if rev else None,
             "tiene_archivo": bool(r.archivo_path),
             "archivo_nombre": proc_svc.anexo_archivo_nombre(r.archivo_path),
+            "puede_eliminar": proc_svc.puede_eliminar_procedimiento(r),
         }
 
     return render_template(
@@ -132,6 +134,70 @@ def listado_obsoletos(slug: str):
     )
 
 
+@bp.get("/<slug>/procedimientos/eliminados/")
+@login_required
+def listado_eliminados(slug: str):
+    u, redir = _require_edit()
+    if redir is not None:
+        return redir
+    tipo, _ = _resolve_tipo(slug)
+    if not proc_svc.tipo_soporta_visual(tipo):
+        return redirect(url_for("sgi.listado", slug=slug))
+
+    args = doc_svc.filter_args_from_request(request.args, tipo_fijo=tipo)
+    rows = proc_svc.fetch_list_visual_eliminados(args, tipo=tipo or "")
+
+    return render_template(
+        "sgi/procedure_eliminados.html",
+        slug=slug,
+        tipo=tipo,
+        tipo_label=TIPO_LABELS.get(tipo or "", tipo or ""),
+        rows=rows,
+        filtros=args,
+        estados_labels=ESTADO_LABELS,
+        documento_codigo_visible=doc_svc.documento_codigo_visible,
+    )
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/eliminar")
+@login_required
+def procedimiento_eliminar(slug: str, doc_id: int):
+    u, redir = _require_edit()
+    if redir is not None:
+        return redir
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo or not doc.es_procedimiento_visual:
+        flash("Procedimiento no encontrado.", "danger")
+        return redirect(url_for("sgi.listado_procedimientos", slug=slug))
+    if not proc_svc.puede_eliminar_procedimiento(doc):
+        flash("Solo se pueden eliminar procedimientos en borrador o en curso de revisión.", "warning")
+        return redirect(url_for("sgi.listado_procedimientos", slug=slug))
+
+    ok, msg = doc_svc.delete_documento(doc_id, user_display_name(u), actor=u)
+    flash(msg, "success" if ok else "danger")
+    dest = url_for("sgi.listado_eliminados", slug=slug) if ok else url_for("sgi.listado_procedimientos", slug=slug)
+    return redirect(dest)
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/recuperar")
+@login_required
+def procedimiento_recuperar(slug: str, doc_id: int):
+    u, redir = _require_edit()
+    if redir is not None:
+        return redir
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id, incluir_eliminados=True)
+    if doc is None or doc.tipo != tipo or not doc.es_procedimiento_visual:
+        flash("Procedimiento no encontrado.", "danger")
+        return redirect(url_for("sgi.listado_eliminados", slug=slug))
+
+    ok, msg = doc_svc.restore_documento(doc_id, user_display_name(u), actor=u)
+    flash(msg, "success" if ok else "danger")
+    dest = url_for("sgi.listado_procedimientos", slug=slug) if ok else url_for("sgi.listado_eliminados", slug=slug)
+    return redirect(dest)
+
+
 @bp.route("/<slug>/procedimientos/nuevo", methods=["GET", "POST"])
 @login_required
 def procedimiento_nuevo(slug: str):
@@ -163,6 +229,9 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
     if doc is None or doc.tipo != tipo or not doc.es_procedimiento_visual:
         flash("Procedimiento no encontrado.", "danger")
         return redirect(url_for("sgi.listado_procedimientos", slug=slug))
+    if doc_svc.documento_esta_eliminado(doc):
+        flash("Este procedimiento está en la papelera. Recuperalo desde «Documentos eliminados».", "warning")
+        return redirect(url_for("sgi.listado_eliminados", slug=slug))
 
     puede_editar = user_can_edit_sgi_documentos(u)
     if not proc_svc.puede_ver_documento(doc, puede_editar=puede_editar, user=u):
@@ -257,6 +326,9 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
     doc = doc_svc.get_documento(doc_id)
     if doc is None or doc.tipo != tipo:
         abort(404)
+    if doc_svc.documento_esta_eliminado(doc):
+        flash("Este procedimiento está en la papelera.", "warning")
+        return redirect(url_for("sgi.listado_eliminados", slug=slug))
     u, redir = _require_procedure_read(doc)
     if redir is not None:
         return redir
@@ -274,6 +346,21 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
     if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
         flash("Este procedimiento no está asignado a tu perfil.", "warning")
         return redirect(url_for("main.dashboard"))
+
+    if (doc.tipo or "").upper() == TIPO_MSGI and doc.archivo_path:
+        path = doc_svc.attachment_absolute_path(doc.archivo_path)
+        if path is not None:
+            item = anexo_svc.documento_view_item(doc, rev)
+            return render_template(
+                "sgi/anexo_view.html",
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                anexo=item,
+                standalone=True,
+                vista_tipo=proc_svc.anexo_vista_tipo(doc.archivo_path),
+                archivo_nombre=proc_svc.anexo_archivo_nombre(doc.archivo_path),
+            )
 
     if anexo_svc.documento_es_especial(doc):
         tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)

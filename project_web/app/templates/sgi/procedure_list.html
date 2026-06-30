@@ -17,6 +17,9 @@
     {% if puede_obsoletos %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_obsoletos', slug=slug) }}">Documentos obsoletos</a>
     {% endif %}
+    {% if puede_editar %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_eliminados', slug=slug) }}">Documentos eliminados</a>
+    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGI</a>
   </div>
 </div>
@@ -81,6 +84,13 @@
           {% endif %}
           {% if row_meta.get(r.id, {}).get('rev_id') %}
           <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='pdf') }}" target="_blank" rel="noopener" title="Exportar PDF">PDF</a>
+          {% endif %}
+          {% if puede_editar and row_meta.get(r.id, {}).get('puede_eliminar') %}
+          <form method="post" action="{{ url_for('sgi.procedimiento_eliminar', slug=slug, doc_id=r.id) }}" class="d-inline"
+                onsubmit="return confirm('¿Mover {{ r.codigo }} a documentos eliminados?');">
+            {% include "_csrf.html" %}
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">Eliminar</button>
+          </form>
           {% endif %}
           {% if puede_editar and tipo == 'MSGI' %}
           <button type="button"

@@ -31,6 +31,11 @@ ACCION_EDICION = "edicion"
 ACCION_CAMBIO_ESTADO = "cambio_estado"
 ACCION_ARCHIVO = "archivo_adjunto"
 ACCION_BAJA = "baja"
+ACCION_RECUPERACION = "recuperacion"
+
+ESTADOS_ELIMINABLES: frozenset[str] = frozenset(
+    {ESTADO_BORRADOR, "en_revision", "revisado"}
+)
 
 ALLOWED_ATTACHMENT_EXTENSIONS = frozenset({".pdf"})
 
@@ -105,7 +110,7 @@ def build_filtered_query(args: dict[str, Any]) -> Select[Any]:
             )
         )
 
-    return q
+    return _exclude_deleted(q)
 
 
 def fetch_list(args: dict[str, Any]) -> list[SgiDocumento]:
@@ -150,8 +155,35 @@ def ensure_list_nombres_mayusculas(rows: list[SgiDocumento]) -> None:
         db.session.commit()
 
 
-def get_documento(doc_id: int) -> SgiDocumento | None:
-    return db.session.get(SgiDocumento, int(doc_id))
+def _exclude_deleted(q: Select[Any]) -> Select[Any]:
+    return q.where(SgiDocumento.deleted_at.is_(None))
+
+
+def _only_deleted(q: Select[Any]) -> Select[Any]:
+    return q.where(SgiDocumento.deleted_at.is_not(None))
+
+
+def documento_esta_eliminado(doc: SgiDocumento | None) -> bool:
+    return doc is not None and doc.deleted_at is not None
+
+
+def documento_codigo_visible(doc: SgiDocumento) -> str:
+    return (doc.codigo_archivado or doc.codigo or "").strip()
+
+
+def puede_eliminar_documento(doc: SgiDocumento | None) -> bool:
+    if doc is None or documento_esta_eliminado(doc):
+        return False
+    return (doc.estado or "").strip().lower() in ESTADOS_ELIMINABLES
+
+
+def get_documento(doc_id: int, *, incluir_eliminados: bool = False) -> SgiDocumento | None:
+    row = db.session.get(SgiDocumento, int(doc_id))
+    if row is None:
+        return None
+    if not incluir_eliminados and documento_esta_eliminado(row):
+        return None
+    return row
 
 
 def historial_for(doc_id: int) -> list[SgiDocumentoHistorial]:
@@ -201,6 +233,18 @@ def _codigo_duplicado(tipo: str, codigo: str, exclude_id: int | None = None) -> 
     q = select(func.count()).select_from(SgiDocumento).where(
         SgiDocumento.tipo == tipo,
         func.lower(SgiDocumento.codigo) == codigo.lower(),
+        SgiDocumento.deleted_at.is_(None),
+    )
+    if exclude_id is not None:
+        q = q.where(SgiDocumento.id != int(exclude_id))
+    return int(db.session.scalar(q) or 0) > 0
+
+
+def _codigo_archivado_en_papelera(tipo: str, codigo: str, exclude_id: int | None = None) -> bool:
+    q = select(func.count()).select_from(SgiDocumento).where(
+        SgiDocumento.tipo == tipo,
+        func.lower(SgiDocumento.codigo_archivado) == codigo.lower(),
+        SgiDocumento.deleted_at.is_not(None),
     )
     if exclude_id is not None:
         q = q.where(SgiDocumento.id != int(exclude_id))
@@ -367,30 +411,96 @@ def delete_documento(
     *,
     actor: User | None = None,
 ) -> tuple[bool, str]:
-    row = get_documento(doc_id)
+    """Mueve el documento a la papelera (soft delete)."""
+    row = get_documento(doc_id, incluir_eliminados=True)
     if row is None:
         return False, "Documento no encontrado."
+    if documento_esta_eliminado(row):
+        return False, "El documento ya está en la papelera."
+    if not puede_eliminar_documento(row):
+        return False, "Solo se pueden eliminar documentos en borrador o en curso de revisión."
 
-    summary = f"{row.tipo} {row.codigo} — {row.titulo}"
-    entity_id = row.id
+    codigo_visible = documento_codigo_visible(row)
+    summary = f"{row.tipo} {codigo_visible} — {row.titulo}"
+    row.codigo_archivado = codigo_visible[:64]
+    suffix = f"__ELIM_{row.id}"
+    base = codigo_visible[: max(1, 64 - len(suffix))]
+    row.codigo = f"{base}{suffix}"[:64]
+    row.deleted_at = datetime.now(timezone.utc)
+    row.deleted_by_id = actor.id if actor is not None else None
+    row.updated_at = datetime.now(timezone.utc)
+    row.updated_by_id = actor.id if actor is not None else None
+
+    append_historial(row.id, actor_label, ACCION_BAJA, f"Movido a papelera: {summary}")
     _record_security_audit(
         action="sgi_documento_delete",
         actor=actor,
-        entity_id=entity_id,
+        entity_id=row.id,
         old_value=summary,
+        detail="soft_delete",
     )
-
-    if row.archivo_path:
-        path = attachment_absolute_path(row.archivo_path)
-        if path is not None and path.is_file():
-            try:
-                path.unlink()
-            except OSError:
-                current_app.logger.warning("sgi_service: no se pudo borrar adjunto %s", path)
-
-    db.session.delete(row)
     db.session.commit()
-    return True, f"Documento eliminado: {summary}"
+    return True, f"Documento movido a la papelera: {summary}"
+
+
+def restore_documento(
+    doc_id: int,
+    actor_label: str,
+    *,
+    actor: User | None = None,
+) -> tuple[bool, str]:
+    row = get_documento(doc_id, incluir_eliminados=True)
+    if row is None:
+        return False, "Documento no encontrado."
+    if not documento_esta_eliminado(row):
+        return False, "El documento no está en la papelera."
+
+    codigo_restaurar = (row.codigo_archivado or "").strip().upper()
+    if not codigo_restaurar:
+        return False, "No se pudo recuperar el código original del documento."
+    if _codigo_duplicado(row.tipo, codigo_restaurar, exclude_id=row.id):
+        return False, f"Ya existe un documento activo con código {codigo_restaurar}."
+
+    summary = f"{row.tipo} {codigo_restaurar} — {row.titulo}"
+    row.codigo = codigo_restaurar[:64]
+    row.codigo_archivado = None
+    row.deleted_at = None
+    row.deleted_by_id = None
+    row.updated_at = datetime.now(timezone.utc)
+    row.updated_by_id = actor.id if actor is not None else None
+
+    append_historial(row.id, actor_label, ACCION_RECUPERACION, f"Recuperado desde papelera: {summary}")
+    _record_security_audit(
+        action="sgi_documento_restore",
+        actor=actor,
+        entity_id=row.id,
+        new_value=summary,
+    )
+    db.session.commit()
+    return True, f"Documento recuperado: {summary}"
+
+
+def fetch_deleted_list(args: dict[str, Any]) -> list[SgiDocumento]:
+    tipo = (args.get("tipo") or "").strip().upper()
+    q_text = (args.get("q") or "").strip()
+
+    q = select(SgiDocumento).order_by(SgiDocumento.deleted_at.desc(), SgiDocumento.id.desc())
+    q = _only_deleted(q)
+
+    if tipo and tipo in TIPOS_DOCUMENTO:
+        q = q.where(SgiDocumento.tipo == tipo)
+
+    if q_text:
+        like = f"%{q_text}%"
+        q = q.where(
+            or_(
+                SgiDocumento.codigo_archivado.ilike(like),
+                SgiDocumento.codigo.ilike(like),
+                SgiDocumento.titulo.ilike(like),
+            )
+        )
+
+    return list(db.session.scalars(q).all())
 
 
 def _upload_max_bytes() -> int:
@@ -549,7 +659,9 @@ def build_export_xlsx(rows: list[SgiDocumento], *, tipo_label: str = "SGI") -> B
 def counts_by_tipo() -> dict[str, int]:
     result: dict[str, int] = {t: 0 for t in TIPOS_DOCUMENTO}
     rows = db.session.execute(
-        select(SgiDocumento.tipo, func.count()).group_by(SgiDocumento.tipo)
+        select(SgiDocumento.tipo, func.count())
+        .where(SgiDocumento.deleted_at.is_(None))
+        .group_by(SgiDocumento.tipo)
     ).all()
     for tipo, cnt in rows:
         if tipo in result:

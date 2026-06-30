@@ -418,6 +418,7 @@ def build_list_query_visual(
     tipo: str,
     incluir_obsoletos: bool = False,
     solo_obsoletos: bool = False,
+    solo_eliminados: bool = False,
 ) -> Select[Any]:
     q = select(SgiDocumento).where(
         SgiDocumento.tipo == tipo,
@@ -426,16 +427,29 @@ def build_list_query_visual(
     q_text = (args.get("q") or "").strip()
     estado = (args.get("estado") or "").strip()
 
-    if solo_obsoletos:
-        q = q.where(SgiDocumento.estado == ESTADO_OBSOLETO)
-    elif not incluir_obsoletos:
-        q = q.where(SgiDocumento.estado != ESTADO_OBSOLETO)
+    if solo_eliminados:
+        q = doc_svc._only_deleted(q)
+    else:
+        q = doc_svc._exclude_deleted(q)
+        if solo_obsoletos:
+            q = q.where(SgiDocumento.estado == ESTADO_OBSOLETO)
+        elif not incluir_obsoletos:
+            q = q.where(SgiDocumento.estado != ESTADO_OBSOLETO)
 
     if q_text:
         like = f"%{q_text}%"
-        q = q.where(or_(SgiDocumento.codigo.ilike(like), SgiDocumento.titulo.ilike(like)))
+        if solo_eliminados:
+            q = q.where(
+                or_(
+                    SgiDocumento.codigo_archivado.ilike(like),
+                    SgiDocumento.codigo.ilike(like),
+                    SgiDocumento.titulo.ilike(like),
+                )
+            )
+        else:
+            q = q.where(or_(SgiDocumento.codigo.ilike(like), SgiDocumento.titulo.ilike(like)))
 
-    if estado:
+    if estado and not solo_eliminados:
         q = q.where(SgiDocumento.estado == estado)
 
     return q.order_by(SgiDocumento.codigo, SgiDocumento.id)
@@ -443,6 +457,18 @@ def build_list_query_visual(
 
 def fetch_list_visual(args: dict[str, Any], *, tipo: str, incluir_obsoletos: bool = False) -> list[SgiDocumento]:
     return list(db.session.scalars(build_list_query_visual(args, tipo=tipo, incluir_obsoletos=incluir_obsoletos)).all())
+
+
+def fetch_list_visual_eliminados(args: dict[str, Any], *, tipo: str) -> list[SgiDocumento]:
+    q = build_list_query_visual(args, tipo=tipo, solo_eliminados=True)
+    q = q.order_by(SgiDocumento.deleted_at.desc(), SgiDocumento.id.desc())
+    return list(db.session.scalars(q).all())
+
+
+def puede_eliminar_procedimiento(doc: SgiDocumento | None) -> bool:
+    if doc is None or not doc.es_procedimiento_visual:
+        return False
+    return doc_svc.puede_eliminar_documento(doc)
 
 
 def ensure_revision_personas_mayusculas(rev: SgiProcedimientoRevision) -> bool:
@@ -1406,7 +1432,7 @@ def ensure_msgi_documentos(
             logs.append(f"{codigo}: organigrama interactivo listo.")
         elif tipo == ANEXO_TIPO_DOCUMENTO:
             logs.append(f"{codigo}: documento visual importado.")
-        if src and Path(src).is_file() and tipo == ANEXO_TIPO_ARCHIVO:
+        if src and Path(src).is_file() and tipo in (ANEXO_TIPO_ARCHIVO, ANEXO_TIPO_DOCUMENTO):
             if doc.archivo_path:
                 logs.append(f"{codigo}: ya tenía archivo adjunto.")
             else:
@@ -1415,7 +1441,7 @@ def ensure_msgi_documentos(
                     logs.append(f"{codigo}: {msg}" if ok else f"{codigo}: error — {msg}")
                 except OSError as exc:
                     logs.append(f"{codigo}: error al leer archivo — {exc}")
-        elif tipo == ANEXO_TIPO_ARCHIVO and not (src and Path(src).is_file()):
+        elif tipo in (ANEXO_TIPO_ARCHIVO, ANEXO_TIPO_DOCUMENTO) and not (src and Path(src).is_file()):
             logs.append(f"{codigo}: sin archivo fuente ({src or 'no configurado'}).")
 
     logs.extend(_cleanup_msgi_anexos_embebidos_en_manuales(actor_label))

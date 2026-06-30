@@ -243,7 +243,7 @@ def detalle(slug: str, doc_id: int):
         estados_labels=ESTADO_LABELS,
         estado_visual_row=svs.estado_visual_row,
         puede_editar=user_can_edit_sgi_documentos(u),
-        puede_eliminar=user_can_delete_sgi_documentos(u),
+        puede_eliminar=user_can_delete_sgi_documentos(u) and svs.puede_eliminar_documento(doc),
         firma_gerente_url=firma_gerente_url,
     )
 
@@ -261,6 +261,9 @@ def eliminar(slug: str, doc_id: int):
     if doc is None or doc.tipo != tipo:
         flash("Documento no encontrado.", "danger")
         return redirect(url_for("sgi.listado", slug=slug))
+    if not svs.puede_eliminar_documento(doc):
+        flash("Solo se pueden eliminar documentos en borrador o en curso de revisión.", "warning")
+        return redirect(url_for("sgi.detalle", slug=slug, doc_id=doc_id))
     ok, msg = svs.delete_documento(doc_id, user_display_name(u), actor=u)
     flash(msg, "success" if ok else "danger")
     return redirect(url_for("sgi.listado", slug=slug))
