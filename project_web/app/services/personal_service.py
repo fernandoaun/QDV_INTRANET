@@ -72,6 +72,7 @@ DEFAULT_EPP_CATALOG: tuple[tuple[str, str, int, bool], ...] = (
     ("Anteojos de seguridad", "epp", 70, True),
     ("Protector auricular", "epp", 80, False),
     ("Barbijo", "epp", 90, False),
+    ("Máscara", "epp", 95, False),
 )
 
 # Campos del legajo RRHH considerados para marcar perfil incompleto.
