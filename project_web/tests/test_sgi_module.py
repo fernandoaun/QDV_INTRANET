@@ -589,6 +589,101 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
         shutil.rmtree(uploads_workspace_root().joinpath("sgi", str(doc_id)), ignore_errors=True)
 
 
+def test_msgi_editor_foda_muestra_adjunto(auth_client, app, tmp_path):
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.services.upload_paths import uploads_workspace_root
+    import shutil
+
+    src = tmp_path / "foda.pdf"
+    src.write_bytes(b"%PDF-1.4 test")
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO IV",
+            "nombre": "ANÁLISIS FODA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "documento",
+            "archivo": src,
+        },
+    )
+
+    with app.app_context():
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        assert doc.archivo_path
+        doc_id = doc.id
+
+    r_editor = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor")
+    assert r_editor.status_code == 200
+    assert b"sgi-anexo-view-pdf" in r_editor.data
+    assert b"sgi-proc-workspace" not in r_editor.data
+    assert b"Documento adjunto" in r_editor.data
+
+    r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
+    assert r_vista.status_code == 200
+    assert b"sgi-anexo-view-pdf" in r_vista.data
+    assert b"sgi-proc-workspace" not in r_vista.data
+
+    with app.app_context():
+        doc = db.session.get(SgiDocumento, doc_id)
+        for rev in list(doc.revisiones_proc):
+            db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+        shutil.rmtree(uploads_workspace_root().joinpath("sgi", str(doc_id)), ignore_errors=True)
+
+
+def test_msgi_editor_mapa_muestra_adjunto(auth_client, app, tmp_path):
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.services.upload_paths import uploads_workspace_root
+    import shutil
+
+    src = tmp_path / "mapa.png"
+    src.write_bytes(
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+        b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+    )
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO III",
+            "nombre": "MAPA DE PROCESOS",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "archivo",
+            "archivo": src,
+        },
+    )
+
+    with app.app_context():
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        assert doc.archivo_path
+        doc_id = doc.id
+
+    r_editor = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor")
+    assert r_editor.status_code == 200
+    assert b"sgi-anexo-view-img" in r_editor.data
+    assert b"sgi-proc-workspace" not in r_editor.data
+    assert b"Documento adjunto" in r_editor.data
+
+    r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
+    assert r_vista.status_code == 200
+    assert b"sgi-anexo-view-img" in r_vista.data
+
+    with app.app_context():
+        doc = db.session.get(SgiDocumento, doc_id)
+        for rev in list(doc.revisiones_proc):
+            db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+        shutil.rmtree(uploads_workspace_root().joinpath("sgi", str(doc_id)), ignore_errors=True)
+
+
 def test_documento_es_especial():
     from app.models.sgi import SgiDocumento
     from app.services.sgi_anexo_service import documento_es_especial

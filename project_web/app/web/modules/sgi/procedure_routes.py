@@ -456,9 +456,6 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
             abort(404)
         return render_template(
             "sgi/anexo_view.html",
-            slug=slug,
-            doc=doc,
-            rev=rev,
             anexo=item,
             standalone=True,
             vista_tipo=proc_svc.anexo_vista_tipo(doc.archivo_path),

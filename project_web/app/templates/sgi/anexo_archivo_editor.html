@@ -11,10 +11,15 @@
 
 {% include "sgi/_anexo_especial_workflow.html" %}
 
+<div class="app-page-actions sgi-proc-no-print d-flex flex-wrap gap-2 mb-2">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Vista lectura</a>
+</div>
+
 {% if anexo.archivo_path %}
-<div class="app-card sgi-proc-no-print mb-3">
-  <div class="app-card-header py-2 d-flex justify-content-between align-items-center">
-    <span class="fw-semibold">Archivo adjunto</span>
+<div class="app-card mb-3">
+  <div class="app-card-header py-2 d-flex justify-content-between align-items-center sgi-proc-no-print">
+    <span class="fw-semibold">Documento adjunto</span>
     <a class="btn btn-outline-secondary btn-sm"
        href="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}">
       <i class="bi bi-download me-1"></i>{{ archivo_nombre or 'Descargar' }}
@@ -28,27 +33,44 @@
     <iframe class="sgi-anexo-view-pdf"
             src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
             title="{{ anexo.nombre }}"></iframe>
+    {% elif vista_tipo == 'office' %}
+    <div class="text-center py-5">
+      <i class="bi bi-file-earmark-text display-4 text-muted d-block mb-3" aria-hidden="true"></i>
+      <p class="mb-2"><strong>{{ archivo_nombre }}</strong></p>
+      <p class="text-muted mb-3">Este documento es de Office. Descargalo para abrirlo en Word o PowerPoint.</p>
+      <a class="btn btn-primary"
+         href="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}">Descargar archivo</a>
+    </div>
     {% else %}
-    <p class="text-muted mb-2">Archivo: <strong>{{ archivo_nombre }}</strong></p>
-    <p class="text-muted small mb-0">Descargalo para consultarlo o reemplazalo con el botón de abajo.</p>
+    <div class="text-center py-5">
+      <p class="text-muted mb-3">Descargá el archivo para consultarlo.</p>
+      <a class="btn btn-primary"
+         href="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}">Descargar</a>
+    </div>
     {% endif %}
   </div>
 </div>
-{% else %}
-<div class="alert alert-warning sgi-proc-no-print">Sin archivo adjunto. Usá «Reemplazar archivo» para cargar uno.</div>
-{% endif %}
 
+{% if not solo_lectura|default(false) %}
 <div class="sgi-proc-no-print mb-3">
   <label class="btn btn-outline-primary btn-sm mb-0">
-    <i class="bi bi-paperclip me-1"></i>{% if anexo.archivo_path %}Reemplazar archivo{% else %}Adjuntar archivo{% endif %}
+    <i class="bi bi-paperclip me-1"></i>Reemplazar archivo
     <input type="file" id="anexoArchivoInput" class="d-none" accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.ppt,.pptx">
   </label>
 </div>
+{% endif %}
 
-<div class="app-page-actions sgi-proc-no-print d-flex flex-wrap gap-2 mb-3">
-  <a class="btn btn-outline-secondary btn-sm"
-     href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Vista lectura</a>
+{% include "sgi/_anexo_firmas_vista.html" %}
+
+{% else %}
+<div class="alert alert-warning sgi-proc-no-print">Sin archivo adjunto. Usá «Adjuntar archivo» para cargar uno.</div>
+<div class="sgi-proc-no-print mb-3">
+  <label class="btn btn-outline-primary btn-sm mb-0">
+    <i class="bi bi-paperclip me-1"></i>Adjuntar archivo
+    <input type="file" id="anexoArchivoInput" class="d-none" accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.ppt,.pptx">
+  </label>
 </div>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script>
@@ -63,6 +85,7 @@
   };
 </script>
 <script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
+{% if not solo_lectura|default(false) %}
 <script>
   (function () {
     const input = document.getElementById("anexoArchivoInput");
@@ -100,4 +123,5 @@
     });
   })();
 </script>
+{% endif %}
 {% endblock %}
