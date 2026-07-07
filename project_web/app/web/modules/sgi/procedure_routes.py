@@ -410,6 +410,20 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
         tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)
         item = anexo_svc.documento_view_item(doc, rev)
         if tc == ANEXO_TIPO_DOCUMENTO:
+            if doc.archivo_path and doc_svc.attachment_absolute_path(doc.archivo_path) is not None:
+                return render_template(
+                    "sgi/anexo_view.html",
+                    anexo=item,
+                    standalone=True,
+                    vista_tipo=proc_svc.anexo_vista_tipo(doc.archivo_path),
+                    archivo_nombre=proc_svc.anexo_archivo_nombre(doc.archivo_path),
+                    **_procedure_render_kwargs(
+                        slug=slug,
+                        doc=doc,
+                        rev=rev,
+                        puede_editar=puede_editar,
+                    ),
+                )
             return render_template(
                 "sgi/anexo_document_view.html",
                 **_procedure_render_kwargs(
@@ -751,6 +765,19 @@ def procedimiento_anexo_ver(slug: str, anexo_id: int):
     tipo = (anexo.tipo_contenido or ANEXO_TIPO_ARCHIVO).lower()
 
     if tipo == ANEXO_TIPO_DOCUMENTO:
+        if anexo.archivo_path and proc_svc.anexo_absolute_path(anexo.archivo_path) is not None:
+            return render_template(
+                "sgi/anexo_view.html",
+                anexo=anexo,
+                vista_tipo=proc_svc.anexo_vista_tipo(anexo.archivo_path),
+                archivo_nombre=proc_svc.anexo_archivo_nombre(anexo.archivo_path),
+                **_procedure_render_kwargs(
+                    slug=slug,
+                    doc=doc,
+                    rev=rev,
+                    puede_editar=puede_editar,
+                ),
+            )
         return render_template(
             "sgi/anexo_document_view.html",
             **_procedure_render_kwargs(
