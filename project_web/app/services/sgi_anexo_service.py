@@ -222,6 +222,15 @@ def _organigrama_node_nivel(node_id: str, by_id: dict[str, dict[str, Any]], dept
     return max(0, depth - 1)
 
 
+def _organigrama_coord(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return None
+
+
 def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | None:
     nid = (n.get("id") or f"n{index}").strip()[:64]
     if not nid:
@@ -234,7 +243,7 @@ def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | N
             nivel = max(0, int(raw_nivel))
         except (TypeError, ValueError):
             nivel = None
-    return {
+    row: dict[str, Any] = {
         "id": nid,
         "titulo": (n.get("titulo") or "").strip().upper()[:256],
         "subtitulo": (n.get("subtitulo") or "").strip()[:256],
@@ -245,6 +254,124 @@ def _organigrama_clean_node(n: dict[str, Any], index: int) -> dict[str, Any] | N
         "nivel": nivel,
         "kind": _organigrama_node_kind(n),
     }
+    x = _organigrama_coord(n.get("x"))
+    y = _organigrama_coord(n.get("y"))
+    if x is not None:
+        row["x"] = x
+    if y is not None:
+        row["y"] = y
+    return row
+
+
+def _organigrama_clean_link(link: dict[str, Any], valid_ids: set[str]) -> dict[str, Any] | None:
+    if not isinstance(link, dict):
+        return None
+    src = str(link.get("from") or link.get("from_id") or "").strip()[:64]
+    dst = str(link.get("to") or link.get("to_id") or "").strip()[:64]
+    if not src or not dst or src == dst or src not in valid_ids or dst not in valid_ids:
+        return None
+    style = str(link.get("style") or "solid").strip().lower()
+    if style not in ("solid", "dashed"):
+        style = "solid"
+    return {"from": src, "to": dst, "style": style}
+
+
+def organigrama_has_positions(nodes: list[dict[str, Any]]) -> bool:
+    return any(
+        isinstance(n, dict) and _organigrama_coord(n.get("x")) is not None and _organigrama_coord(n.get("y")) is not None
+        for n in nodes
+    )
+
+
+def organigrama_links_from_parents(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    links: list[dict[str, Any]] = []
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        parent_id = n.get("parent_id")
+        if not parent_id:
+            continue
+        style = "dashed" if _organigrama_node_kind(n) == "external" else "solid"
+        links.append({"from": str(parent_id), "to": str(n["id"]), "style": style})
+    return links
+
+
+def organigrama_sync_parents_from_links(nodes: list[dict[str, Any]], links: list[dict[str, Any]]) -> None:
+    parent_by_child: dict[str, str] = {}
+    for link in links:
+        dst = link.get("to")
+        src = link.get("from")
+        if dst and src and dst not in parent_by_child:
+            parent_by_child[str(dst)] = str(src)
+    for node in nodes:
+        nid = str(node.get("id") or "")
+        if nid in parent_by_child:
+            node["parent_id"] = parent_by_child[nid]
+
+
+def organigrama_clean_links(links: Any, nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not isinstance(links, list):
+        return []
+    valid_ids = {str(n["id"]) for n in nodes if n.get("id")}
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in links:
+        clean = _organigrama_clean_link(raw, valid_ids)
+        if not clean:
+            continue
+        key = (clean["from"], clean["to"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(clean)
+    return out
+
+
+def organigrama_prepare_editor_data(data: dict[str, Any]) -> dict[str, Any]:
+    """Nodos y vínculos listos para el editor (canvas libre o grilla QDV legacy)."""
+    nodes = data.get("nodes") or []
+    links = data.get("links") or []
+    layout = str(data.get("layout") or "").strip().lower()
+    free = layout == "free" or organigrama_has_positions(nodes)
+    if free:
+        editor_nodes = organigrama_nodes_for_editor(nodes)
+        clean_links = organigrama_clean_links(links, editor_nodes)
+        if not clean_links:
+            clean_links = organigrama_links_from_parents(editor_nodes)
+    else:
+        complete = organigrama_ensure_complete_nodes(nodes)
+        editor_nodes = organigrama_nodes_for_editor(complete)
+        clean_links = organigrama_links_from_parents(editor_nodes)
+        layout = "auto"
+    return {
+        "nodes": editor_nodes,
+        "links": clean_links,
+        "layout": "free" if free else layout,
+    }
+
+
+def organigrama_save_payload(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    nodes_raw = payload.get("nodes")
+    if not isinstance(nodes_raw, list):
+        raise ValueError("invalid_nodes")
+    clean_nodes: list[dict[str, Any]] = []
+    for i, n in enumerate(nodes_raw):
+        if not isinstance(n, dict):
+            continue
+        row = _organigrama_clean_node(n, i)
+        if row:
+            clean_nodes.append(row)
+    layout = str(payload.get("layout") or "").strip().lower()
+    links_raw = payload.get("links")
+    clean_links = organigrama_clean_links(links_raw, clean_nodes)
+    if layout == "free" or organigrama_has_positions(clean_nodes):
+        if not clean_links:
+            clean_links = organigrama_links_from_parents(clean_nodes)
+        organigrama_sync_parents_from_links(clean_nodes, clean_links)
+        data = {"version": 2, "layout": "free", "nodes": clean_nodes, "links": clean_links}
+    else:
+        data = {"version": 1, "nodes": clean_nodes}
+    return clean_nodes, data
 
 
 def organigrama_nodes_for_editor(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -429,12 +556,21 @@ def organigrama_view_context(
         data = parse_documento_contenido(doc, rev)
     else:
         data = {}
-    nodes = organigrama_ensure_complete_nodes(data.get("nodes") or [])
-    chart_levels = organigrama_chart_levels(nodes)
+    editor_data = organigrama_prepare_editor_data(data)
+    layout = editor_data["layout"]
+    nodes = editor_data["nodes"]
+    if layout == "free":
+        chart_levels = []
+    else:
+        nodes = organigrama_ensure_complete_nodes(data.get("nodes") or [])
+        chart_levels = organigrama_chart_levels(nodes)
     return {
         "arbol": arbol,
         "chart_levels": chart_levels,
         "layout_items": organigrama_layout_items(arbol),
+        "org_layout": layout,
+        "org_nodes": editor_data["nodes"],
+        "org_links": editor_data["links"],
     }
 
 
@@ -677,17 +813,11 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
         if titulo:
             anexo.nombre = titulo[:512]
     elif tipo == ANEXO_TIPO_ORGANIGRAMA:
-        nodes = payload.get("nodes")
-        if not isinstance(nodes, list):
+        try:
+            _, data = organigrama_save_payload(payload)
+        except ValueError:
             return False, "Estructura de organigrama inválida."
-        clean: list[dict[str, Any]] = []
-        for i, n in enumerate(nodes):
-            if not isinstance(n, dict):
-                continue
-            row = _organigrama_clean_node(n, i)
-            if row:
-                clean.append(row)
-        anexo.contenido_json = json.dumps({"version": 1, "nodes": clean}, ensure_ascii=False)
+        anexo.contenido_json = json.dumps(data, ensure_ascii=False)
     else:
         return False, "Este anexo no admite edición de contenido."
     db.session.commit()
@@ -834,17 +964,11 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
         if titulo:
             doc.titulo = titulo[:512]
     elif tipo == ANEXO_TIPO_ORGANIGRAMA:
-        nodes = payload.get("nodes")
-        if not isinstance(nodes, list):
+        try:
+            _, data = organigrama_save_payload(payload)
+        except ValueError:
             return False, "Estructura de organigrama inválida."
-        clean: list[dict[str, Any]] = []
-        for i, n in enumerate(nodes):
-            if not isinstance(n, dict):
-                continue
-            row = _organigrama_clean_node(n, i)
-            if row:
-                clean.append(row)
-        rev.contenido_json = json.dumps({"version": 1, "nodes": clean}, ensure_ascii=False)
+        rev.contenido_json = json.dumps(data, ensure_ascii=False)
     else:
         return False, "Este documento no admite edición de contenido."
     db.session.commit()

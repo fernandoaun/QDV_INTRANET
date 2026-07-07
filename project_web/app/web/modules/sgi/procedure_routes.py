@@ -281,11 +281,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             )
         if tc == ANEXO_TIPO_ORGANIGRAMA:
             data = anexo_svc.parse_documento_contenido(doc, rev)
-            nodes = data.get("nodes") or []
-            complete = anexo_svc.organigrama_ensure_complete_nodes(nodes)
-            arbol = anexo_svc.organigrama_tree(complete)
-            editor_nodes = anexo_svc.organigrama_nodes_for_editor(complete)
-            chart_levels = anexo_svc.organigrama_chart_levels(complete)
+            editor_data = anexo_svc.organigrama_prepare_editor_data(data)
             return render_template(
                 "sgi/anexo_organigrama_editor.html",
                 slug=slug,
@@ -293,11 +289,11 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
                 rev=rev,
                 anexo=item,
                 standalone=True,
-                nodes=editor_nodes,
-                chart_levels=chart_levels,
-                layout_items=anexo_svc.organigrama_layout_items(arbol),
+                nodes=editor_data["nodes"],
+                org_layout=editor_data["layout"],
                 usuarios=anexo_svc.organigrama_usuarios_opciones(),
-                nodes_json=json.dumps(editor_nodes, ensure_ascii=False),
+                nodes_json=json.dumps(editor_data["nodes"], ensure_ascii=False),
+                links_json=json.dumps(editor_data["links"], ensure_ascii=False),
                 usuarios_json=json.dumps(anexo_svc.organigrama_usuarios_opciones(), ensure_ascii=False),
             )
         flash("Este documento solo admite visualización.", "info")
@@ -778,22 +774,18 @@ def procedimiento_anexo_editor(slug: str, anexo_id: int):
         )
     if tipo == ANEXO_TIPO_ORGANIGRAMA:
         data = anexo_svc.parse_anexo_contenido(anexo)
-        nodes = data.get("nodes") or []
-        complete = anexo_svc.organigrama_ensure_complete_nodes(nodes)
-        arbol = anexo_svc.organigrama_tree(complete)
-        editor_nodes = anexo_svc.organigrama_nodes_for_editor(complete)
-        chart_levels = anexo_svc.organigrama_chart_levels(complete)
+        editor_data = anexo_svc.organigrama_prepare_editor_data(data)
         return render_template(
             "sgi/anexo_organigrama_editor.html",
             slug=slug,
             doc=doc,
             rev=rev,
             anexo=anexo,
-            nodes=editor_nodes,
-            chart_levels=chart_levels,
-            layout_items=anexo_svc.organigrama_layout_items(arbol),
+            nodes=editor_data["nodes"],
+            org_layout=editor_data["layout"],
             usuarios=anexo_svc.organigrama_usuarios_opciones(),
-            nodes_json=json.dumps(editor_nodes, ensure_ascii=False),
+            nodes_json=json.dumps(editor_data["nodes"], ensure_ascii=False),
+            links_json=json.dumps(editor_data["links"], ensure_ascii=False),
             usuarios_json=json.dumps(anexo_svc.organigrama_usuarios_opciones(), ensure_ascii=False),
         )
     abort(404)

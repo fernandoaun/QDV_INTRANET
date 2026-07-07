@@ -2,7 +2,7 @@
 {% set standalone = standalone|default(false) %}
 {% block title %}{{ anexo.codigo }} · Editor organigrama{% endblock %}
 {% block extra_head %}
-<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='4') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='5') }}" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
 {% block content %}
@@ -15,42 +15,55 @@
   </div>
 </div>
 <div id="sgiOrgFlash" class="alert d-none" role="status"></div>
-<div class="app-card mb-3">
-  <div class="app-card-body">
-    <p class="text-muted small mb-2">Vista previa: el organigrama se arma automáticamente según la tabla.</p>
-    <div class="sgi-org-chart-viewport sgi-org-chart-viewport--editor" id="sgiOrgViewport">
-      <div class="sgi-org-chart-stage" id="sgiOrgStage">
-        <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="edit"></div>
+
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="app-card mb-0">
+      <div class="app-card-body pb-2">
+        <div class="sgi-org-editor-toolbar sgi-proc-no-print">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="button" class="btn btn-outline-primary btn-sm active" id="btnOrgToolSelect" title="Seleccionar y mover">
+              <i class="bi bi-cursor me-1"></i>Seleccionar
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btnOrgToolConnect" title="Crear vínculo entre dos puestos">
+              <i class="bi bi-bezier2 me-1"></i>Conectar
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnOrgAddNode">
+              <i class="bi bi-plus-square me-1"></i>Agregar puesto
+            </button>
+          </div>
+          <div class="sgi-org-zoom-controls">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomOut" title="Alejar">−</button>
+            <span class="sgi-org-zoom-label" id="sgiOrgZoomLabel">100%</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomIn" title="Acercar">+</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomReset" title="Restablecer">Ajustar</button>
+          </div>
+        </div>
+        <p class="text-muted small mb-2" id="sgiOrgToolHint">
+          Arrastrá los recuadros para ubicarlos. Con <strong>Conectar</strong>, hacé clic en el puesto superior y luego en el inferior para dibujar la línea.
+        </p>
+        <div class="sgi-org-chart-viewport sgi-org-chart-viewport--editor" id="sgiOrgViewport">
+          <div class="sgi-org-chart-stage" id="sgiOrgStage">
+            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="edit"></div>
+          </div>
+        </div>
+        <div class="sgi-org-qdv-footer mt-2">
+          <div class="sgi-org-legend">
+            <span class="sgi-org-legend-swatch sgi-org-legend-swatch--external" aria-hidden="true"></span>
+            <span>Servicios Externos (línea punteada)</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-</div>
-<div class="app-card">
-  <div class="app-card-body">
-    <p class="text-muted small mb-3">
-      Definí cada puesto: <strong>Por encima</strong> puede quedar vacío;
-      <strong>Por debajo</strong> admite varios puestos (Ctrl + clic);
-      <strong>Nivel</strong> es la altura del recuadro (0 = arriba, todos los 1 en la misma línea, etc.);
-      <strong>Tipo</strong> distingue puestos internos (naranja, línea continua) de servicios externos (verde, línea punteada);
-      <strong>Usuarios</strong> también admite varios.
-    </p>
-    <div class="table-responsive">
-      <table class="table table-app table-sm align-middle" id="sgiOrgEditorTable">
-        <thead>
-          <tr>
-            <th>Nombre del puesto</th>
-            <th>Tipo</th>
-            <th>Por encima</th>
-            <th>Por debajo</th>
-            <th>Nivel</th>
-            <th>Usuarios en el puesto</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+
+  <div class="col-lg-3">
+    <div class="app-card sgi-org-props-card">
+      <div class="app-card-header">Puesto seleccionado</div>
+      <div class="app-card-body" id="sgiOrgPropsPanel">
+        <p class="text-muted small mb-0">Seleccioná un recuadro del lienzo para editar nombre, tipo y usuarios.</p>
+      </div>
     </div>
-    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnOrgAddRow"><i class="bi bi-plus"></i> Agregar puesto</button>
   </div>
 </div>
 {% endblock %}
@@ -58,10 +71,12 @@
 <script>
   window.SGI_ORG_EDITOR = {
     nodes: {{ nodes_json|safe }},
+    links: {{ links_json|safe }},
+    layout: {{ org_layout|tojson }},
     usuarios: {{ usuarios_json|safe }},
     csrf: {{ csrf_token()|tojson }},
     guardarUrl: {% if standalone %}{{ url_for('sgi.procedimiento_guardar_contenido', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }}{% else %}{{ url_for('sgi.procedimiento_anexo_guardar_contenido', slug=slug, anexo_id=anexo.id)|tojson }}{% endif %},
   };
 </script>
-<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='4') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='5') }}"></script>
 {% endblock %}

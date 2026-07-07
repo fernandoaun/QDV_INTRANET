@@ -237,31 +237,100 @@
 }
 
 .sgi-org-chart-viewport--editor {
-  min-height: 380px;
-  max-height: 52vh;
-  cursor: default;
+  min-height: 420px;
+  max-height: 68vh;
+  cursor: grab;
+}
+
+.sgi-org-chart-viewport--editor.is-panning {
+  cursor: grabbing;
 }
 
 .sgi-org-chart-viewport--editor .sgi-org-node {
-  cursor: pointer;
+  cursor: grab;
 }
 
-#sgiOrgEditorTable .org-users,
-#sgiOrgEditorTable .org-children {
-  min-width: 12rem;
+.sgi-org-chart-viewport--editor .sgi-org-node:active {
+  cursor: grabbing;
 }
 
-#sgiOrgEditorTable .org-kind {
-  min-width: 8.5rem;
+.sgi-org-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
-#sgiOrgEditorTable .org-nivel {
-  width: 4.5rem;
+.sgi-org-editor-toolbar .btn.active {
+  background: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
 }
 
-#sgiOrgEditorTable .form-text {
-  font-size: 0.68rem;
-  margin-top: 0.15rem;
+.sgi-org-canvas {
+  position: relative;
+  min-width: 640px;
+  min-height: 360px;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: #fafbfc;
+  border-radius: 4px;
+}
+
+.sgi-org-canvas .sgi-org-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sgi-org-canvas-nodes {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+}
+
+.sgi-org-canvas-node {
+  position: absolute;
+  width: 132px;
+  z-index: 2;
+}
+
+.sgi-org-canvas-node.is-selected .sgi-org-node {
+  border-color: #156082;
+  box-shadow: 0 0 0 2px rgba(21, 96, 130, 0.35), 3px 3px 0 rgba(233, 113, 50, 0.25);
+}
+
+.sgi-org-canvas-node .sgi-org-node {
+  width: 132px;
+  max-width: 132px;
+  min-width: 132px;
+  user-select: none;
+}
+
+.sgi-org-canvas-node .sgi-org-node-title[contenteditable="true"] {
+  cursor: text;
+  outline: none;
+}
+
+.sgi-org-canvas-node .sgi-org-node-title[contenteditable="true"]:focus {
+  outline: 1px dashed #156082;
+  outline-offset: 2px;
+}
+
+.sgi-org-props-card {
+  position: sticky;
+  top: 1rem;
+}
+
+.sgi-org-props-card .app-card-body {
+  min-height: 200px;
 }
 
 .sgi-org-node-title {

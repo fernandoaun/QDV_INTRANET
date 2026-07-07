@@ -3,7 +3,7 @@
 {% block title %}{{ anexo.codigo }} · Organigrama{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
-<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='4') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='5') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="app-page-head sgi-proc-no-print">
@@ -43,8 +43,10 @@
 
         <div class="sgi-org-chart-viewport" id="sgiOrgViewport">
             <div class="sgi-org-chart-stage" id="sgiOrgStage">
-            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view">
+            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view" data-layout="{{ org_layout|default('auto') }}">
+              {% if org_layout|default('auto') != 'free' %}
               {% include "sgi/_organigrama_tree_chart.html" %}
+              {% endif %}
             </div>
           </div>
         </div>
@@ -65,5 +67,14 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='4') }}"></script>
+{% if org_layout|default('auto') == 'free' %}
+<script>
+  window.SGI_ORG_VIEW = {
+    nodes: {{ org_nodes|tojson }},
+    links: {{ org_links|tojson }},
+    layout: "free"
+  };
+</script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='5') }}"></script>
 {% endblock %}
