@@ -50,10 +50,6 @@
       <div class="sgi-proc-cover-codigo">{{ anexo.codigo }}</div>
       <div class="sgi-proc-cover-revision">{{ anexo.revision }}</div>
     </section>
-    <div class="sgi-proc-page-break sgi-proc-header-block">
-      {% set header_titulo = payload.titulo or anexo.nombre %}
-      {% include "sgi/_procedure_page_header.html" %}
-    </div>
     <section class="sgi-proc-cuerpo">
       {% for key, label in secciones %}
       {% if key not in ('control_registros', 'anexos') %}
