@@ -22,6 +22,7 @@ from app.models.sgi import (
     ANEXO_TIPO_ORGANIGRAMA,
     ESTADO_EN_REVISION,
     SgiDocumento,
+    SgiProcedimientoRevision,
     TIPO_MSGI,
 )
 from app.services import sgi_anexo_service as anexo_svc
@@ -69,7 +70,40 @@ def _procedure_render_kwargs(**extra: object) -> dict:
     doc = extra.get("doc")
     if isinstance(doc, SgiDocumento):
         out["firma_gerente_url"] = proc_svc.firma_gerente_url_for_document(doc)
+    rev = extra.get("rev")
+    if isinstance(rev, SgiProcedimientoRevision):
+        out["doc_aprobado"] = rev.estado in ("aprobado", "vigente")
     return out
+
+
+def _special_doc_editor_context(
+    slug: str,
+    doc: SgiDocumento,
+    rev: SgiProcedimientoRevision,
+    u,
+    puede_editar: bool,
+) -> dict:
+    puede_marcar_revisado = proc_svc.user_can_marcar_revisado(u, rev)
+    puede_aprobar = proc_svc.user_can_aprobar_revision(u, rev)
+    puede_reenviar_aviso = proc_svc.user_can_reenviar_aviso(u, rev)
+    solo_lectura = not puede_editar or rev.estado not in ("borrador", "en_revision")
+    if rev.estado in ("en_revision", "revisado") and (puede_marcar_revisado or puede_aprobar):
+        solo_lectura = True
+    return {
+        "slug": slug,
+        "doc": doc,
+        "rev": rev,
+        "estados_labels": ESTADO_LABELS,
+        "solo_lectura": solo_lectura,
+        "puede_editar": puede_editar,
+        "puede_marcar_revisado": puede_marcar_revisado,
+        "puede_aprobar": puede_aprobar,
+        "puede_reenviar_aviso": puede_reenviar_aviso,
+        "correo_aviso_editable": puede_reenviar_aviso,
+        "perfiles_aplica": perfil_svc.perfiles_aplica_documento(doc.id),
+        "perfiles_opciones": perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
+        "firma_gerente_url": proc_svc.firma_gerente_url_for_document(doc),
+    }
 
 
 def _require_edit():
@@ -267,26 +301,26 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
     if anexo_svc.documento_es_especial(doc):
         tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)
         item = anexo_svc.documento_view_item(doc, rev)
+        wf = _special_doc_editor_context(slug, doc, rev, u, puede_editar)
         if tc == ANEXO_TIPO_DOCUMENTO:
+            vista_tipo = proc_svc.anexo_vista_tipo(doc.archivo_path) if doc.archivo_path else None
+            archivo_nombre = proc_svc.anexo_archivo_nombre(doc.archivo_path) if doc.archivo_path else None
             return render_template(
                 "sgi/anexo_document_editor.html",
-                slug=slug,
-                doc=doc,
-                rev=rev,
                 anexo=item,
                 standalone=True,
                 payload=anexo_svc.documento_payload_for_view(doc, rev),
                 secciones=PROCEDIMIENTO_SECCIONES,
                 payload_json=json.dumps(anexo_svc.documento_payload_for_view(doc, rev), ensure_ascii=False),
+                vista_tipo=vista_tipo,
+                archivo_nombre=archivo_nombre,
+                **_procedure_render_kwargs(**wf),
             )
         if tc == ANEXO_TIPO_ORGANIGRAMA:
             data = anexo_svc.parse_documento_contenido(doc, rev)
             editor_data = anexo_svc.organigrama_prepare_editor_data(data)
             return render_template(
                 "sgi/anexo_organigrama_editor.html",
-                slug=slug,
-                doc=doc,
-                rev=rev,
                 anexo=item,
                 standalone=True,
                 nodes=editor_data["nodes"],
@@ -295,6 +329,18 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
                 nodes_json=json.dumps(editor_data["nodes"], ensure_ascii=False),
                 links_json=json.dumps(editor_data["links"], ensure_ascii=False),
                 usuarios_json=json.dumps(anexo_svc.organigrama_usuarios_opciones(), ensure_ascii=False),
+                **_procedure_render_kwargs(**wf),
+            )
+        if tc == ANEXO_TIPO_ARCHIVO:
+            vista_tipo = proc_svc.anexo_vista_tipo(doc.archivo_path) if doc.archivo_path else None
+            archivo_nombre = proc_svc.anexo_archivo_nombre(doc.archivo_path) if doc.archivo_path else None
+            return render_template(
+                "sgi/anexo_archivo_editor.html",
+                anexo=item,
+                standalone=True,
+                vista_tipo=vista_tipo,
+                archivo_nombre=archivo_nombre,
+                **_procedure_render_kwargs(**wf),
             )
         flash("Este documento solo admite visualización.", "info")
         return redirect(url_for("sgi.procedimiento_vista", slug=slug, doc_id=doc.id, rev_id=rev.id))
@@ -360,21 +406,6 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
         flash("Este procedimiento no está asignado a tu perfil.", "warning")
         return redirect(url_for("main.dashboard"))
 
-    if (doc.tipo or "").upper() == TIPO_MSGI and doc.archivo_path:
-        path = doc_svc.attachment_absolute_path(doc.archivo_path)
-        if path is not None:
-            item = anexo_svc.documento_view_item(doc, rev)
-            return render_template(
-                "sgi/anexo_view.html",
-                slug=slug,
-                doc=doc,
-                rev=rev,
-                anexo=item,
-                standalone=True,
-                vista_tipo=proc_svc.anexo_vista_tipo(doc.archivo_path),
-                archivo_nombre=proc_svc.anexo_archivo_nombre(doc.archivo_path),
-            )
-
     if anexo_svc.documento_es_especial(doc):
         tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)
         item = anexo_svc.documento_view_item(doc, rev)
@@ -402,6 +433,7 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
                 anexo=item,
                 standalone=True,
                 puede_editar=puede_editar,
+                **_procedure_render_kwargs(slug=slug, doc=doc, rev=rev, puede_editar=puede_editar),
                 **org_ctx,
             )
         if not doc.archivo_path:
@@ -417,6 +449,12 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
             standalone=True,
             vista_tipo=proc_svc.anexo_vista_tipo(doc.archivo_path),
             archivo_nombre=proc_svc.anexo_archivo_nombre(doc.archivo_path),
+            **_procedure_render_kwargs(
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                puede_editar=puede_editar,
+            ),
         )
 
     return render_template(
@@ -456,6 +494,9 @@ def procedimiento_guardar(slug: str, doc_id: int, rev_id: int):
         doc = doc_svc.get_documento(doc_id)
         if doc is None or doc.tipo != tipo:
             return jsonify({"ok": False, "error": "no_encontrado"}), 404
+        if anexo_svc.documento_es_especial(doc):
+            ok, msg = proc_svc.save_revision_caratula_only(rev_id, data, u.id, label)
+            return jsonify({"ok": ok, "message": msg, "control_cambios": []}), (200 if ok else 400)
         ok, msg, control_cambios = proc_svc.save_revision_content(
             rev_id, data, u.id, label, actor=u
         )

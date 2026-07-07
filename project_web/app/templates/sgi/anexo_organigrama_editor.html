@@ -3,18 +3,20 @@
 {% block title %}{{ anexo.codigo }} · Editor organigrama{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='5') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
 {% block content %}
-<div class="app-page-head">
-  <h1 class="app-page-title h5">Editor organigrama — {{ anexo.codigo }}</h1>
-  <div class="app-page-actions d-flex flex-wrap gap-2">
-    <a class="btn btn-outline-secondary btn-sm"
-       href="{% if standalone %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=anexo.id) }}{% endif %}">Vista</a>
-    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarOrganigrama"><i class="bi bi-save me-1"></i>Guardar</button>
-  </div>
-</div>
+<h1 class="app-page-title h5">Editor organigrama — {{ anexo.codigo }}</h1>
 <div id="sgiOrgFlash" class="alert d-none" role="status"></div>
+
+{% include "sgi/_anexo_especial_workflow.html" %}
+
+<div class="app-page-actions d-flex flex-wrap gap-2 mb-2">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="{% if standalone %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=anexo.id) }}{% endif %}">Vista</a>
+  <button type="button" class="btn btn-primary btn-sm" id="btnGuardarOrganigrama" {% if solo_lectura|default(false) %}hidden{% endif %}><i class="bi bi-save me-1"></i>Guardar organigrama</button>
+</div>
 
 <div class="row g-3">
   <div class="col-lg-9">
@@ -77,6 +79,30 @@
     csrf: {{ csrf_token()|tojson }},
     guardarUrl: {% if standalone %}{{ url_for('sgi.procedimiento_guardar_contenido', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }}{% else %}{{ url_for('sgi.procedimiento_anexo_guardar_contenido', slug=slug, anexo_id=anexo.id)|tojson }}{% endif %},
   };
+  window.SGI_ANEXO_WORKFLOW = {
+    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    revEstado: {{ rev.estado|tojson }},
+    csrf: {{ csrf_token()|tojson }},
+    urls: {
+      guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+    },
+    onGuardarContenido: function () {
+      if (typeof window.sgiOrgCollectPayload !== "function") return Promise.resolve({ ok: true });
+      const data = window.sgiOrgCollectPayload();
+      return fetch(window.SGI_ORG_EDITOR.guardarUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": window.SGI_ORG_EDITOR.csrf,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(data),
+      }).then((r) => r.json());
+    },
+  };
 </script>
 <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='5') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
 {% endblock %}

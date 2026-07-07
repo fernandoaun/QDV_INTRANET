@@ -1,0 +1,117 @@
+{# Barra de flujo de aprobación para QDV-ANEXO I–IV #}
+{% set mostrar_toolbar_workflow = (rev.estado == 'en_revision' and puede_marcar_revisado) or (rev.estado == 'revisado' and puede_aprobar) or (rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso) %}
+
+<div class="app-page-head sgi-proc-no-print mb-2">
+  <div>
+    <div class="text-muted small">
+      <strong>{{ anexo.codigo }}</strong> · {{ estados_labels.get(rev.estado, rev.estado) }}
+      <span class="badge text-bg-secondary ms-1">{{ rev.revision_label }}</span>
+    </div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Listado</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.procedimiento_historial', slug=slug, doc_id=doc.id) }}">Historial</a>
+    {% if rev.estado in ('aprobado', 'vigente') %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Vista lectura</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card sgi-proc-no-print mb-3">
+  <div class="app-card-header py-2">
+    <span class="fw-semibold">Sectores / perfiles a los que aplica</span>
+  </div>
+  <div class="app-card-body py-2">
+    <div class="d-flex flex-wrap gap-3" id="anexoPerfilesAplica">
+      {% for key, label in perfiles_opciones.items() %}
+      <label class="form-check mb-0">
+        <input class="form-check-input anexo-perfil-check" type="checkbox" value="{{ key }}"
+               {% if key in perfiles_aplica %}checked{% endif %}
+               {% if solo_lectura|default(false) or not puede_editar %}disabled{% endif %}>
+        <span class="form-check-label">{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% if not perfiles_aplica and puede_editar and rev.estado == 'borrador' %}
+    <p class="text-warning small mb-0 mt-2">Seleccioná al menos un sector antes de enviar a revisión.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="app-card sgi-proc-no-print mb-3">
+  <div class="app-card-header py-2"><span class="fw-semibold">Carátula — firmas y avisos</span></div>
+  <div class="app-card-body py-2">
+    <table class="sgi-proc-table sgi-proc-firmas-table mb-3">
+      <thead>
+        <tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><input type="text" class="form-control form-control-sm" id="anexoElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" class="form-control form-control-sm" id="anexoReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" class="form-control form-control-sm" id="anexoAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) and not (puede_marcar_revisado|default(false) and rev.estado == 'en_revision') %}readonly{% endif %}></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="row g-2">
+      <div class="col-md-6">
+        <label class="form-label small mb-0" for="anexoRevisorCorreo">Correo del revisor</label>
+        <input type="email" class="form-control form-control-sm" id="anexoRevisorCorreo"
+               value="{{ rev.revisor_correo or '' }}" placeholder="revisor@empresa.com"
+               {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label small mb-0" for="anexoAprobadorCorreo">Correo del aprobador</label>
+        <input type="email" class="form-control form-control-sm" id="anexoAprobadorCorreo"
+               value="{{ rev.aprobador_correo or '' }}" placeholder="aprobador@empresa.com"
+               {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not solo_lectura|default(false) %}
+<div class="sgi-proc-toolbar sgi-proc-no-print d-flex flex-wrap gap-2 mb-3">
+  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAnexoGuardarCaratula"><i class="bi bi-save me-1"></i>Guardar datos</button>
+  {% if rev.estado == 'borrador' and puede_editar %}
+  <button type="button" class="btn btn-warning btn-sm" id="btnAnexoEnviarRevision"><i class="bi bi-send me-1"></i>Enviar a revisión</button>
+  {% endif %}
+  {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+  <button type="button" class="btn btn-info btn-sm" id="btnAnexoMarcarRevisado"><i class="bi bi-check2-square me-1"></i>Marcar como revisado</button>
+  {% endif %}
+  {% if rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso %}
+  <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAnexoReenviarAviso"><i class="bi bi-envelope-arrow-up me-1"></i>Reenviar aviso</button>
+  {% endif %}
+  {% if rev.estado == 'revisado' and puede_aprobar %}
+  <button type="button" class="btn btn-success btn-sm" id="btnAnexoAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
+  {% endif %}
+  {% if rev.estado in ('aprobado', 'vigente') and puede_editar %}
+  <button type="button" class="btn btn-outline-primary btn-sm" id="btnAnexoNuevaRevision"><i class="bi bi-files me-1"></i>Crear nueva revisión</button>
+  {% endif %}
+</div>
+{% elif mostrar_toolbar_workflow %}
+<div class="sgi-proc-toolbar sgi-proc-no-print mb-3">
+  <div class="alert alert-light border py-2 mb-2">
+  {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <strong>Revisión pendiente.</strong> Completá «Aprobó» y «Correo del aprobador» si faltan, y confirmá con el botón de abajo.
+  {% elif rev.estado == 'revisado' and puede_aprobar %}
+    <strong>Pendiente de tu aprobación.</strong> Revisá el documento y confirmá con el botón de abajo.
+  {% else %}
+    <strong>Flujo de aprobación.</strong> Podés reenviar el aviso por correo si hace falta.
+  {% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-1">
+    {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <button type="button" class="btn btn-info btn-sm" id="btnAnexoMarcarRevisado"><i class="bi bi-check2-square me-1"></i>Marcar como revisado</button>
+    {% endif %}
+    {% if rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnAnexoReenviarAviso"><i class="bi bi-envelope-arrow-up me-1"></i>Reenviar aviso</button>
+    {% endif %}
+    {% if rev.estado == 'revisado' and puede_aprobar %}
+    <button type="button" class="btn btn-success btn-sm" id="btnAnexoAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
+    {% endif %}
+  </div>
+</div>
+{% elif solo_lectura|default(false) %}
+<div class="alert alert-info sgi-proc-no-print py-2 mb-3">Modo solo lectura.</div>
+{% endif %}

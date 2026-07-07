@@ -8,12 +8,28 @@
     <h1 class="sgi-proc-cover-titulo">{{ payload.titulo or anexo.nombre }}</h1>
     <div class="sgi-proc-cover-codigo">{{ anexo.codigo }}</div>
     <div class="sgi-proc-cover-revision">{{ anexo.revision }}</div>
+    {% if doc_aprobado|default(false) %}
+    <table class="sgi-proc-table sgi-proc-firmas-table">
+      <thead>
+        <tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ rev.elaboro or '—' }}</td>
+          <td>{{ rev.reviso or '—' }}</td>
+          <td>{{ rev.aprobo or '—' }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
     {% if anexo.fecha_vigencia %}
     <p class="sgi-proc-cover-fecha text-center small mb-3">
       Fecha de vigencia: {{ anexo.fecha_vigencia.strftime('%d/%m/%Y') }}
     </p>
     {% endif %}
+    {% if not standalone|default(false) %}
     <p class="text-center small text-muted mb-0">Anexo del {{ doc.codigo }}</p>
+    {% endif %}
   </section>
 
   <div class="sgi-proc-page-break sgi-proc-header-block">
@@ -35,5 +51,7 @@
     {% endif %}
     {% endfor %}
   </section>
+  {% if doc_aprobado|default(false) %}
   {% include "sgi/_procedure_firma_gerente.html" %}
+  {% endif %}
 </div>

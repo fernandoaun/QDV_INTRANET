@@ -52,6 +52,7 @@
         </div>
 
         <p class="text-end text-muted small mt-3 mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
+        {% include "sgi/_anexo_firmas_vista.html" %}
       </div>
     </div>
 

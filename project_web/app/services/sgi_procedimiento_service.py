@@ -831,6 +831,44 @@ def save_workflow_caratula(
     return True, "Datos de carátula guardados."
 
 
+def save_revision_caratula_only(
+    rev_id: int,
+    payload: dict[str, Any],
+    user_id: int,
+    actor_label: str,
+) -> tuple[bool, str]:
+    """Guarda carátula y perfiles sin modificar contenido_json (QDV-ANEXO I–IV)."""
+    rev = get_revision(rev_id)
+    if rev is None:
+        return False, "Revisión no encontrada."
+    if rev.estado not in (ESTADO_BORRADOR, ESTADO_EN_REVISION):
+        return False, "Solo se puede editar un borrador o documento en revisión."
+
+    doc = rev.documento
+    if "elaboro" in payload:
+        rev.elaboro = doc_svc.normalize_persona_campo(payload.get("elaboro"))[:256]
+        doc.responsable_elaboracion = rev.elaboro
+    if "reviso" in payload:
+        rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
+        doc.responsable_revision = rev.reviso
+    if "revisor_correo" in payload:
+        rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
+    if "aprobo" in payload:
+        rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
+        doc.responsable_aprobacion = rev.aprobo
+    if "aprobador_correo" in payload:
+        rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
+    rev.updated_at = _utc_now()
+    rev.updated_by_id = user_id
+    doc.updated_at = _utc_now()
+    doc.updated_by_id = user_id
+    if "perfiles_aplica" in payload:
+        perfil_svc.sync_perfiles_documento(doc.id, payload.get("perfiles_aplica"))
+    doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Carátula {rev.revision_label}")
+    db.session.commit()
+    return True, "Datos guardados."
+
+
 def _log_aprobacion(rev: SgiProcedimientoRevision, accion: str, user_id: int, label: str, detalle: str) -> None:
     db.session.add(
         SgiProcedimientoAprobacion(

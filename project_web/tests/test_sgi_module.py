@@ -541,7 +541,7 @@ def test_ensure_msgi_documentos(app, tmp_path):
         db.session.commit()
 
 
-def test_msgi_vista_muestra_adjunto_no_plantilla_procedimiento(auth_client, app, tmp_path):
+def test_msgi_vista_documento_especial_muestra_contenido_visual(auth_client, app, tmp_path):
     from app.extensions import db
     from app.services import sgi_procedimiento_service as proc_svc
     from app.services.upload_paths import uploads_workspace_root
@@ -567,9 +567,8 @@ def test_msgi_vista_muestra_adjunto_no_plantilla_procedimiento(auth_client, app,
 
     r = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
     assert r.status_code == 200
-    assert b"sgi-anexo-view-pdf" in r.data
-    assert b"sgi-proc-workspace" not in r.data
-    assert b"sgi_procedure.css" in r.data
+    assert b"sgi-proc-workspace" in r.data
+    assert b"sgi-anexo-view-pdf" not in r.data
 
     with app.app_context():
         import shutil

@@ -761,6 +761,31 @@
       });
     }
 
+    function buildPayload() {
+      syncParentsFromLinks();
+      return {
+        layout: "free",
+        nodes: state.nodes.map((n, i) => ({
+          id: n.id,
+          titulo: n.titulo,
+          subtitulo: n.subtitulo || "",
+          kind: nodeKindFromData(n),
+          parent_id: n.parent_id || null,
+          user_ids: n.user_ids || [],
+          user_id: n.user_id || null,
+          orden: n.orden ?? i,
+          x: Math.round(n.x || 0),
+          y: Math.round(n.y || 0),
+        })),
+        links: state.links.map((l) => ({
+          from: l.from,
+          to: l.to,
+          style: l.style || linkStyleForTarget(state.nodes, l.to),
+        })),
+      };
+    }
+    window.sgiOrgCollectPayload = () => buildPayload();
+
     function nodeById(id) {
       return state.nodes.find((n) => n.id === id);
     }
@@ -1036,27 +1061,7 @@
     qs("#btnOrgAddNode")?.addEventListener("click", addNode);
 
     qs("#btnGuardarOrganigrama")?.addEventListener("click", () => {
-      syncParentsFromLinks();
-      const payload = {
-        layout: "free",
-        nodes: state.nodes.map((n, i) => ({
-          id: n.id,
-          titulo: n.titulo,
-          subtitulo: n.subtitulo || "",
-          kind: nodeKindFromData(n),
-          parent_id: n.parent_id || null,
-          user_ids: n.user_ids || [],
-          user_id: n.user_id || null,
-          orden: n.orden ?? i,
-          x: Math.round(n.x || 0),
-          y: Math.round(n.y || 0),
-        })),
-        links: state.links.map((l) => ({
-          from: l.from,
-          to: l.to,
-          style: l.style || linkStyleForTarget(state.nodes, l.to),
-        })),
-      };
+      const payload = buildPayload();
       fetch(editorCfg.guardarUrl, {
         method: "POST",
         headers: {

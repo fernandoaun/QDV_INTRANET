@@ -1,0 +1,21 @@
+{# Firmas de aprobación — visible solo en versiones aprobadas #}
+{% if doc_aprobado|default(false) %}
+<div class="sgi-anexo-firmas-vista mt-4">
+  <table class="sgi-proc-table sgi-proc-firmas-table">
+    <thead>
+      <tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>{{ rev.elaboro or '—' }}</td>
+        <td>{{ rev.reviso or '—' }}</td>
+        <td>{{ rev.aprobo or '—' }}</td>
+      </tr>
+    </tbody>
+  </table>
+  {% if rev.fecha_aprobacion %}
+  <p class="text-end text-muted small mb-0">Fecha de aprobación: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') }}</p>
+  {% endif %}
+  {% include "sgi/_procedure_firma_gerente.html" %}
+</div>
+{% endif %}
