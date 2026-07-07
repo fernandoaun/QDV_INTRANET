@@ -14,13 +14,15 @@
 <div class="app-page-actions sgi-proc-no-print d-flex flex-wrap gap-2 mb-2">
   <a class="btn btn-outline-secondary btn-sm"
      href="{% if standalone %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=anexo.id) }}{% endif %}">Vista lectura</a>
+  {% if not anexo.archivo_path %}
   <button type="button" class="btn btn-primary btn-sm" id="btnGuardarAnexoDoc" {% if solo_lectura|default(false) %}hidden{% endif %}><i class="bi bi-save me-1"></i>Guardar contenido</button>
+  {% endif %}
 </div>
 
 {% if anexo.archivo_path %}
-<div class="app-card sgi-proc-no-print mb-3">
-  <div class="app-card-header py-2 d-flex justify-content-between align-items-center">
-    <span class="fw-semibold">Archivo original adjunto</span>
+<div class="app-card mb-3">
+  <div class="app-card-header py-2 d-flex justify-content-between align-items-center sgi-proc-no-print">
+    <span class="fw-semibold">Documento adjunto</span>
     <a class="btn btn-outline-secondary btn-sm"
        href="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}{% endif %}">
       <i class="bi bi-download me-1"></i>{{ archivo_nombre or 'Descargar' }}
@@ -29,18 +31,41 @@
   <div class="app-card-body sgi-anexo-view-body">
     {% if vista_tipo == 'image' %}
     <img src="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}{% endif %}"
-         alt="{{ anexo.nombre }}" class="sgi-anexo-view-img" style="max-height:300px">
+         alt="{{ anexo.nombre }}" class="sgi-anexo-view-img">
     {% elif vista_tipo == 'pdf' %}
-    <iframe class="sgi-anexo-view-pdf" style="max-height:300px"
+    <iframe class="sgi-anexo-view-pdf"
             src="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}{% endif %}"
             title="{{ anexo.nombre }}"></iframe>
+    {% elif vista_tipo == 'office' %}
+    <div class="text-center py-5">
+      <i class="bi bi-file-earmark-text display-4 text-muted d-block mb-3" aria-hidden="true"></i>
+      <p class="mb-2"><strong>{{ archivo_nombre }}</strong></p>
+      <p class="text-muted mb-3">Este documento es de Office. Descargalo para abrirlo en Word o PowerPoint.</p>
+      <a class="btn btn-primary"
+         href="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}{% endif %}">Descargar archivo</a>
+    </div>
     {% else %}
-    <p class="text-muted mb-0">Archivo: <strong>{{ archivo_nombre }}</strong> — descargalo para consultarlo.</p>
+    <div class="text-center py-5">
+      <p class="text-muted mb-3">Descargá el archivo para consultarlo.</p>
+      <a class="btn btn-primary"
+         href="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id) }}{% endif %}">Descargar</a>
+    </div>
     {% endif %}
   </div>
 </div>
+
+{% if not solo_lectura|default(false) %}
+<div class="sgi-proc-no-print mb-3">
+  <label class="btn btn-outline-primary btn-sm mb-0">
+    <i class="bi bi-paperclip me-1"></i>Reemplazar archivo
+    <input type="file" id="anexoArchivoInput" class="d-none" accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.ppt,.pptx">
+  </label>
+</div>
 {% endif %}
 
+{% include "sgi/_anexo_firmas_vista.html" %}
+
+{% else %}
 <div class="sgi-proc-workspace">
   <div class="sgi-proc-sheet" id="sgiAnexoDocSheet">
     <section class="sgi-proc-caratula">
@@ -62,6 +87,7 @@
     </section>
   </div>
 </div>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 <script>
@@ -100,6 +126,48 @@
     },
   };
 </script>
+{% if not anexo.archivo_path %}
 <script src="{{ url_for('static', filename='js/sgi_anexo_document.js') }}"></script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
+{% if anexo.archivo_path and not solo_lectura|default(false) %}
+<script>
+  (function () {
+    const input = document.getElementById("anexoArchivoInput");
+    if (!input) return;
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append("archivo", file);
+      const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
+      const uploadUrl = {% if standalone %}{{ url_for('sgi.procedimiento_upload_archivo', slug=slug, doc_id=doc.id)|tojson }}{% else %}{{ url_for('sgi.procedimiento_anexo_upload', slug=slug, anexo_id=anexo.id)|tojson }}{% endif %};
+      fetch(uploadUrl, {
+        method: "POST",
+        headers: { "X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest" },
+        credentials: "same-origin",
+        body: fd,
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          const el = document.getElementById("sgiAnexoFlash");
+          if (el) {
+            el.className = `alert alert-${res.ok ? "success" : "danger"} sgi-proc-no-print`;
+            el.textContent = res.message || (res.ok ? "Archivo cargado." : "Error.");
+            el.classList.remove("d-none");
+          }
+          if (res.ok) window.location.reload();
+        })
+        .catch(() => {
+          const el = document.getElementById("sgiAnexoFlash");
+          if (el) {
+            el.className = "alert alert-danger sgi-proc-no-print";
+            el.textContent = "No se pudo adjuntar el archivo.";
+            el.classList.remove("d-none");
+          }
+        });
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

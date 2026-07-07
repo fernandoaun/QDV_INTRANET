@@ -570,6 +570,12 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
     assert b"sgi-anexo-view-pdf" in r.data
     assert b"sgi-proc-workspace" not in r.data
 
+    r_editor = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor")
+    assert r_editor.status_code == 200
+    assert b"sgi-anexo-view-pdf" in r_editor.data
+    assert b"sgi-proc-workspace" not in r_editor.data
+    assert b"Documento adjunto" in r_editor.data
+
     with app.app_context():
         import shutil
 

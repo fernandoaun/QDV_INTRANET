@@ -830,6 +830,8 @@ def procedimiento_anexo_editor(slug: str, anexo_id: int):
         return redir
     tipo = (anexo.tipo_contenido or ANEXO_TIPO_ARCHIVO).lower()
     if tipo == ANEXO_TIPO_DOCUMENTO:
+        vista_tipo = proc_svc.anexo_vista_tipo(anexo.archivo_path) if anexo.archivo_path else None
+        archivo_nombre = proc_svc.anexo_archivo_nombre(anexo.archivo_path) if anexo.archivo_path else None
         return render_template(
             "sgi/anexo_document_editor.html",
             slug=slug,
@@ -839,6 +841,10 @@ def procedimiento_anexo_editor(slug: str, anexo_id: int):
             payload=anexo_svc.documento_payload_for_view(anexo),
             secciones=PROCEDIMIENTO_SECCIONES,
             payload_json=json.dumps(anexo_svc.documento_payload_for_view(anexo), ensure_ascii=False),
+            vista_tipo=vista_tipo,
+            archivo_nombre=archivo_nombre,
+            solo_lectura=True,
+            **_procedure_render_kwargs(slug=slug, doc=doc, rev=rev, puede_editar=True),
         )
     if tipo == ANEXO_TIPO_ORGANIGRAMA:
         data = anexo_svc.parse_anexo_contenido(anexo)
