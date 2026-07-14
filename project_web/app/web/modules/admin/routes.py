@@ -10,7 +10,7 @@ from app.auth_utils import admin_required, current_user, login_required, user_ca
 from app.constants import PERMISSION_FORM_KEYS, PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_TREE
 from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
-from app.security_http import truncate_plain_text
+from app.security_http import json_preview, truncate_plain_text
 from app.services import security_audit_service as audit_svc
 from app.services.deadline_alert_email_service import (
     add_email,
@@ -267,8 +267,8 @@ def edit_user(uid: int):
                 actor=viewer,
                 entity_type="user",
                 entity_id=u.id,
-                old_value=audit_svc.json_preview(old_snapshot),
-                new_value=audit_svc.json_preview(new_snapshot),
+                old_value=json_preview(old_snapshot),
+                new_value=json_preview(new_snapshot),
             )
             flash("Usuario actualizado.", "success")
             return redirect(url_for("admin_users.edit_user", uid=uid))
