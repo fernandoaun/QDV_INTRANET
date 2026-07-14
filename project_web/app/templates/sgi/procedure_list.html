@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ tipo_label }} · Procedimientos · SGI{% endblock %}
 {% block extra_head %}
-{% if puede_editar %}
+{% if puede_editar or puede_asociar_modulo %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endif %}
 {% endblock %}
@@ -122,7 +122,7 @@
         </td>
         <td class="text-end text-nowrap sgi-list-registro-acciones">
           {% if rg.modulo %}
-            {% if puede_editar %}
+            {% if puede_asociar_modulo %}
             <button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo"
                     data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">Desasociar</button>
             {% endif %}
@@ -132,7 +132,7 @@
             {% if rg.filled_url %}
             <a class="btn btn-sm btn-outline-primary btn-ir-modulo" href="{{ rg.filled_url }}" target="_blank" rel="noopener">Ir al módulo</a>
             {% endif %}
-          {% elif puede_editar %}
+          {% elif puede_asociar_modulo %}
             <div class="dropdown d-inline-block">
               <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                 Asociar
@@ -164,13 +164,14 @@
 <p class="text-muted small mt-2">En el editor definí los sectores/perfiles a los que aplica cada procedimiento. Al aprobarse, se notifica por la campanita a los usuarios activos con esos perfiles. Los borradores solo los ven editores SGI y quienes participan en la revisión.</p>
 {% endblock %}
 {% block scripts %}
-{% if puede_editar %}
+{% if puede_asociar_modulo or (puede_editar and tipo == 'MSGI') %}
 <script>
 (function () {
   "use strict";
   const slug = {{ slug|tojson }};
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
   const modulos = {{ (modulos_registro or {})|tojson }};
+  const puedeAsociarModulo = {{ 'true' if puede_asociar_modulo else 'false' }};
 
   function flash(kind, msg) {
     const el = document.createElement("div");
@@ -181,6 +182,7 @@
     if (head) head.after(el);
   }
 
+  {% if puede_asociar_modulo %}
   function setRegistroModulo(docId, registroId, modulo) {
     return fetch(`/sgi/${slug}/procedimientos/${docId}/registro/${registroId}/modulo`, {
       method: "POST",
@@ -196,9 +198,11 @@
 
   function renderAsociadoAcciones(acciones, registro) {
     const parts = [];
-    parts.push(
-      `<button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo" data-doc-id="${acciones.closest("tr").dataset.docId}" data-registro-id="${acciones.closest("tr").dataset.registroId}">Desasociar</button>`
-    );
+    if (puedeAsociarModulo) {
+      parts.push(
+        `<button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo" data-doc-id="${acciones.closest("tr").dataset.docId}" data-registro-id="${acciones.closest("tr").dataset.registroId}">Desasociar</button>`
+      );
+    }
     if (registro.blank_url) {
       parts.push(
         `<a class="btn btn-sm btn-outline-secondary btn-ver-blanco" href="${registro.blank_url}" target="_blank" rel="noopener">Ver en blanco</a>`
@@ -299,8 +303,9 @@
         });
     }
   });
+  {% endif %}
 
-  {% if tipo == 'MSGI' %}
+  {% if puede_editar and tipo == 'MSGI' %}
   document.querySelectorAll(".btn-msgi-adjuntar").forEach((btn) => {
     btn.addEventListener("click", () => {
       const docId = btn.dataset.docId;

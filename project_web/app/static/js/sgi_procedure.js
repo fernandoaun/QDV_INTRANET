@@ -9,6 +9,7 @@
 
   const initial = cfg.payload || {};
   const soloLectura = !!cfg.soloLectura;
+  const puedeAsociarModulo = cfg.puedeAsociarModulo !== false;
 
   function qs(sel) {
     return document.querySelector(sel);
@@ -785,7 +786,7 @@
     if (selectedModulo && !modulos[selectedModulo]) {
       optionsHtml += `<option value="${escapeHtml(selectedModulo)}" selected>${escapeHtml(selectedModulo)}</option>`;
     }
-    html += `<td><select class="form-select form-select-sm rg-modulo" ${soloLectura ? "disabled" : ""}>${optionsHtml}</select></td>`;
+    html += `<td><select class="form-select form-select-sm rg-modulo" ${soloLectura || !puedeAsociarModulo ? "disabled" : ""}>${optionsHtml}</select></td>`;
 
     const meta = modulos[selectedModulo] || {};
     const blankUrl = meta.blank_url || row?.blank_url || "";

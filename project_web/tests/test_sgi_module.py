@@ -662,6 +662,54 @@ def test_sgi_listado_muestra_registros_punto_7(auth_client, app):
     assert "Desasociar" in html
 
 
+def test_sgi_asociar_modulo_solo_sgi_o_admin(sgi_perm_client, app):
+    """Operaciones con sgi_documentos_edit no puede asociar; solo admin/perfil SGI."""
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", 1, "tester", titulo="PERM ASOCIAR")
+        assert err is None
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev.id,
+            {
+                "titulo": "PERM ASOCIAR",
+                "secciones": {},
+                "registros": [
+                    {
+                        "nombre": "Registro bloqueado",
+                        "quien_archiva": "Ops",
+                        "como": "Digital",
+                        "donde": "Sistema",
+                        "tiempo_guarda": "1 año",
+                        "usuarios": "Planta",
+                        "disposicion_final": "Archivo",
+                        "modulo": "",
+                    }
+                ],
+                "anexos": [],
+            },
+            1,
+            "tester",
+        )
+        assert ok, msg
+        payload = proc_svc.revision_to_payload(proc_svc.get_revision(rev.id))
+        registro_id = payload["registros"][0]["id"]
+        doc_id = doc.id
+
+    r = sgi_perm_client.post(
+        f"/sgi/pg/procedimientos/{doc_id}/registro/{registro_id}/modulo",
+        json={"modulo": "salmuera"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r.status_code == 403
+    assert r.get_json()["ok"] is False
+
+    r_list = sgi_perm_client.get("/sgi/pg/procedimientos/")
+    assert r_list.status_code == 200
+    html = r_list.get_data(as_text=True)
+    assert "Asociar" not in html or "btn-asociar-modulo" not in html
+
+
 def test_msgi_anexo_codigo_auto():
     from app.models.sgi import TIPO_MSGI, TIPO_PG
     from app.services.sgi_procedimiento_service import anexo_codigo_auto, int_to_roman

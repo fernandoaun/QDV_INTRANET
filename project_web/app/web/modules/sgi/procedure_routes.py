@@ -11,6 +11,7 @@ from app.auth_utils import (
     current_user,
     login_required,
     user_can_access_sgi,
+    user_can_asociar_sgi_registro_modulo,
     user_can_edit_sgi_documentos,
     user_can_view_sgi_obsoletos,
     user_display_name,
@@ -159,6 +160,7 @@ def listado_procedimientos(slug: str):
         estados_labels=ESTADO_LABELS,
         estado_visual_row=proc_svc.estado_visual_row,
         puede_editar=puede_editar,
+        puede_asociar_modulo=user_can_asociar_sgi_registro_modulo(u),
         puede_obsoletos=user_can_view_sgi_obsoletos(u),
         modulos_registro=proc_svc.registro_modulos_catalog_for_js(),
     )
@@ -167,8 +169,8 @@ def listado_procedimientos(slug: str):
 @bp.post("/<slug>/procedimientos/<int:doc_id>/registro/<int:registro_id>/modulo")
 @login_required
 def procedimiento_registro_modulo(slug: str, doc_id: int, registro_id: int):
-    u, redir = _require_edit()
-    if redir is not None:
+    u = current_user()
+    if not user_can_asociar_sgi_registro_modulo(u):
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
     tipo, _ = _resolve_tipo(slug)
     doc = doc_svc.get_documento(doc_id)
@@ -403,6 +405,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             perfiles_aplica=perfil_svc.perfiles_aplica_documento(doc.id),
             perfiles_opciones=perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
             modulos_registro_json=json.dumps(proc_svc.registro_modulos_catalog_for_js(), ensure_ascii=False),
+            puede_asociar_modulo=user_can_asociar_sgi_registro_modulo(u),
         ),
     )
 

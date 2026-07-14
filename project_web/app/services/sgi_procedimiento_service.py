@@ -41,7 +41,11 @@ from app.models.sgi import (
 )
 from app.models.personal import EmpleadoPersonal
 from app.models.user import User
-from app.auth_utils import user_can_edit_sgi_documentos, user_display_name
+from app.auth_utils import (
+    user_can_asociar_sgi_registro_modulo,
+    user_can_edit_sgi_documentos,
+    user_display_name,
+)
 from app.user_roles import user_is_global_read_only
 from app.services.deadline_alert_email_service import normalize_validate_email
 from app.services.personal_epp_reminder_service import resolve_empleado_email
@@ -889,10 +893,26 @@ def save_revision_content(
         return False, "El título debe tener al menos 2 caracteres.", []
 
     secciones = normalize_procedure_secciones(payload.get("secciones") or {})
+    registros = list(payload.get("registros") or [])
+    if not user_can_asociar_sgi_registro_modulo(actor):
+        existing_by_id = {r.id: (r.modulo or "") for r in rev.registros.all()}
+        existing_by_orden = {r.orden: (r.modulo or "") for r in rev.registros.all()}
+        locked: list[dict[str, Any]] = []
+        for i, row in enumerate(registros):
+            item = dict(row or {})
+            rid = item.get("id")
+            if rid and int(rid) in existing_by_id:
+                item["modulo"] = existing_by_id[int(rid)]
+            elif i in existing_by_orden:
+                item["modulo"] = existing_by_orden[i]
+            else:
+                item["modulo"] = ""
+            locked.append(item)
+        registros = locked
     contenido = {
         "titulo": titulo,
         "secciones": secciones,
-        "registros": payload.get("registros") or [],
+        "registros": registros,
         "anexos": payload.get("anexos") or [],
         "fecha_aprobacion": payload.get("fecha_aprobacion"),
     }

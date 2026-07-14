@@ -186,6 +186,11 @@ def user_can_delete_sgi_documentos(user: User | None) -> bool:
     return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_SGI
 
 
+def user_can_asociar_sgi_registro_modulo(user: User | None) -> bool:
+    """Asociar/desasociar módulos a registros del punto 7: administrador o perfil SGI."""
+    return user_can_delete_sgi_documentos(user)
+
+
 def user_can_view_sgi_obsoletos(user: User | None) -> bool:
     """Documentos obsoletos: administrador o perfiles SGI / Angel (vista total global)."""
     if user is None:
