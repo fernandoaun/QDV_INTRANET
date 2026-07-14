@@ -279,6 +279,7 @@ class SgiProcedimientoRegistro(db.Model):
     tiempo_guarda = db.Column(db.String(256), nullable=False, default="", server_default="")
     usuarios = db.Column(db.String(512), nullable=False, default="", server_default="")
     disposicion_final = db.Column(db.String(512), nullable=False, default="", server_default="")
+    modulo = db.Column(db.String(64), nullable=False, default="", server_default="")
 
 
 class SgiProcedimientoAnexo(db.Model):

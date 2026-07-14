@@ -373,6 +373,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             correo_aviso_editable=puede_reenviar_aviso,
             perfiles_aplica=perfil_svc.perfiles_aplica_documento(doc.id),
             perfiles_opciones=perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
+            modulos_registro_json=json.dumps(proc_svc.registro_modulos_catalog_for_js(), ensure_ascii=False),
         ),
     )
 

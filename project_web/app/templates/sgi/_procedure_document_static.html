@@ -69,6 +69,8 @@
           <tr>
             <th>Nombre</th><th>¿Quién archiva?</th><th>¿Cómo?</th><th>¿Dónde?</th>
             <th>Tiempo de guarda</th><th>Usuarios</th><th>Disposición final</th>
+            <th>Módulo</th>
+            <th class="sgi-proc-no-print">Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -76,9 +78,19 @@
           <tr>
             <td>{{ rg.nombre }}</td><td>{{ rg.quien_archiva }}</td><td>{{ rg.como }}</td><td>{{ rg.donde }}</td>
             <td>{{ rg.tiempo_guarda }}</td><td>{{ rg.usuarios }}</td><td>{{ rg.disposicion_final }}</td>
+            <td>{{ rg.modulo_label or rg.modulo or "—" }}</td>
+            <td class="sgi-proc-no-print text-nowrap">
+              {% if rg.blank_url %}
+              <a class="btn btn-sm btn-outline-secondary" href="{{ rg.blank_url }}" target="_blank" rel="noopener">Ver en blanco</a>
+              {% endif %}
+              {% if rg.filled_url %}
+              <a class="btn btn-sm btn-outline-primary" href="{{ rg.filled_url }}" target="_blank" rel="noopener">Ver módulo</a>
+              {% endif %}
+              {% if not rg.blank_url and not rg.filled_url %}—{% endif %}
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="text-center text-muted">—</td></tr>
+          <tr><td colspan="9" class="text-center text-muted">—</td></tr>
           {% endfor %}
         </tbody>
       </table>

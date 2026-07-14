@@ -690,6 +690,7 @@
         tiempo_guarda: tr.querySelector(".rg-tiempo")?.value || "",
         usuarios: tr.querySelector(".rg-usuarios")?.value || "",
         disposicion_final: tr.querySelector(".rg-disp")?.value || "",
+        modulo: tr.querySelector(".rg-modulo")?.value || "",
       });
     });
     const anexos = [];
@@ -769,6 +770,30 @@
     fields.forEach(([cls, val]) => {
       html += `<td><input type="text" class="${cls}" value="${(val || "").replace(/"/g, "&quot;")}" ${soloLectura ? "readonly" : ""}></td>`;
     });
+
+    const modulos = cfg.modulosRegistro || {};
+    const selectedModulo = (row?.modulo || "").trim();
+    let optionsHtml = `<option value="">— Sin módulo —</option>`;
+    Object.keys(modulos).forEach((key) => {
+      const label = (modulos[key] && modulos[key].label) || key;
+      const sel = key === selectedModulo ? " selected" : "";
+      optionsHtml += `<option value="${escapeHtml(key)}"${sel}>${escapeHtml(label)}</option>`;
+    });
+    if (selectedModulo && !modulos[selectedModulo]) {
+      optionsHtml += `<option value="${escapeHtml(selectedModulo)}" selected>${escapeHtml(selectedModulo)}</option>`;
+    }
+    html += `<td><select class="form-select form-select-sm rg-modulo" ${soloLectura ? "disabled" : ""}>${optionsHtml}</select></td>`;
+
+    const meta = modulos[selectedModulo] || {};
+    const blankUrl = meta.blank_url || row?.blank_url || "";
+    const filledUrl = meta.filled_url || row?.filled_url || "";
+    const blankDisabled = blankUrl ? "" : " disabled aria-disabled=\"true\"";
+    const filledDisabled = filledUrl ? "" : " disabled aria-disabled=\"true\"";
+    html += `<td class="sgi-proc-no-print text-nowrap">
+      <a class="btn btn-sm btn-outline-secondary rg-btn-blank"${blankUrl ? ` href="${escapeHtml(blankUrl)}" target="_blank" rel="noopener"` : ""}${blankDisabled}>Ver en blanco</a>
+      <a class="btn btn-sm btn-outline-primary rg-btn-filled"${filledUrl ? ` href="${escapeHtml(filledUrl)}" target="_blank" rel="noopener"` : ""}${filledDisabled}>Ver módulo</a>
+    </td>`;
+
     if (!soloLectura) {
       html +=
         '<td class="sgi-proc-no-print text-center"><button type="button" class="btn btn-sm btn-link text-danger btn-del-reg">×</button></td>';
@@ -776,6 +801,32 @@
     tr.innerHTML = html;
     tbody.appendChild(tr);
     tr.querySelector(".btn-del-reg")?.addEventListener("click", () => tr.remove());
+    tr.querySelector(".rg-modulo")?.addEventListener("change", () => syncRegistroModuloLinks(tr));
+  }
+
+  function syncRegistroModuloLinks(tr) {
+    const key = (tr.querySelector(".rg-modulo")?.value || "").trim();
+    const meta = (cfg.modulosRegistro || {})[key] || {};
+    const blank = tr.querySelector(".rg-btn-blank");
+    const filled = tr.querySelector(".rg-btn-filled");
+    function apply(el, url) {
+      if (!el) return;
+      if (url) {
+        el.href = url;
+        el.removeAttribute("aria-disabled");
+        el.classList.remove("disabled");
+        el.removeAttribute("disabled");
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener");
+      } else {
+        el.removeAttribute("href");
+        el.setAttribute("aria-disabled", "true");
+        el.classList.add("disabled");
+        el.setAttribute("disabled", "disabled");
+      }
+    }
+    apply(blank, meta.blank_url || "");
+    apply(filled, meta.filled_url || "");
   }
 
   let activeSectionBody = null;

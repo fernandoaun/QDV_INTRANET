@@ -14,6 +14,7 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from app.extensions import db
+from app.constants import SGI_REGISTRO_MODULOS
 from app.models.sgi import (
     ANEXO_TIPO_ARCHIVO,
     ANEXO_TIPO_DOCUMENTO,
@@ -86,6 +87,65 @@ def int_to_roman(value: int) -> str:
             parts.append(symbol)
             n -= amount
     return "".join(parts)
+
+
+def normalize_registro_modulo(clave: str | None) -> str:
+    return (clave or "").strip()[:64]
+
+
+def registro_modulo_links(clave: str | None) -> dict[str, str]:
+    """Resuelve label y URLs blank/filled para una clave de módulo (o vacío si no hay catálogo)."""
+    from flask import current_app, has_request_context, url_for
+
+    key = (clave or "").strip()
+    entry = SGI_REGISTRO_MODULOS.get(key)
+    if not entry:
+        return {"label": "", "blank_url": "", "filled_url": ""}
+
+    def _safe_url(endpoint: str) -> str:
+        try:
+            if has_request_context():
+                return url_for(endpoint)
+            with current_app.test_request_context():
+                return url_for(endpoint)
+        except Exception:
+            return ""
+
+    return {
+        "label": entry["label"],
+        "blank_url": _safe_url(entry["blank_endpoint"]),
+        "filled_url": _safe_url(entry["filled_endpoint"]),
+    }
+
+
+def registro_modulos_catalog_for_js() -> dict[str, dict[str, str]]:
+    """Catálogo con URLs resueltas para el editor visual de procedimientos."""
+    out: dict[str, dict[str, str]] = {}
+    for key in SGI_REGISTRO_MODULOS:
+        meta = registro_modulo_links(key)
+        out[key] = {
+            "label": meta["label"],
+            "blank_url": meta["blank_url"],
+            "filled_url": meta["filled_url"],
+        }
+    return out
+
+
+def _registro_row_payload(r: SgiProcedimientoRegistro) -> dict[str, Any]:
+    meta = registro_modulo_links(r.modulo)
+    return {
+        "nombre": r.nombre,
+        "quien_archiva": r.quien_archiva,
+        "como": r.como,
+        "donde": r.donde,
+        "tiempo_guarda": r.tiempo_guarda,
+        "usuarios": r.usuarios,
+        "disposicion_final": r.disposicion_final,
+        "modulo": r.modulo or "",
+        "modulo_label": meta["label"],
+        "blank_url": meta["blank_url"],
+        "filled_url": meta["filled_url"],
+    }
 
 
 def anexo_codigo_auto(tipo: str, orden: int, parent_codigo: str) -> str:
@@ -607,6 +667,7 @@ def _sync_child_rows(rev: SgiProcedimientoRevision, payload: dict[str, Any]) -> 
                 tiempo_guarda=(row.get("tiempo_guarda") or "")[:256],
                 usuarios=(row.get("usuarios") or "")[:512],
                 disposicion_final=(row.get("disposicion_final") or "")[:512],
+                modulo=normalize_registro_modulo(row.get("modulo")),
             )
         )
 
@@ -660,18 +721,7 @@ def revision_to_payload(rev: SgiProcedimientoRevision) -> dict[str, Any]:
         base["control_cambios"] = build_control_cambios_automatico(rev.documento, rev, snap)
     else:
         base["control_cambios"] = base.get("control_cambios") or []
-    base["registros"] = [
-        {
-            "nombre": r.nombre,
-            "quien_archiva": r.quien_archiva,
-            "como": r.como,
-            "donde": r.donde,
-            "tiempo_guarda": r.tiempo_guarda,
-            "usuarios": r.usuarios,
-            "disposicion_final": r.disposicion_final,
-        }
-        for r in rev.registros.all()
-    ]
+    base["registros"] = [_registro_row_payload(r) for r in rev.registros.all()]
     base["anexos"] = [
         {
             "id": a.id,

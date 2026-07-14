@@ -489,6 +489,66 @@ def test_ensure_documento_nombres_mayusculas(app):
         db.session.commit()
 
 
+def test_sgi_registro_modulo_persist_and_links(auth_client, app):
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", 1, "tester", titulo="REGISTRO MODULO")
+        assert err is None
+        assert doc is not None and rev is not None
+        doc_id, rev_id = doc.id, rev.id
+
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev_id,
+            {
+                "titulo": "REGISTRO MODULO",
+                "secciones": {},
+                "registros": [
+                    {
+                        "nombre": "Planilla salmuera",
+                        "quien_archiva": "Operaciones",
+                        "como": "Digital",
+                        "donde": "Sistema",
+                        "tiempo_guarda": "5 años",
+                        "usuarios": "Planta",
+                        "disposicion_final": "Archivo",
+                        "modulo": "salmuera",
+                    }
+                ],
+                "anexos": [],
+            },
+            1,
+            "tester",
+        )
+        assert ok, msg
+        payload = proc_svc.revision_to_payload(proc_svc.get_revision(rev_id))
+        assert len(payload["registros"]) == 1
+        rg = payload["registros"][0]
+        assert rg["modulo"] == "salmuera"
+        assert "HIPOCLORITO" in (rg.get("modulo_label") or "").upper()
+        assert "/salmuera" in (rg.get("blank_url") or "")
+        assert "historial" in (rg.get("filled_url") or "")
+
+        catalog = proc_svc.registro_modulos_catalog_for_js()
+        assert "salmuera" in catalog
+        assert "/salmuera" in catalog["salmuera"]["blank_url"]
+
+    r_editor = auth_client.get(f"/sgi/pg/procedimientos/{doc_id}/editor/{rev_id}")
+    assert r_editor.status_code == 200
+    html = r_editor.get_data(as_text=True)
+    assert "modulosRegistro" in html
+    assert "salmuera" in html
+    assert "/salmuera" in html
+
+    r_vista = auth_client.get(f"/sgi/pg/procedimientos/{doc_id}/vista/{rev_id}")
+    assert r_vista.status_code == 200
+    vista = r_vista.get_data(as_text=True)
+    assert "Ver en blanco" in vista
+    assert "Ver módulo" in vista
+    assert "/salmuera" in vista
+    assert "PLANILLA SALMUERA" in vista
+
+
 def test_msgi_anexo_codigo_auto():
     from app.models.sgi import TIPO_MSGI, TIPO_PG
     from app.services.sgi_procedimiento_service import anexo_codigo_auto, int_to_roman

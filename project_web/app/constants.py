@@ -64,6 +64,61 @@ MODULE_LABELS: dict[str, str] = {
     "lab_reactivos": "REACTIVOS DE LABORATORIO",
 }
 
+# Módulos enlazables desde CONTROL DE REGISTROS (SGI PG/PO).
+# blank_endpoint = formulario vacío; filled_endpoint = historial / listado completado.
+SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
+    "salmuera": {
+        "label": MODULE_LABELS["salmuera"],
+        "blank_endpoint": "produccion.salmuera",
+        "filled_endpoint": "produccion.salmuera_historial",
+    },
+    "reactor": {
+        "label": MODULE_LABELS["reactor"],
+        "blank_endpoint": "produccion.reactor",
+        "filled_endpoint": "produccion.reactor_historial",
+    },
+    "agua": {
+        "label": MODULE_LABELS["agua"],
+        "blank_endpoint": "produccion.agua",
+        "filled_endpoint": "produccion.agua_historial",
+    },
+    "lab_reactivos": {
+        "label": MODULE_LABELS["lab_reactivos"],
+        "blank_endpoint": "produccion.lab_reactivos_nuevo",
+        "filled_endpoint": "produccion.lab_reactivos",
+    },
+    "mantenimiento": {
+        "label": "Mantenimiento",
+        "blank_endpoint": "mantenimiento.hub",
+        "filled_endpoint": "mantenimiento.hub",
+    },
+    "bolson_registro": {
+        "label": "STOCK",
+        "blank_endpoint": "produccion.bolson",
+        "filled_endpoint": "produccion.bolson",
+    },
+    "entregas": {
+        "label": "Entregas",
+        "blank_endpoint": "entregas.nueva",
+        "filled_endpoint": "entregas.historial_entregas_lista",
+    },
+    "stock_hub": {
+        "label": "Stock y consumos",
+        "blank_endpoint": "produccion.stock_hub",
+        "filled_endpoint": "produccion.stock_ver",
+    },
+    "planificacion": {
+        "label": "Planificación",
+        "blank_endpoint": "planificacion.nueva",
+        "filled_endpoint": "planificacion.tabla",
+    },
+    "personal": {
+        "label": "Personal / RRHH",
+        "blank_endpoint": "personal.hub",
+        "filled_endpoint": "personal.hub",
+    },
+}
+
 PERMISSION_LABELS: dict[str, str] = {
     "produccion": "Producción (módulo)",
     "entregas": "Entregas (acceso al módulo)",

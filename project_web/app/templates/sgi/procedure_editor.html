@@ -201,6 +201,7 @@
     slug: {{ slug|tojson }},
     revisionRef: {{ '%02d'|format(rev.numero_revision)|tojson }},
     csrf: {{ csrf_token()|tojson }},
+    modulosRegistro: {{ (modulos_registro_json or '{}')|safe }},
     urls: {
       guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
       workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
