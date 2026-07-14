@@ -106,6 +106,28 @@
           {% endif %}
         </td>
       </tr>
+      {% for rg in row_meta.get(r.id, {}).get('registros', []) %}
+      <tr class="sgi-list-registro table-light">
+        <td class="text-muted small ps-4">↳</td>
+        <td colspan="7">
+          <span class="text-muted small me-1">Registro · 7</span>
+          <strong>{{ rg.nombre }}</strong>
+          {% if rg.modulo_label %}
+          <span class="badge text-bg-secondary ms-2">{{ rg.modulo_label }}</span>
+          {% elif rg.modulo %}
+          <span class="badge text-bg-light border ms-2">{{ rg.modulo }}</span>
+          {% endif %}
+        </td>
+        <td class="text-end text-nowrap">
+          {% if rg.blank_url %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ rg.blank_url }}" target="_blank" rel="noopener">Ver en blanco</a>
+          {% endif %}
+          {% if rg.filled_url %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ rg.filled_url }}" target="_blank" rel="noopener">Ver módulo</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
       {% else %}
       <tr><td colspan="9" class="text-center text-muted py-4">No hay procedimientos.{% if puede_editar %} Use «Nuevo procedimiento» para comenzar.{% endif %}</td></tr>
       {% endfor %}

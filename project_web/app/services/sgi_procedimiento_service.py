@@ -148,6 +148,26 @@ def _registro_row_payload(r: SgiProcedimientoRegistro) -> dict[str, Any]:
     }
 
 
+def registros_listado_por_revision(rev_ids: list[int]) -> dict[int, list[dict[str, Any]]]:
+    """Registros del punto 7 por revision_id (solo filas con nombre), para el listado PG/PO."""
+    ids = [int(x) for x in rev_ids if x]
+    if not ids:
+        return {}
+    rows = list(
+        db.session.scalars(
+            select(SgiProcedimientoRegistro)
+            .where(SgiProcedimientoRegistro.revision_id.in_(ids))
+            .order_by(SgiProcedimientoRegistro.revision_id, SgiProcedimientoRegistro.orden)
+        ).all()
+    )
+    out: dict[int, list[dict[str, Any]]] = {rid: [] for rid in ids}
+    for r in rows:
+        if not (r.nombre or "").strip():
+            continue
+        out.setdefault(r.revision_id, []).append(_registro_row_payload(r))
+    return out
+
+
 def anexo_codigo_auto(tipo: str, orden: int, parent_codigo: str) -> str:
     """Codificación automática de anexos: MSGI → QDV-ANEXO I/II/…; PG/PO → QDV-PG-01-A01."""
     idx = int(orden) + 1

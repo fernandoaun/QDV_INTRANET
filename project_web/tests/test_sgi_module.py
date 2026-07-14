@@ -549,6 +549,47 @@ def test_sgi_registro_modulo_persist_and_links(auth_client, app):
     assert "PLANILLA SALMUERA" in vista
 
 
+def test_sgi_listado_muestra_registros_punto_7(auth_client, app):
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", 1, "tester", titulo="LISTADO REGISTROS")
+        assert err is None
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev.id,
+            {
+                "titulo": "LISTADO REGISTROS",
+                "secciones": {},
+                "registros": [
+                    {
+                        "nombre": "Registro listado demo",
+                        "quien_archiva": "Ops",
+                        "como": "Digital",
+                        "donde": "Sistema",
+                        "tiempo_guarda": "1 año",
+                        "usuarios": "Planta",
+                        "disposicion_final": "Archivo",
+                        "modulo": "reactor",
+                    }
+                ],
+                "anexos": [],
+            },
+            1,
+            "tester",
+        )
+        assert ok, msg
+        codigo = doc.codigo
+
+    r_list = auth_client.get("/sgi/pg/procedimientos/")
+    assert r_list.status_code == 200
+    html = r_list.get_data(as_text=True)
+    assert codigo in html
+    assert "REGISTRO LISTADO DEMO" in html
+    assert "sgi-list-registro" in html
+    assert "Ver en blanco" in html
+    assert "/reactor" in html
+
+
 def test_msgi_anexo_codigo_auto():
     from app.models.sgi import TIPO_MSGI, TIPO_PG
     from app.services.sgi_procedimiento_service import anexo_codigo_auto, int_to_roman

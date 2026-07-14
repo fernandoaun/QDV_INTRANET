@@ -138,7 +138,15 @@ def listado_procedimientos(slug: str):
             "tiene_archivo": bool(r.archivo_path),
             "archivo_nombre": proc_svc.anexo_archivo_nombre(r.archivo_path),
             "puede_eliminar": proc_svc.puede_eliminar_procedimiento(r),
+            "registros": [],
         }
+
+    rev_ids = [m["rev_id"] for m in row_meta.values() if m.get("rev_id")]
+    registros_por_rev = proc_svc.registros_listado_por_revision(rev_ids)
+    for meta in row_meta.values():
+        rid = meta.get("rev_id")
+        if rid:
+            meta["registros"] = registros_por_rev.get(rid, [])
 
     return render_template(
         "sgi/procedure_list.html",
