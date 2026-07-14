@@ -1,4 +1,4 @@
-"""Sesión operativa de planta y entrega/recepción de turno (perfil operaciones)."""
+"""Sesión operativa de planta y entrega/recepción de turno (perfil operaciones / mantenimiento y operaciones)."""
 from __future__ import annotations
 
 from app.extensions import db

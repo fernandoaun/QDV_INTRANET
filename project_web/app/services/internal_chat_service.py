@@ -16,7 +16,7 @@ from app.models.internal_chat import (
     InternalChatThread,
 )
 from app.models.user import User
-from app.user_roles import ROLE_LABELS, normalize_stored_rol, validate_rol_submitted
+from app.user_roles import ROLE_LABELS, normalize_stored_rol, role_matches_target_perfil, validate_rol_submitted
 
 
 def list_active_users_for_picker(*, exclude_user_id: int | None = None) -> list[dict[str, Any]]:
@@ -64,7 +64,11 @@ def _users_by_ids(user_ids: list[int]) -> list[User]:
 def _users_for_role(role: str) -> list[User]:
     norm = validate_rol_submitted(role) or normalize_stored_rol(role)
     rows = db.session.scalars(select(User).where(User.activo.is_(True))).all()
-    return [u for u in rows if normalize_stored_rol(u.rol) == norm or (norm == "administrador" and u.is_admin)]
+    return [
+        u
+        for u in rows
+        if role_matches_target_perfil(u.rol, norm) or (norm == "administrador" and u.is_admin)
+    ]
 
 
 def _thread_title_for_users(sender: User, recipients: list[User], *, kind: str, role: str | None = None) -> str:

@@ -11,10 +11,12 @@ from app.user_roles import (
     ROLE_LABELS,
     ROLE_LOGISTICA,
     ROLE_MANTENIMIENTO,
+    ROLE_MANTENIMIENTO_OPERACIONES,
     ROLE_OPERACIONES,
     ROLE_SGI,
     ROLE_SOLO_LECTURA_TOTAL,
     normalize_stored_rol,
+    role_covers_perfiles,
 )
 
 # Perfiles seleccionables en el editor (organización operativa + SGI / Angel).
@@ -23,6 +25,7 @@ SGI_PERFILES_APLICABLES: tuple[str, ...] = (
     ROLE_LOGISTICA,
     ROLE_ADMINISTRACION,
     ROLE_MANTENIMIENTO,
+    ROLE_MANTENIMIENTO_OPERACIONES,
     ROLE_SGI,
     ROLE_SOLO_LECTURA_TOTAL,
 )
@@ -78,8 +81,8 @@ def sync_perfiles_documento(documento_id: int, perfiles: list[str] | None) -> li
 def user_perfil_aplica_documento(user: User, documento_id: int) -> bool:
     if user.is_admin:
         return True
-    rol = normalize_stored_rol(user.rol)
-    return rol in perfiles_aplica_documento(documento_id)
+    covered = role_covers_perfiles(user.rol)
+    return bool(covered & set(perfiles_aplica_documento(documento_id)))
 
 
 def users_with_perfiles(perfiles: list[str]) -> list[User]:
@@ -98,7 +101,7 @@ def users_with_perfiles(perfiles: list[str]) -> list[User]:
         rol = normalize_stored_rol(u.rol)
         if rol == ROLE_LABORATORISTA:
             continue
-        if rol in wanted:
+        if role_covers_perfiles(rol) & wanted:
             seen.add(int(u.id))
             out.append(u)
     return out
