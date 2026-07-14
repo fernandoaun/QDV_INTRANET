@@ -123,4 +123,31 @@
   qs("#btnAnexoReenviarAviso")?.addEventListener("click", () => workflow("reenviar_aviso"));
   qs("#btnAnexoAprobar")?.addEventListener("click", () => workflow("aprobar"));
   qs("#btnAnexoNuevaRevision")?.addEventListener("click", () => workflow("nueva_revision"));
+
+  qs("#anexoFirmaGerenteInput")?.addEventListener("change", async (ev) => {
+    const input = ev.target;
+    const file = input.files?.[0];
+    if (!file || !cfg.urls?.firmaGerente) return;
+    const fd = new FormData();
+    fd.append("firma", file);
+    fd.append("csrf_token", cfg.csrf || "");
+    const token = qs('meta[name="csrf-token"]')?.content || cfg.csrf || "";
+    try {
+      const res = await fetch(cfg.urls.firmaGerente, {
+        method: "POST",
+        headers: { "X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest" },
+        body: fd,
+        credentials: "same-origin",
+      });
+      if (res.redirected || res.ok) {
+        flash("success", "Firma guardada.");
+        window.location.reload();
+        return;
+      }
+      flash("danger", "No se pudo guardar la firma.");
+    } catch {
+      flash("danger", "Error al subir la firma.");
+    }
+    input.value = "";
+  });
 })();

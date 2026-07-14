@@ -66,6 +66,19 @@
   z-index: 2;
 }
 
+/* Firmas + imagen gerente en vistas de anexos MSGI (tras aprobar) */
+.sgi-anexo-firmas-vista {
+  position: relative;
+  margin-top: 1.5rem;
+}
+
+.sgi-anexo-firmas-vista .sgi-proc-firma-gerente {
+  position: static;
+  margin-top: 0.75rem;
+  max-width: 100%;
+  text-align: right;
+}
+
 /* —— Logo (extraído de QDV-PG-01) —— */
 .sgi-proc-logo-img {
   display: block;

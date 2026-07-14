@@ -245,6 +245,7 @@ def detalle(slug: str, doc_id: int):
         puede_editar=user_can_edit_sgi_documentos(u),
         puede_eliminar=user_can_delete_sgi_documentos(u) and svs.puede_eliminar_documento(doc),
         firma_gerente_url=firma_gerente_url,
+        doc_aprobado=(doc.estado or "") in ("aprobado", "vigente"),
     )
 
 

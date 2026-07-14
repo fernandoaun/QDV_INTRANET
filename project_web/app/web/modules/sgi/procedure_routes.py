@@ -824,11 +824,13 @@ def procedimiento_anexo_ver(slug: str, anexo_id: int):
         org_ctx = anexo_svc.organigrama_view_context(anexo=anexo)
         return render_template(
             "sgi/anexo_organigrama.html",
-            slug=slug,
-            doc=doc,
-            rev=rev,
             anexo=anexo,
-            puede_editar=puede_editar,
+            **_procedure_render_kwargs(
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                puede_editar=puede_editar,
+            ),
             **org_ctx,
         )
 
@@ -840,12 +842,15 @@ def procedimiento_anexo_ver(slug: str, anexo_id: int):
     vista = proc_svc.anexo_vista_tipo(anexo.archivo_path)
     return render_template(
         "sgi/anexo_view.html",
-        slug=slug,
-        doc=doc,
-        rev=rev,
         anexo=anexo,
         vista_tipo=vista,
         archivo_nombre=proc_svc.anexo_archivo_nombre(anexo.archivo_path),
+        **_procedure_render_kwargs(
+            slug=slug,
+            doc=doc,
+            rev=rev,
+            puede_editar=puede_editar,
+        ),
     )
 
 

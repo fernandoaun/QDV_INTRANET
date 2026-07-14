@@ -240,3 +240,67 @@ def test_angel_profile_can_aprobar_revision(app, sgi_editor):
 
         db.session.delete(angel)
         db.session.commit()
+
+
+def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_editor):
+    """MSGI: mismo flujo que PG/PO; la imagen de firma del gerente solo aparece tras aprobar."""
+    from io import BytesIO
+
+    from app.services import sgi_documento_perfil_service as perfil_svc
+    from werkzeug.datastructures import FileStorage
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual(
+            "MSGI", sgi_editor, "Tester", titulo="MSGI FIRMA WF"
+        )
+        assert err is None and doc and rev
+        rev.reviso = "Revisor Test"
+        rev.revisor_correo = "revisor@example.com"
+        rev.aprobo = "Aprobador Test"
+        rev.aprobador_correo = "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+            b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        ok, msg = proc_svc.save_firma_gerente_file(
+            doc.id,
+            FileStorage(stream=BytesIO(png), filename="firma.png", content_type="image/png"),
+            sgi_editor,
+        )
+        assert ok, msg
+        assert proc_svc.firma_gerente_relative_path(doc.id) is not None
+
+        doc_id, rev_id = doc.id, rev.id
+
+        r_edit = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor/{rev_id}")
+        assert r_edit.status_code == 200
+        html = r_edit.get_data(as_text=True)
+        assert "Enviar a revisión" in html
+        assert 'class="sgi-proc-firma-gerente"' not in html
+
+        ok, msg = proc_svc.enviar_a_revision(rev_id, sgi_editor, "Tester")
+        assert ok, msg
+        ok, msg = proc_svc.marcar_como_revisado(rev_id, sgi_editor, "Tester")
+        assert ok, msg
+        ok, msg = proc_svc.aprobar_revision(rev_id, sgi_editor, "Tester")
+        assert ok, msg
+
+        r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista/{rev_id}")
+        assert r_vista.status_code == 200
+        html_v = r_vista.get_data(as_text=True)
+        assert 'class="sgi-proc-firma-gerente"' in html_v
+        assert f"/sgi/msgi/{doc_id}/firma-gerente" in html_v
+
+        doc_pg, rev_pg, _ = proc_svc.create_procedimiento_visual(
+            "PG", sgi_editor, "Tester", titulo="PG SIN FIRMA"
+        )
+        rev_pg.estado = "aprobado"
+        doc_pg.estado = "aprobado"
+        db.session.commit()
+        r_pg = auth_client.get(f"/sgi/pg/procedimientos/{doc_pg.id}/vista/{rev_pg.id}")
+        assert r_pg.status_code == 200
+        assert 'class="sgi-proc-firma-gerente"' not in r_pg.get_data(as_text=True)

@@ -1527,6 +1527,7 @@ def _cleanup_msgi_anexos_embebidos_en_manuales(actor_label: str) -> list[str]:
         select(SgiDocumento).where(
             SgiDocumento.tipo == TIPO_MSGI,
             SgiDocumento.es_procedimiento_visual.is_(True),
+            SgiDocumento.deleted_at.is_(None),
             ~func.upper(SgiDocumento.codigo).like("QDV-ANEXO%"),
         )
     ).all()
@@ -1838,13 +1839,19 @@ def ensure_msgi_documentos(
         rev_label = str(row.get("revision") or "Rev. 00").strip() or "Rev. 00"
         tipo = row.get("tipo_contenido") or ANEXO_TIPO_ARCHIVO
 
+        # Solo documentos vigentes: al soft-delete el código pasa a …__ELIM_<id>
+        # y seed-msgi-anexos (preDeploy) no debe recrearlos desde la papelera.
         doc = db.session.scalar(
             select(SgiDocumento).where(
                 SgiDocumento.tipo == TIPO_MSGI,
                 func.lower(SgiDocumento.codigo) == codigo.lower(),
+                SgiDocumento.deleted_at.is_(None),
             )
         )
         if doc is None:
+            if doc_svc._codigo_archivado_en_papelera(TIPO_MSGI, codigo):
+                logs.append(f"{codigo}: en papelera; no se recrea.")
+                continue
             doc, rev, err = create_msgi_documento_catalogo(
                 codigo=codigo,
                 titulo=nombre,

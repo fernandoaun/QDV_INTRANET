@@ -762,6 +762,51 @@ def test_ensure_msgi_documentos(app, tmp_path):
         db.session.commit()
 
 
+def test_ensure_msgi_documentos_no_recrea_si_esta_en_papelera(app, tmp_path):
+    """seed-msgi-anexos (preDeploy) no debe volver a crear anexos soft-deleted."""
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.services import sgi_service as doc_svc
+
+    src = tmp_path / "mapa.png"
+    src.write_bytes(b"PNG")
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO III",
+            "nombre": "MAPA DE PROCESOS",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "archivo",
+            "archivo": src,
+        },
+    )
+
+    with app.app_context():
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        assert len(docs) == 1
+        doc_id = docs[0].id
+
+        ok, _ = doc_svc.delete_documento(doc_id, "test")
+        assert ok
+
+        vigentes = proc_svc.fetch_list_visual({}, tipo="MSGI")
+        assert all(r.codigo != "QDV-ANEXO III" for r in vigentes)
+
+        docs2, logs2 = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        assert docs2 == []
+        assert any("papelera" in line.lower() for line in logs2)
+
+        vigentes2 = proc_svc.fetch_list_visual({}, tipo="MSGI")
+        assert all(r.codigo != "QDV-ANEXO III" for r in vigentes2)
+
+        papelera = proc_svc.fetch_list_visual_eliminados({}, tipo="MSGI")
+        assert any(doc_svc.documento_codigo_visible(r) == "QDV-ANEXO III" for r in papelera)
+
+        row = db.session.get(SgiDocumento, doc_id)
+        assert row is not None and row.deleted_at is not None
+
+
 def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_path):
     from app.extensions import db
     from app.services import sgi_procedimiento_service as proc_svc

@@ -67,6 +67,22 @@
                {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
       </div>
     </div>
+    {% if doc.tipo == 'MSGI' %}
+    <div class="mt-3" id="anexoFirmaGerenteBlock">
+      <label class="form-label small fw-semibold mb-1" for="anexoFirmaGerenteInput">Firma del gerente general (imagen)</label>
+      <p class="text-muted small mb-2">Al aprobar, la firma se muestra junto a Elaboró / Revisó / Aprobó.</p>
+      {% if firma_gerente_url %}
+      <div class="mb-2">
+        <img src="{{ firma_gerente_url }}" alt="Vista previa firma" class="sgi-proc-firma-gerente-img border" style="max-width:180px;">
+      </div>
+      {% endif %}
+      {% if not solo_lectura|default(false) %}
+      <input type="file" class="form-control form-control-sm" id="anexoFirmaGerenteInput" accept="image/png,image/jpeg,image/webp,image/gif">
+      {% elif not firma_gerente_url %}
+      <p class="text-muted small mb-0">Sin firma cargada.</p>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </div>
 
