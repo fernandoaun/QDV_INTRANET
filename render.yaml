@@ -22,7 +22,9 @@ services:
     region: oregon
     rootDir: project_web
     buildCommand: pip install -r requirements.txt
-    preDeployCommand: python -m alembic upgrade head && python -m flask --app run seed-msgi-anexos
+    # No auto-seed anexos MSGI: recreaba QDV-ANEXO III/IV tras soft-delete.
+    # Para importar archivos fuente a mano: flask --app run seed-msgi-anexos
+    preDeployCommand: python -m alembic upgrade head
     startCommand: gunicorn -w 2 -b 0.0.0.0:$PORT --forwarded-allow-ips='*' wsgi:app
     # PDFs (erlenmeyer) y adjuntos: fuera de esto se pierden al redesplegar (filesystem efímero).
     disk:
