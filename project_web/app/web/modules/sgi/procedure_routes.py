@@ -160,7 +160,28 @@ def listado_procedimientos(slug: str):
         estado_visual_row=proc_svc.estado_visual_row,
         puede_editar=puede_editar,
         puede_obsoletos=user_can_view_sgi_obsoletos(u),
+        modulos_registro=proc_svc.registro_modulos_catalog_for_js(),
     )
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/registro/<int:registro_id>/modulo")
+@login_required
+def procedimiento_registro_modulo(slug: str, doc_id: int, registro_id: int):
+    u, redir = _require_edit()
+    if redir is not None:
+        return jsonify({"ok": False, "error": "sin_permiso"}), 403
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo:
+        return jsonify({"ok": False, "error": "no_encontrado"}), 404
+    if doc_svc.documento_esta_eliminado(doc):
+        return jsonify({"ok": False, "error": "eliminado"}), 400
+
+    data = request.get_json(silent=True) or {}
+    modulo = data.get("modulo") if "modulo" in data else request.form.get("modulo")
+    ok, msg, registro = proc_svc.set_registro_modulo(doc_id, registro_id, modulo)
+    status = 200 if ok else 400
+    return jsonify({"ok": ok, "message": msg, "registro": registro}), status
 
 
 @bp.get("/<slug>/procedimientos/obsoletos/")

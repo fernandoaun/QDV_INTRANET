@@ -682,7 +682,9 @@
     });
     const registros = [];
     qsa("#procRegistrosBody tr").forEach((tr) => {
+      const rid = tr.dataset.registroId ? parseInt(tr.dataset.registroId, 10) : null;
       registros.push({
+        id: Number.isFinite(rid) ? rid : null,
         nombre: tr.querySelector(".rg-nombre")?.value || "",
         quien_archiva: tr.querySelector(".rg-quien")?.value || "",
         como: tr.querySelector(".rg-como")?.value || "",
@@ -757,6 +759,7 @@
     const tbody = qs("#procRegistrosBody");
     if (!tbody) return;
     const tr = document.createElement("tr");
+    if (row?.id) tr.dataset.registroId = String(row.id);
     const fields = [
       ["rg-nombre", row?.nombre],
       ["rg-quien", row?.quien_archiva],
@@ -791,7 +794,7 @@
     const filledDisabled = filledUrl ? "" : " disabled aria-disabled=\"true\"";
     html += `<td class="sgi-proc-no-print text-nowrap">
       <a class="btn btn-sm btn-outline-secondary rg-btn-blank"${blankUrl ? ` href="${escapeHtml(blankUrl)}" target="_blank" rel="noopener"` : ""}${blankDisabled}>Ver en blanco</a>
-      <a class="btn btn-sm btn-outline-primary rg-btn-filled"${filledUrl ? ` href="${escapeHtml(filledUrl)}" target="_blank" rel="noopener"` : ""}${filledDisabled}>Ver módulo</a>
+      <a class="btn btn-sm btn-outline-primary rg-btn-filled"${filledUrl ? ` href="${escapeHtml(filledUrl)}" target="_blank" rel="noopener"` : ""}${filledDisabled}>Ir al módulo</a>
     </td>`;
 
     if (!soloLectura) {

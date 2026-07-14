@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ tipo_label }} · Procedimientos · SGI{% endblock %}
 {% block extra_head %}
-{% if puede_editar and tipo == 'MSGI' %}
+{% if puede_editar %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endif %}
 {% endblock %}
@@ -107,23 +107,49 @@
         </td>
       </tr>
       {% for rg in row_meta.get(r.id, {}).get('registros', []) %}
-      <tr class="sgi-list-registro table-light">
+      <tr class="sgi-list-registro table-light" data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">
         <td class="text-muted small ps-4">↳</td>
         <td colspan="7">
           <span class="text-muted small me-1">Registro · 7</span>
           <strong>{{ rg.nombre }}</strong>
-          {% if rg.modulo_label %}
-          <span class="badge text-bg-secondary ms-2">{{ rg.modulo_label }}</span>
-          {% elif rg.modulo %}
-          <span class="badge text-bg-light border ms-2">{{ rg.modulo }}</span>
-          {% endif %}
+          <span class="sgi-list-registro-modulo-badge">
+            {% if rg.modulo_label %}
+            <span class="badge text-bg-secondary ms-2">{{ rg.modulo_label }}</span>
+            {% elif rg.modulo %}
+            <span class="badge text-bg-light border ms-2">{{ rg.modulo }}</span>
+            {% endif %}
+          </span>
         </td>
-        <td class="text-end text-nowrap">
-          {% if rg.blank_url %}
-          <a class="btn btn-sm btn-outline-secondary" href="{{ rg.blank_url }}" target="_blank" rel="noopener">Ver en blanco</a>
-          {% endif %}
-          {% if rg.filled_url %}
-          <a class="btn btn-sm btn-outline-primary" href="{{ rg.filled_url }}" target="_blank" rel="noopener">Ver módulo</a>
+        <td class="text-end text-nowrap sgi-list-registro-acciones">
+          {% if rg.modulo %}
+            {% if puede_editar %}
+            <button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo"
+                    data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">Desasociar</button>
+            {% endif %}
+            {% if rg.blank_url %}
+            <a class="btn btn-sm btn-outline-secondary btn-ver-blanco" href="{{ rg.blank_url }}" target="_blank" rel="noopener">Ver en blanco</a>
+            {% endif %}
+            {% if rg.filled_url %}
+            <a class="btn btn-sm btn-outline-primary btn-ir-modulo" href="{{ rg.filled_url }}" target="_blank" rel="noopener">Ir al módulo</a>
+            {% endif %}
+          {% elif puede_editar %}
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Asociar
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                {% for key, mod in (modulos_registro or {}).items() %}
+                <li>
+                  <button type="button" class="dropdown-item btn-asociar-modulo"
+                          data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}" data-modulo="{{ key }}">
+                    {{ mod.label }}
+                  </button>
+                </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% else %}
+            <span class="text-muted small">Sin módulo</span>
           {% endif %}
         </td>
       </tr>
@@ -138,12 +164,13 @@
 <p class="text-muted small mt-2">En el editor definí los sectores/perfiles a los que aplica cada procedimiento. Al aprobarse, se notifica por la campanita a los usuarios activos con esos perfiles. Los borradores solo los ven editores SGI y quienes participan en la revisión.</p>
 {% endblock %}
 {% block scripts %}
-{% if puede_editar and tipo == 'MSGI' %}
+{% if puede_editar %}
 <script>
 (function () {
   "use strict";
   const slug = {{ slug|tojson }};
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
+  const modulos = {{ (modulos_registro or {})|tojson }};
 
   function flash(kind, msg) {
     const el = document.createElement("div");
@@ -154,6 +181,126 @@
     if (head) head.after(el);
   }
 
+  function setRegistroModulo(docId, registroId, modulo) {
+    return fetch(`/sgi/${slug}/procedimientos/${docId}/registro/${registroId}/modulo`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": csrf,
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ modulo: modulo || "" }),
+    }).then((r) => r.json());
+  }
+
+  function renderAsociadoAcciones(acciones, registro) {
+    const parts = [];
+    parts.push(
+      `<button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo" data-doc-id="${acciones.closest("tr").dataset.docId}" data-registro-id="${acciones.closest("tr").dataset.registroId}">Desasociar</button>`
+    );
+    if (registro.blank_url) {
+      parts.push(
+        `<a class="btn btn-sm btn-outline-secondary btn-ver-blanco" href="${registro.blank_url}" target="_blank" rel="noopener">Ver en blanco</a>`
+      );
+    }
+    if (registro.filled_url) {
+      parts.push(
+        `<a class="btn btn-sm btn-outline-primary btn-ir-modulo" href="${registro.filled_url}" target="_blank" rel="noopener">Ir al módulo</a>`
+      );
+    }
+    acciones.innerHTML = parts.join(" ");
+  }
+
+  function renderAsociarDropdown(acciones, docId, registroId) {
+    const items = Object.keys(modulos)
+      .map(
+        (key) =>
+          `<li><button type="button" class="dropdown-item btn-asociar-modulo" data-doc-id="${docId}" data-registro-id="${registroId}" data-modulo="${key}">${modulos[key].label || key}</button></li>`
+      )
+      .join("");
+    acciones.innerHTML = `
+      <div class="dropdown d-inline-block">
+        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Asociar</button>
+        <ul class="dropdown-menu dropdown-menu-end">${items}</ul>
+      </div>`;
+  }
+
+  function updateBadge(tr, registro) {
+    const badgeHost = tr.querySelector(".sgi-list-registro-modulo-badge");
+    if (!badgeHost) return;
+    if (registro.modulo_label) {
+      badgeHost.innerHTML = `<span class="badge text-bg-secondary ms-2">${registro.modulo_label}</span>`;
+    } else if (registro.modulo) {
+      badgeHost.innerHTML = `<span class="badge text-bg-light border ms-2">${registro.modulo}</span>`;
+    } else {
+      badgeHost.innerHTML = "";
+    }
+  }
+
+  document.addEventListener("click", (ev) => {
+    const asoc = ev.target.closest(".btn-asociar-modulo");
+    if (asoc) {
+      ev.preventDefault();
+      const docId = asoc.dataset.docId;
+      const registroId = asoc.dataset.registroId;
+      const modulo = asoc.dataset.modulo;
+      asoc.disabled = true;
+      setRegistroModulo(docId, registroId, modulo)
+        .then((res) => {
+          if (!res.ok || !res.registro) {
+            flash("danger", res.message || "No se pudo asociar el módulo.");
+            return;
+          }
+          const tr = document.querySelector(
+            `tr.sgi-list-registro[data-doc-id="${docId}"][data-registro-id="${registroId}"]`
+          );
+          if (!tr) {
+            window.location.reload();
+            return;
+          }
+          updateBadge(tr, res.registro);
+          renderAsociadoAcciones(tr.querySelector(".sgi-list-registro-acciones"), res.registro);
+          flash("success", res.message || "Módulo asociado.");
+        })
+        .catch(() => flash("danger", "No se pudo asociar el módulo."))
+        .finally(() => {
+          asoc.disabled = false;
+        });
+      return;
+    }
+
+    const des = ev.target.closest(".btn-desasociar-modulo");
+    if (des) {
+      ev.preventDefault();
+      const docId = des.dataset.docId;
+      const registroId = des.dataset.registroId;
+      des.disabled = true;
+      setRegistroModulo(docId, registroId, "")
+        .then((res) => {
+          if (!res.ok) {
+            flash("danger", res.message || "No se pudo desasociar.");
+            return;
+          }
+          const tr = document.querySelector(
+            `tr.sgi-list-registro[data-doc-id="${docId}"][data-registro-id="${registroId}"]`
+          );
+          if (!tr) {
+            window.location.reload();
+            return;
+          }
+          updateBadge(tr, { modulo: "", modulo_label: "" });
+          renderAsociarDropdown(tr.querySelector(".sgi-list-registro-acciones"), docId, registroId);
+          flash("success", res.message || "Módulo desasociado.");
+        })
+        .catch(() => flash("danger", "No se pudo desasociar."))
+        .finally(() => {
+          des.disabled = false;
+        });
+    }
+  });
+
+  {% if tipo == 'MSGI' %}
   document.querySelectorAll(".btn-msgi-adjuntar").forEach((btn) => {
     btn.addEventListener("click", () => {
       const docId = btn.dataset.docId;
@@ -197,6 +344,7 @@
         });
     });
   });
+  {% endif %}
 })();
 </script>
 {% endif %}

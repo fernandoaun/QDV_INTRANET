@@ -544,9 +544,79 @@ def test_sgi_registro_modulo_persist_and_links(auth_client, app):
     assert r_vista.status_code == 200
     vista = r_vista.get_data(as_text=True)
     assert "Ver en blanco" in vista
-    assert "Ver módulo" in vista
+    assert "Ir al módulo" in vista or "Ver módulo" in vista
     assert "/salmuera" in vista
     assert "PLANILLA SALMUERA" in vista
+
+
+def test_sgi_listado_asociar_desasociar_modulo(auth_client, app):
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", 1, "tester", titulo="ASOCIAR MODULO")
+        assert err is None
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev.id,
+            {
+                "titulo": "ASOCIAR MODULO",
+                "secciones": {},
+                "registros": [
+                    {
+                        "nombre": "Registro asociable",
+                        "quien_archiva": "Ops",
+                        "como": "Digital",
+                        "donde": "Sistema",
+                        "tiempo_guarda": "1 año",
+                        "usuarios": "Planta",
+                        "disposicion_final": "Archivo",
+                        "modulo": "",
+                    }
+                ],
+                "anexos": [],
+            },
+            1,
+            "tester",
+        )
+        assert ok, msg
+        payload = proc_svc.revision_to_payload(proc_svc.get_revision(rev.id))
+        registro_id = payload["registros"][0]["id"]
+        doc_id = doc.id
+
+    r_list = auth_client.get("/sgi/pg/procedimientos/")
+    assert r_list.status_code == 200
+    html = r_list.get_data(as_text=True)
+    assert "Asociar" in html
+    assert "REGISTRO ASOCIABLE" in html
+
+    r_asoc = auth_client.post(
+        f"/sgi/pg/procedimientos/{doc_id}/registro/{registro_id}/modulo",
+        json={"modulo": "salmuera"},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r_asoc.status_code == 200
+    body = r_asoc.get_json()
+    assert body["ok"] is True
+    assert body["registro"]["modulo"] == "salmuera"
+    assert "/salmuera" in body["registro"]["blank_url"]
+
+    r_list2 = auth_client.get("/sgi/pg/procedimientos/")
+    html2 = r_list2.get_data(as_text=True)
+    assert "Desasociar" in html2
+    assert "Ver en blanco" in html2
+    assert "Ir al módulo" in html2
+
+    r_des = auth_client.post(
+        f"/sgi/pg/procedimientos/{doc_id}/registro/{registro_id}/modulo",
+        json={"modulo": ""},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r_des.status_code == 200
+    assert r_des.get_json()["ok"] is True
+    assert r_des.get_json()["registro"]["modulo"] == ""
+
+    r_list3 = auth_client.get("/sgi/pg/procedimientos/")
+    html3 = r_list3.get_data(as_text=True)
+    assert "Asociar" in html3
 
 
 def test_sgi_listado_muestra_registros_punto_7(auth_client, app):
@@ -587,7 +657,9 @@ def test_sgi_listado_muestra_registros_punto_7(auth_client, app):
     assert "REGISTRO LISTADO DEMO" in html
     assert "sgi-list-registro" in html
     assert "Ver en blanco" in html
+    assert "Ir al módulo" in html
     assert "/reactor" in html
+    assert "Desasociar" in html
 
 
 def test_msgi_anexo_codigo_auto():

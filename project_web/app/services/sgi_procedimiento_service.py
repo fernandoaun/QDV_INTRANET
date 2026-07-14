@@ -134,6 +134,7 @@ def registro_modulos_catalog_for_js() -> dict[str, dict[str, str]]:
 def _registro_row_payload(r: SgiProcedimientoRegistro) -> dict[str, Any]:
     meta = registro_modulo_links(r.modulo)
     return {
+        "id": r.id,
         "nombre": r.nombre,
         "quien_archiva": r.quien_archiva,
         "como": r.como,
@@ -146,6 +147,54 @@ def _registro_row_payload(r: SgiProcedimientoRegistro) -> dict[str, Any]:
         "blank_url": meta["blank_url"],
         "filled_url": meta["filled_url"],
     }
+
+
+def set_registro_modulo(
+    documento_id: int,
+    registro_id: int,
+    modulo: str | None,
+) -> tuple[bool, str, dict[str, Any] | None]:
+    """Asocia o desasocia un módulo del sistema a una fila del punto 7."""
+    reg = db.session.get(SgiProcedimientoRegistro, int(registro_id))
+    if reg is None:
+        return False, "Registro no encontrado.", None
+    rev = reg.proc_revision
+    if rev is None or rev.documento_id != int(documento_id):
+        return False, "El registro no pertenece a este procedimiento.", None
+
+    key = normalize_registro_modulo(modulo)
+    if key and key not in SGI_REGISTRO_MODULOS:
+        return False, "Módulo no válido.", None
+
+    reg.modulo = key
+    try:
+        data = json.loads(rev.contenido_json or "{}")
+    except json.JSONDecodeError:
+        data = default_contenido()
+    if not isinstance(data, dict):
+        data = default_contenido()
+    regs = list(data.get("registros") or [])
+    updated = False
+    for row in regs:
+        if not isinstance(row, dict):
+            continue
+        if int(row.get("id") or 0) == reg.id or (
+            not row.get("id")
+            and (row.get("nombre") or "").strip().upper() == (reg.nombre or "").strip().upper()
+            and int(row.get("orden") or -1) == int(reg.orden)
+        ):
+            row["modulo"] = key
+            updated = True
+            break
+    if not updated and 0 <= int(reg.orden) < len(regs) and isinstance(regs[reg.orden], dict):
+        regs[reg.orden]["modulo"] = key
+        updated = True
+    if updated:
+        data["registros"] = regs
+        rev.contenido_json = json.dumps(data, ensure_ascii=False)
+
+    db.session.commit()
+    return True, ("Módulo asociado." if key else "Módulo desasociado."), _registro_row_payload(reg)
 
 
 def registros_listado_por_revision(rev_ids: list[int]) -> dict[int, list[dict[str, Any]]]:
@@ -675,21 +724,29 @@ def _sync_child_rows(rev: SgiProcedimientoRevision, payload: dict[str, Any]) -> 
             )
         )
 
-    _clear_dynamic(rev.registros)
-    for i, row in enumerate(payload.get("registros") or []):
-        rev.registros.append(
-            SgiProcedimientoRegistro(
-                orden=i,
-                nombre=(row.get("nombre") or "").strip().upper()[:512],
-                quien_archiva=(row.get("quien_archiva") or "")[:512],
-                como=(row.get("como") or "")[:512],
-                donde=(row.get("donde") or "")[:512],
-                tiempo_guarda=(row.get("tiempo_guarda") or "")[:256],
-                usuarios=(row.get("usuarios") or "")[:512],
-                disposicion_final=(row.get("disposicion_final") or "")[:512],
-                modulo=normalize_registro_modulo(row.get("modulo")),
-            )
-        )
+    existing_registros = {r.id: r for r in rev.registros.all()}
+    incoming_regs = payload.get("registros") or []
+    seen_reg_ids: set[int] = set()
+    for i, row in enumerate(incoming_regs):
+        rid = row.get("id")
+        if rid and int(rid) in existing_registros:
+            reg = existing_registros[int(rid)]
+            seen_reg_ids.add(reg.id)
+        else:
+            reg = SgiProcedimientoRegistro(revision_id=rev.id, orden=i)
+            rev.registros.append(reg)
+        reg.orden = i
+        reg.nombre = (row.get("nombre") or "").strip().upper()[:512]
+        reg.quien_archiva = (row.get("quien_archiva") or "")[:512]
+        reg.como = (row.get("como") or "")[:512]
+        reg.donde = (row.get("donde") or "")[:512]
+        reg.tiempo_guarda = (row.get("tiempo_guarda") or "")[:256]
+        reg.usuarios = (row.get("usuarios") or "")[:512]
+        reg.disposicion_final = (row.get("disposicion_final") or "")[:512]
+        reg.modulo = normalize_registro_modulo(row.get("modulo"))
+    for rid, reg in existing_registros.items():
+        if rid not in seen_reg_ids:
+            db.session.delete(reg)
 
     existing_anexos = {a.id: a for a in rev.anexos.all()}
     incoming = payload.get("anexos") or []
