@@ -501,7 +501,7 @@ def endpoint_permission_key(endpoint: str | None) -> str | None:
 
 def user_shift_may_write_operational(user: User | None, session: object | None) -> bool:
     """
-    Perfil operaciones: True solo si puede mutar datos operativos (turno propio, sin pendiente, etc.).
+    Perfil operaciones / mantenimiento y operaciones: True solo si puede mutar datos operativos (turno propio, sin pendiente, etc.).
     Admin y otros perfiles: True (no aplica restricción por turno).
     """
     from app.services import shift_handover_service as sh
@@ -518,7 +518,7 @@ def user_shift_may_write_operational(user: User | None, session: object | None) 
 
 def page_can_edit_effective(user: User | None, endpoint: str | None, session: object | None) -> bool:
     """
-    Edición en pantalla: permisos de perfil + turno operativo (solo perfil operaciones).
+    Edición en pantalla: permisos de perfil + turno operativo (perfiles que toman turno).
     Las rutas shift.* se eximen del chequeo de turno en UI (cada vista valida en servidor).
     """
     if user is not None and user_is_global_read_only(user):

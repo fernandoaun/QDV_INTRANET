@@ -34,7 +34,12 @@ from app.services.operational_warnings import (
     warnings_for_salmuera_registro,
 )
 from app.services import plant_stop_service as plant_stop_svc
-from app.user_roles import ROLE_LABORATORISTA, ROLE_OPERACIONES, normalize_stored_rol
+from app.user_roles import (
+    ROLE_LABORATORISTA,
+    ROLE_MANTENIMIENTO_OPERACIONES,
+    ROLE_OPERACIONES,
+    normalize_stored_rol,
+)
 
 SESSION_KEY_SHIFT_DECLINED = "shift_operational_declined"
 
@@ -58,11 +63,11 @@ def now_local_iso() -> str:
 
 
 def user_participates_operational_shift(user: User | None) -> bool:
-    """Solo el perfil operaciones toma y opera turno; laboratorista no inicia sesión ni entra aquí."""
+    """Operaciones (y mantenimiento y operaciones) toma y opera turno; laboratorista no inicia sesión ni entra aquí."""
     if user is None or user.is_admin:
         return False
     r = normalize_stored_rol(user.rol)
-    return r == ROLE_OPERACIONES
+    return r in (ROLE_OPERACIONES, ROLE_MANTENIMIENTO_OPERACIONES)
 
 
 def user_can_view_shift_handover_notifications(user: User | None) -> bool:
