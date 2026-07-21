@@ -77,6 +77,11 @@
   transition: transform 0.12s ease-out;
 }
 
+.sgi-org-chart-viewport.is-panning .sgi-org-chart-stage,
+.sgi-org-chart-viewport.is-dragging-item .sgi-org-chart-stage {
+  transition: none;
+}
+
 .sgi-org-chart-wrap {
   position: relative;
   display: inline-block;
@@ -289,6 +294,42 @@
   z-index: 1;
 }
 
+.sgi-org-chart-viewport--editor .sgi-org-canvas .sgi-org-connectors {
+  pointer-events: auto;
+}
+
+.sgi-org-link-seg {
+  pointer-events: none;
+}
+
+.sgi-org-link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  cursor: grab;
+  pointer-events: stroke;
+}
+
+.sgi-org-link-hit:active,
+.sgi-org-link-handle:active {
+  cursor: grabbing;
+}
+
+.sgi-org-link-handle {
+  fill: #156082;
+  stroke: #fff;
+  stroke-width: 2;
+  cursor: grab;
+  pointer-events: all;
+  opacity: 0.92;
+}
+
+.sgi-org-link-handle:hover {
+  fill: #0f4a63;
+}
+
 .sgi-org-canvas-nodes {
   position: relative;
   z-index: 2;
@@ -300,6 +341,18 @@
   position: absolute;
   width: 132px;
   z-index: 2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sgi-org-canvas-node.is-dragging {
+  z-index: 5;
+  cursor: grabbing;
+}
+
+.sgi-org-canvas-node.is-dragging .sgi-org-node {
+  cursor: grabbing;
+  box-shadow: 0 0 0 2px rgba(21, 96, 130, 0.45), 4px 6px 0 rgba(233, 113, 50, 0.28);
 }
 
 .sgi-org-canvas-node.is-selected .sgi-org-node {

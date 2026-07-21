@@ -3,7 +3,7 @@
 {% block title %}{{ anexo.codigo }} · Organigrama{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
-<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='5') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='6') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="app-page-head sgi-proc-no-print">
@@ -32,7 +32,7 @@
         </div>
 
         <div class="sgi-org-toolbar sgi-proc-no-print">
-          <span class="sgi-org-toolbar-hint">Clic en un puesto para ver el usuario · Las líneas se dibujan según la dependencia de cada puesto · Arrastrá para desplazar · Ctrl + rueda para zoom</span>
+          <span class="sgi-org-toolbar-hint">Clic en un puesto para ver el usuario · Arrastrá el fondo para desplazar · Ctrl + rueda para zoom</span>
           <div class="sgi-org-zoom-controls">
             <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomOut" title="Alejar">−</button>
             <span class="sgi-org-zoom-label" id="sgiOrgZoomLabel">100%</span>
@@ -77,5 +77,5 @@
   };
 </script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='5') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='6') }}"></script>
 {% endblock %}

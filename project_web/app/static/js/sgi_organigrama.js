@@ -229,7 +229,13 @@
 
     viewport.addEventListener("mousedown", (ev) => {
       if (ev.button !== 0) return;
-      if (ev.target.closest(".sgi-org-canvas-node, .sgi-org-node")) return;
+      if (
+        ev.target.closest(
+          ".sgi-org-canvas-node, .sgi-org-node, .sgi-org-link-hit, .sgi-org-link-handle, .sgi-org-link"
+        )
+      ) {
+        return;
+      }
       dragging = true;
       viewport.classList.add("is-panning");
       startX = ev.clientX;
@@ -267,7 +273,7 @@
     };
   }
 
-  function svgSeg(svg, x1, y1, x2, y2, style) {
+  function svgSeg(svg, x1, y1, x2, y2, style, className) {
     const { stroke, dash } = strokeAttrs(style);
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
     line.setAttribute("x1", String(x1));
@@ -277,33 +283,85 @@
     line.setAttribute("stroke", stroke);
     line.setAttribute("stroke-width", String(STROKE_WIDTH));
     line.setAttribute("stroke-linecap", "square");
+    if (className) line.setAttribute("class", className);
     if (dash) line.setAttribute("stroke-dasharray", dash);
     svg.appendChild(line);
+    return line;
   }
 
-  function orthoElbow(svg, x1, y1, x2, y2, style) {
+  function svgPolyline(parent, points, attrs) {
+    const poly = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    poly.setAttribute("points", points.map((p) => `${p[0]},${p[1]}`).join(" "));
+    Object.entries(attrs || {}).forEach(([k, v]) => {
+      if (v != null) poly.setAttribute(k, String(v));
+    });
+    parent.appendChild(poly);
+    return poly;
+  }
+
+  function elbowPoints(x1, y1, x2, y2, midX, midY) {
     if (Math.abs(x1 - x2) < 1) {
-      svgSeg(svg, x1, y1, x1, y2, style);
-      return;
+      return [
+        [x1, y1],
+        [x1, y2],
+      ];
     }
-    const midY = y1 + (y2 - y1) / 2;
-    svgSeg(svg, x1, y1, x1, midY, style);
-    svgSeg(svg, x1, midY, x2, midY, style);
-    svgSeg(svg, x2, midY, x2, y2, style);
+    const my = midY != null ? midY : y1 + (y2 - y1) / 2;
+    const mx = midX != null ? midX : null;
+    if (mx == null || Math.abs(mx - x1) < 1 || Math.abs(mx - x2) < 1) {
+      return [
+        [x1, y1],
+        [x1, my],
+        [x2, my],
+        [x2, y2],
+      ];
+    }
+    return [
+      [x1, y1],
+      [x1, my],
+      [mx, my],
+      [x2, my],
+      [x2, y2],
+    ];
   }
 
-  function nodeBoxEl(el, container) {
+  function orthoElbow(svg, x1, y1, x2, y2, style, midX, midY) {
+    const pts = elbowPoints(x1, y1, x2, y2, midX, midY);
+    for (let i = 0; i < pts.length - 1; i += 1) {
+      svgSeg(svg, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], style, "sgi-org-link-seg");
+    }
+  }
+
+  function nodeBoxEl(el, container, scale) {
     const c = container.getBoundingClientRect();
     const r = el.getBoundingClientRect();
+    const s = scale && scale > 0 ? scale : 1;
     return {
-      top: r.top - c.top,
-      bottom: r.bottom - c.top,
-      left: r.left - c.left,
-      right: r.right - c.left,
-      cx: r.left - c.left + r.width / 2,
-      cy: r.top - c.top + r.height / 2,
-      width: r.width,
-      height: r.height,
+      top: (r.top - c.top) / s,
+      bottom: (r.bottom - c.top) / s,
+      left: (r.left - c.left) / s,
+      right: (r.right - c.left) / s,
+      cx: (r.left - c.left + r.width / 2) / s,
+      cy: (r.top - c.top + r.height / 2) / s,
+      width: r.width / s,
+      height: r.height / s,
+    };
+  }
+
+  function nodeBoxFromData(node, el) {
+    const w = el?.offsetWidth || NODE_W;
+    const h = el?.offsetHeight || 56;
+    const x = node.x || 0;
+    const y = node.y || 0;
+    return {
+      top: y,
+      bottom: y + h,
+      left: x,
+      right: x + w,
+      cx: x + w / 2,
+      cy: y + h / 2,
+      width: w,
+      height: h,
     };
   }
 
@@ -376,7 +434,7 @@
     return node && nodeKindFromData(node) === "external" ? "dashed" : "solid";
   }
 
-  function drawFreeConnectors(canvas, nodes, links) {
+  function drawFreeConnectors(canvas, nodes, links, opts) {
     const svg = qs("#sgiOrgConnectors", canvas);
     if (!svg) return;
     const { width, height } = canvasSize(nodes);
@@ -389,15 +447,58 @@
 
     const nodeLayer = qs(".sgi-org-canvas-nodes", canvas);
     if (!nodeLayer) return;
+    const interactive = Boolean(opts?.interactive);
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
     links.forEach((link) => {
-      const fromEl = qs(`[data-node-id="${link.from}"] .sgi-org-node`, nodeLayer);
-      const toEl = qs(`[data-node-id="${link.to}"] .sgi-org-node`, nodeLayer);
-      if (!fromEl || !toEl) return;
-      const f = nodeBoxEl(fromEl, canvas);
-      const t = nodeBoxEl(toEl, canvas);
+      const fromNode = byId[link.from];
+      const toNode = byId[link.to];
+      const fromSlot = qs(`[data-node-id="${link.from}"]`, nodeLayer);
+      const toSlot = qs(`[data-node-id="${link.to}"]`, nodeLayer);
+      const fromEl = fromSlot && qs(".sgi-org-node", fromSlot);
+      const toEl = toSlot && qs(".sgi-org-node", toSlot);
+      if (!fromNode || !toNode || !fromEl || !toEl) return;
+
+      const f = nodeBoxFromData(fromNode, fromEl);
+      const t = nodeBoxFromData(toNode, toEl);
       const style = link.style || linkStyleForTarget(nodes, link.to);
-      orthoElbow(svg, f.cx, f.bottom, t.cx, t.top, style);
+      const defaultMidY = f.bottom + (t.top - f.bottom) / 2;
+      const midY = link.mid_y != null && Number.isFinite(link.mid_y) ? link.mid_y : defaultMidY;
+      const midX = link.mid_x != null && Number.isFinite(link.mid_x) ? link.mid_x : null;
+      const handleX = midX != null ? midX : (f.cx + t.cx) / 2;
+      const pts = elbowPoints(f.cx, f.bottom, t.cx, t.top, midX, midY);
+
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      group.setAttribute("class", "sgi-org-link");
+      group.setAttribute("data-from", link.from);
+      group.setAttribute("data-to", link.to);
+      svg.appendChild(group);
+
+      if (interactive) {
+        svgPolyline(group, pts, {
+          class: "sgi-org-link-hit",
+          fill: "none",
+          stroke: "transparent",
+          "stroke-width": "16",
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round",
+        });
+        for (let i = 0; i < pts.length - 1; i += 1) {
+          svgSeg(group, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], style, "sgi-org-link-seg");
+        }
+        const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        handle.setAttribute("class", "sgi-org-link-handle");
+        handle.setAttribute("cx", String(handleX));
+        handle.setAttribute("cy", String(midY));
+        handle.setAttribute("r", "7");
+        handle.setAttribute("data-from", link.from);
+        handle.setAttribute("data-to", link.to);
+        group.appendChild(handle);
+      } else {
+        for (let i = 0; i < pts.length - 1; i += 1) {
+          svgSeg(group, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], style, "sgi-org-link-seg");
+        }
+      }
     });
   }
 
@@ -440,7 +541,9 @@
         <div class="sgi-org-canvas-nodes">${nodesHtml || `<p class="sgi-org-empty text-muted small mb-0">Agregá puestos con el botón <strong>Agregar puesto</strong>.</p>`}</div>
       </div>`;
 
-    requestAnimationFrame(() => drawFreeConnectors(qs("#sgiOrgCanvas", wrap), nodes, links));
+    drawFreeConnectors(qs("#sgiOrgCanvas", wrap), nodes, links, {
+      interactive: Boolean(opts?.editable),
+    });
   }
 
   /* —— Legacy level-based view —— */
@@ -781,6 +884,8 @@
           from: l.from,
           to: l.to,
           style: l.style || linkStyleForTarget(state.nodes, l.to),
+          ...(l.mid_x != null && Number.isFinite(l.mid_x) ? { mid_x: Math.round(l.mid_x) } : {}),
+          ...(l.mid_y != null && Number.isFinite(l.mid_y) ? { mid_y: Math.round(l.mid_y) } : {}),
         })),
       };
     }
@@ -788,6 +893,16 @@
 
     function nodeById(id) {
       return state.nodes.find((n) => n.id === id);
+    }
+
+    function findLink(from, to) {
+      return state.links.find((l) => l.from === from && l.to === to);
+    }
+
+    function redrawConnectors(opts) {
+      const canvas = qs("#sgiOrgCanvas", wrap);
+      if (canvas) drawFreeConnectors(canvas, state.nodes, state.links, { interactive: true });
+      if (opts?.rebind !== false) bindLinkDragEvents();
     }
 
     function refreshCanvas() {
@@ -809,13 +924,20 @@
         toolHint.innerHTML =
           tool === "connect"
             ? "Modo conectar: hacé clic en el puesto <strong>superior</strong> y luego en el <strong>inferior</strong> para crear la línea."
-            : "Arrastrá los recuadros para ubicarlos. Seleccioná un puesto para editar sus datos en el panel derecho.";
+            : "Arrastrá los <strong>recuadros</strong> o el <strong>punto azul</strong> de cada línea para moverlos. Seleccioná un puesto para editarlo a la derecha.";
       }
       refreshCanvas();
     }
 
-    function selectNode(id) {
+    function selectNode(id, opts) {
       state.selectedId = id;
+      if (opts?.soft) {
+        qsa(".sgi-org-canvas-node", wrap).forEach((el) => {
+          el.classList.toggle("is-selected", el.dataset.nodeId === id);
+        });
+        renderPropsPanel();
+        return;
+      }
       refreshCanvas();
     }
 
@@ -958,8 +1080,71 @@
       });
     }
 
+    function bindLinkDragEvents() {
+      const canvas = qs("#sgiOrgCanvas", wrap);
+      const viewport = qs("#sgiOrgViewport");
+      if (!canvas) return;
+
+      function startLinkDrag(ev, from, to) {
+        if (state.tool !== "select") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const link = findLink(from, to);
+        if (!link) return;
+        const scale = zoomRef?.getScale?.() || 1;
+        const fromNode = nodeById(from);
+        const toNode = nodeById(to);
+        const fromSlot = qs(`[data-node-id="${from}"]`, canvas);
+        const toSlot = qs(`[data-node-id="${to}"]`, canvas);
+        const f = fromNode
+          ? nodeBoxFromData(fromNode, fromSlot && qs(".sgi-org-node", fromSlot))
+          : null;
+        const t = toNode ? nodeBoxFromData(toNode, toSlot && qs(".sgi-org-node", toSlot)) : null;
+        const defaultMidY = f && t ? f.bottom + (t.top - f.bottom) / 2 : 0;
+        const defaultMidX = f && t ? (f.cx + t.cx) / 2 : 0;
+        const startMidX = link.mid_x != null ? link.mid_x : defaultMidX;
+        const startMidY = link.mid_y != null ? link.mid_y : defaultMidY;
+        const startX = ev.clientX;
+        const startY = ev.clientY;
+        viewport?.classList.add("is-dragging-item");
+
+        function onMove(moveEv) {
+          link.mid_x = startMidX + (moveEv.clientX - startX) / scale;
+          link.mid_y = startMidY + (moveEv.clientY - startY) / scale;
+          redrawConnectors({ rebind: false });
+        }
+
+        function onUp() {
+          viewport?.classList.remove("is-dragging-item");
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          bindLinkDragEvents();
+        }
+
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      }
+
+      qsa(".sgi-org-link-handle, .sgi-org-link-hit", canvas).forEach((el) => {
+        const from = el.dataset.from || el.closest(".sgi-org-link")?.dataset.from;
+        const to = el.dataset.to || el.closest(".sgi-org-link")?.dataset.to;
+        if (!from || !to) return;
+        el.addEventListener("mousedown", (ev) => startLinkDrag(ev, from, to));
+        el.addEventListener("dblclick", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const link = findLink(from, to);
+          if (!link) return;
+          delete link.mid_x;
+          delete link.mid_y;
+          redrawConnectors();
+        });
+      });
+    }
+
     function bindCanvasEvents() {
       const canvas = qs("#sgiOrgCanvas", wrap);
+      const viewport = qs("#sgiOrgViewport");
       if (!canvas) return;
 
       qsa(".sgi-org-canvas-node", canvas).forEach((slot) => {
@@ -970,12 +1155,16 @@
 
         inner?.addEventListener("mousedown", (ev) => {
           if (state.tool !== "select") return;
+          if (ev.target.closest('[contenteditable="true"]')) return;
+          if (ev.button !== 0) return;
           ev.preventDefault();
           ev.stopPropagation();
           const node = nodeById(id);
           if (!node) return;
-          selectNode(id);
+          selectNode(id, { soft: true });
           didDrag = false;
+          slot.classList.add("is-dragging");
+          viewport?.classList.add("is-dragging-item");
           drag = {
             startX: ev.clientX,
             startY: ev.clientY,
@@ -988,22 +1177,24 @@
             if (Math.abs(moveEv.clientX - drag.startX) > 3 || Math.abs(moveEv.clientY - drag.startY) > 3) {
               didDrag = true;
             }
-            const zoomApi = zoomRef;
-            const scale = zoomApi?.getScale?.() || 1;
-            node.x = drag.origX + (moveEv.clientX - drag.startX) / scale;
-            node.y = drag.origY + (moveEv.clientY - drag.startY) / scale;
+            const scale = zoomRef?.getScale?.() || 1;
+            node.x = Math.max(0, drag.origX + (moveEv.clientX - drag.startX) / scale);
+            node.y = Math.max(0, drag.origY + (moveEv.clientY - drag.startY) / scale);
             slot.style.left = `${node.x}px`;
             slot.style.top = `${node.y}px`;
             const { width, height } = canvasSize(state.nodes);
             canvas.style.width = `${width}px`;
             canvas.style.height = `${height}px`;
-            drawFreeConnectors(canvas, state.nodes, state.links);
+            drawFreeConnectors(canvas, state.nodes, state.links, { interactive: true });
           }
 
           function onUp() {
             drag = null;
+            slot.classList.remove("is-dragging");
+            viewport?.classList.remove("is-dragging-item");
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp);
+            if (didDrag) bindLinkDragEvents();
           }
 
           window.addEventListener("mousemove", onMove);
@@ -1029,7 +1220,7 @@
             selectNode(id);
             return;
           }
-          selectNode(id);
+          selectNode(id, { soft: true });
         });
 
         const titleEl = qs(".sgi-org-node-title", inner);
@@ -1045,11 +1236,14 @@
           renderPropsPanel();
         });
       });
+
+      bindLinkDragEvents();
     }
 
     const redraw = () => {
       const canvas = qs("#sgiOrgCanvas", wrap);
-      if (canvas) drawFreeConnectors(canvas, state.nodes, state.links);
+      if (canvas) drawFreeConnectors(canvas, state.nodes, state.links, { interactive: true });
+      bindLinkDragEvents();
     };
     const zoomRef = initZoom(redraw);
 

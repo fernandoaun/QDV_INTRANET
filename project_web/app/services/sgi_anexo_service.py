@@ -273,7 +273,14 @@ def _organigrama_clean_link(link: dict[str, Any], valid_ids: set[str]) -> dict[s
     style = str(link.get("style") or "solid").strip().lower()
     if style not in ("solid", "dashed"):
         style = "solid"
-    return {"from": src, "to": dst, "style": style}
+    row: dict[str, Any] = {"from": src, "to": dst, "style": style}
+    mid_y = _organigrama_coord(link.get("mid_y"))
+    mid_x = _organigrama_coord(link.get("mid_x"))
+    if mid_y is not None:
+        row["mid_y"] = mid_y
+    if mid_x is not None:
+        row["mid_x"] = mid_x
+    return row
 
 
 def organigrama_has_positions(nodes: list[dict[str, Any]]) -> bool:
