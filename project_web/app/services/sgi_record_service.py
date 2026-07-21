@@ -604,7 +604,14 @@ def unlink_digital_record(
     documento_id: int,
     registro_id: int,
     user: User | None,
+    *,
+    delete_definition: bool = True,
 ) -> tuple[bool, str, dict[str, Any] | None]:
+    """Desvincula el registro digital del procedimiento.
+
+    Por defecto también elimina (soft-delete) la definición creada, para poder
+    deshacer un «Crear registro» hecho por error.
+    """
     reg = db.session.get(SgiProcedimientoRegistro, int(registro_id))
     if reg is None:
         return False, "Registro no encontrado.", None
@@ -614,22 +621,76 @@ def unlink_digital_record(
     if not reg.record_definition_id:
         return False, "No hay registro digital vinculado.", None
 
-    prev = reg.record_definition_id
+    prev = int(reg.record_definition_id)
+    defn = db.session.get(SgiRecordDefinition, prev)
     reg.record_definition_id = None
     reg.association_type = ""
+
+    if delete_definition and defn is not None and defn.deleted_at is None:
+        defn.deleted_at = _utc_now()
+        defn.updated_by_id = int(user.id) if user else None
+        defn.updated_at = _utc_now()
+        # Otras filas del punto 7 que apunten a la misma definición
+        others = list(
+            db.session.scalars(
+                select(SgiProcedimientoRegistro).where(
+                    SgiProcedimientoRegistro.record_definition_id == prev
+                )
+            )
+        )
+        for other in others:
+            other.record_definition_id = None
+            other.association_type = ""
+        append_record_audit(
+            entity_type="sgi_record_definition",
+            entity_id=prev,
+            action="registro_eliminado",
+            user=user,
+            previous={"code": defn.code, "name": defn.name},
+            new={"deleted_at": defn.deleted_at.isoformat() if defn.deleted_at else None},
+        )
+
     append_record_audit(
         entity_type="sgi_procedimiento_registro",
         entity_id=reg.id,
         action="registro_desvinculado",
         user=user,
         previous={"record_definition_id": prev},
-        new={"record_definition_id": None},
+        new={"record_definition_id": None, "definition_deleted": bool(delete_definition)},
     )
     db.session.commit()
 
     from app.services import sgi_procedimiento_service as proc_svc
 
-    return True, "Registro desvinculado.", enrich_registro_payload(proc_svc._registro_row_payload(reg), reg)
+    msg = (
+        "Registro digital eliminado."
+        if delete_definition
+        else "Registro desvinculado."
+    )
+    return True, msg, enrich_registro_payload(proc_svc._registro_row_payload(reg), reg)
+
+
+def delete_entry(entry_id: int, user: User | None) -> tuple[bool, str]:
+    """Elimina una carga individual."""
+    entry = get_entry(entry_id)
+    if entry is None:
+        return False, "Carga no encontrada."
+    defn = get_definition(entry.record_definition_id)
+    if defn is None:
+        return False, "La definición del registro no está disponible."
+    entry_num = entry.entry_number
+    def_id = entry.record_definition_id
+    append_record_audit(
+        entity_type="sgi_record_entry",
+        entity_id=entry.id,
+        action="carga_eliminada",
+        user=user,
+        previous={"entry_number": entry_num, "definition_id": def_id},
+        new=None,
+    )
+    db.session.delete(entry)
+    db.session.commit()
+    return True, f"Carga {entry_num:04d} eliminada."
 
 
 def get_definition(definition_id: int) -> SgiRecordDefinition | None:

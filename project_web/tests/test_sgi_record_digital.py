@@ -401,6 +401,27 @@ def test_create_digital_record_and_entry_flow(auth_client, app):
     assert r4.status_code == 400
     assert r4.get_json()["ok"] is False
 
+    # Eliminar registro digital creado por error
+    r5 = auth_client.post(
+        f"/sgi/pg/procedimientos/{doc_id}/registro/{registro_id}/unlink-digital",
+        json={},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r5.status_code == 200, r5.get_data(as_text=True)
+    deleted = r5.get_json()
+    assert deleted["ok"] is True
+    assert deleted["registro"]["has_digital_record"] is False
+
+    with app.app_context():
+        gone = record_svc.get_definition(def_id)
+        assert gone is None
+        # Volvió a estar disponible para crear
+        from app.models.sgi import SgiProcedimientoRegistro
+
+        reg_row = db.session.get(SgiProcedimientoRegistro, registro_id)
+        assert reg_row is not None
+        assert reg_row.record_definition_id is None
+
 
 def test_listado_shows_crear_registro_when_unlinked(auth_client, app):
     from app.services import sgi_procedimiento_service as proc_svc

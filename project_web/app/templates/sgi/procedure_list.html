@@ -137,8 +137,8 @@
             <div class="dropdown d-inline-block">
               <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Acciones</button>
               <ul class="dropdown-menu dropdown-menu-end">
-                <li><button type="button" class="dropdown-item btn-desvincular-digital"
-                        data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">Desvincular registro</button></li>
+                <li><button type="button" class="dropdown-item text-danger btn-desvincular-digital"
+                        data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">Eliminar registro digital</button></li>
               </ul>
             </div>
             {% endif %}
@@ -241,7 +241,7 @@
       html += ` <div class="dropdown d-inline-block">
         <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">Acciones</button>
         <ul class="dropdown-menu dropdown-menu-end">
-          <li><button type="button" class="dropdown-item btn-desvincular-digital" data-doc-id="${docId}" data-registro-id="${registroId}">Desvincular registro</button></li>
+          <li><button type="button" class="dropdown-item text-danger btn-desvincular-digital" data-doc-id="${docId}" data-registro-id="${registroId}">Eliminar registro digital</button></li>
         </ul>
       </div>`;
     }
@@ -349,7 +349,7 @@
     const unlink = ev.target.closest(".btn-desvincular-digital");
     if (unlink && puedeCrearDigital) {
       ev.preventDefault();
-      if (!confirm("¿Desvincular el registro digital de este procedimiento?")) return;
+      if (!confirm("¿Eliminar el registro digital de este procedimiento?\n\nSe quita el vínculo y no podrá usarse más (podés crear uno nuevo después).")) return;
       const docId = unlink.dataset.docId;
       const registroId = unlink.dataset.registroId;
       unlink.disabled = true;
@@ -366,7 +366,7 @@
         .then((r) => r.json())
         .then((res) => {
           if (!res.ok) {
-            flash("danger", res.message || "No se pudo desvincular.");
+            flash("danger", res.message || "No se pudo eliminar.");
             return;
           }
           const tr = document.querySelector(
@@ -374,9 +374,9 @@
           );
           if (tr && res.registro) applyRegistroUi(tr, res.registro);
           else window.location.reload();
-          flash("success", res.message || "Registro desvinculado.");
+          flash("success", res.message || "Registro digital eliminado.");
         })
-        .catch(() => flash("danger", "No se pudo desvincular."))
+        .catch(() => flash("danger", "No se pudo eliminar."))
         .finally(() => {
           unlink.disabled = false;
         });

@@ -800,7 +800,7 @@
         ${recordUrl ? `<a class="btn btn-sm btn-primary" href="${escapeHtml(recordUrl)}">Ir al registro</a>` : ""}
         ${
           puedeCrearRegistroDigital && !soloLectura
-            ? `<button type="button" class="btn btn-sm btn-outline-warning rg-btn-unlink-digital">Desvincular</button>`
+            ? `<button type="button" class="btn btn-sm btn-outline-danger rg-btn-unlink-digital">Eliminar registro</button>`
             : ""
         }
       </td>`;
@@ -858,7 +858,7 @@
     });
     tr.querySelector(".rg-btn-unlink-digital")?.addEventListener("click", () => {
       if (!row?.id || !docId) return;
-      if (!confirm("¿Desvincular el registro digital?")) return;
+      if (!confirm("¿Eliminar el registro digital?\n\nSe quita el vínculo y no podrá usarse más (podés crear uno nuevo después).")) return;
       const slug = cfg.slug;
       fetch(`/sgi/${slug}/procedimientos/${docId}/registro/${row.id}/unlink-digital`, {
         method: "POST",
@@ -873,13 +873,13 @@
         .then((r) => r.json())
         .then((res) => {
           if (!res.ok) {
-            alert(res.message || "No se pudo desvincular.");
+            alert(res.message || "No se pudo eliminar.");
             return;
           }
           tr.remove();
           addRegistroRow(res.registro || { ...row, has_digital_record: false, record_definition_id: null, record_url: "" });
         })
-        .catch(() => alert("No se pudo desvincular."));
+        .catch(() => alert("No se pudo eliminar."));
     });
   }
 

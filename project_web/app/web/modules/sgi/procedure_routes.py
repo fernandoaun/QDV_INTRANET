@@ -1014,12 +1014,12 @@ def procedimiento_registro_import_create(slug: str, doc_id: int, registro_id: in
 def procedimiento_registro_unlink_digital(slug: str, doc_id: int, registro_id: int):
     u = current_user()
     if not user_can_create_sgi_digital_record(u):
-        return jsonify({"ok": False, "message": "No tiene permisos para desvincular registros."}), 403
+        return jsonify({"ok": False, "message": "No tiene permisos para eliminar registros digitales."}), 403
     tipo, _ = _resolve_tipo(slug)
     doc = doc_svc.get_documento(doc_id)
     if doc is None or doc.tipo != tipo:
         return jsonify({"ok": False, "message": "Procedimiento no encontrado."}), 404
-    ok, msg, registro = record_svc.unlink_digital_record(doc_id, registro_id, u)
+    ok, msg, registro = record_svc.unlink_digital_record(doc_id, registro_id, u, delete_definition=True)
     return jsonify({"ok": ok, "message": msg, "registro": registro}), (200 if ok else 400)
 
 
@@ -1135,3 +1135,22 @@ def record_entry_guardar(entry_id: int):
             else None,
         }
     ), (200 if ok else 400)
+
+
+@bp.post("/registros/cargas/<int:entry_id>/eliminar")
+@login_required
+def record_entry_eliminar(entry_id: int):
+    u = current_user()
+    if not user_can_manage_sgi_record_entries(u):
+        return jsonify({"ok": False, "message": "Sin permiso."}), 403
+    entry = record_svc.get_entry(entry_id)
+    if entry is None:
+        return jsonify({"ok": False, "message": "Carga no encontrada."}), 404
+    definition_id = entry.record_definition_id
+    ok, msg = record_svc.delete_entry(entry_id, u)
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+        return jsonify({"ok": ok, "message": msg, "definitionId": definition_id}), (200 if ok else 400)
+    flash(msg, "success" if ok else "warning")
+    if ok and definition_id:
+        return redirect(url_for("sgi.record_entries_list", definition_id=definition_id))
+    return redirect(url_for("sgi.hub"))

@@ -40,10 +40,17 @@
             <td>{{ '%04d'|format(e.entry_number) }}</td>
             <td class="small">{{ e.created_at[:16].replace('T', ' ') if e.created_at else '—' }}</td>
             <td>{{ e.created_by or '—' }}</td>
-            <td class="text-end">
+            <td class="text-end text-nowrap">
               <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sgi.record_entry_edit', entry_id=e.id) }}">
                 Ver / editar
               </a>
+              {% if puede_editar_cargas %}
+              <form method="post" action="{{ url_for('sgi.record_entry_eliminar', entry_id=e.id) }}" class="d-inline"
+                    onsubmit="return confirm('¿Eliminar la carga {{ '%04d'|format(e.entry_number) }}?');">
+                {% include "_csrf.html" %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
+              </form>
+              {% endif %}
             </td>
           </tr>
           {% else %}
