@@ -299,7 +299,7 @@ def ensure_document_layout(
 ) -> dict[str, Any]:
     """
     Asegura schema con layout documental editable.
-    Si falta layoutHtml o no tiene inputs, lo reconstruye desde el Word/Excel fuente.
+    Si falta layoutHtml, inputs junto a etiquetas, o versión vieja de inyección, regenera.
     """
     ver = version
     if ver is None and defn.current_version_id:
@@ -312,10 +312,27 @@ def ensure_document_layout(
         if isinstance(f, dict) and f.get("type") not in ("editable_table", "calculated")
     ]
     n_inputs = layout.count("data-sgi-field=")
-    # Si el layout ya tiene un input por cada campo, no regenerar
+    has_latest = "sgi-layout-v:4" in layout
+    labels_ok = True
+    if layout and text_fields:
+        low = layout.lower()
+        for f in text_fields:
+            label = (f.get("label") or "").strip()
+            name = f.get("name") or ""
+            if len(label) < 2 or not name:
+                continue
+            i = low.find(label.lower())
+            if i < 0:
+                continue
+            window = layout[i : i + len(label) + 120]
+            if f'data-sgi-field="{name}"' not in window and "data-sgi-field=" not in window:
+                labels_ok = False
+                break
     if (
         not force_rebuild
         and layout
+        and has_latest
+        and labels_ok
         and (schema.get("layoutMode") or "document") == "document"
         and (not text_fields or n_inputs >= len(text_fields))
     ):

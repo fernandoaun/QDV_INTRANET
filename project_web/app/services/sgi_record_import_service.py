@@ -569,94 +569,148 @@ def _field_input_from_meta(name: str, ftype: str) -> str:
     return _input_html(name, input_type="text")
 
 
-def _next_field_input(
-    text_fields: list[dict[str, Any]],
-    idx: int,
-    *,
-    fallback_prefix: str = "campo",
-) -> tuple[str, int]:
-    if idx < len(text_fields):
-        f = text_fields[idx]
-        return _field_input_from_meta(f["name"], f.get("type") or "text"), idx + 1
-    name = f"{fallback_prefix}_{idx + 1}"
-    return _input_html(name, input_type="text"), idx + 1
+def _wrap_field_control(control_html: str) -> str:
+    """Envuelve el control para que siempre se vea como caja editable."""
+    return f'<span class="sgi-rec-field-wrap">{control_html}</span>'
 
 
-_EMPTY_CELL_RE = re.compile(
-    r"<td([^>]*)>(?:\s|&nbsp;|&#160;|&#xA0;|<br\s*/?>|<p[^>]*>\s*(?:&nbsp;|&#160;)?\s*</p>)*</td>",
-    re.I,
-)
-_LABEL_COLON_TAIL_RE = re.compile(
-    r"(?P<label>(?:^|>)[^<>]{0,80}?)"
-    r"(?P<colon>:\s*)"
-    r"(?P<blank>(?:&nbsp;|&#160;|\s|\xa0)*)"
-    r"(?P<end></(?:p|span|strong|em|td|th|div|li)>)",
-    re.I,
-)
+def _norm_label_key(text: str) -> str:
+    t = (text or "").strip().lower().rstrip(":").strip()
+    t = re.sub(r"\s+", " ", t)
+    return t
+
+
+def _td_visible_text(inner_html: str) -> str:
+    """Texto visible de una celda (ignora tags, nbsp, subrayados vacíos)."""
+    text = re.sub(r"(?is)<br\s*/?>", " ", inner_html or "")
+    text = re.sub(r"(?is)<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = text.replace("\xa0", " ").replace("\u200b", "")
+    # Guiones/ Underscores / puntos de relleno no cuentan como contenido
+    text = re.sub(r"[\s_\.\-–—·•□☐]+", "", text)
+    return text.strip()
+
+
+_TD_CELL_RE = re.compile(r"<td([^>]*)>((?:(?!</?td\b).)*)</td>", re.I | re.S)
+
+
+def _fill_blank_table_cells(html_in: str, make_control) -> str:
+    """Pone input en toda celda sin texto real (p. ej. SECTOR/FIRMA con subrayado vacío)."""
+
+    def repl(m: re.Match[str]) -> str:
+        attrs = m.group(1) or ""
+        inner = m.group(2) or ""
+        if "data-sgi-field" in inner or "sgi-rec-field-wrap" in inner:
+            return m.group(0)
+        if re.search(r"<t[dh]\b", inner, re.I):
+            return m.group(0)
+        visible = _td_visible_text(inner)
+        if visible:
+            return m.group(0)
+        return f"<td{attrs}>{make_control()}</td>"
+
+    return _TD_CELL_RE.sub(repl, html_in)
 
 
 def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -> str:
-    """Conserva la tipografía/tablas del Word e inserta inputs donde había blancos."""
+    """Inserta inputs junto a cada etiqueta del Word (prioridad: label → celda vacía)."""
     text_fields = [f for f in fields if f.get("type") not in ("editable_table", "calculated")]
-    idx = 0
-    placed: set[str] = set()
-
-    def mark_placed(html_snippet: str) -> str:
-        for m in re.finditer(r'data-sgi-field="([^"]+)"', html_snippet):
-            placed.add(m.group(1))
-        return html_snippet
-
-    def repl_blank(_match: re.Match[str]) -> str:
-        nonlocal idx
-        snippet, idx = _next_field_input(text_fields, idx, fallback_prefix="campo_auto")
-        return mark_placed(snippet)
-
-    out = re.sub(r"_{3,}|\.{4,}|□|☐|\[\s*\]", repl_blank, raw_html)
-
-    def empty_td(m: re.Match[str]) -> str:
-        nonlocal idx
-        attrs = m.group(1) or ""
-        snippet, idx = _next_field_input(text_fields, idx, fallback_prefix="celda")
-        return f"<td{attrs}>{mark_placed(snippet)}</td>"
-
-    out = _EMPTY_CELL_RE.sub(empty_td, out)
-
-    def label_colon(m: re.Match[str]) -> str:
-        nonlocal idx
-        end = m.group("end")
-        snippet, idx = _next_field_input(text_fields, idx, fallback_prefix="campo")
-        return f'{m.group("label")}{m.group("colon")}{mark_placed(snippet)}{end}'
-
-    out = _LABEL_COLON_TAIL_RE.sub(label_colon, out)
-
+    by_label: dict[str, dict[str, Any]] = {}
     for f in text_fields:
-        name = f.get("name") or ""
-        if not name or name in placed or f'data-sgi-field="{name}"' in out:
-            placed.add(name)
+        key = _norm_label_key(str(f.get("label") or ""))
+        if key and key not in by_label:
+            by_label[key] = f
+
+    placed: set[str] = set()
+    auto_i = 0
+
+    def mark_from(snippet: str) -> str:
+        for m in re.finditer(r'data-sgi-field="([^"]+)"', snippet):
+            placed.add(m.group(1))
+        return snippet
+
+    def control_for_label(label_text: str) -> str:
+        nonlocal auto_i
+        key = _norm_label_key(label_text)
+        f = by_label.get(key)
+        if f is None:
+            for lab, cand in by_label.items():
+                if cand["name"] in placed:
+                    continue
+                if key and (key in lab or lab in key):
+                    f = cand
+                    break
+        if f is not None and f["name"] not in placed:
+            placed.add(f["name"])
+            return mark_from(
+                _wrap_field_control(_field_input_from_meta(f["name"], f.get("type") or "text"))
+            )
+        auto_i += 1
+        name = f"campo_auto_{auto_i}"
+        placed.add(name)
+        return mark_from(_wrap_field_control(_input_html(name, input_type="text")))
+
+    def auto_control(prefix: str = "celda") -> str:
+        nonlocal auto_i
+        auto_i += 1
+        name = f"{prefix}_{auto_i}"
+        placed.add(name)
+        return mark_from(_wrap_field_control(_input_html(name, input_type="text")))
+
+    out = raw_html
+
+    # 1) Primero: cada etiqueta conocida (Fecha, Lugar, Tema…) → input al lado
+    for lab_key, f in sorted(by_label.items(), key=lambda kv: -len(kv[0])):
+        if f["name"] in placed:
             continue
         label = (f.get("label") or "").strip()
-        if not label or len(label) < 2:
+        if len(label) < 2:
             continue
         esc = re.escape(label)
         pattern = re.compile(
-            rf"({esc}\s*:?\s*)(?!</?(?:input|textarea|select)\b)(?![^<]*data-sgi-field=)",
+            rf"({esc}\s*:?\s*)(?!(?:(?:&nbsp;|&#160;|\s|\xa0)|</?(?:span|strong|em|b|i|u)[^>]*>)*"
+            rf"<(?:input|textarea|select|span)\b)",
             re.I,
         )
 
-        def _insert_after_label(
-            m: re.Match[str],
-            _name: str = name,
-            _ftype: str = f.get("type") or "text",
-        ) -> str:
-            if _name in placed:
+        def _after_label(m: re.Match[str], _f: dict[str, Any] = f) -> str:
+            if _f["name"] in placed:
                 return m.group(0)
-            placed.add(_name)
-            return m.group(1) + mark_placed(_field_input_from_meta(_name, _ftype))
+            placed.add(_f["name"])
+            ctrl = _wrap_field_control(
+                _field_input_from_meta(_f["name"], _f.get("type") or "text")
+            )
+            return m.group(1) + mark_from(ctrl)
 
-        new_out, n = pattern.subn(_insert_after_label, out, count=1)
+        new_out, n = pattern.subn(_after_label, out, count=1)
         if n:
             out = new_out
 
+    # 2) "Algo:" al final de párrafo/celda (sin input aún) → input genérico o de campo
+    def label_colon_tail(m: re.Match[str]) -> str:
+        label_txt = re.sub(r"<[^>]+>", "", m.group("label"))
+        return f'{m.group("label")}{m.group("colon")}{control_for_label(label_txt)}{m.group("end")}'
+
+    out = re.sub(
+        r"(?P<label>(?:^|>)[^<>]{0,80}?)"
+        r"(?P<colon>:\s*)"
+        r"(?P<blank>(?:&nbsp;|&#160;|\s|\xa0)*)"
+        r"(?P<end></(?:p|span|strong|em|td|th|div|li)>)",
+        label_colon_tail,
+        out,
+        flags=re.I,
+    )
+
+    # 3) Blancos tipo ___ / □
+    def repl_blank(_m: re.Match[str]) -> str:
+        return auto_control("campo_auto")
+
+    out = re.sub(r"_{3,}|\.{4,}|□|☐|\[\s*\]", repl_blank, out)
+
+    # 4) Celdas sin texto real (incluye <u></u>, spans vacíos, etc.) — no usan campos con nombre
+    out = _fill_blank_table_cells(out, lambda: auto_control("celda"))
+
+    # 5) Campos con nombre que no encontraron etiqueta
     missing = [
         f
         for f in text_fields
@@ -669,7 +723,7 @@ def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -
             rows.append(
                 "<tr>"
                 f'<td class="sgi-rec-label">{label}</td>'
-                f"<td>{_field_input_from_meta(f['name'], f.get('type') or 'text')}</td>"
+                f"<td>{_wrap_field_control(_field_input_from_meta(f['name'], f.get('type') or 'text'))}</td>"
                 "</tr>"
             )
             placed.add(f["name"])
@@ -698,7 +752,7 @@ def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -
             f'<button type="button" class="sgi-rec-add-row sgi-proc-no-print" data-sgi-table-add="{name}">+ Fila</button>'
             f"</div>"
         )
-    return out
+    return f'<!--sgi-layout-v:4-->\n{out}'
 
 
 

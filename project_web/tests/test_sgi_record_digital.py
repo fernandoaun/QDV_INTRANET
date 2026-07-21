@@ -210,6 +210,8 @@ def test_inject_fields_makes_label_colon_editable():
         "<table><tr><td>Cantidad de Asistentes:</td><td></td>"
         "<td>Duración:</td><td><p></p></td></tr></table>"
         "<p>Tema:</p>"
+        "<p>Método de evaluación</p>"
+        "<table><tr><td>Evaluación escrita</td><td></td><td></td></tr></table>"
     )
     fields = [
         {"name": "fecha", "label": "Fecha", "type": "date"},
@@ -219,11 +221,34 @@ def test_inject_fields_makes_label_colon_editable():
         {"name": "tema", "label": "Tema", "type": "text"},
     ]
     out = imp._inject_fields_into_docx_html(raw, fields)
-    assert out.count("data-sgi-field=") >= 5
+    assert "sgi-layout-v:4" in out
     assert 'data-sgi-field="fecha"' in out
     assert 'data-sgi-field="lugar"' in out
     assert 'data-sgi-field="tema"' in out
-    assert "<input" in out or "<textarea" in out
+    assert "sgi-rec-field-wrap" in out
+    # Los inputs de Fecha/Lugar/Tema deben quedar junto a su etiqueta, no solo abajo
+    fecha_pos = out.lower().find("fecha")
+    fecha_input = out.find('data-sgi-field="fecha"')
+    assert fecha_pos >= 0 and fecha_input > fecha_pos
+    assert fecha_input - fecha_pos < 120
+
+
+def test_inject_fills_underline_empty_cells_in_attendance_grid():
+    """SECTOR/FIRMA del Word suelen venir como <u></u> / spans vacíos, no <td></td>."""
+    from app.services import sgi_record_import_service as imp
+
+    raw = """
+    <table>
+      <tr><td>Nº</td><td>APELLIDO y NOMBRE</td><td>SECTOR</td><td>FIRMA</td></tr>
+      <tr><td>1</td><td><p><u></u></p></td><td><p><span>&nbsp;</span></p></td><td><p><u> </u></p></td></tr>
+      <tr><td>2</td><td><p></p></td><td><p><u></u></p></td><td><p><u></u></p></td></tr>
+    </table>
+    """
+    out = imp._inject_fields_into_docx_html(raw, [])
+    # Encabezados y números se conservan; las 3 celdas de datos x 2 filas = 6 inputs
+    assert out.count("data-sgi-field=") >= 6
+    assert "APELLIDO y NOMBRE" in out
+    assert ">1<" in out.replace(" ", "") or ">1</td>" in out
 
 
 def test_analyze_xlsx_detects_table_and_formula(app):
