@@ -57,6 +57,39 @@
   margin: 0.4rem 0;
 }
 
+/* Encabezado / pie tomados del Word adjunto */
+.sgi-rec-doc-header {
+  margin: 0 0 1.25rem;
+}
+
+.sgi-rec-doc-footer {
+  margin: 1.5rem 0 0;
+  font-size: 9pt;
+  color: #333;
+}
+
+.sgi-rec-doc-header-table {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.sgi-rec-doc-header-table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.sgi-rec-doc-logo {
+  max-width: 160px;
+  max-height: 64px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.sgi-rec-sheet img {
+  max-width: 100%;
+  height: auto;
+}
+
 .sgi-rec-doc-table {
   width: 100%;
   border-collapse: collapse;

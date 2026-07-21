@@ -21,11 +21,13 @@
   <div id="recordFormAlert" class="alert d-none mx-auto" style="max-width:210mm"></div>
 
   <div class="sgi-rec-sheet" id="sgiRecSheet">
-    <div class="text-center mb-3">
-      <div class="small text-uppercase fw-semibold">Química del Valle S.R.L.</div>
+    {# El encabezado/formato vienen del documento adjunto (layoutHtml). Solo fallback si no hay layout. #}
+    {% if not (schema.layoutHtml and (schema.layoutMode or 'document') == 'document') %}
+    <div class="text-center mb-3 sgi-rec-fallback-title">
       <div class="sgi-rec-sheet-title">{{ summary.name }}</div>
       <div class="small">{{ summary.code }} · Carga {{ '%04d'|format(entry.entry_number) }}</div>
     </div>
+    {% endif %}
     <div id="recordDynamicForm"></div>
   </div>
 </div>

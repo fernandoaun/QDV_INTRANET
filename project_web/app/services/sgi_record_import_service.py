@@ -1,9 +1,11 @@
 """Importación segura de Word/Excel hacia esquemas de registro digital."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import html
 import io
+import mimetypes
 import re
 import uuid
 import zipfile
@@ -22,7 +24,22 @@ from app.models.sgi import (
 )
 
 _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+_R_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+_A_NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
+_V_NS = "urn:schemas-microsoft-com:vml"
 _W = f"{{{_W_NS}}}"
+_R = f"{{{_R_NS}}}"
+_A = f"{{{_A_NS}}}"
+_V = f"{{{_V_NS}}}"
+_HEADER_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
+)
+_FOOTER_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
+)
+_IMAGE_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+)
 
 _SAFE_FORMULA_FUNCS = {
     "SUM",
@@ -265,11 +282,265 @@ def _input_html(name: str, *, input_type: str = "text", extra_class: str = "") -
     return f'<input type="{html.escape(input_type)}" class="{cls}" data-sgi-field="{safe}" />'
 
 
+def _zip_norm(name: str) -> str:
+    return name.replace("\\", "/").lstrip("/")
+
+
+def _resolve_zip_path(base_dir: str, target: str) -> str:
+    target = _zip_norm(target)
+    if target.startswith("/"):
+        return target.lstrip("/")
+    base = Path(_zip_norm(base_dir))
+    return _zip_norm(str((base / target).as_posix()))
+
+
+def _parse_rels(zf: zipfile.ZipFile, rels_path: str) -> dict[str, dict[str, str]]:
+    """Mapa rId -> {target, type} desde un .rels OOXML."""
+    out: dict[str, dict[str, str]] = {}
+    try:
+        root = ET.fromstring(zf.read(rels_path))
+    except KeyError:
+        return out
+    for rel in root:
+        rid = rel.get("Id") or ""
+        target = rel.get("Target") or ""
+        rtype = rel.get("Type") or ""
+        if rid and target:
+            out[rid] = {"target": target, "type": rtype}
+    return out
+
+
+def _media_data_uri(zf: zipfile.ZipFile, media_path: str) -> str | None:
+    path = _zip_norm(media_path)
+    try:
+        raw = zf.read(path)
+    except KeyError:
+        # Algunas rutas vienen con word/ ya incluido o no
+        alt = path if path.startswith("word/") else f"word/{path}"
+        try:
+            raw = zf.read(alt)
+            path = alt
+        except KeyError:
+            return None
+    if not raw or len(raw) > 2_000_000:
+        return None
+    mime, _ = mimetypes.guess_type(path)
+    if not mime:
+        lower = path.lower()
+        if lower.endswith(".png"):
+            mime = "image/png"
+        elif lower.endswith((".jpg", ".jpeg")):
+            mime = "image/jpeg"
+        elif lower.endswith(".gif"):
+            mime = "image/gif"
+        elif lower.endswith(".wmf"):
+            mime = "image/x-wmf"
+        elif lower.endswith(".emf"):
+            mime = "image/x-emf"
+        else:
+            mime = "application/octet-stream"
+    if mime.startswith("image/x-"):
+        # Navegadores no muestran WMF/EMF; omitir
+        return None
+    b64 = base64.b64encode(raw).decode("ascii")
+    return f"data:{mime};base64,{b64}"
+
+
+def _w_val(el: ET.Element | None) -> str:
+    if el is None:
+        return ""
+    return (el.get(f"{_W}val") or el.get("val") or "").strip()
+
+
+def _tc_merge_info(tc: ET.Element) -> tuple[str, int]:
+    """Devuelve (vmerge_state, colspan). vmerge: '', 'restart', 'continue'."""
+    colspan = 1
+    vmerge = ""
+    tc_pr = tc.find(f"{_W}tcPr")
+    if tc_pr is None:
+        return vmerge, colspan
+    grid_span = tc_pr.find(f"{_W}gridSpan")
+    if grid_span is not None:
+        try:
+            colspan = max(1, int(_w_val(grid_span) or "1"))
+        except ValueError:
+            colspan = 1
+    v_merge = tc_pr.find(f"{_W}vMerge")
+    if v_merge is not None:
+        raw = _w_val(v_merge).lower()
+        vmerge = "restart" if raw == "restart" else "continue"
+    return vmerge, colspan
+
+
+def _ooxml_paragraph_html(p: ET.Element, zf: zipfile.ZipFile, image_map: dict[str, str]) -> str:
+    bits: list[str] = []
+    # Imágenes DrawingML / VML dentro del párrafo
+    for blip in p.iter(f"{_A}blip"):
+        rid = blip.get(f"{_R}embed") or blip.get(f"{_R}link") or ""
+        src = image_map.get(rid)
+        if src:
+            bits.append(f'<img class="sgi-rec-doc-logo" src="{html.escape(src, quote=True)}" alt="" />')
+    for imagedata in p.iter(f"{_V}imagedata"):
+        rid = imagedata.get(f"{_R}id") or imagedata.get("r:id") or ""
+        src = image_map.get(rid)
+        if src:
+            bits.append(f'<img class="sgi-rec-doc-logo" src="{html.escape(src, quote=True)}" alt="" />')
+    texts = [t.text or "" for t in p.iter(f"{_W}t") if t.text]
+    line = "".join(texts).strip()
+    if line:
+        bits.append(html.escape(line))
+    if not bits:
+        return ""
+    return f"<p>{''.join(bits)}</p>"
+
+
+def _tc_inner_html(tc: ET.Element, zf: zipfile.ZipFile, image_map: dict[str, str]) -> str:
+    inner: list[str] = []
+    for child in list(tc):
+        if child.tag == f"{_W}p":
+            ph = _ooxml_paragraph_html(child, zf, image_map)
+            if ph:
+                inner.append(ph[3:-4] if ph.startswith("<p>") and ph.endswith("</p>") else ph)
+        elif child.tag == f"{_W}tbl":
+            inner.append(_ooxml_table_html(child, zf, image_map))
+    if not any("sgi-rec-doc-logo" in x for x in inner):
+        for blip in tc.iter(f"{_A}blip"):
+            rid = blip.get(f"{_R}embed") or ""
+            src = image_map.get(rid)
+            if src:
+                inner.insert(
+                    0,
+                    f'<img class="sgi-rec-doc-logo" src="{html.escape(src, quote=True)}" alt="" />',
+                )
+    return "".join(inner) or "&nbsp;"
+
+
+def _ooxml_table_html(tbl: ET.Element, zf: zipfile.ZipFile, image_map: dict[str, str]) -> str:
+    trs = tbl.findall(f"{_W}tr")
+    # Precalcular rowspan real para vMerge restart
+    merge_state: list[list[tuple[str, int]]] = []
+    for tr in trs:
+        merge_state.append([_tc_merge_info(tc) for tc in tr.findall(f"{_W}tc")])
+
+    rowspan_map: dict[tuple[int, int], int] = {}
+    for ri, row in enumerate(merge_state):
+        for ci, (vmerge, _colspan) in enumerate(row):
+            if vmerge != "restart":
+                continue
+            span = 1
+            for rj in range(ri + 1, len(merge_state)):
+                # misma columna lógica aproximada por índice de celda
+                if ci >= len(merge_state[rj]):
+                    break
+                if merge_state[rj][ci][0] == "continue":
+                    span += 1
+                else:
+                    break
+            rowspan_map[(ri, ci)] = span
+
+    rows_html: list[str] = []
+    for ri, tr in enumerate(trs):
+        cells_html: list[str] = []
+        for ci, tc in enumerate(tr.findall(f"{_W}tc")):
+            vmerge, colspan = merge_state[ri][ci]
+            if vmerge == "continue":
+                continue
+            attrs = ""
+            if colspan > 1:
+                attrs += f' colspan="{colspan}"'
+            rs = rowspan_map.get((ri, ci), 1)
+            if rs > 1:
+                attrs += f' rowspan="{rs}"'
+            cells_html.append(f"<td{attrs}>{_tc_inner_html(tc, zf, image_map)}</td>")
+        if cells_html:
+            rows_html.append(f"<tr>{''.join(cells_html)}</tr>")
+    if not rows_html:
+        return ""
+    return f'<table class="sgi-rec-doc-table sgi-rec-doc-header-table">{"".join(rows_html)}</table>'
+
+
+def _ooxml_part_to_html(zf: zipfile.ZipFile, part_path: str) -> str:
+    """Convierte header/footer/body OOXML a HTML conservando tablas e imágenes."""
+    path = _zip_norm(part_path)
+    try:
+        xml = zf.read(path)
+    except KeyError:
+        return ""
+    root = ET.fromstring(xml)
+    part_dir = str(Path(path).parent.as_posix())
+    rels_name = f"{part_dir}/_rels/{Path(path).name}.rels"
+    rels = _parse_rels(zf, rels_name)
+    image_map: dict[str, str] = {}
+    for rid, meta in rels.items():
+        if _IMAGE_REL_TYPE in (meta.get("type") or "") or "/image" in (meta.get("type") or ""):
+            media = _resolve_zip_path(part_dir, meta["target"])
+            uri = _media_data_uri(zf, media)
+            if uri:
+                image_map[rid] = uri
+
+    chunks: list[str] = []
+    # Hijos directos del hdr/ftr/body (no iter profundo para no duplicar tablas anidadas)
+    container = root
+    for candidate in (f"{_W}hdr", f"{_W}ftr", f"{_W}body"):
+        found = root.find(candidate)
+        if found is not None:
+            container = found
+            break
+
+    for child in list(container):
+        if child.tag == f"{_W}tbl":
+            th = _ooxml_table_html(child, zf, image_map)
+            if th:
+                chunks.append(th)
+        elif child.tag == f"{_W}p":
+            ph = _ooxml_paragraph_html(child, zf, image_map)
+            if ph:
+                chunks.append(ph)
+    return "\n".join(chunks)
+
+
+def _docx_section_parts_html(data: bytes, rel_type: str, css_class: str) -> str:
+    """Extrae encabezados o pies del Word (word/header*.xml / footer*.xml)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            doc_rels = _parse_rels(zf, "word/_rels/document.xml.rels")
+            parts: list[str] = []
+            seen: set[str] = set()
+            for meta in doc_rels.values():
+                if (meta.get("type") or "") != rel_type:
+                    continue
+                target = _resolve_zip_path("word", meta["target"])
+                if target in seen:
+                    continue
+                seen.add(target)
+                html_part = _ooxml_part_to_html(zf, target)
+                if html_part.strip():
+                    parts.append(html_part)
+            if not parts:
+                return ""
+            # Preferir el primer header/footer distinto (default / first / even suelen repetir)
+            body = parts[0]
+            return f'<div class="{css_class}">{body}</div>'
+    except Exception:
+        return ""
+
+
+def _docx_header_html(data: bytes) -> str:
+    return _docx_section_parts_html(data, _HEADER_REL_TYPE, "sgi-rec-doc-header")
+
+
+def _docx_footer_html(data: bytes) -> str:
+    return _docx_section_parts_html(data, _FOOTER_REL_TYPE, "sgi-rec-doc-footer")
+
+
 def _docx_bytes_to_html(data: bytes) -> str:
     try:
         import mammoth
 
-        result = mammoth.convert_to_html(io.BytesIO(data))
+        result = mammoth.convert_to_html(
+            io.BytesIO(data),
+            convert_image=mammoth.images.data_uri,
+        )
         body = (result.value or "").strip()
         if body:
             return body
@@ -277,15 +548,7 @@ def _docx_bytes_to_html(data: bytes) -> str:
         pass
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            xml = zf.read("word/document.xml")
-        root = ET.fromstring(xml)
-        chunks: list[str] = []
-        for p in root.iter(f"{_W}p"):
-            parts = [t.text or "" for t in p.iter(f"{_W}t") if t.text]
-            line = "".join(parts).strip()
-            if line:
-                chunks.append(f"<p>{html.escape(line)}</p>")
-        return "\n".join(chunks) if chunks else "<p></p>"
+            return _ooxml_part_to_html(zf, "word/document.xml") or "<p></p>"
     except Exception:
         return "<p></p>"
 
@@ -337,6 +600,9 @@ def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -
         label = html.escape(f.get("label") or "Tabla")
         cols = f.get("columns") or []
         heads = "".join(f"<th>{html.escape(c.get('label') or c.get('key') or '')}</th>" for c in cols)
+        marker = f'data-sgi-table="{name}"'
+        if marker in out:
+            continue
         out += (
             f'<div class="sgi-rec-table-block" data-sgi-table="{name}">'
             f"<p><strong>{label}</strong></p>"
@@ -349,8 +615,12 @@ def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -
 
 
 def build_docx_layout(data: bytes, fields: list[dict[str, Any]]) -> str:
-    raw = _docx_bytes_to_html(data)
-    return _inject_fields_into_docx_html(raw, fields)
+    """Layout fiel al adjunto: encabezado Word + cuerpo + pie."""
+    header = _docx_header_html(data)
+    body = _inject_fields_into_docx_html(_docx_bytes_to_html(data), fields)
+    footer = _docx_footer_html(data)
+    parts = [p for p in (header, body, footer) if p and p.strip()]
+    return "\n".join(parts) if parts else "<p></p>"
 
 
 def build_xlsx_layout(data: bytes, fields: list[dict[str, Any]]) -> str:

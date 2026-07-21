@@ -1,6 +1,7 @@
 """Tests MVP: registros digitales desde Word/Excel."""
 from __future__ import annotations
 
+import base64
 import io
 import zipfile
 from pathlib import Path
@@ -9,9 +10,18 @@ import pytest
 from openpyxl import Workbook
 
 
-def _minimal_docx_bytes(paragraphs: list[str], table: list[list[str]] | None = None) -> bytes:
+def _minimal_docx_bytes(
+    paragraphs: list[str],
+    table: list[list[str]] | None = None,
+    *,
+    header_cells: list[list[str]] | None = None,
+    header_image_png: bytes | None = None,
+) -> bytes:
     """Construye un .docx mínimo (OOXML) para pruebas."""
     w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    r = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    a = "http://schemas.openxmlformats.org/drawingml/2006/main"
+    rels_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
     body_parts = []
     for p in paragraphs:
         body_parts.append(
@@ -29,28 +39,96 @@ def _minimal_docx_bytes(paragraphs: list[str], table: list[list[str]] | None = N
         f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{w}"><w:body>{"".join(body_parts)}</w:body></w:document>'
     )
+
+    doc_rels = [
+        f'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+    ]
+    content_overrides = [
+        '<Override PartName="/word/document.xml" '
+        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+    ]
+    extra_files: dict[str, bytes | str] = {}
+
+    if header_cells is not None:
+        hdr_rows = []
+        for ri, row in enumerate(header_cells):
+            cells_xml = []
+            for ci, text in enumerate(row):
+                if header_image_png and ri == 0 and ci == 0:
+                    cell = (
+                        f'<w:tc><w:p><w:r><w:drawing>'
+                        f'<wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
+                        f'<a:graphic xmlns:a="{a}"><a:graphicData>'
+                        f'<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+                        f'<pic:blipFill><a:blip r:embed="rIdImg1" xmlns:r="{r}"/></pic:blipFill>'
+                        f'</pic:pic></a:graphicData></a:graphic></wp:inline>'
+                        f'</w:drawing></w:r>'
+                        f'<w:r><w:t>{text}</w:t></w:r></w:p></w:tc>'
+                    )
+                else:
+                    cell = f'<w:tc><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:tc>'
+                cells_xml.append(cell)
+            hdr_rows.append(f"<w:tr>{''.join(cells_xml)}</w:tr>")
+        header_xml = (
+            f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            f'<w:hdr xmlns:w="{w}" xmlns:r="{r}">'
+            f'<w:tbl>{"".join(hdr_rows)}</w:tbl></w:hdr>'
+        )
+        extra_files["word/header1.xml"] = header_xml
+        content_overrides.append(
+            '<Override PartName="/word/header1.xml" '
+            'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>'
+        )
+        # document -> header
+        doc_word_rels = (
+            f'<?xml version="1.0" encoding="UTF-8"?>'
+            f'<Relationships xmlns="{rels_ns}">'
+            f'<Relationship Id="rIdHdr1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>'
+            f'</Relationships>'
+        )
+        extra_files["word/_rels/document.xml.rels"] = doc_word_rels
+        if header_image_png:
+            extra_files["word/media/logo.png"] = header_image_png
+            hdr_rels = (
+                f'<?xml version="1.0" encoding="UTF-8"?>'
+                f'<Relationships xmlns="{rels_ns}">'
+                f'<Relationship Id="rIdImg1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>'
+                f'</Relationships>'
+            )
+            extra_files["word/_rels/header1.xml.rels"] = hdr_rels
+            content_overrides.append('<Default Extension="png" ContentType="image/png"/>')
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        defaults = (
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+        )
+        if header_image_png:
+            defaults += '<Default Extension="png" ContentType="image/png"/>'
         zf.writestr(
             "[Content_Types].xml",
             '<?xml version="1.0" encoding="UTF-8"?>'
             '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-            '<Default Extension="xml" ContentType="application/xml"/>'
-            '<Override PartName="/word/document.xml" '
-            'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-            "</Types>",
+            f"{defaults}{''.join(content_overrides)}</Types>",
         )
         zf.writestr(
             "_rels/.rels",
             '<?xml version="1.0" encoding="UTF-8"?>'
-            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
-            "</Relationships>",
+            f'<Relationships xmlns="{rels_ns}">'
+            f"{''.join(doc_rels)}</Relationships>",
         )
         zf.writestr("word/document.xml", document_xml)
+        for name, content in extra_files.items():
+            zf.writestr(name, content)
     return buf.getvalue()
 
+
+def _tiny_png() -> bytes:
+    """PNG 1x1 transparente."""
+    return base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
 
 def _xlsx_bytes() -> bytes:
     wb = Workbook()
@@ -103,6 +181,24 @@ def test_analyze_docx_detects_fields(app):
         assert len(result["fields"]) >= 2
         labels = " ".join(f["label"].lower() for f in result["fields"])
         assert "fecha" in labels or "responsable" in labels or "tabla" in labels
+
+
+def test_analyze_docx_includes_word_header_and_logo(app):
+    from app.services import sgi_record_import_service as imp
+
+    data = _minimal_docx_bytes(
+        ["Fecha de inspección: ______", "Responsable: ______"],
+        header_cells=[["Química del Valle", "REG-CTRL-01"], ["", "Rev. 01"]],
+        header_image_png=_tiny_png(),
+    )
+    with app.app_context():
+        result = imp.analyze_docx(data)
+        layout = result.get("layoutHtml") or ""
+        assert 'class="sgi-rec-doc-header"' in layout
+        assert "Química del Valle" in layout
+        assert "REG-CTRL-01" in layout
+        assert "data:image/png;base64," in layout
+        assert "sgi-rec-doc-logo" in layout
 
 
 def test_analyze_xlsx_detects_table_and_formula(app):
