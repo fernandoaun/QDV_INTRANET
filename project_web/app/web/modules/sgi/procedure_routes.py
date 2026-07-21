@@ -1084,7 +1084,6 @@ def record_entry_edit(entry_id: int):
         data = {}
     if not isinstance(data, dict):
         data = {}
-    solo_lectura = entry.status == "cerrado"
     return render_template(
         "sgi/record_entry_form.html",
         defn=defn,
@@ -1092,7 +1091,6 @@ def record_entry_edit(entry_id: int):
         schema=schema,
         data_json=json.dumps(data, ensure_ascii=False),
         summary=record_svc.definition_summary(defn),
-        solo_lectura=solo_lectura,
     )
 
 

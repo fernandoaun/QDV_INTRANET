@@ -18,9 +18,7 @@ from app.models.sgi import (
     ASSOC_IMPORTED_EXCEL,
     ASSOC_IMPORTED_WORD,
     ASSOC_TYPES,
-    ENTRY_STATUS_CLOSED,
     ENTRY_STATUS_DRAFT,
-    ENTRY_STATUS_SUBMITTED,
     RECORD_STATUS_ACTIVE,
     RECORD_STATUS_DRAFT,
     SgiProcedimientoRegistro,
@@ -584,31 +582,23 @@ def save_entry(
     submit: bool = False,
     close: bool = False,
 ) -> tuple[bool, str, SgiRecordEntry | None]:
+    """Guarda los datos de una carga. Sin flujo de revisión/aprobación."""
     entry = get_entry(entry_id)
     if entry is None:
         return False, "Carga no encontrada.", None
-    if entry.status == ENTRY_STATUS_CLOSED:
-        return False, "La carga está cerrada y no puede modificarse.", None
 
     prev = entry.data_json
     entry.data_json = json.dumps(data if isinstance(data, dict) else {}, ensure_ascii=False)
     entry.updated_by_id = int(user.id) if user else None
     entry.updated_at = _utc_now()
-    action = "borrador_guardado"
-    if submit and entry.status == ENTRY_STATUS_DRAFT:
-        entry.status = ENTRY_STATUS_SUBMITTED
-        entry.submitted_at = _utc_now()
-        action = "carga_enviada"
-    if close:
-        entry.status = ENTRY_STATUS_CLOSED
-        entry.closed_at = _utc_now()
-        action = "carga_cerrada"
+    # Las cargas se guardan y listo (sin estados de revisión/aprobación).
+    entry.status = ENTRY_STATUS_DRAFT
     append_record_audit(
         entity_type="sgi_record_entry",
         entity_id=entry.id,
-        action=action,
+        action="carga_guardada",
         user=user,
-        previous={"data": prev[:2000] if prev else None, "status": entry.status},
+        previous={"data": prev[:2000] if prev else None},
         new={"status": entry.status},
     )
     db.session.commit()

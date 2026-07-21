@@ -795,7 +795,7 @@
       const recordUrl = row.record_url || summary.record_url || "";
       const origin = summary.origin_label || "Formulario editable";
       html += `<td colspan="1"><span class="badge text-bg-primary">${escapeHtml(summary.code || "REG")}</span>
-        <div class="small text-muted">${escapeHtml(origin)} · v${escapeHtml(summary.version || 1)}</div></td>`;
+        <div class="small text-muted">${escapeHtml(origin)}</div></td>`;
       html += `<td class="sgi-proc-no-print text-nowrap">
         ${recordUrl ? `<a class="btn btn-sm btn-primary" href="${escapeHtml(recordUrl)}">Ir al registro</a>` : ""}
         ${

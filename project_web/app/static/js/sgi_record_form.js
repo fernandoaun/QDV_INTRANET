@@ -173,21 +173,8 @@
     }).then((r) => r.json());
   }
 
-  document.getElementById("btnSaveDraft")?.addEventListener("click", () => {
+  document.getElementById("btnSave")?.addEventListener("click", () => {
     save({}).then((res) => flash(res.ok ? "success" : "danger", res.message || (res.ok ? "Guardado" : "Error")));
-  });
-  document.getElementById("btnSubmit")?.addEventListener("click", () => {
-    save({ submit: true }).then((res) => {
-      flash(res.ok ? "success" : "danger", res.message || "");
-      if (res.ok) setTimeout(() => location.reload(), 600);
-    });
-  });
-  document.getElementById("btnClose")?.addEventListener("click", () => {
-    if (!confirm("¿Cerrar esta carga? No podrá editarse después.")) return;
-    save({ close: true }).then((res) => {
-      flash(res.ok ? "success" : "danger", res.message || "");
-      if (res.ok) setTimeout(() => location.reload(), 600);
-    });
   });
 
   render();

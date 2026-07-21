@@ -117,7 +117,7 @@
           <span class="sgi-list-registro-modulo-badge">
             {% if rg.has_digital_record and rg.record_summary %}
             <span class="badge text-bg-primary ms-2">{{ rg.record_summary.code or 'REG' }}</span>
-            <span class="badge text-bg-light border ms-1">{{ rg.record_summary.origin_label }} · v{{ rg.record_summary.version }}</span>
+            <span class="badge text-bg-light border ms-1">{{ rg.record_summary.origin_label }}</span>
             {% elif rg.modulo_label %}
             <span class="badge text-bg-secondary ms-2">{{ rg.modulo_label }}</span>
             {% elif rg.modulo %}
@@ -126,7 +126,7 @@
           </span>
           {% if rg.has_digital_record and rg.record_summary %}
           <div class="small text-muted mt-1 ms-4">
-            Formulario editable · {{ rg.record_summary.status|capitalize }} · {{ rg.record_summary.origin_label }}
+            Registro digital · {{ rg.record_summary.origin_label }}
           </div>
           {% endif %}
         </td>
@@ -295,7 +295,7 @@
     if (registro.has_digital_record && registro.record_summary) {
       const s = registro.record_summary;
       badgeHost.innerHTML = `<span class="badge text-bg-primary ms-2">${escapeHtml(s.code || "REG")}</span>
-        <span class="badge text-bg-light border ms-1">${escapeHtml(s.origin_label || "")} · v${escapeHtml(s.version)}</span>`;
+        <span class="badge text-bg-light border ms-1">${escapeHtml(s.origin_label || "")}</span>`;
     } else if (registro.modulo_label) {
       badgeHost.innerHTML = `<span class="badge text-bg-secondary ms-2">${escapeHtml(registro.modulo_label)}</span>`;
     } else if (registro.modulo) {

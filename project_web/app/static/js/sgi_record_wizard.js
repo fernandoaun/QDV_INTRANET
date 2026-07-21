@@ -90,7 +90,6 @@
         <button type="button" class="btn btn-outline-primary d-none" id="sgiCrBack">Volver</button>
         <button type="button" class="btn btn-primary" id="sgiCrNext">Analizar</button>
         <button type="button" class="btn btn-success d-none" id="sgiCrCreate">Crear registro</button>
-        <button type="button" class="btn btn-outline-secondary d-none" id="sgiCrDraft">Guardar como borrador</button>
       </div>
     </div>
   </div>
@@ -131,7 +130,6 @@
       qs("#sgiCrBack").classList.toggle("d-none", n === 1);
       qs("#sgiCrNext").classList.toggle("d-none", n === 3);
       qs("#sgiCrCreate").classList.toggle("d-none", n !== 3);
-      qs("#sgiCrDraft").classList.toggle("d-none", n !== 3);
       qs("#sgiCrNext").textContent = n === 1 ? "Analizar" : n === 2 ? "Previsualizar" : "Analizar";
     }
 
@@ -263,7 +261,6 @@
         schema: collectSchema(),
       };
       qs("#sgiCrCreate").disabled = true;
-      qs("#sgiCrDraft").disabled = true;
       fetch(opts.createUrl, {
         method: "POST",
         headers: {
@@ -277,7 +274,6 @@
         .then((r) => r.json())
         .then((res) => {
           qs("#sgiCrCreate").disabled = false;
-          qs("#sgiCrDraft").disabled = false;
           if (!res.ok) {
             showError(res.message || "No se pudo crear el registro.");
             setStep(2);
@@ -288,7 +284,6 @@
         })
         .catch(() => {
           qs("#sgiCrCreate").disabled = false;
-          qs("#sgiCrDraft").disabled = false;
           showError("Error de red al crear el registro.");
         });
     }
@@ -325,7 +320,6 @@
       }
     };
     qs("#sgiCrCreate").onclick = () => create("activo");
-    qs("#sgiCrDraft").onclick = () => create("borrador");
     modalEl.querySelectorAll("[data-preview-vp]").forEach((btn) => {
       btn.addEventListener("click", () => {
         modalEl.querySelectorAll("[data-preview-vp]").forEach((b) => b.classList.remove("active"));

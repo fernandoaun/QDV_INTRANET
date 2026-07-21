@@ -9,17 +9,12 @@
     <div>
       <div class="fw-semibold">{{ summary.name }}</div>
       <div class="sgi-rec-toolbar-meta">
-        {{ summary.code }} · Carga {{ '%04d'|format(entry.entry_number) }} · {{ entry.status }} ·
-        Versión {{ entry.version.version_number if entry.version else summary.version }}
+        {{ summary.code }} · Carga {{ '%04d'|format(entry.entry_number) }}
       </div>
     </div>
     <div class="d-flex flex-wrap gap-2">
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.record_entries_list', definition_id=defn.id) }}">← Atrás</a>
-      {% if not solo_lectura %}
-      <button type="button" class="btn btn-outline-primary btn-sm" id="btnSaveDraft">Guardar borrador</button>
-      <button type="button" class="btn btn-primary btn-sm" id="btnSubmit">Enviar</button>
-      <button type="button" class="btn btn-outline-danger btn-sm" id="btnClose">Cerrar</button>
-      {% endif %}
+      <button type="button" class="btn btn-primary btn-sm" id="btnSave">Guardar</button>
     </div>
   </div>
 
@@ -29,7 +24,7 @@
     <div class="text-center mb-3">
       <div class="small text-uppercase fw-semibold">Química del Valle S.R.L.</div>
       <div class="sgi-rec-sheet-title">{{ summary.name }}</div>
-      <div class="small">{{ summary.code }} · Rev. {{ entry.version.version_number if entry.version else summary.version }}</div>
+      <div class="small">{{ summary.code }} · Carga {{ '%04d'|format(entry.entry_number) }}</div>
     </div>
     <div id="recordDynamicForm"></div>
   </div>
@@ -39,7 +34,7 @@
 <script>
   window.SGI_RECORD_ENTRY = {
     entryId: {{ entry.id|tojson }},
-    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    soloLectura: false,
     csrf: {{ csrf_token()|tojson }},
     schema: {{ schema|tojson }},
     data: {{ data_json|safe }},

@@ -213,34 +213,13 @@ def test_create_digital_record_and_entry_flow(auth_client, app):
         ok, msg, entry = record_svc.create_entry(def_id, user)
         assert ok, msg
         entry_id = entry.id
-        ok2, msg2, entry2 = record_svc.save_entry(entry_id, user, {"fecha_inspeccion": "2026-07-21"}, submit=False)
+        ok2, msg2, entry2 = record_svc.save_entry(entry_id, user, {"fecha_inspeccion": "2026-07-21"})
         assert ok2, msg2
-        assert entry2.status == "borrador"
 
-        # nueva versión no altera carga histórica
-        ok3, msg3, ver = record_svc.create_new_version(
-            def_id,
-            {
-                "sections": [{"id": "sec_general", "title": "Datos", "order": 0}],
-                "fields": [
-                    {
-                        "id": "f1",
-                        "name": "nuevo",
-                        "label": "Nuevo",
-                        "type": "text",
-                        "order": 1,
-                        "section": "Datos",
-                    }
-                ],
-            },
-            "Agrega campo",
-            user,
-        )
+        # Re-guardar sobrescribe; no hay cierre ni revisión
+        ok3, msg3, entry3 = record_svc.save_entry(entry_id, user, {"fecha_inspeccion": "2026-07-22"})
         assert ok3, msg3
-        entry_reloaded = record_svc.get_entry(entry_id)
-        assert entry_reloaded.record_definition_version_id != ver.id
-        defn = db.session.get(SgiRecordDefinition, def_id)
-        assert defn.current_version_id == ver.id
+        assert entry3 is not None
 
     # duplicate association blocked
     r3 = auth_client.post(
