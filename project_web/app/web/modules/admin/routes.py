@@ -480,7 +480,7 @@ def sgi_workflow_reminders_resend():
     from app.services import sgi_procedimiento_service as proc_svc
 
     out = proc_svc.reenviar_avisos_pendientes(current_app, dry_run=False)
-    msg = out.get("message") or "Proceso de avisos SGI finalizado."
+    msg = out.get("message") or "Proceso de avisos SGC finalizado."
     sent = int(out.get("sent") or 0)
     failed = int(out.get("failed") or 0)
     if sent > 0 and not failed:

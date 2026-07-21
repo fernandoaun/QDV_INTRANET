@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ tipo_label }} · SGI · QDV{% endblock %}
+{% block title %}{{ tipo_label }} · SGC · QDV{% endblock %}
 {% block content %}
 <div class="app-page-head">
   <h1 class="app-page-title">{{ tipo_label }}</h1>
@@ -8,7 +8,7 @@
     <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.nuevo', slug=slug) }}"><i class="bi bi-plus-lg me-1"></i>Nuevo documento</a>
     {% endif %}
     <a class="btn btn-outline-success btn-sm" href="{{ url_for('sgi.export_xlsx', slug=slug, **request.args) }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Exportar Excel</a>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGI</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGC</a>
   </div>
 </div>
 

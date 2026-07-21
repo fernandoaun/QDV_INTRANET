@@ -82,8 +82,8 @@
         <li>
           <a href="{{ url_for('sgi.hub') }}"
              class="app-sidenav-link {% if ep and ep.startswith('sgi.') %}is-active{% endif %}"
-             data-filter-text="sgi sistema gestión integrado procedimientos manuales documentos pg po msgi"
-             title="SGI – Sistema de Gestión Integrado"><i class="bi bi-journal-bookmark" aria-hidden="true"></i></a>
+             data-filter-text="sgc sgi sistema gestión calidad integrado procedimientos manuales documentos pg po msgc msgi"
+             title="SGC – Sistema de Gestión de la Calidad"><i class="bi bi-journal-bookmark" aria-hidden="true"></i></a>
         </li>
         {% endif %}
         {% if user_can_access_personal() %}
@@ -124,7 +124,7 @@
       </div>
       <div class="app-topbar-end d-flex align-items-center gap-2">
         {% if user_is_global_read_only() %}
-        <span class="badge rounded-pill text-bg-info app-badge-soft d-none d-md-inline" title="Perfiles Angel y SGI: acceso de solo lectura en todo el sistema.">Modo solo lectura</span>
+        <span class="badge rounded-pill text-bg-info app-badge-soft d-none d-md-inline" title="Perfiles Angel y SGC: acceso de solo lectura en todo el sistema.">Modo solo lectura</span>
         {% elif shift_nav and shift_nav.show_readonly_pill %}
         <span class="badge rounded-pill text-bg-secondary app-badge-soft d-none d-md-inline" title="No podés guardar ni confirmar acciones hasta activar el turno o recepcionar el parte pendiente.">Solo lectura</span>
         {% endif %}
@@ -144,8 +144,8 @@
                data-csrf-token="{{ csrf_token() }}">
             {% if sgi_notifications %}
             <div class="dropdown-header d-flex justify-content-between align-items-center gap-2 py-2">
-              <span class="fw-semibold">SGI — documentos</span>
-              <a class="small text-decoration-none" href="{{ url_for('sgi.hub') }}">Módulo SGI</a>
+              <span class="fw-semibold">SGC — documentos</span>
+              <a class="small text-decoration-none" href="{{ url_for('sgi.hub') }}">Módulo SGC</a>
             </div>
             {% if sgi_notifications['entries'] %}
             <div class="app-notifications-scroll">
@@ -161,7 +161,7 @@
               {% endfor %}
             </div>
             {% else %}
-            <div class="dropdown-item-text text-muted small px-3 py-2">No hay avisos SGI recientes.</div>
+            <div class="dropdown-item-text text-muted small px-3 py-2">No hay avisos SGC recientes.</div>
             {% endif %}
             {% endif %}
             {% if shift_notifications and sgi_notifications %}
@@ -318,7 +318,7 @@
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('vencimientos.listado') }}"><i class="bi bi-calendar-event me-2 opacity-50" aria-hidden="true"></i>VENCIMIENTOS</a></li>
             {% endif %}
             {% if user_can_access_sgi() %}
-            <li><a class="dropdown-item fw-semibold" href="{{ url_for('sgi.hub') }}"><i class="bi bi-journal-bookmark me-2 opacity-50" aria-hidden="true"></i>SGI</a></li>
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('sgi.hub') }}"><i class="bi bi-journal-bookmark me-2 opacity-50" aria-hidden="true"></i>SGC</a></li>
             {% endif %}
             {% if user_can_access_personal() %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('personal.hub') }}"><i class="bi bi-people me-2 opacity-50" aria-hidden="true"></i>PERSONAL</a></li>

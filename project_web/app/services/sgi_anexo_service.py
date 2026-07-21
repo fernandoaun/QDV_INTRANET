@@ -857,7 +857,7 @@ def ensure_anexo_tipo_contenido(
 
 
 class DocumentoViewItem:
-    """Adaptador para plantillas que esperan campos de anexo en documentos MSGI independientes."""
+    """Adaptador para plantillas que esperan campos de anexo en documentos MSGC independientes."""
 
     def __init__(self, doc: SgiDocumento, rev: SgiProcedimientoRevision | None = None) -> None:
         self.id = doc.id

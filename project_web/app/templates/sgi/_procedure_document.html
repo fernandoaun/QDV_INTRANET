@@ -27,7 +27,7 @@
       </tbody>
     </table>
 
-    {% if doc.tipo == 'MSGI' %}
+    {% if doc.tipo == 'MSGC' %}
     <div class="sgi-proc-cover-meta sgi-proc-no-print mb-3" id="procFirmaGerenteBlock">
       <label class="form-label small fw-semibold mb-1">Firma del gerente general (imagen)</label>
       <p class="text-muted small mb-2">Al aprobar el documento, la firma aparece en la esquina inferior derecha (impresión / vista / PDF).</p>
@@ -151,7 +151,7 @@
       {% endif %}
     </div>
   </section>
-  {% if doc.tipo == 'MSGI' %}
+  {% if doc.tipo == 'MSGC' %}
   {% include "sgi/_procedure_firma_gerente.html" %}
   {% endif %}
 </div>

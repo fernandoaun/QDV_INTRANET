@@ -61,7 +61,7 @@ ACCION_MARCAR_REVISADO = "marcar_revisado"
 ACCION_APROBAR = "aprobar"
 ACCION_NUEVA_REVISION = "nueva_revision"
 
-_CODIGO_RE = re.compile(r"^QDV-(PG|PO|MSGI)-(\d+)$", re.IGNORECASE)
+_CODIGO_RE = re.compile(r"^QDV-(PG|PO|MSGC|MSGI)-(\d+)$", re.IGNORECASE)
 _EMAIL_IN_TEXT_RE = re.compile(r"[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}")
 _ROMAN_VALUES: tuple[tuple[int, str], ...] = (
     (1000, "M"),
@@ -428,17 +428,25 @@ def default_contenido(titulo: str = "") -> dict[str, Any]:
 
 
 def next_codigo(tipo: str) -> str:
-    prefix = f"QDV-{tipo.upper()}-"
+    tipo_u = tipo.upper()
+    prefix = f"QDV-{tipo_u}-"
+    # Contar también códigos legados QDV-MSGI- si el tipo actual es MSGC
+    legacy_prefixes = (prefix,)
+    if tipo_u == TIPO_MSGI:
+        legacy_prefixes = (prefix, "QDV-MSGI-")
     rows = db.session.scalars(
         select(SgiDocumento.codigo).where(
-            SgiDocumento.tipo == tipo.upper(),
-            SgiDocumento.codigo.ilike(f"{prefix}%"),
+            SgiDocumento.tipo == tipo_u,
+            or_(*[SgiDocumento.codigo.ilike(f"{p}%") for p in legacy_prefixes]),
         )
     ).all()
     max_n = 0
     for cod in rows:
         m = _CODIGO_RE.match((cod or "").strip())
-        if m and m.group(1).upper() == tipo.upper():
+        if not m:
+            continue
+        code_tipo = m.group(1).upper()
+        if code_tipo == tipo_u or (tipo_u == TIPO_MSGI and code_tipo == "MSGI"):
             max_n = max(max_n, int(m.group(2)))
     return f"{prefix}{max_n + 1:02d}"
 
@@ -1243,7 +1251,7 @@ def reenviar_avisos_pendientes(app: Any, *, dry_run: bool = False) -> dict[str, 
     if dry_run:
         msg = f"Dry-run: {len(revs)} documento(s) en cola; {skipped} sin correo."
     elif sent and not failed:
-        msg = f"Se reenviaron {sent} aviso(s) SGI."
+        msg = f"Se reenviaron {sent} aviso(s) SGC."
     elif sent:
         msg = f"Se enviaron {sent} aviso(s); {failed} fallaron; {skipped} omitidos (sin correo)."
     elif failed:
@@ -1515,7 +1523,7 @@ def create_msgi_documento_catalogo(
     )
     db.session.add(rev)
     db.session.flush()
-    doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_ALTA, f"Documento MSGI {codigo}")
+    doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_ALTA, f"Documento MSGC {codigo}")
     db.session.flush()
     return doc, rev, None
 
@@ -1550,7 +1558,7 @@ def _cleanup_msgi_anexos_embebidos_en_manuales(actor_label: str) -> list[str]:
             manual.id,
             actor_label,
             doc_svc.ACCION_EDICION,
-            "Anexos I–IV retirados del manual (documentos independientes en MSGI).",
+            "Anexos I–IV retirados del manual (documentos independientes en MSGC).",
         )
         logs.append(f"{manual.codigo}: anexos I–IV quitados de la sección 8.")
     if logs:
@@ -1702,7 +1710,7 @@ def firma_gerente_url_for_document(doc: SgiDocumento) -> str | None:
     if (doc.tipo or "").upper() != TIPO_MSGI:
         return None
     if firma_gerente_relative_path(doc.id):
-        slug = TIPO_SLUGS.get(TIPO_MSGI, "msgi")
+        slug = TIPO_SLUGS.get(TIPO_MSGI, "msgc")
         return url_for("sgi.firma_gerente", slug=slug, doc_id=doc.id)
     return global_firma_gerente_static_url()
 
@@ -1716,7 +1724,7 @@ def save_firma_gerente_file(
     if doc is None:
         return False, "Documento no encontrado."
     if (doc.tipo or "").upper() != TIPO_MSGI:
-        return False, "La firma del gerente general solo aplica a documentos MSGI."
+        return False, "La firma del gerente general solo aplica a documentos MSGC."
     if not storage or not (storage.filename or "").strip():
         return False, "No se seleccionó imagen."
 
@@ -1762,7 +1770,7 @@ def _msgi_anexos_data_dir() -> Path:
 
 
 def default_msgi_anexo_catalog() -> tuple[dict[str, Any], ...]:
-    """Catálogo de documentos MSGI independientes (QDV-ANEXO I–IV)."""
+    """Catálogo de documentos MSGC independientes (QDV-ANEXO I–IV)."""
     data_dir = _msgi_anexos_data_dir()
     manual_raw = (current_app.config.get("SGI_MSGI_MANUAL_SOURCE_DIR") or "").strip()
     manual_dir = Path(manual_raw) if manual_raw else None
@@ -1823,7 +1831,7 @@ def ensure_msgi_documentos(
     catalog: tuple[dict[str, Any], ...] | None = None,
     refresh_organigrama: bool = False,
 ) -> tuple[list[SgiDocumento], list[str]]:
-    """Registra QDV-ANEXO I–IV como documentos MSGI independientes (no anexos de un manual)."""
+    """Registra QDV-ANEXO I–IV como documentos MSGC independientes (no anexos de un manual)."""
     from app.services import sgi_anexo_service as anexo_svc
 
     items = catalog or default_msgi_anexo_catalog()
@@ -1920,7 +1928,7 @@ def ensure_msgi_manual_anexos(
     doc_codigo: str | None = None,
     refresh_organigrama: bool = False,
 ) -> tuple[SgiDocumento | None, list[str]]:
-    """Compatibilidad CLI: delega en documentos MSGI independientes."""
+    """Compatibilidad CLI: delega en documentos MSGC independientes."""
     del doc_codigo
     docs, logs = ensure_msgi_documentos(
         user_id=user_id,

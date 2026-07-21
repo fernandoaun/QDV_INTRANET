@@ -139,7 +139,7 @@ def test_sgi_blocked_nonprivileged(mant_client):
 def test_sgi_admin_hub_ok(auth_client):
     r = auth_client.get("/sgi/")
     assert r.status_code == 200
-    assert b"SGI" in r.data
+    assert b"SGC" in r.data
 
 
 def test_sgi_angel_hub_ok(angel_client):
@@ -193,14 +193,14 @@ def test_sgi_admin_create_list_export(auth_client):
 
 
 def test_sgi_perm_user_can_create(sgi_perm_client):
-    r_form = sgi_perm_client.get("/sgi/msgi/nuevo")
+    r_form = sgi_perm_client.get("/sgi/msgc/nuevo")
     assert r_form.status_code == 200
     csrf = _csrf_from_html(r_form.get_data(as_text=True))
     r = sgi_perm_client.post(
-        "/sgi/msgi/nuevo",
+        "/sgi/msgc/nuevo",
         data={
             "csrf_token": csrf,
-            "codigo": "MSGI-T-01",
+            "codigo": "MSGC-T-01",
             "titulo": "Manual test",
             "revision": "00",
             "estado": "vigente",
@@ -211,15 +211,15 @@ def test_sgi_perm_user_can_create(sgi_perm_client):
 
 
 def test_sgi_role_can_create(sgi_role_client):
-    r_form = sgi_role_client.get("/sgi/msgi/nuevo")
+    r_form = sgi_role_client.get("/sgi/msgc/nuevo")
     assert r_form.status_code == 200
     csrf = _csrf_from_html(r_form.get_data(as_text=True))
     r = sgi_role_client.post(
-        "/sgi/msgi/nuevo",
+        "/sgi/msgc/nuevo",
         data={
             "csrf_token": csrf,
-            "codigo": "MSGI-SGI-01",
-            "titulo": "Manual SGI editable",
+            "codigo": "MSGC-SGI-01",
+            "titulo": "Manual SGC editable",
             "revision": "00",
             "estado": "vigente",
         },
@@ -229,28 +229,28 @@ def test_sgi_role_can_create(sgi_role_client):
 
 
 def test_sgi_perm_user_cannot_delete(sgi_perm_client):
-    r_form = sgi_perm_client.get("/sgi/msgi/nuevo")
+    r_form = sgi_perm_client.get("/sgi/msgc/nuevo")
     csrf = _csrf_from_html(r_form.get_data(as_text=True))
     sgi_perm_client.post(
-        "/sgi/msgi/nuevo",
+        "/sgi/msgc/nuevo",
         data={
             "csrf_token": csrf,
-            "codigo": "MSGI-DEL-01",
+            "codigo": "MSGC-DEL-01",
             "titulo": "Para borrar",
             "estado": "borrador",
         },
         follow_redirects=True,
     )
-    r_list = sgi_perm_client.get("/sgi/msgi/?q=MSGI-DEL-01")
+    r_list = sgi_perm_client.get("/sgi/msgc/?q=MSGC-DEL-01")
     html = r_list.get_data(as_text=True)
-    m = re.search(r"/sgi/msgi/(\d+)", html)
+    m = re.search(r"/sgi/msgc/(\d+)", html)
     assert m is not None
     doc_id = m.group(1)
 
-    lg = sgi_perm_client.get("/sgi/msgi/")
+    lg = sgi_perm_client.get("/sgi/msgc/")
     csrf2 = _csrf_from_html(lg.get_data(as_text=True))
     r = sgi_perm_client.post(
-        f"/sgi/msgi/{doc_id}/eliminar",
+        f"/sgi/msgc/{doc_id}/eliminar",
         data={"csrf_token": csrf2},
         follow_redirects=False,
     )
@@ -261,28 +261,28 @@ def test_sgi_role_can_delete(sgi_role_client):
     from app.extensions import db
     from app.models.sgi import SgiDocumento
 
-    r_form = sgi_role_client.get("/sgi/msgi/nuevo")
+    r_form = sgi_role_client.get("/sgi/msgc/nuevo")
     csrf = _csrf_from_html(r_form.get_data(as_text=True))
     sgi_role_client.post(
-        "/sgi/msgi/nuevo",
+        "/sgi/msgc/nuevo",
         data={
             "csrf_token": csrf,
-            "codigo": "MSGI-SGI-DEL-01",
-            "titulo": "Eliminar como SGI",
+            "codigo": "MSGC-SGI-DEL-01",
+            "titulo": "Eliminar como SGC",
             "estado": "borrador",
         },
         follow_redirects=True,
     )
-    r_list = sgi_role_client.get("/sgi/msgi/?q=MSGI-SGI-DEL-01")
+    r_list = sgi_role_client.get("/sgi/msgc/?q=MSGC-SGI-DEL-01")
     html = r_list.get_data(as_text=True)
-    m = re.search(r"/sgi/msgi/(\d+)", html)
+    m = re.search(r"/sgi/msgc/(\d+)", html)
     assert m is not None
     doc_id = int(m.group(1))
 
-    lg = sgi_role_client.get("/sgi/msgi/")
+    lg = sgi_role_client.get("/sgi/msgc/")
     csrf2 = _csrf_from_html(lg.get_data(as_text=True))
     r = sgi_role_client.post(
-        f"/sgi/msgi/{doc_id}/eliminar",
+        f"/sgi/msgc/{doc_id}/eliminar",
         data={"csrf_token": csrf2},
         follow_redirects=False,
     )
@@ -292,21 +292,21 @@ def test_sgi_role_can_delete(sgi_role_client):
         row = db.session.get(SgiDocumento, doc_id)
         assert row is not None
         assert row.deleted_at is not None
-        assert row.codigo_archivado == "MSGI-SGI-DEL-01"
+        assert row.codigo_archivado == "MSGC-SGI-DEL-01"
 
-    r_list2 = sgi_role_client.get("/sgi/msgi/")
-    assert f"/sgi/msgi/{doc_id}".encode() not in r_list2.data
+    r_list2 = sgi_role_client.get("/sgi/msgc/")
+    assert f"/sgi/msgc/{doc_id}".encode() not in r_list2.data
 
 
 def test_sgi_visual_manual_create(auth_client):
-    r = auth_client.get("/sgi/msgi/procedimientos/nuevo", follow_redirects=False)
+    r = auth_client.get("/sgi/msgc/procedimientos/nuevo", follow_redirects=False)
     assert r.status_code in (302, 303)
     loc = r.headers.get("Location", "")
-    assert "/sgi/msgi/procedimientos/" in loc and "/editor" in loc
+    assert "/sgi/msgc/procedimientos/" in loc and "/editor" in loc
 
-    r_list = auth_client.get("/sgi/msgi/procedimientos/")
+    r_list = auth_client.get("/sgi/msgc/procedimientos/")
     assert r_list.status_code == 200
-    assert b"QDV-MSGI-" in r_list.data
+    assert b"QDV-MSGC-" in r_list.data
 
 
 def test_sgi_visual_procedure_soft_delete_and_restore(auth_client):
@@ -363,20 +363,20 @@ def test_sgi_msgi_firma_gerente_upload(sgi_perm_client, app):
     from app.models.sgi import SgiDocumento
     from app.services import sgi_procedimiento_service as proc_svc
 
-    r_form = sgi_perm_client.get("/sgi/msgi/nuevo")
+    r_form = sgi_perm_client.get("/sgi/msgc/nuevo")
     csrf = _csrf_from_html(r_form.get_data(as_text=True))
     sgi_perm_client.post(
-        "/sgi/msgi/nuevo",
+        "/sgi/msgc/nuevo",
         data={
             "csrf_token": csrf,
-            "codigo": "MSGI-FIRMA-01",
+            "codigo": "MSGC-FIRMA-01",
             "titulo": "Manual con firma",
             "estado": "borrador",
         },
         follow_redirects=True,
     )
-    r_list = sgi_perm_client.get("/sgi/msgi/?q=MSGI-FIRMA-01")
-    m = re.search(r"/sgi/msgi/(\d+)", r_list.get_data(as_text=True))
+    r_list = sgi_perm_client.get("/sgi/msgc/?q=MSGC-FIRMA-01")
+    m = re.search(r"/sgi/msgc/(\d+)", r_list.get_data(as_text=True))
     assert m is not None
     doc_id = int(m.group(1))
 
@@ -385,10 +385,10 @@ def test_sgi_msgi_firma_gerente_upload(sgi_perm_client, app):
         b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
         b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
     )
-    r_det = sgi_perm_client.get(f"/sgi/msgi/{doc_id}")
+    r_det = sgi_perm_client.get(f"/sgi/msgc/{doc_id}")
     csrf2 = _csrf_from_html(r_det.get_data(as_text=True))
     r_up = sgi_perm_client.post(
-        f"/sgi/msgi/{doc_id}/firma-gerente",
+        f"/sgi/msgc/{doc_id}/firma-gerente",
         data={"csrf_token": csrf2, "firma": (BytesIO(png), "firma.png")},
         content_type="multipart/form-data",
         follow_redirects=False,
@@ -400,7 +400,7 @@ def test_sgi_msgi_firma_gerente_upload(sgi_perm_client, app):
         assert doc is not None
         assert proc_svc.firma_gerente_relative_path(doc_id) is not None
 
-    r_img = sgi_perm_client.get(f"/sgi/msgi/{doc_id}/firma-gerente")
+    r_img = sgi_perm_client.get(f"/sgi/msgc/{doc_id}/firma-gerente")
     assert r_img.status_code == 200
     assert r_img.mimetype and "image" in r_img.mimetype
 
@@ -663,7 +663,7 @@ def test_sgi_listado_muestra_registros_punto_7(auth_client, app):
 
 
 def test_sgi_asociar_modulo_solo_sgi_o_admin(sgi_perm_client, app):
-    """Operaciones con sgi_documentos_edit no puede asociar; solo admin/perfil SGI."""
+    """Operaciones con sgi_documentos_edit no puede asociar; solo admin/perfil SGC."""
     from app.services import sgi_procedimiento_service as proc_svc
 
     with app.app_context():
@@ -716,8 +716,8 @@ def test_msgi_anexo_codigo_auto():
 
     assert int_to_roman(1) == "I"
     assert int_to_roman(4) == "IV"
-    assert anexo_codigo_auto(TIPO_MSGI, 0, "QDV-MSGI-01") == "QDV-ANEXO I"
-    assert anexo_codigo_auto(TIPO_MSGI, 3, "QDV-MSGI-01") == "QDV-ANEXO IV"
+    assert anexo_codigo_auto(TIPO_MSGI, 0, "QDV-MSGC-01") == "QDV-ANEXO I"
+    assert anexo_codigo_auto(TIPO_MSGI, 3, "QDV-MSGC-01") == "QDV-ANEXO IV"
     assert anexo_codigo_auto(TIPO_PG, 0, "QDV-PG-01") == "QDV-PG-01-A01"
 
 
@@ -790,17 +790,17 @@ def test_ensure_msgi_documentos_no_recrea_si_esta_en_papelera(app, tmp_path):
         ok, _ = doc_svc.delete_documento(doc_id, "test")
         assert ok
 
-        vigentes = proc_svc.fetch_list_visual({}, tipo="MSGI")
+        vigentes = proc_svc.fetch_list_visual({}, tipo="MSGC")
         assert all(r.codigo != "QDV-ANEXO III" for r in vigentes)
 
         docs2, logs2 = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
         assert docs2 == []
         assert any("papelera" in line.lower() for line in logs2)
 
-        vigentes2 = proc_svc.fetch_list_visual({}, tipo="MSGI")
+        vigentes2 = proc_svc.fetch_list_visual({}, tipo="MSGC")
         assert all(r.codigo != "QDV-ANEXO III" for r in vigentes2)
 
-        papelera = proc_svc.fetch_list_visual_eliminados({}, tipo="MSGI")
+        papelera = proc_svc.fetch_list_visual_eliminados({}, tipo="MSGC")
         assert any(doc_svc.documento_codigo_visible(r) == "QDV-ANEXO III" for r in papelera)
 
         row = db.session.get(SgiDocumento, doc_id)
@@ -831,12 +831,12 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
         assert doc.archivo_path
         doc_id = doc.id
 
-    r = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
+    r = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista")
     assert r.status_code == 200
     assert b"sgi-anexo-view-pdf" in r.data
     assert b"sgi-proc-workspace" not in r.data
 
-    r_editor = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor")
+    r_editor = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/editor")
     assert r_editor.status_code == 200
     assert b"sgi-anexo-view-pdf" in r_editor.data
     assert b"sgi-proc-workspace" not in r_editor.data
@@ -881,13 +881,13 @@ def test_msgi_editor_foda_muestra_adjunto(auth_client, app, tmp_path):
         assert doc.archivo_path
         doc_id = doc.id
 
-    r_editor = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor")
+    r_editor = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/editor")
     assert r_editor.status_code == 200
     assert b"sgi-anexo-view-pdf" in r_editor.data
     assert b"sgi-proc-workspace" not in r_editor.data
     assert b"Documento adjunto" in r_editor.data
 
-    r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
+    r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista")
     assert r_vista.status_code == 200
     assert b"sgi-anexo-view-pdf" in r_vista.data
     assert b"sgi-proc-workspace" not in r_vista.data
@@ -931,13 +931,13 @@ def test_msgi_editor_mapa_muestra_adjunto(auth_client, app, tmp_path):
         assert doc.archivo_path
         doc_id = doc.id
 
-    r_editor = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor")
+    r_editor = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/editor")
     assert r_editor.status_code == 200
     assert b"sgi-anexo-view-img" in r_editor.data
     assert b"sgi-proc-workspace" not in r_editor.data
     assert b"Documento adjunto" in r_editor.data
 
-    r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista")
+    r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista")
     assert r_vista.status_code == 200
     assert b"sgi-anexo-view-img" in r_vista.data
 
@@ -954,9 +954,9 @@ def test_documento_es_especial():
     from app.models.sgi import SgiDocumento
     from app.services.sgi_anexo_service import documento_es_especial
 
-    doc = SgiDocumento(tipo="MSGI", codigo="QDV-ANEXO II", titulo="ORG", tipo_contenido="organigrama")
+    doc = SgiDocumento(tipo="MSGC", codigo="QDV-ANEXO II", titulo="ORG", tipo_contenido="organigrama")
     assert documento_es_especial(doc) is True
-    doc2 = SgiDocumento(tipo="MSGI", codigo="QDV-MSGI-01", titulo="MANUAL", tipo_contenido=None)
+    doc2 = SgiDocumento(tipo="MSGC", codigo="QDV-MSGC-01", titulo="MANUAL", tipo_contenido=None)
     assert documento_es_especial(doc2) is False
 
 
@@ -1049,7 +1049,7 @@ def test_msgi_anexo_view_and_download(auth_client, app):
     from app.services.upload_paths import uploads_workspace_root
 
     with app.app_context():
-        doc, rev, err = proc_svc.create_procedimiento_visual("MSGI", 1, "test", titulo="MANUAL TEST")
+        doc, rev, err = proc_svc.create_procedimiento_visual("MSGC", 1, "test", titulo="MANUAL TEST")
         assert doc is not None and rev is not None
         payload = proc_svc.revision_to_payload(rev)
         payload["anexos"] = [
@@ -1079,18 +1079,18 @@ def test_msgi_anexo_view_and_download(auth_client, app):
         doc_id = doc.id
         rev_id = rev.id
 
-    r_ver = auth_client.get(f"/sgi/msgi/procedimientos/anexo/{anexo_id}/ver")
+    r_ver = auth_client.get(f"/sgi/msgc/procedimientos/anexo/{anexo_id}/ver")
     assert r_ver.status_code == 200
     assert b"QDV-ANEXO III" in r_ver.data
 
-    r_inline = auth_client.get(f"/sgi/msgi/procedimientos/anexo/{anexo_id}/archivo?inline=1")
+    r_inline = auth_client.get(f"/sgi/msgc/procedimientos/anexo/{anexo_id}/archivo?inline=1")
     assert r_inline.status_code == 200
     assert r_inline.headers.get("Content-Type", "").startswith("image/")
 
-    r_dl = auth_client.get(f"/sgi/msgi/procedimientos/anexo/{anexo_id}/archivo")
+    r_dl = auth_client.get(f"/sgi/msgc/procedimientos/anexo/{anexo_id}/archivo")
     assert r_dl.status_code == 200
     assert "attachment" in (r_dl.headers.get("Content-Disposition") or "").lower()
 
-    r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista/{rev_id}")
+    r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista/{rev_id}")
     assert r_vista.status_code == 200
     assert b"sgi-anexo-preview-img" in r_vista.data

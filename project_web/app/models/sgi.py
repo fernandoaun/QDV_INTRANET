@@ -1,4 +1,4 @@
-"""Modelos del módulo SGI – Sistema de Gestión Integrado.
+"""Modelos del módulo SGC – Sistema de Gestión de la Calidad.
 
 Estructura preparada para ampliar con: difusión documental, lecturas por usuario,
 organigrama, control de cambios, matriz documental, documentos externos y vencimientos.
@@ -14,31 +14,34 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# Tipos de documento SGI
+# Tipos de documento SGC (constante TIPO_MSGI conservada por compatibilidad de imports)
 TIPO_PG = "PG"
 TIPO_PO = "PO"
-TIPO_MSGI = "MSGI"
+TIPO_MSGI = "MSGC"
+TIPO_MSGC = TIPO_MSGI
 
 TIPOS_DOCUMENTO: tuple[str, ...] = (TIPO_PG, TIPO_PO, TIPO_MSGI)
 
 TIPO_SLUGS: dict[str, str] = {
     TIPO_PG: "pg",
     TIPO_PO: "po",
-    TIPO_MSGI: "msgi",
+    TIPO_MSGI: "msgc",
 }
 
 SLUG_TO_TIPO: dict[str, str] = {v: k for k, v in TIPO_SLUGS.items()}
+# Alias legado (bookmarks / enlaces antiguos)
+SLUG_TO_TIPO["msgi"] = TIPO_MSGI
 
 TIPO_LABELS: dict[str, str] = {
     TIPO_PG: "PG – Procedimientos de Gestión",
     TIPO_PO: "PO – Procedimientos Operativos",
-    TIPO_MSGI: "MSGI – Manual del Sistema de Gestión Integrado",
+    TIPO_MSGI: "MSGC – Manual del sistema de gestión de la calidad",
 }
 
 TIPO_CARATULA_LABELS: dict[str, str] = {
     TIPO_PG: "PROCEDIMIENTO DE GESTIÓN",
     TIPO_PO: "PROCEDIMIENTO OPERATIVO",
-    TIPO_MSGI: "MANUAL DEL SISTEMA DE GESTIÓN INTEGRADO",
+    TIPO_MSGI: "MANUAL DEL SISTEMA DE GESTIÓN DE LA CALIDAD",
 }
 
 ESTADO_BORRADOR = "borrador"
@@ -300,7 +303,7 @@ class SgiProcedimientoAnexo(db.Model):
 
 
 class SgiNotificacion(db.Model):
-    """Avisos in-app (campana) para usuarios del módulo SGI."""
+    """Avisos in-app (campana) para usuarios del módulo SGC."""
 
     __tablename__ = "sgi_notificaciones"
 

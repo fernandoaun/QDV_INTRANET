@@ -1,5 +1,5 @@
 /**
- * Editor visual de procedimientos SGI (PG / PO / MSGI).
+ * Editor visual de procedimientos SGC (PG / PO / MSGC).
  */
 (function () {
   "use strict";
@@ -1356,7 +1356,7 @@
   }
 
   function anexoCodigoAuto(idx) {
-    if ((cfg.tipo || "").toUpperCase() === "MSGI") {
+    if ((cfg.tipo || "").toUpperCase() === "MSGC") {
       const romans = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
       const n = idx + 1;
       if (n >= 1 && n <= romans.length) return `QDV-ANEXO ${romans[n - 1]}`;

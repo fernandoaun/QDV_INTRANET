@@ -1,4 +1,4 @@
-"""Control de cambios automático en procedimientos SGI."""
+"""Control de cambios automático en procedimientos SGC."""
 from __future__ import annotations
 
 from app.services.sgi_procedimiento_service import (

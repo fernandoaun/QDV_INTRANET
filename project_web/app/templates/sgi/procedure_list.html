@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ tipo_label }} · Procedimientos · SGI{% endblock %}
+{% block title %}{{ tipo_label }} · Procedimientos · SGC{% endblock %}
 {% block extra_head %}
 {% if puede_editar or puede_asociar_modulo %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -20,7 +20,7 @@
     {% if puede_editar %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_eliminados', slug=slug) }}">Documentos eliminados</a>
     {% endif %}
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGI</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGC</a>
   </div>
 </div>
 
@@ -92,7 +92,7 @@
             <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">Eliminar</button>
           </form>
           {% endif %}
-          {% if puede_editar and tipo == 'MSGI' %}
+          {% if puede_editar and tipo == 'MSGC' %}
           <button type="button"
                   class="btn btn-sm btn-outline-success btn-msgi-adjuntar"
                   data-doc-id="{{ r.id }}"
@@ -161,10 +161,10 @@
     </table>
   </div>
 </div>
-<p class="text-muted small mt-2">En el editor definí los sectores/perfiles a los que aplica cada procedimiento. Al aprobarse, se notifica por la campanita a los usuarios activos con esos perfiles. Los borradores solo los ven editores SGI y quienes participan en la revisión.</p>
+<p class="text-muted small mt-2">En el editor definí los sectores/perfiles a los que aplica cada procedimiento. Al aprobarse, se notifica por la campanita a los usuarios activos con esos perfiles. Los borradores solo los ven editores SGC y quienes participan en la revisión.</p>
 {% endblock %}
 {% block scripts %}
-{% if puede_asociar_modulo or (puede_editar and tipo == 'MSGI') %}
+{% if puede_asociar_modulo or (puede_editar and tipo == 'MSGC') %}
 <script>
 (function () {
   "use strict";
@@ -305,7 +305,7 @@
   });
   {% endif %}
 
-  {% if puede_editar and tipo == 'MSGI' %}
+  {% if puede_editar and tipo == 'MSGC' %}
   document.querySelectorAll(".btn-msgi-adjuntar").forEach((btn) => {
     btn.addEventListener("click", () => {
       const docId = btn.dataset.docId;

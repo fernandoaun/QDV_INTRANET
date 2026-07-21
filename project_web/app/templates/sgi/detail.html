@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ doc.codigo }} · {{ tipo_label }} · SGI{% endblock %}
+{% block title %}{{ doc.codigo }} · {{ tipo_label }} · SGC{% endblock %}
 {% block extra_head %}
-{% if tipo == 'MSGI' %}
+{% if tipo == 'MSGC' %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
 {% endif %}
 {% endblock %}
@@ -50,7 +50,7 @@
       </div>
     </div>
 
-    {% if tipo == 'MSGI' %}
+    {% if tipo == 'MSGC' %}
     <div class="app-card mb-3">
       <div class="app-card-header">Firma del gerente general</div>
       <div class="app-card-body">
@@ -83,7 +83,7 @@
             <i class="bi bi-eye me-1"></i>Ver PDF (nueva pestaña)
           </a>
         </div>
-        {% if tipo == 'MSGI' and firma_gerente_url %}
+        {% if tipo == 'MSGC' and firma_gerente_url %}
         <div class="sgi-msgi-pdf-wrap border rounded overflow-hidden">
           <iframe src="{{ url_for('sgi.adjunto_descargar', slug=slug, doc_id=doc.id, inline=1) }}" title="PDF {{ doc.codigo }}" class="w-100 border-0" style="min-height:520px;"></iframe>
           {% include "sgi/_procedure_firma_gerente.html" %}

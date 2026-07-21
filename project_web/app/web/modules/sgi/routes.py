@@ -38,17 +38,17 @@ def notificaciones_mark_seen():
 
 
 def _no_access():
-    flash("No tenés permiso para acceder al módulo SGI.", "warning")
+    flash("No tenés permiso para acceder al módulo SGC.", "warning")
     return redirect(url_for("main.dashboard"))
 
 
 def _no_mutate():
-    flash("No tenés permiso para modificar documentos SGI.", "warning")
+    flash("No tenés permiso para modificar documentos SGC.", "warning")
     return redirect(request.referrer or url_for("sgi.hub"))
 
 
 def _no_delete():
-    flash("No tenés permiso para eliminar documentos SGI.", "warning")
+    flash("No tenés permiso para eliminar documentos SGC.", "warning")
     return redirect(request.referrer or url_for("sgi.hub"))
 
 
@@ -232,7 +232,7 @@ def detalle(slug: str, doc_id: int):
         flash("Documento no encontrado.", "danger")
         return redirect(url_for("sgi.listado", slug=slug))
     hist = svs.historial_for(doc_id)
-    firma_gerente_url = proc_svc.firma_gerente_url_for_document(doc) if tipo == "MSGI" else None
+    firma_gerente_url = proc_svc.firma_gerente_url_for_document(doc) if tipo == "MSGC" else None
     return render_template(
         "sgi/detail.html",
         slug=slug,
@@ -277,7 +277,7 @@ def firma_gerente(slug: str, doc_id: int):
     if redir is not None:
         return redir
     tipo, _ = _resolve_tipo(slug)
-    if tipo != "MSGI":
+    if tipo != "MSGC":
         abort(404)
     doc = svs.get_documento(doc_id)
     if doc is None or doc.tipo != tipo:

@@ -150,8 +150,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "mantenimiento_preventivos": "Mantenimiento · Preventivos y órdenes",
     "mantenimiento_recursos": "Mantenimiento · Recursos y repuestos",
     "mantenimiento_predictivo": "Mantenimiento · Predictivo",
-    "sgi_hub": "SGI – Sistema de Gestión Integrado (acceso)",
-    "sgi_documentos_edit": "SGI · Crear y editar documentos",
+    "sgi_hub": "SGC – Sistema de Gestión de la Calidad (acceso)",
+    "sgi_documentos_edit": "SGC · Crear y editar documentos",
     "personal": "Personal / RRHH (legajos, EPP, vacaciones)",
 }
 
@@ -208,7 +208,7 @@ PERMISSION_TREE: list[dict[str, object]] = [
     },
     {
         "key": "sgi_hub",
-        "label": "SGI – Sistema de Gestión Integrado",
+        "label": "SGC – Sistema de Gestión de la Calidad",
         "children": [
             {"key": "sgi_documentos_edit", "label": "Crear y editar documentos"},
         ],

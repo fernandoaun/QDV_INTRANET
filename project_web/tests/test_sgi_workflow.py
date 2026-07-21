@@ -1,4 +1,4 @@
-"""Flujo de revisión / aprobación de procedimientos SGI."""
+"""Flujo de revisión / aprobación de procedimientos SGC."""
 from __future__ import annotations
 
 import json
@@ -243,7 +243,7 @@ def test_angel_profile_can_aprobar_revision(app, sgi_editor):
 
 
 def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_editor):
-    """MSGI: mismo flujo que PG/PO; la imagen de firma del gerente solo aparece tras aprobar."""
+    """MSGC: mismo flujo que PG/PO; la imagen de firma del gerente solo aparece tras aprobar."""
     from io import BytesIO
 
     from app.services import sgi_documento_perfil_service as perfil_svc
@@ -251,7 +251,7 @@ def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_edi
 
     with app.app_context():
         doc, rev, err = proc_svc.create_procedimiento_visual(
-            "MSGI", sgi_editor, "Tester", titulo="MSGI FIRMA WF"
+            "MSGC", sgi_editor, "Tester", titulo="MSGC FIRMA WF"
         )
         assert err is None and doc and rev
         rev.reviso = "Revisor Test"
@@ -276,7 +276,7 @@ def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_edi
 
         doc_id, rev_id = doc.id, rev.id
 
-        r_edit = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/editor/{rev_id}")
+        r_edit = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/editor/{rev_id}")
         assert r_edit.status_code == 200
         html = r_edit.get_data(as_text=True)
         assert "Enviar a revisión" in html
@@ -289,11 +289,11 @@ def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_edi
         ok, msg = proc_svc.aprobar_revision(rev_id, sgi_editor, "Tester")
         assert ok, msg
 
-        r_vista = auth_client.get(f"/sgi/msgi/procedimientos/{doc_id}/vista/{rev_id}")
+        r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista/{rev_id}")
         assert r_vista.status_code == 200
         html_v = r_vista.get_data(as_text=True)
         assert 'class="sgi-proc-firma-gerente"' in html_v
-        assert f"/sgi/msgi/{doc_id}/firma-gerente" in html_v
+        assert f"/sgi/msgc/{doc_id}/firma-gerente" in html_v
 
         doc_pg, rev_pg, _ = proc_svc.create_procedimiento_visual(
             "PG", sgi_editor, "Tester", titulo="PG SIN FIRMA"

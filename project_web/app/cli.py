@@ -140,7 +140,7 @@ def register_cli(app: Flask) -> None:
         help="Listar documentos y destinatarios sin enviar correos.",
     )
     def sgi_reenviar_avisos(dry_run: bool) -> None:
-        """Reenvía avisos SGI a documentos en revisión o pendientes de aprobación."""
+        """Reenvía avisos SGC a documentos en revisión o pendientes de aprobación."""
         with app.app_context():
             out = proc_svc.reenviar_avisos_pendientes(app, dry_run=dry_run)
         click.echo(out.get("message") or "")
@@ -158,7 +158,7 @@ def register_cli(app: Flask) -> None:
     @click.option(
         "--codigo-manual",
         default="",
-        help="Código del manual MSGI existente (p. ej. QDV-MSGI-01). Si no existe, se crea uno.",
+        help="Código del manual MSGC existente (p. ej. QDV-MSGC-01). Si no existe, se crea uno.",
     )
     @click.option(
         "--refresh-organigrama",
@@ -166,7 +166,7 @@ def register_cli(app: Flask) -> None:
         help="Reimportar la estructura del organigrama desde el PPT (conserva usuarios asignados).",
     )
     def seed_msgi_anexos(codigo_manual: str, refresh_organigrama: bool) -> None:
-        """Registra QDV-ANEXO I–IV como documentos MSGI independientes e importa archivos fuente."""
+        """Registra QDV-ANEXO I–IV como documentos MSGC independientes e importa archivos fuente."""
         from app.extensions import db
         from app.services import sgi_procedimiento_service as proc_svc
 
@@ -180,8 +180,8 @@ def register_cli(app: Flask) -> None:
                 db.session.rollback()
                 raise click.ClickException(f"seed-msgi-anexos: {exc}") from exc
             if not docs and not logs:
-                raise click.ClickException("No se pudo registrar ningún documento MSGI.")
-            summary = f"Documentos MSGI registrados: {len(docs)}"
+                raise click.ClickException("No se pudo registrar ningún documento MSGC.")
+            summary = f"Documentos MSGC registrados: {len(docs)}"
             doc_lines = [f"  · {d.codigo} — {d.titulo}" for d in docs]
             log_lines = list(logs)
         click.echo(summary)
@@ -189,4 +189,4 @@ def register_cli(app: Flask) -> None:
             click.echo(line)
         for line in log_lines:
             click.echo(f"  · {line}")
-        click.echo("Listo. Abrí SGI → MSGI → Manuales para ver QDV-ANEXO I–IV.")
+        click.echo("Listo. Abrí SGC → MSGC → Manuales para ver QDV-ANEXO I–IV.")

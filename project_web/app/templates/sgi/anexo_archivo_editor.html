@@ -82,7 +82,7 @@
     urls: {
       guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
       workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
-      {% if doc.tipo == 'MSGI' %}
+      {% if doc.tipo == 'MSGC' %}
       firmaGerente: {{ url_for('sgi.firma_gerente', slug=slug, doc_id=doc.id)|tojson }},
       {% endif %}
     },

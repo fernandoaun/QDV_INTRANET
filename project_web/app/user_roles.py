@@ -51,7 +51,7 @@ ROLE_LABELS: dict[str, str] = {
     ROLE_MANTENIMIENTO: "Mantenimiento",
     ROLE_MANTENIMIENTO_OPERACIONES: "Mantenimiento y operaciones",
     ROLE_SOLO_LECTURA_TOTAL: "Angel",
-    ROLE_SGI: "SGI",
+    ROLE_SGI: "SGC",
     ROLE_LABORATORISTA: "Laboratorista",
 }
 

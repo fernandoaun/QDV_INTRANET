@@ -34,7 +34,7 @@ from app.web.modules.sgi.routes import _no_access, _no_mutate, _require_view, _r
 
 
 def _require_procedure_read(doc: SgiDocumento | None = None):
-    """Acceso al módulo SGI o lectura de un procedimiento aprobado asignado al perfil del usuario."""
+    """Acceso al módulo SGC o lectura de un procedimiento aprobado asignado al perfil del usuario."""
     u = current_user()
     if u is None:
         return None, _no_access()
@@ -46,7 +46,7 @@ def _require_procedure_read(doc: SgiDocumento | None = None):
 
 
 def _require_procedure_workflow(rev: SgiProcedimientoRevision | None = None):
-    """Acceso al editor/flujo: módulo SGI o participante asignado por nombre/correo en la carátula."""
+    """Acceso al editor/flujo: módulo SGC o participante asignado por nombre/correo en la carátula."""
     u = current_user()
     if u is None:
         return None, _no_access()
