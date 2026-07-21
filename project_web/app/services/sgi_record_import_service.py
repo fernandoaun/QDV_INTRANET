@@ -553,46 +553,133 @@ def _docx_bytes_to_html(data: bytes) -> str:
         return "<p></p>"
 
 
+def _field_input_from_meta(name: str, ftype: str) -> str:
+    if ftype in ("textarea", "observations"):
+        return _input_html(name, input_type="textarea")
+    if ftype == "yes_no":
+        return _input_html(name, input_type="yes_no")
+    if ftype == "date":
+        return _input_html(name, input_type="date")
+    if ftype == "datetime":
+        return _input_html(name, input_type="datetime-local")
+    if ftype == "time":
+        return _input_html(name, input_type="time")
+    if ftype in ("integer", "decimal", "percent", "currency"):
+        return _input_html(name, input_type="number")
+    return _input_html(name, input_type="text")
+
+
+def _next_field_input(
+    text_fields: list[dict[str, Any]],
+    idx: int,
+    *,
+    fallback_prefix: str = "campo",
+) -> tuple[str, int]:
+    if idx < len(text_fields):
+        f = text_fields[idx]
+        return _field_input_from_meta(f["name"], f.get("type") or "text"), idx + 1
+    name = f"{fallback_prefix}_{idx + 1}"
+    return _input_html(name, input_type="text"), idx + 1
+
+
+_EMPTY_CELL_RE = re.compile(
+    r"<td([^>]*)>(?:\s|&nbsp;|&#160;|&#xA0;|<br\s*/?>|<p[^>]*>\s*(?:&nbsp;|&#160;)?\s*</p>)*</td>",
+    re.I,
+)
+_LABEL_COLON_TAIL_RE = re.compile(
+    r"(?P<label>(?:^|>)[^<>]{0,80}?)"
+    r"(?P<colon>:\s*)"
+    r"(?P<blank>(?:&nbsp;|&#160;|\s|\xa0)*)"
+    r"(?P<end></(?:p|span|strong|em|td|th|div|li)>)",
+    re.I,
+)
+
+
 def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -> str:
     """Conserva la tipografía/tablas del Word e inserta inputs donde había blancos."""
     text_fields = [f for f in fields if f.get("type") not in ("editable_table", "calculated")]
     idx = 0
+    placed: set[str] = set()
 
-    def repl_blank(match: re.Match[str]) -> str:
+    def mark_placed(html_snippet: str) -> str:
+        for m in re.finditer(r'data-sgi-field="([^"]+)"', html_snippet):
+            placed.add(m.group(1))
+        return html_snippet
+
+    def repl_blank(_match: re.Match[str]) -> str:
         nonlocal idx
-        if idx >= len(text_fields):
-            name = f"campo_auto_{idx + 1}"
-            ftype = "text"
-        else:
-            name = text_fields[idx]["name"]
-            ftype = text_fields[idx].get("type") or "text"
-            idx += 1
-        if ftype in ("textarea", "observations"):
-            return _input_html(name, input_type="textarea")
-        if ftype == "yes_no":
-            return _input_html(name, input_type="yes_no")
-        itype = "date" if ftype == "date" else "text"
-        return _input_html(name, input_type=itype)
+        snippet, idx = _next_field_input(text_fields, idx, fallback_prefix="campo_auto")
+        return mark_placed(snippet)
 
     out = re.sub(r"_{3,}|\.{4,}|□|☐|\[\s*\]", repl_blank, raw_html)
 
     def empty_td(m: re.Match[str]) -> str:
         nonlocal idx
-        if idx < len(text_fields):
-            name = text_fields[idx]["name"]
-            ftype = text_fields[idx].get("type") or "text"
-            idx += 1
-        else:
-            name = f"celda_{idx + 1}"
-            ftype = "text"
-            idx += 1
         attrs = m.group(1) or ""
-        body = _input_html(name, input_type="yes_no" if ftype == "yes_no" else "text")
-        return f"<td{attrs}>{body}</td>"
+        snippet, idx = _next_field_input(text_fields, idx, fallback_prefix="celda")
+        return f"<td{attrs}>{mark_placed(snippet)}</td>"
 
-    out = re.sub(r"<td([^>]*)>\s*</td>", empty_td, out, flags=re.I)
+    out = _EMPTY_CELL_RE.sub(empty_td, out)
 
-    # Tablas editables detectadas: si el HTML no las cubrió, se agregan al final
+    def label_colon(m: re.Match[str]) -> str:
+        nonlocal idx
+        end = m.group("end")
+        snippet, idx = _next_field_input(text_fields, idx, fallback_prefix="campo")
+        return f'{m.group("label")}{m.group("colon")}{mark_placed(snippet)}{end}'
+
+    out = _LABEL_COLON_TAIL_RE.sub(label_colon, out)
+
+    for f in text_fields:
+        name = f.get("name") or ""
+        if not name or name in placed or f'data-sgi-field="{name}"' in out:
+            placed.add(name)
+            continue
+        label = (f.get("label") or "").strip()
+        if not label or len(label) < 2:
+            continue
+        esc = re.escape(label)
+        pattern = re.compile(
+            rf"({esc}\s*:?\s*)(?!</?(?:input|textarea|select)\b)(?![^<]*data-sgi-field=)",
+            re.I,
+        )
+
+        def _insert_after_label(
+            m: re.Match[str],
+            _name: str = name,
+            _ftype: str = f.get("type") or "text",
+        ) -> str:
+            if _name in placed:
+                return m.group(0)
+            placed.add(_name)
+            return m.group(1) + mark_placed(_field_input_from_meta(_name, _ftype))
+
+        new_out, n = pattern.subn(_insert_after_label, out, count=1)
+        if n:
+            out = new_out
+
+    missing = [
+        f
+        for f in text_fields
+        if f.get("name") and f["name"] not in placed and f'data-sgi-field="{f["name"]}"' not in out
+    ]
+    if missing:
+        rows = []
+        for f in missing:
+            label = html.escape(f.get("label") or f["name"])
+            rows.append(
+                "<tr>"
+                f'<td class="sgi-rec-label">{label}</td>'
+                f"<td>{_field_input_from_meta(f['name'], f.get('type') or 'text')}</td>"
+                "</tr>"
+            )
+            placed.add(f["name"])
+        out += (
+            '<div class="sgi-rec-extra-fields">'
+            '<table class="sgi-rec-doc-table"><tbody>'
+            + "".join(rows)
+            + "</tbody></table></div>"
+        )
+
     for f in fields:
         if f.get("type") != "editable_table":
             continue
@@ -612,6 +699,7 @@ def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -
             f"</div>"
         )
     return out
+
 
 
 def build_docx_layout(data: bytes, fields: list[dict[str, Any]]) -> str:

@@ -295,18 +295,30 @@ def ensure_document_layout(
     version: SgiRecordDefinitionVersion | None = None,
     *,
     persist: bool = True,
+    force_rebuild: bool = False,
 ) -> dict[str, Any]:
     """
-    Asegura schema con layout documental.
-    Si falta layoutHtml, lo reconstruye desde el Word/Excel fuente (arregla
-    definiciones creadas antes de persistir el layout).
+    Asegura schema con layout documental editable.
+    Si falta layoutHtml o no tiene inputs, lo reconstruye desde el Word/Excel fuente.
     """
     ver = version
     if ver is None and defn.current_version_id:
         ver = db.session.get(SgiRecordDefinitionVersion, int(defn.current_version_id))
     schema = parse_version_schema(ver)
     layout = (schema.get("layoutHtml") or "").strip()
-    if layout and (schema.get("layoutMode") or "document") == "document":
+    text_fields = [
+        f
+        for f in (schema.get("fields") or [])
+        if isinstance(f, dict) and f.get("type") not in ("editable_table", "calculated")
+    ]
+    n_inputs = layout.count("data-sgi-field=")
+    # Si el layout ya tiene un input por cada campo, no regenerar
+    if (
+        not force_rebuild
+        and layout
+        and (schema.get("layoutMode") or "document") == "document"
+        and (not text_fields or n_inputs >= len(text_fields))
+    ):
         return schema
 
     rf = defn.source_file

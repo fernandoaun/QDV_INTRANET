@@ -202,6 +202,30 @@ def test_analyze_docx_includes_word_header_and_logo(app):
         assert "sgi-rec-doc-logo" in layout
 
 
+def test_inject_fields_makes_label_colon_editable():
+    from app.services import sgi_record_import_service as imp
+
+    raw = (
+        "<p>Fecha:</p><p>Lugar:</p>"
+        "<table><tr><td>Cantidad de Asistentes:</td><td></td>"
+        "<td>Duración:</td><td><p></p></td></tr></table>"
+        "<p>Tema:</p>"
+    )
+    fields = [
+        {"name": "fecha", "label": "Fecha", "type": "date"},
+        {"name": "lugar", "label": "Lugar", "type": "text"},
+        {"name": "cantidad_de_asistentes", "label": "Cantidad de Asistentes", "type": "decimal"},
+        {"name": "duracion", "label": "Duración", "type": "text"},
+        {"name": "tema", "label": "Tema", "type": "text"},
+    ]
+    out = imp._inject_fields_into_docx_html(raw, fields)
+    assert out.count("data-sgi-field=") >= 5
+    assert 'data-sgi-field="fecha"' in out
+    assert 'data-sgi-field="lugar"' in out
+    assert 'data-sgi-field="tema"' in out
+    assert "<input" in out or "<textarea" in out
+
+
 def test_analyze_xlsx_detects_table_and_formula(app):
     from app.services import sgi_record_import_service as imp
 
