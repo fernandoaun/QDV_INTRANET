@@ -191,6 +191,16 @@ def user_can_asociar_sgi_registro_modulo(user: User | None) -> bool:
     return user_can_delete_sgi_documentos(user)
 
 
+def user_can_create_sgi_digital_record(user: User | None) -> bool:
+    """Crear registros digitales desde Word/Excel: mismo alcance que asociar módulos."""
+    return user_can_asociar_sgi_registro_modulo(user)
+
+
+def user_can_manage_sgi_record_entries(user: User | None) -> bool:
+    """Ver/crear/editar cargas de registros digitales: acceso SGC."""
+    return user_can_access_sgi(user)
+
+
 def user_can_view_sgi_obsoletos(user: User | None) -> bool:
     """Documentos obsoletos: administrador o perfiles SGI / Angel (vista total global)."""
     if user is None:

@@ -12,7 +12,9 @@ from app.auth_utils import (
     login_required,
     user_can_access_sgi,
     user_can_asociar_sgi_registro_modulo,
+    user_can_create_sgi_digital_record,
     user_can_edit_sgi_documentos,
+    user_can_manage_sgi_record_entries,
     user_can_view_sgi_obsoletos,
     user_display_name,
 )
@@ -29,6 +31,7 @@ from app.models.sgi import (
 from app.services import sgi_anexo_service as anexo_svc
 from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_procedimiento_service as proc_svc
+from app.services import sgi_record_service as record_svc
 from app.services import sgi_service as doc_svc
 from app.web.modules.sgi.routes import _no_access, _no_mutate, _require_view, _resolve_tipo, bp
 
@@ -161,6 +164,7 @@ def listado_procedimientos(slug: str):
         estado_visual_row=proc_svc.estado_visual_row,
         puede_editar=puede_editar,
         puede_asociar_modulo=user_can_asociar_sgi_registro_modulo(u),
+        puede_crear_registro_digital=user_can_create_sgi_digital_record(u),
         puede_obsoletos=user_can_view_sgi_obsoletos(u),
         modulos_registro=proc_svc.registro_modulos_catalog_for_js(),
     )
@@ -406,6 +410,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             perfiles_opciones=perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
             modulos_registro_json=json.dumps(proc_svc.registro_modulos_catalog_for_js(), ensure_ascii=False),
             puede_asociar_modulo=user_can_asociar_sgi_registro_modulo(u),
+            puede_crear_registro_digital=user_can_create_sgi_digital_record(u),
         ),
     )
 
@@ -933,3 +938,172 @@ def procedimiento_anexo_download(slug: str, anexo_id: int):
         mimetype=proc_svc.anexo_send_mimetype(path),
         max_age=0,
     )
+
+
+# --- Registros digitales (Word/Excel → formulario parametrizado) ---
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/registro/<int:registro_id>/import/analyze")
+@login_required
+def procedimiento_registro_import_analyze(slug: str, doc_id: int, registro_id: int):
+    u = current_user()
+    if not user_can_create_sgi_digital_record(u):
+        return jsonify({"ok": False, "error": "sin_permiso", "message": "No tiene permisos para crear registros."}), 403
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo or doc_svc.documento_esta_eliminado(doc):
+        return jsonify({"ok": False, "message": "Procedimiento no encontrado."}), 404
+    f = request.files.get("file") or request.files.get("archivo")
+    ok, msg, payload = record_svc.analyze_uploaded_file(f, u)
+    return jsonify({"ok": ok, "message": msg, "analysis": payload}), (200 if ok else 400)
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/registro/<int:registro_id>/import/create")
+@login_required
+def procedimiento_registro_import_create(slug: str, doc_id: int, registro_id: int):
+    u = current_user()
+    if not user_can_create_sgi_digital_record(u):
+        return jsonify({"ok": False, "message": "No tiene permisos para crear registros."}), 403
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo or doc_svc.documento_esta_eliminado(doc):
+        return jsonify({"ok": False, "message": "Procedimiento no encontrado."}), 404
+
+    data = request.get_json(silent=True) or {}
+    try:
+        source_file_id = int(data.get("sourceFileId") or data.get("source_file_id") or 0)
+    except (TypeError, ValueError):
+        source_file_id = 0
+    schema = data.get("schema") if isinstance(data.get("schema"), dict) else {
+        "sections": data.get("sections") or [],
+        "fields": data.get("fields") or [],
+        "warnings": data.get("warnings") or [],
+        "formulas": data.get("formulas") or [],
+        "detectedType": data.get("detectedType") or "",
+        "confidence": data.get("confidence") or 0,
+    }
+    ok, msg, registro = record_svc.create_definition_from_analysis(
+        documento_id=doc_id,
+        registro_id=registro_id,
+        source_file_id=source_file_id,
+        name=str(data.get("name") or data.get("nombre") or ""),
+        code=str(data.get("code") or data.get("codigo") or ""),
+        description=str(data.get("description") or data.get("descripcion") or ""),
+        schema_payload=schema,
+        origin_type=str(data.get("originType") or data.get("origin_type") or ""),
+        status=str(data.get("status") or "activo"),
+        user=u,
+    )
+    return jsonify({"ok": ok, "message": msg, "registro": registro}), (200 if ok else 400)
+
+
+@bp.post("/<slug>/procedimientos/<int:doc_id>/registro/<int:registro_id>/unlink-digital")
+@login_required
+def procedimiento_registro_unlink_digital(slug: str, doc_id: int, registro_id: int):
+    u = current_user()
+    if not user_can_create_sgi_digital_record(u):
+        return jsonify({"ok": False, "message": "No tiene permisos para desvincular registros."}), 403
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo:
+        return jsonify({"ok": False, "message": "Procedimiento no encontrado."}), 404
+    ok, msg, registro = record_svc.unlink_digital_record(doc_id, registro_id, u)
+    return jsonify({"ok": ok, "message": msg, "registro": registro}), (200 if ok else 400)
+
+
+@bp.get("/registros/<int:definition_id>/")
+@login_required
+def record_entries_list(definition_id: int):
+    u = current_user()
+    if not user_can_manage_sgi_record_entries(u):
+        return _no_access()
+    defn = record_svc.get_definition(definition_id)
+    if defn is None:
+        abort(404)
+    from app.extensions import db
+    from app.models.sgi import SgiRecordDefinitionVersion
+
+    entries = record_svc.list_entries(definition_id)
+    summary = record_svc.definition_summary(defn)
+    version = db.session.get(SgiRecordDefinitionVersion, defn.current_version_id) if defn.current_version_id else None
+    schema = record_svc.parse_version_schema(version)
+    return render_template(
+        "sgi/record_entries_list.html",
+        defn=defn,
+        summary=summary,
+        entries=entries,
+        schema=schema,
+        puede_editar_cargas=user_can_manage_sgi_record_entries(u),
+    )
+
+
+@bp.post("/registros/<int:definition_id>/nueva")
+@login_required
+def record_entry_nueva(definition_id: int):
+    u = current_user()
+    if not user_can_manage_sgi_record_entries(u):
+        return _no_access()
+    ok, msg, entry = record_svc.create_entry(definition_id, u)
+    if not ok or entry is None:
+        flash(msg, "warning")
+        return redirect(url_for("sgi.record_entries_list", definition_id=definition_id))
+    return redirect(url_for("sgi.record_entry_edit", entry_id=entry.id))
+
+
+@bp.get("/registros/cargas/<int:entry_id>/")
+@login_required
+def record_entry_edit(entry_id: int):
+    u = current_user()
+    if not user_can_manage_sgi_record_entries(u):
+        return _no_access()
+    entry = record_svc.get_entry(entry_id)
+    if entry is None:
+        abort(404)
+    defn = record_svc.get_definition(entry.record_definition_id)
+    if defn is None:
+        abort(404)
+    schema = record_svc.parse_version_schema(entry.version)
+    try:
+        data = json.loads(entry.data_json or "{}")
+    except json.JSONDecodeError:
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    solo_lectura = entry.status == "cerrado"
+    return render_template(
+        "sgi/record_entry_form.html",
+        defn=defn,
+        entry=entry,
+        schema=schema,
+        data_json=json.dumps(data, ensure_ascii=False),
+        summary=record_svc.definition_summary(defn),
+        solo_lectura=solo_lectura,
+    )
+
+
+@bp.post("/registros/cargas/<int:entry_id>/guardar")
+@login_required
+def record_entry_guardar(entry_id: int):
+    u = current_user()
+    if not user_can_manage_sgi_record_entries(u):
+        return jsonify({"ok": False, "message": "Sin permiso."}), 403
+    payload = request.get_json(silent=True) or {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    submit = bool(payload.get("submit"))
+    close = bool(payload.get("close"))
+    ok, msg, entry = record_svc.save_entry(
+        entry_id, u, data if isinstance(data, dict) else {}, submit=submit, close=close
+    )
+    return jsonify(
+        {
+            "ok": ok,
+            "message": msg,
+            "entry": {
+                "id": entry.id,
+                "status": entry.status,
+                "entry_number": entry.entry_number,
+            }
+            if entry
+            else None,
+        }
+    ), (200 if ok else 400)

@@ -62,6 +62,11 @@ from app.models.sgi import (
     SgiProcedimientoControlCambio,
     SgiProcedimientoRegistro,
     SgiProcedimientoRevision,
+    SgiRecordAuditLog,
+    SgiRecordDefinition,
+    SgiRecordDefinitionVersion,
+    SgiRecordEntry,
+    SgiRecordFile,
 )
 
 __all__ = [
@@ -122,6 +127,11 @@ __all__ = [
     "SgiProcedimientoAnexo",
     "SgiProcedimientoAprobacion",
     "SgiNotificacion",
+    "SgiRecordFile",
+    "SgiRecordDefinition",
+    "SgiRecordDefinitionVersion",
+    "SgiRecordEntry",
+    "SgiRecordAuditLog",
     "InternalChatThread",
     "InternalChatParticipant",
     "InternalChatMessage",

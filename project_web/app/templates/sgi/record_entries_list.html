@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ summary.code or defn.code }} · Cargas{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title h5 mb-1">{{ summary.name or defn.name }}</h1>
+    <p class="text-muted small mb-0">
+      {{ summary.code }} · {{ summary.origin_label }} · Versión {{ summary.version }} · {{ summary.status|capitalize }}
+    </p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar_cargas %}
+    <form method="post" action="{{ url_for('sgi.record_entry_nueva', definition_id=defn.id) }}">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-primary btn-sm">Nueva carga</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Número</th>
+            <th>Fecha</th>
+            <th>Responsable</th>
+            <th>Estado</th>
+            <th>Versión</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr>
+            <td>{{ '%04d'|format(e.entry_number) }}</td>
+            <td class="small">{{ e.created_at[:16].replace('T', ' ') if e.created_at else '—' }}</td>
+            <td>{{ e.created_by or '—' }}</td>
+            <td><span class="badge text-bg-secondary">{{ e.status }}</span></td>
+            <td>{{ e.version_number or '—' }}</td>
+            <td class="text-end">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.record_entry_edit', entry_id=e.id) }}">
+                {% if e.status == 'borrador' %}Continuar{% else %}Ver{% endif %}
+              </a>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">No hay cargas todavía.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

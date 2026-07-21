@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Carga {{ '%04d'|format(entry.entry_number) }} · {{ summary.name }}{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title h5 mb-1">{{ summary.name }}</h1>
+    <p class="text-muted small mb-0">
+      Carga {{ '%04d'|format(entry.entry_number) }} · Estado: {{ entry.status }} · Versión definición {{ entry.version.version_number if entry.version else summary.version }}
+    </p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.record_entries_list', definition_id=defn.id) }}">← Listado</a>
+    {% if not solo_lectura %}
+    <button type="button" class="btn btn-outline-primary btn-sm" id="btnSaveDraft">Guardar borrador</button>
+    <button type="button" class="btn btn-primary btn-sm" id="btnSubmit">Enviar</button>
+    <button type="button" class="btn btn-outline-danger btn-sm" id="btnClose">Cerrar</button>
+    {% endif %}
+  </div>
+</div>
+
+<div id="recordFormAlert" class="d-none"></div>
+<div class="card border-0 shadow-sm">
+  <div class="card-body" id="recordDynamicForm"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SGI_RECORD_ENTRY = {
+    entryId: {{ entry.id|tojson }},
+    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    csrf: {{ csrf_token()|tojson }},
+    schema: {{ schema|tojson }},
+    data: {{ data_json|safe }},
+    saveUrl: {{ url_for('sgi.record_entry_guardar', entry_id=entry.id)|tojson }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/sgi_record_form.js') }}"></script>
+{% endblock %}

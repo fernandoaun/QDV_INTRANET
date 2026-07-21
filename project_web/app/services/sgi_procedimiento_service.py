@@ -137,7 +137,7 @@ def registro_modulos_catalog_for_js() -> dict[str, dict[str, str]]:
 
 def _registro_row_payload(r: SgiProcedimientoRegistro) -> dict[str, Any]:
     meta = registro_modulo_links(r.modulo)
-    return {
+    payload = {
         "id": r.id,
         "nombre": r.nombre,
         "quien_archiva": r.quien_archiva,
@@ -151,6 +151,17 @@ def _registro_row_payload(r: SgiProcedimientoRegistro) -> dict[str, Any]:
         "blank_url": meta["blank_url"],
         "filled_url": meta["filled_url"],
     }
+    try:
+        from app.services import sgi_record_service as record_svc
+
+        return record_svc.enrich_registro_payload(payload, r)
+    except Exception:
+        payload["association_type"] = getattr(r, "association_type", "") or ""
+        payload["record_definition_id"] = getattr(r, "record_definition_id", None)
+        payload["has_digital_record"] = bool(getattr(r, "record_definition_id", None))
+        payload["record_summary"] = None
+        payload["record_url"] = ""
+        return payload
 
 
 def set_registro_modulo(
@@ -170,7 +181,15 @@ def set_registro_modulo(
     if key and key not in SGI_REGISTRO_MODULOS:
         return False, "Módulo no válido.", None
 
+    if key and getattr(reg, "record_definition_id", None):
+        return False, "Desvincule el registro digital antes de asociar un módulo.", None
+
     reg.modulo = key
+    if key:
+        reg.association_type = "existing_module"
+        reg.record_definition_id = None
+    elif (reg.association_type or "") == "existing_module":
+        reg.association_type = ""
     try:
         data = json.loads(rev.contenido_json or "{}")
     except json.JSONDecodeError:
@@ -755,7 +774,20 @@ def _sync_child_rows(rev: SgiProcedimientoRevision, payload: dict[str, Any]) -> 
         reg.tiempo_guarda = (row.get("tiempo_guarda") or "")[:256]
         reg.usuarios = (row.get("usuarios") or "")[:512]
         reg.disposicion_final = (row.get("disposicion_final") or "")[:512]
-        reg.modulo = normalize_registro_modulo(row.get("modulo"))
+        if getattr(reg, "record_definition_id", None):
+            # Conservar vínculo digital; el editor no debe pisarlo al guardar la tabla.
+            pass
+        else:
+            reg.modulo = normalize_registro_modulo(row.get("modulo"))
+            if reg.modulo:
+                reg.association_type = "existing_module"
+            elif (reg.association_type or "") == "existing_module":
+                reg.association_type = ""
+        if row.get("record_definition_id") and not getattr(reg, "record_definition_id", None):
+            try:
+                reg.record_definition_id = int(row["record_definition_id"])
+            except (TypeError, ValueError):
+                pass
     for rid, reg in existing_registros.items():
         if rid not in seen_reg_ids:
             db.session.delete(reg)
@@ -902,6 +934,8 @@ def save_revision_content(
 
     secciones = normalize_procedure_secciones(payload.get("secciones") or {})
     registros = list(payload.get("registros") or [])
+    if actor is None and user_id:
+        actor = db.session.get(User, int(user_id))
     if not user_can_asociar_sgi_registro_modulo(actor):
         existing_by_id = {r.id: (r.modulo or "") for r in rev.registros.all()}
         existing_by_orden = {r.orden: (r.modulo or "") for r in rev.registros.all()}

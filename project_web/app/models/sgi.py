@@ -267,6 +267,31 @@ class SgiProcedimientoControlCambio(db.Model):
     fecha_aprobacion = db.Column(db.Date, nullable=True)
 
 
+# Orígenes / tipos de asociación de registros digitales (punto 7).
+ASSOC_EXISTING_MODULE = "existing_module"
+ASSOC_IMPORTED_WORD = "imported_word"
+ASSOC_IMPORTED_EXCEL = "imported_excel"
+ASSOC_MANUAL_FORM = "manual_form"
+
+ASSOC_TYPES: tuple[str, ...] = (
+    ASSOC_EXISTING_MODULE,
+    ASSOC_IMPORTED_WORD,
+    ASSOC_IMPORTED_EXCEL,
+    ASSOC_MANUAL_FORM,
+)
+
+RECORD_STATUS_ACTIVE = "activo"
+RECORD_STATUS_DRAFT = "borrador"
+RECORD_STATUS_INACTIVE = "inactivo"
+
+ENTRY_STATUS_DRAFT = "borrador"
+ENTRY_STATUS_SUBMITTED = "enviado"
+ENTRY_STATUS_CLOSED = "cerrado"
+
+RECORD_MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15 MB
+RECORD_ALLOWED_EXTENSIONS: tuple[str, ...] = (".docx", ".xlsx", ".xls")
+
+
 class SgiProcedimientoRegistro(db.Model):
     __tablename__ = "sgi_procedimiento_registros"
 
@@ -283,6 +308,140 @@ class SgiProcedimientoRegistro(db.Model):
     usuarios = db.Column(db.String(512), nullable=False, default="", server_default="")
     disposicion_final = db.Column(db.String(512), nullable=False, default="", server_default="")
     modulo = db.Column(db.String(64), nullable=False, default="", server_default="")
+    association_type = db.Column(db.String(32), nullable=False, default="", server_default="")
+    record_definition_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sgi_record_definitions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
+    record_definition = db.relationship(
+        "SgiRecordDefinition",
+        foreign_keys=[record_definition_id],
+        backref=db.backref("procedure_registros", lazy="dynamic"),
+    )
+
+
+class SgiRecordFile(db.Model):
+    """Archivo fuente (Word/Excel) de un registro digital parametrizado."""
+
+    __tablename__ = "sgi_record_files"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    original_name = db.Column(db.String(512), nullable=False, default="", server_default="")
+    safe_name = db.Column(db.String(512), nullable=False, default="", server_default="")
+    extension = db.Column(db.String(16), nullable=False, default="", server_default="")
+    mime_type = db.Column(db.String(128), nullable=False, default="", server_default="")
+    size_bytes = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    content_hash = db.Column(db.String(128), nullable=False, default="", server_default="", index=True)
+    storage_path = db.Column(db.String(1024), nullable=False, default="", server_default="")
+    analysis_status = db.Column(db.String(32), nullable=False, default="pending", server_default="pending")
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    uploaded_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_id])
+
+
+class SgiRecordDefinition(db.Model):
+    """Definición de un registro digital editable (no el archivo Office)."""
+
+    __tablename__ = "sgi_record_definitions"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    code = db.Column(db.String(64), nullable=False, default="", server_default="", index=True)
+    name = db.Column(db.String(512), nullable=False, default="", server_default="")
+    description = db.Column(db.String(4000), nullable=False, default="", server_default="")
+    origin_type = db.Column(db.String(32), nullable=False, default="", server_default="", index=True)
+    source_file_id = db.Column(
+        db.Integer, db.ForeignKey("sgi_record_files.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    status = db.Column(db.String(32), nullable=False, default=RECORD_STATUS_ACTIVE, server_default=RECORD_STATUS_ACTIVE, index=True)
+    current_version_id = db.Column(db.Integer, nullable=True, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    deleted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
+
+    source_file = db.relationship("SgiRecordFile", foreign_keys=[source_file_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    updated_by = db.relationship("User", foreign_keys=[updated_by_id])
+    versions = db.relationship(
+        "SgiRecordDefinitionVersion",
+        back_populates="definition",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        order_by="SgiRecordDefinitionVersion.version_number",
+    )
+
+
+class SgiRecordDefinitionVersion(db.Model):
+    __tablename__ = "sgi_record_definition_versions"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    record_definition_id = db.Column(
+        db.Integer, db.ForeignKey("sgi_record_definitions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version_number = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    schema_json = db.Column(db.Text, nullable=False, default="{}", server_default="{}")
+    ui_schema_json = db.Column(db.Text, nullable=False, default="{}", server_default="{}")
+    change_description = db.Column(db.String(2000), nullable=False, default="", server_default="")
+    created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+
+    definition = db.relationship("SgiRecordDefinition", back_populates="versions", foreign_keys=[record_definition_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+
+    __table_args__ = (
+        db.UniqueConstraint("record_definition_id", "version_number", name="uq_sgi_record_def_version"),
+    )
+
+
+class SgiRecordEntry(db.Model):
+    """Carga (instancia) de un registro digital."""
+
+    __tablename__ = "sgi_record_entries"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    record_definition_id = db.Column(
+        db.Integer, db.ForeignKey("sgi_record_definitions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    record_definition_version_id = db.Column(
+        db.Integer,
+        db.ForeignKey("sgi_record_definition_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    entry_number = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    status = db.Column(db.String(32), nullable=False, default=ENTRY_STATUS_DRAFT, server_default=ENTRY_STATUS_DRAFT, index=True)
+    data_json = db.Column(db.Text, nullable=False, default="{}", server_default="{}")
+    created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+    updated_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+    submitted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    closed_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    definition = db.relationship("SgiRecordDefinition", foreign_keys=[record_definition_id])
+    version = db.relationship("SgiRecordDefinitionVersion", foreign_keys=[record_definition_version_id])
+    created_by = db.relationship("User", foreign_keys=[created_by_id])
+    updated_by = db.relationship("User", foreign_keys=[updated_by_id])
+
+
+class SgiRecordAuditLog(db.Model):
+    __tablename__ = "sgi_record_audit_logs"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    entity_type = db.Column(db.String(64), nullable=False, default="", server_default="", index=True)
+    entity_id = db.Column(db.Integer, nullable=False, default=0, server_default="0", index=True)
+    action = db.Column(db.String(64), nullable=False, default="", server_default="", index=True)
+    previous_data = db.Column(db.Text, nullable=True)
+    new_data = db.Column(db.Text, nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+
+    user = db.relationship("User", foreign_keys=[user_id])
 
 
 class SgiProcedimientoAnexo(db.Model):

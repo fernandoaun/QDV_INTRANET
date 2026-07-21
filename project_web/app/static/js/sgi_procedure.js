@@ -10,6 +10,8 @@
   const initial = cfg.payload || {};
   const soloLectura = !!cfg.soloLectura;
   const puedeAsociarModulo = cfg.puedeAsociarModulo !== false;
+  const puedeCrearRegistroDigital = !!cfg.puedeCrearRegistroDigital;
+  const docId = cfg.docId;
 
   function qs(sel) {
     return document.querySelector(sel);
@@ -693,7 +695,10 @@
         tiempo_guarda: tr.querySelector(".rg-tiempo")?.value || "",
         usuarios: tr.querySelector(".rg-usuarios")?.value || "",
         disposicion_final: tr.querySelector(".rg-disp")?.value || "",
-        modulo: tr.querySelector(".rg-modulo")?.value || "",
+        modulo: tr.dataset.hasDigital === "1" ? "" : tr.querySelector(".rg-modulo")?.value || "",
+        record_definition_id: tr.dataset.recordDefinitionId
+          ? parseInt(tr.dataset.recordDefinitionId, 10)
+          : null,
       });
     });
     const anexos = [];
@@ -761,6 +766,12 @@
     if (!tbody) return;
     const tr = document.createElement("tr");
     if (row?.id) tr.dataset.registroId = String(row.id);
+    if (row?.record_definition_id) {
+      tr.dataset.recordDefinitionId = String(row.record_definition_id);
+      tr.dataset.hasDigital = "1";
+    } else {
+      tr.dataset.hasDigital = "0";
+    }
     const fields = [
       ["rg-nombre", row?.nombre],
       ["rg-quien", row?.quien_archiva],
@@ -775,28 +786,52 @@
       html += `<td><input type="text" class="${cls}" value="${(val || "").replace(/"/g, "&quot;")}" ${soloLectura ? "readonly" : ""}></td>`;
     });
 
+    const hasDigital = !!row?.has_digital_record || !!row?.record_definition_id;
     const modulos = cfg.modulosRegistro || {};
     const selectedModulo = (row?.modulo || "").trim();
-    let optionsHtml = `<option value="">— Sin módulo —</option>`;
-    Object.keys(modulos).forEach((key) => {
-      const label = (modulos[key] && modulos[key].label) || key;
-      const sel = key === selectedModulo ? " selected" : "";
-      optionsHtml += `<option value="${escapeHtml(key)}"${sel}>${escapeHtml(label)}</option>`;
-    });
-    if (selectedModulo && !modulos[selectedModulo]) {
-      optionsHtml += `<option value="${escapeHtml(selectedModulo)}" selected>${escapeHtml(selectedModulo)}</option>`;
-    }
-    html += `<td><select class="form-select form-select-sm rg-modulo" ${soloLectura || !puedeAsociarModulo ? "disabled" : ""}>${optionsHtml}</select></td>`;
 
-    const meta = modulos[selectedModulo] || {};
-    const blankUrl = meta.blank_url || row?.blank_url || "";
-    const filledUrl = meta.filled_url || row?.filled_url || "";
-    const blankDisabled = blankUrl ? "" : " disabled aria-disabled=\"true\"";
-    const filledDisabled = filledUrl ? "" : " disabled aria-disabled=\"true\"";
-    html += `<td class="sgi-proc-no-print text-nowrap">
-      <a class="btn btn-sm btn-outline-secondary rg-btn-blank"${blankUrl ? ` href="${escapeHtml(blankUrl)}" target="_blank" rel="noopener"` : ""}${blankDisabled}>Ver en blanco</a>
-      <a class="btn btn-sm btn-outline-primary rg-btn-filled"${filledUrl ? ` href="${escapeHtml(filledUrl)}" target="_blank" rel="noopener"` : ""}${filledDisabled}>Ir al módulo</a>
-    </td>`;
+    if (hasDigital) {
+      const summary = row.record_summary || {};
+      const recordUrl = row.record_url || summary.record_url || "";
+      const origin = summary.origin_label || "Formulario editable";
+      html += `<td colspan="1"><span class="badge text-bg-primary">${escapeHtml(summary.code || "REG")}</span>
+        <div class="small text-muted">${escapeHtml(origin)} · v${escapeHtml(summary.version || 1)}</div></td>`;
+      html += `<td class="sgi-proc-no-print text-nowrap">
+        ${recordUrl ? `<a class="btn btn-sm btn-primary" href="${escapeHtml(recordUrl)}">Ir al registro</a>` : ""}
+        ${
+          puedeCrearRegistroDigital && !soloLectura
+            ? `<button type="button" class="btn btn-sm btn-outline-warning rg-btn-unlink-digital">Desvincular</button>`
+            : ""
+        }
+      </td>`;
+    } else {
+      let optionsHtml = `<option value="">— Sin módulo —</option>`;
+      Object.keys(modulos).forEach((key) => {
+        const label = (modulos[key] && modulos[key].label) || key;
+        const sel = key === selectedModulo ? " selected" : "";
+        optionsHtml += `<option value="${escapeHtml(key)}"${sel}>${escapeHtml(label)}</option>`;
+      });
+      if (selectedModulo && !modulos[selectedModulo]) {
+        optionsHtml += `<option value="${escapeHtml(selectedModulo)}" selected>${escapeHtml(selectedModulo)}</option>`;
+      }
+      html += `<td><select class="form-select form-select-sm rg-modulo" ${soloLectura || !puedeAsociarModulo ? "disabled" : ""}>${optionsHtml}</select>
+        ${
+          !selectedModulo && puedeCrearRegistroDigital && !soloLectura && row?.id
+            ? `<button type="button" class="btn btn-sm btn-success mt-1 rg-btn-crear-registro">Crear registro</button>`
+            : ""
+        }
+      </td>`;
+
+      const meta = modulos[selectedModulo] || {};
+      const blankUrl = meta.blank_url || row?.blank_url || "";
+      const filledUrl = meta.filled_url || row?.filled_url || "";
+      const blankDisabled = blankUrl ? "" : ' disabled aria-disabled="true"';
+      const filledDisabled = filledUrl ? "" : ' disabled aria-disabled="true"';
+      html += `<td class="sgi-proc-no-print text-nowrap">
+        <a class="btn btn-sm btn-outline-secondary rg-btn-blank"${blankUrl ? ` href="${escapeHtml(blankUrl)}" target="_blank" rel="noopener"` : ""}${blankDisabled}>Ver en blanco</a>
+        <a class="btn btn-sm btn-outline-primary rg-btn-filled"${filledUrl ? ` href="${escapeHtml(filledUrl)}" target="_blank" rel="noopener"` : ""}${filledDisabled}>Ir al módulo</a>
+      </td>`;
+    }
 
     if (!soloLectura) {
       html +=
@@ -806,6 +841,46 @@
     tbody.appendChild(tr);
     tr.querySelector(".btn-del-reg")?.addEventListener("click", () => tr.remove());
     tr.querySelector(".rg-modulo")?.addEventListener("change", () => syncRegistroModuloLinks(tr));
+    tr.querySelector(".rg-btn-crear-registro")?.addEventListener("click", () => {
+      if (!window.SgiCreateRecordWizard || !row?.id || !docId) return;
+      const slug = cfg.slug;
+      window.SgiCreateRecordWizard({
+        csrf: cfg.csrf,
+        defaultName: tr.querySelector(".rg-nombre")?.value || "",
+        analyzeUrl: `/sgi/${slug}/procedimientos/${docId}/registro/${row.id}/import/analyze`,
+        createUrl: `/sgi/${slug}/procedimientos/${docId}/registro/${row.id}/import/create`,
+        onCreated: (registro) => {
+          // Reemplazar fila con datos nuevos
+          tr.remove();
+          addRegistroRow(registro || row);
+        },
+      });
+    });
+    tr.querySelector(".rg-btn-unlink-digital")?.addEventListener("click", () => {
+      if (!row?.id || !docId) return;
+      if (!confirm("¿Desvincular el registro digital?")) return;
+      const slug = cfg.slug;
+      fetch(`/sgi/${slug}/procedimientos/${docId}/registro/${row.id}/unlink-digital`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": cfg.csrf || "",
+        },
+        credentials: "same-origin",
+        body: "{}",
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (!res.ok) {
+            alert(res.message || "No se pudo desvincular.");
+            return;
+          }
+          tr.remove();
+          addRegistroRow(res.registro || { ...row, has_digital_record: false, record_definition_id: null, record_url: "" });
+        })
+        .catch(() => alert("No se pudo desvincular."));
+    });
   }
 
   function syncRegistroModuloLinks(tr) {
