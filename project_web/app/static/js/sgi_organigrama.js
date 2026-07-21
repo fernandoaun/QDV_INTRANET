@@ -494,34 +494,86 @@
     const f = nodeBoxFromData(fromNode, fromEl);
     const t = nodeBoxFromData(toNode, toEl);
     const style = link.style || linkStyleForTarget(nodes, link.to);
-    return { link, f, t, style };
+    return { link, f, t, style: style === "dashed" ? "dashed" : "solid" };
   }
 
   function defaultElbowMidY(f, t) {
     return f.bottom + (t.top - f.bottom) / 2;
   }
 
-  /** Ancla de salida en el borde inferior del padre, separada por vínculo. */
-  function linkStartX(f, siblingIndex, siblingCount) {
-    if (siblingCount <= 1) return f.cx;
-    const span = Math.min(f.width * 0.7, 18 * (siblingCount - 1));
-    const step = siblingCount > 1 ? span / (siblingCount - 1) : 0;
-    return f.cx - span / 2 + siblingIndex * step;
+  /** Salida del padre: sólidos a la izquierda del centro, punteados a la derecha (o al revés si solo hay uno). */
+  function styleExitX(f, style, hasSolidGroup, hasDashedGroup) {
+    if (hasSolidGroup && hasDashedGroup) {
+      const offset = Math.min(22, f.width * 0.28);
+      return style === "dashed" ? f.cx + offset : f.cx - offset;
+    }
+    return f.cx;
   }
 
-  function drawSingleFreeLink(svg, item, interactive, siblingIndex, siblingCount) {
+  function drawSingleFreeLink(svg, item, interactive, exitX, junctionBias) {
     const { link, f, t, style } = item;
-    const startX = linkStartX(f, siblingIndex, siblingCount);
-    const defaultMidY = defaultElbowMidY(f, t);
+    const startX = exitX != null ? exitX : f.cx;
+    const defaultMidY = defaultElbowMidY(f, t) + (junctionBias || 0);
     const midY = link.mid_y != null && Number.isFinite(link.mid_y) ? link.mid_y : defaultMidY;
     const midX = link.mid_x != null && Number.isFinite(link.mid_x) ? link.mid_x : null;
     const handleX = midX != null ? midX : (startX + t.cx) / 2;
     const pts = elbowPoints(startX, f.bottom, t.cx, t.top, midX, midY);
     const group = makeLinkGroup(svg, link.from, link.to);
     if (interactive) addLinkHit(group, pts, link.from, link.to);
-    // Una sola polilínea con un solo estilo: toda sólida o toda punteada.
     appendStyledPolyline(group, pts, style);
     if (interactive) addLinkHandle(group, link.from, link.to, handleX, midY);
+  }
+
+  /** Bus de un solo estilo: tallo + horizontal + bajadas, todo sólido o todo punteado. */
+  function drawSameStyleBus(svg, items, interactive, exitX, junctionBias) {
+    if (!items.length) return;
+    const style = items[0].style;
+    const parentBox = items[0].f;
+    const startX = exitX != null ? exitX : parentBox.cx;
+    const customYs = items
+      .map((item) => item.link.mid_y)
+      .filter((y) => y != null && Number.isFinite(y));
+    const defaultMidY =
+      items.reduce((sum, item) => sum + defaultElbowMidY(item.f, item.t), 0) / items.length +
+      (junctionBias || 0);
+    const junctionY = customYs.length ? customYs[customYs.length - 1] : defaultMidY;
+    const xs = [startX, ...items.map((item) => item.t.cx)];
+    const xMin = Math.min(...xs);
+    const xMax = Math.max(...xs);
+
+    const sharedGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    sharedGroup.setAttribute("class", `sgi-org-link-bus sgi-org-link-bus--${style}`);
+    sharedGroup.setAttribute("data-from", items[0].link.from);
+    sharedGroup.setAttribute("data-style", style);
+    svg.appendChild(sharedGroup);
+    appendStyledPolyline(
+      sharedGroup,
+      [
+        [startX, parentBox.bottom],
+        [startX, junctionY],
+        [xMin, junctionY],
+        [xMax, junctionY],
+      ],
+      style
+    );
+
+    items.forEach((item) => {
+      const { link, t } = item;
+      const drop = [
+        [t.cx, junctionY],
+        [t.cx, t.top],
+      ];
+      const group = makeLinkGroup(svg, link.from, link.to);
+      const hitPts = [
+        [startX, parentBox.bottom],
+        [startX, junctionY],
+        [t.cx, junctionY],
+        [t.cx, t.top],
+      ];
+      if (interactive) addLinkHit(group, hitPts, link.from, link.to);
+      appendStyledPolyline(group, drop, style);
+      if (interactive) addLinkHandle(group, link.from, link.to, t.cx, junctionY);
+    });
   }
 
   function drawFreeConnectors(canvas, nodes, links, opts) {
@@ -552,10 +604,26 @@
     });
 
     Object.values(byParent).forEach((group) => {
-      // Cada relación es una línea completa e independiente (sólida o punteada de punta a punta).
-      group.forEach((item, index) => {
-        drawSingleFreeLink(svg, item, interactive, index, group.length);
-      });
+      const solids = group.filter((item) => item.style === "solid");
+      const dashed = group.filter((item) => item.style === "dashed");
+      const hasSolidGroup = solids.length > 0;
+      const hasDashedGroup = dashed.length > 0;
+
+      function drawStyleBundle(items, style) {
+        if (!items.length) return;
+        const exitX = styleExitX(items[0].f, style, hasSolidGroup, hasDashedGroup);
+        const bias =
+          hasSolidGroup && hasDashedGroup ? (style === "dashed" ? 10 : -10) : 0;
+        if (items.length >= 2) {
+          drawSameStyleBus(svg, items, interactive, exitX, bias);
+        } else {
+          drawSingleFreeLink(svg, items[0], interactive, exitX, bias);
+        }
+      }
+
+      // Mismo estilo → juntas; sólido vs punteado → separados.
+      drawStyleBundle(solids, "solid");
+      drawStyleBundle(dashed, "dashed");
     });
   }
 
@@ -1148,6 +1216,13 @@
         ev.stopPropagation();
         const link = findLink(from, to);
         if (!link) return;
+        const style = link.style || linkStyleForTarget(state.nodes, to);
+        const peers = state.links.filter((l) => {
+          if (l.from !== from) return false;
+          const s = l.style || linkStyleForTarget(state.nodes, l.to);
+          return s === style;
+        });
+        const sharedBus = peers.length >= 2;
         const scale = zoomRef?.getScale?.() || 1;
         const fromNode = nodeById(from);
         const toNode = nodeById(to);
@@ -1160,14 +1235,24 @@
         const defaultMidY = f && t ? f.bottom + (t.top - f.bottom) / 2 : 0;
         const defaultMidX = f && t ? (f.cx + t.cx) / 2 : 0;
         const startMidX = link.mid_x != null ? link.mid_x : defaultMidX;
-        const startMidY = link.mid_y != null ? link.mid_y : defaultMidY;
+        const startMidY =
+          peers.map((l) => l.mid_y).find((y) => y != null && Number.isFinite(y)) ??
+          (link.mid_y != null ? link.mid_y : defaultMidY);
         const startX = ev.clientX;
         const startY = ev.clientY;
         viewport?.classList.add("is-dragging-item");
 
         function onMove(moveEv) {
-          link.mid_x = startMidX + (moveEv.clientX - startX) / scale;
-          link.mid_y = startMidY + (moveEv.clientY - startY) / scale;
+          const nextY = startMidY + (moveEv.clientY - startY) / scale;
+          if (sharedBus) {
+            peers.forEach((l) => {
+              l.mid_y = nextY;
+              delete l.mid_x;
+            });
+          } else {
+            link.mid_x = startMidX + (moveEv.clientX - startX) / scale;
+            link.mid_y = nextY;
+          }
           redrawConnectors({ rebind: false });
         }
 
@@ -1192,8 +1277,16 @@
           ev.stopPropagation();
           const link = findLink(from, to);
           if (!link) return;
-          delete link.mid_x;
-          delete link.mid_y;
+          const style = link.style || linkStyleForTarget(state.nodes, to);
+          state.links
+            .filter((l) => {
+              if (l.from !== from) return false;
+              return (l.style || linkStyleForTarget(state.nodes, l.to)) === style;
+            })
+            .forEach((l) => {
+              delete l.mid_x;
+              delete l.mid_y;
+            });
           redrawConnectors();
         });
       });

@@ -2,7 +2,7 @@
 {% set standalone = standalone|default(false) %}
 {% block title %}{{ anexo.codigo }} · Editor organigrama{% endblock %}
 {% block extra_head %}
-<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='8') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='9') }}" rel="stylesheet">
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
@@ -108,6 +108,6 @@
     },
   };
 </script>
-<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='8') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='9') }}"></script>
 <script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
 {% endblock %}
