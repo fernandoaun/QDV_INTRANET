@@ -22,6 +22,7 @@ from app.services.deadline_alert_email_service import (
 from app.services import plant_stop_service as plant_stop_svc
 from app.services import personal_service as personal_svc
 from app.services import stock_alert_email_service as stock_alert_svc
+from app.services import sgi_anexo_service as anexo_svc
 from app.services.mail_service import enviar_mail, is_mail_fully_configured, smtp_diagnostic_summary
 from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
@@ -57,6 +58,7 @@ def list_users():
         legajo_status=personal_svc.legajo_status_by_user_id(sync_users=False),
         user_requires_legajo=personal_svc.user_requires_legajo,
         viewer_may_manage_users=bool(u.is_admin),
+        organigrama_puestos=anexo_svc.organigrama_puesto_opciones(),
     )
 
 
@@ -115,6 +117,7 @@ def create_user():
     db.session.commit()
     personal_svc.sync_empleado_for_user_role(u)
     db.session.commit()
+    anexo_svc.organigrama_sync_user_puestos(int(u.id), anexo_svc.organigrama_puestos_from_form(request.form))
     audit_svc.record_event(
         action="user_create",
         module="admin",
@@ -255,6 +258,7 @@ def edit_user(uid: int):
                     e_dbg,
                     [(r.permiso, r.habilitado, r.puede_editar) for r in rows_dbg],
                 )
+            anexo_svc.organigrama_sync_user_puestos(int(u.id), anexo_svc.organigrama_puestos_from_form(request.form))
             new_snapshot = {
                 "username": u.username,
                 "rol": u.rol,
@@ -325,6 +329,8 @@ def edit_user(uid: int):
         perms_edit_set=perms_edit_set,
         user_roles_ordered=USER_ROLES_ORDERED,
         role_labels=ROLE_LABELS,
+        organigrama_puestos=anexo_svc.organigrama_puesto_opciones(),
+        organigrama_puestos_selected=anexo_svc.organigrama_node_ids_for_user(u.id),
     )
 
 

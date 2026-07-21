@@ -44,6 +44,15 @@
           <label class="form-check-label small" for="nuevoActivo">Activo</label>
         </div>
       </div>
+      <div class="col-md-6">
+        <label class="form-label" for="nuevoOrgPuestos">Puestos en el organigrama</label>
+        <select class="form-select" name="org_puestos" id="nuevoOrgPuestos" multiple size="6">
+          {% for p in organigrama_puestos|default([]) %}
+          <option value="{{ p.id }}">{{ p.titulo }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Ctrl + clic para elegir varios. Quedarán asignados en el organigrama SGC.</div>
+      </div>
       <div class="col-12">
         <p class="small app-text-secondary mb-2">Tras crear el usuario podés afinar permisos por módulo (excepto administrador, que tiene acceso total).</p>
         <button class="btn btn-primary" type="submit">Crear usuario</button>

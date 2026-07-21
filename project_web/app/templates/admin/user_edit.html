@@ -28,6 +28,16 @@
       <dt class="col-sm-3">Perfil</dt><dd class="col-sm-9">{{ user_role_label(edit_user) }}</dd>
       <dt class="col-sm-3">Administrador</dt><dd class="col-sm-9">{% if edit_user.is_admin %}Sí{% else %}No{% endif %}</dd>
       <dt class="col-sm-3">Activo</dt><dd class="col-sm-9">{% if edit_user.activo %}Sí{% else %}No{% endif %}</dd>
+      <dt class="col-sm-3">Organigrama</dt>
+      <dd class="col-sm-9">
+        {% if organigrama_puestos_selected %}
+          {% for p in organigrama_puestos %}
+            {% if p.id in organigrama_puestos_selected %}<div>{{ p.titulo }}</div>{% endif %}
+          {% endfor %}
+        {% else %}
+          —
+        {% endif %}
+      </dd>
     </dl>
   </div>
 </div>
@@ -54,6 +64,15 @@
       </div>
       <div class="form-check mb-3"><input class="form-check-input" type="checkbox" name="activo" value="1" id="act" {% if edit_user.activo %}checked{% endif %}>
         <label class="form-check-label" for="act">Activo</label></div>
+      <div class="mb-3">
+        <label class="form-label" for="userOrgPuestos">Puestos en el organigrama</label>
+        <select class="form-select" name="org_puestos" id="userOrgPuestos" multiple size="8">
+          {% for p in organigrama_puestos|default([]) %}
+          <option value="{{ p.id }}" {% if p.id in organigrama_puestos_selected|default([]) %}selected{% endif %}>{{ p.titulo }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Ctrl + clic para varios. Se sincroniza con el organigrama SGC (QDV-ANEXO II).</div>
+      </div>
       {% if not edit_user.is_admin %}
       {% if hide_perm_grid %}
       <p class="small app-text-secondary mb-0">Este perfil no usa permisos por módulo en el panel (plantilla fija del rol).</p>

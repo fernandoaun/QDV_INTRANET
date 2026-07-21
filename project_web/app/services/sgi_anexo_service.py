@@ -807,6 +807,141 @@ def organigrama_usuarios_opciones() -> list[dict[str, Any]]:
     return out
 
 
+def _organigrama_parse_raw_json(raw: str | None) -> dict[str, Any]:
+    try:
+        data = json.loads(raw or "{}")
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def _organigrama_content_targets() -> list[tuple[str, Any]]:
+    """Revisiones y anexos de organigrama vivos (no obsoletos) para leer/escribir asignaciones."""
+    from sqlalchemy.exc import OperationalError, ProgrammingError
+
+    from app.models.sgi import ESTADO_OBSOLETO
+
+    targets: list[tuple[str, Any]] = []
+    try:
+        docs = db.session.scalars(
+            select(SgiDocumento).where(SgiDocumento.tipo_contenido == ANEXO_TIPO_ORGANIGRAMA).order_by(SgiDocumento.id)
+        ).all()
+        for doc in docs:
+            rev = db.session.scalars(
+                select(SgiProcedimientoRevision)
+                .where(
+                    SgiProcedimientoRevision.documento_id == doc.id,
+                    SgiProcedimientoRevision.estado != ESTADO_OBSOLETO,
+                )
+                .order_by(SgiProcedimientoRevision.id.desc())
+                .limit(1)
+            ).first()
+            if rev is not None:
+                targets.append(("rev", rev))
+    except (OperationalError, ProgrammingError):
+        db.session.rollback()
+
+    try:
+        anexos = db.session.scalars(
+            select(SgiProcedimientoAnexo)
+            .where(SgiProcedimientoAnexo.tipo_contenido == ANEXO_TIPO_ORGANIGRAMA)
+            .order_by(SgiProcedimientoAnexo.id)
+        ).all()
+        for ax in anexos:
+            targets.append(("anexo", ax))
+    except (OperationalError, ProgrammingError):
+        db.session.rollback()
+    return targets
+
+
+def organigrama_puesto_opciones() -> list[dict[str, str]]:
+    """Puestos disponibles para asignar desde el perfil de usuario."""
+    for _kind, obj in _organigrama_content_targets():
+        data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
+        nodes = data.get("nodes")
+        if isinstance(nodes, list) and nodes:
+            # Preferir nodos guardados (incl. libres); completar grilla QDV si hace falta.
+            try:
+                complete = organigrama_ensure_complete_nodes(nodes)
+            except Exception:
+                complete = [n for n in nodes if isinstance(n, dict) and n.get("id")]
+            by_id = {str(n["id"]): n for n in complete if n.get("id")}
+            # Mantener títulos de nodos custom no estándar al final
+            for n in nodes:
+                if isinstance(n, dict) and n.get("id") and str(n["id"]) not in by_id:
+                    by_id[str(n["id"])] = n
+                    complete.append(n)
+            return [
+                {"id": str(n["id"]), "titulo": str(n.get("titulo") or n["id"])}
+                for n in complete
+                if n.get("id")
+            ]
+    return [{"id": str(s["id"]), "titulo": str(s.get("titulo") or s["id"])} for s in ORGANIGRAMA_QDV_SPECS]
+
+
+def organigrama_node_ids_for_user(user_id: int) -> list[str]:
+    """Ids de puestos del organigrama donde figura el usuario."""
+    uid = int(user_id)
+    found: list[str] = []
+    seen: set[str] = set()
+    for _kind, obj in _organigrama_content_targets():
+        data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
+        nodes = data.get("nodes")
+        if not isinstance(nodes, list):
+            continue
+        for n in nodes:
+            if not isinstance(n, dict) or not n.get("id"):
+                continue
+            if uid in _organigrama_node_user_ids(n):
+                nid = str(n["id"])
+                if nid not in seen:
+                    seen.add(nid)
+                    found.append(nid)
+    return found
+
+
+def _organigrama_apply_user_puestos(data: dict[str, Any], user_id: int, selected: set[str]) -> dict[str, Any]:
+    uid = int(user_id)
+    nodes = data.get("nodes")
+    if not isinstance(nodes, list) or not nodes:
+        nodes = build_default_organigrama_nodes(pptx_path=organigrama_pptx_path())
+        data = {**data, "version": int(data.get("version") or 1), "nodes": nodes}
+
+    for n in nodes:
+        if not isinstance(n, dict) or not n.get("id"):
+            continue
+        nid = str(n["id"])
+        ids = [x for x in _organigrama_node_user_ids(n) if x != uid]
+        if nid in selected:
+            ids.append(uid)
+        n["user_ids"] = ids
+        n["user_id"] = ids[0] if ids else None
+    data["nodes"] = nodes
+    return data
+
+
+def organigrama_sync_user_puestos(user_id: int, node_ids: list[str] | set[str]) -> tuple[bool, str]:
+    """Asigna al usuario solo a los puestos indicados en todos los organigramas vivos."""
+    selected = {str(x).strip() for x in node_ids if str(x).strip()}
+    valid_ids = {p["id"] for p in organigrama_puesto_opciones()}
+    selected &= valid_ids
+    targets = _organigrama_content_targets()
+    if not targets:
+        return True, "Sin organigrama cargado; la asignación se aplicará cuando exista el documento."
+    for _kind, obj in targets:
+        data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
+        data = _organigrama_apply_user_puestos(data, user_id, selected)
+        obj.contenido_json = json.dumps(data, ensure_ascii=False)
+    db.session.commit()
+    return True, "Puestos del organigrama actualizados."
+
+
+def organigrama_puestos_from_form(form) -> list[str]:
+    """Lee `org_puestos` (multi) del formulario de usuario."""
+    raw = form.getlist("org_puestos") if hasattr(form, "getlist") else []
+    return [str(x).strip() for x in raw if str(x).strip()]
+
+
 def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, str]:
     anexo = db.session.get(SgiProcedimientoAnexo, int(anexo_id))
     if anexo is None:
@@ -908,7 +1043,13 @@ def parse_documento_contenido(doc: SgiDocumento, rev: SgiProcedimientoRevision) 
         nodes = data.get("nodes")
         if not isinstance(nodes, list):
             nodes = []
-        return {"version": int(data.get("version") or 1), "nodes": nodes}
+        out: dict[str, Any] = {"version": int(data.get("version") or 1), "nodes": nodes}
+        layout = str(data.get("layout") or "").strip().lower()
+        if layout:
+            out["layout"] = layout
+        if isinstance(data.get("links"), list):
+            out["links"] = data["links"]
+        return out
     return data
 
 
