@@ -434,6 +434,135 @@
     return node && nodeKindFromData(node) === "external" ? "dashed" : "solid";
   }
 
+  function appendStyledPolyline(parent, points, style, className) {
+    if (!points || points.length < 2) return null;
+    const { stroke, dash } = strokeAttrs(style);
+    return svgPolyline(parent, points, {
+      class: className || "sgi-org-link-seg",
+      fill: "none",
+      stroke,
+      "stroke-width": String(STROKE_WIDTH),
+      "stroke-linecap": "square",
+      "stroke-linejoin": "miter",
+      "stroke-dasharray": dash,
+    });
+  }
+
+  function makeLinkGroup(svg, fromId, toId) {
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.setAttribute("class", "sgi-org-link");
+    group.setAttribute("data-from", fromId);
+    group.setAttribute("data-to", toId);
+    svg.appendChild(group);
+    return group;
+  }
+
+  function addLinkHandle(group, fromId, toId, cx, cy) {
+    const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    handle.setAttribute("class", "sgi-org-link-handle");
+    handle.setAttribute("cx", String(cx));
+    handle.setAttribute("cy", String(cy));
+    handle.setAttribute("r", "7");
+    handle.setAttribute("data-from", fromId);
+    handle.setAttribute("data-to", toId);
+    group.appendChild(handle);
+    return handle;
+  }
+
+  function addLinkHit(group, points, fromId, toId) {
+    const hit = svgPolyline(group, points, {
+      class: "sgi-org-link-hit",
+      fill: "none",
+      stroke: "transparent",
+      "stroke-width": "16",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+    });
+    hit.setAttribute("data-from", fromId);
+    hit.setAttribute("data-to", toId);
+    return hit;
+  }
+
+  function resolveLinkGeometry(link, nodes, byId, nodeLayer) {
+    const fromNode = byId[link.from];
+    const toNode = byId[link.to];
+    const fromSlot = qs(`[data-node-id="${link.from}"]`, nodeLayer);
+    const toSlot = qs(`[data-node-id="${link.to}"]`, nodeLayer);
+    const fromEl = fromSlot && qs(".sgi-org-node", fromSlot);
+    const toEl = toSlot && qs(".sgi-org-node", toSlot);
+    if (!fromNode || !toNode || !fromEl || !toEl) return null;
+    const f = nodeBoxFromData(fromNode, fromEl);
+    const t = nodeBoxFromData(toNode, toEl);
+    const style = link.style || linkStyleForTarget(nodes, link.to);
+    return { link, f, t, style };
+  }
+
+  function defaultElbowMidY(f, t) {
+    return f.bottom + (t.top - f.bottom) / 2;
+  }
+
+  function drawSingleFreeLink(svg, item, interactive) {
+    const { link, f, t, style } = item;
+    const defaultMidY = defaultElbowMidY(f, t);
+    const midY = link.mid_y != null && Number.isFinite(link.mid_y) ? link.mid_y : defaultMidY;
+    const midX = link.mid_x != null && Number.isFinite(link.mid_x) ? link.mid_x : null;
+    const handleX = midX != null ? midX : (f.cx + t.cx) / 2;
+    const pts = elbowPoints(f.cx, f.bottom, t.cx, t.top, midX, midY);
+    const group = makeLinkGroup(svg, link.from, link.to);
+    if (interactive) addLinkHit(group, pts, link.from, link.to);
+    appendStyledPolyline(group, pts, style);
+    if (interactive) addLinkHandle(group, link.from, link.to, handleX, midY);
+  }
+
+  function drawBusFreeLinks(svg, items, interactive) {
+    if (!items.length) return;
+    const parentBox = items[0].f;
+    const customYs = items
+      .map((item) => item.link.mid_y)
+      .filter((y) => y != null && Number.isFinite(y));
+    const defaultMidY =
+      items.reduce((sum, item) => sum + defaultElbowMidY(item.f, item.t), 0) / items.length;
+    const junctionY = customYs.length ? customYs[customYs.length - 1] : defaultMidY;
+    const xs = [parentBox.cx, ...items.map((item) => item.t.cx)];
+    const xMin = Math.min(...xs);
+    const xMax = Math.max(...xs);
+    const busStyle = items.some((item) => item.style === "solid") ? "solid" : "dashed";
+
+    // Tramo compartido: tallo + bus. Las bajadas (sólidas/punteadas) nacen sobre el bus.
+    const sharedGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    sharedGroup.setAttribute("class", "sgi-org-link-bus");
+    sharedGroup.setAttribute("data-from", items[0].link.from);
+    svg.appendChild(sharedGroup);
+    appendStyledPolyline(
+      sharedGroup,
+      [
+        [parentBox.cx, parentBox.bottom],
+        [parentBox.cx, junctionY],
+        [xMin, junctionY],
+        [xMax, junctionY],
+      ],
+      busStyle
+    );
+
+    items.forEach((item) => {
+      const { link, t, style } = item;
+      const drop = [
+        [t.cx, junctionY],
+        [t.cx, t.top],
+      ];
+      const group = makeLinkGroup(svg, link.from, link.to);
+      const hitPts = [
+        [parentBox.cx, parentBox.bottom],
+        [parentBox.cx, junctionY],
+        [t.cx, junctionY],
+        [t.cx, t.top],
+      ];
+      if (interactive) addLinkHit(group, hitPts, link.from, link.to);
+      appendStyledPolyline(group, drop, style);
+      if (interactive) addLinkHandle(group, link.from, link.to, t.cx, junctionY);
+    });
+  }
+
   function drawFreeConnectors(canvas, nodes, links, opts) {
     const svg = qs("#sgiOrgConnectors", canvas);
     if (!svg) return;
@@ -450,54 +579,22 @@
     const interactive = Boolean(opts?.interactive);
     const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
+    const resolved = [];
     links.forEach((link) => {
-      const fromNode = byId[link.from];
-      const toNode = byId[link.to];
-      const fromSlot = qs(`[data-node-id="${link.from}"]`, nodeLayer);
-      const toSlot = qs(`[data-node-id="${link.to}"]`, nodeLayer);
-      const fromEl = fromSlot && qs(".sgi-org-node", fromSlot);
-      const toEl = toSlot && qs(".sgi-org-node", toSlot);
-      if (!fromNode || !toNode || !fromEl || !toEl) return;
+      const item = resolveLinkGeometry(link, nodes, byId, nodeLayer);
+      if (item) resolved.push(item);
+    });
 
-      const f = nodeBoxFromData(fromNode, fromEl);
-      const t = nodeBoxFromData(toNode, toEl);
-      const style = link.style || linkStyleForTarget(nodes, link.to);
-      const defaultMidY = f.bottom + (t.top - f.bottom) / 2;
-      const midY = link.mid_y != null && Number.isFinite(link.mid_y) ? link.mid_y : defaultMidY;
-      const midX = link.mid_x != null && Number.isFinite(link.mid_x) ? link.mid_x : null;
-      const handleX = midX != null ? midX : (f.cx + t.cx) / 2;
-      const pts = elbowPoints(f.cx, f.bottom, t.cx, t.top, midX, midY);
+    const byParent = {};
+    resolved.forEach((item) => {
+      (byParent[item.link.from] ||= []).push(item);
+    });
 
-      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      group.setAttribute("class", "sgi-org-link");
-      group.setAttribute("data-from", link.from);
-      group.setAttribute("data-to", link.to);
-      svg.appendChild(group);
-
-      if (interactive) {
-        svgPolyline(group, pts, {
-          class: "sgi-org-link-hit",
-          fill: "none",
-          stroke: "transparent",
-          "stroke-width": "16",
-          "stroke-linecap": "round",
-          "stroke-linejoin": "round",
-        });
-        for (let i = 0; i < pts.length - 1; i += 1) {
-          svgSeg(group, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], style, "sgi-org-link-seg");
-        }
-        const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        handle.setAttribute("class", "sgi-org-link-handle");
-        handle.setAttribute("cx", String(handleX));
-        handle.setAttribute("cy", String(midY));
-        handle.setAttribute("r", "7");
-        handle.setAttribute("data-from", link.from);
-        handle.setAttribute("data-to", link.to);
-        group.appendChild(handle);
+    Object.values(byParent).forEach((group) => {
+      if (group.length >= 2) {
+        drawBusFreeLinks(svg, group, interactive);
       } else {
-        for (let i = 0; i < pts.length - 1; i += 1) {
-          svgSeg(group, pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], style, "sgi-org-link-seg");
-        }
+        drawSingleFreeLink(svg, group[0], interactive);
       }
     });
   }
@@ -1091,6 +1188,8 @@
         ev.stopPropagation();
         const link = findLink(from, to);
         if (!link) return;
+        const siblings = state.links.filter((l) => l.from === from);
+        const sharedBus = siblings.length >= 2;
         const scale = zoomRef?.getScale?.() || 1;
         const fromNode = nodeById(from);
         const toNode = nodeById(to);
@@ -1103,14 +1202,24 @@
         const defaultMidY = f && t ? f.bottom + (t.top - f.bottom) / 2 : 0;
         const defaultMidX = f && t ? (f.cx + t.cx) / 2 : 0;
         const startMidX = link.mid_x != null ? link.mid_x : defaultMidX;
-        const startMidY = link.mid_y != null ? link.mid_y : defaultMidY;
+        const startMidY =
+          siblings.map((l) => l.mid_y).find((y) => y != null && Number.isFinite(y)) ??
+          (link.mid_y != null ? link.mid_y : defaultMidY);
         const startX = ev.clientX;
         const startY = ev.clientY;
         viewport?.classList.add("is-dragging-item");
 
         function onMove(moveEv) {
-          link.mid_x = startMidX + (moveEv.clientX - startX) / scale;
-          link.mid_y = startMidY + (moveEv.clientY - startY) / scale;
+          const nextY = startMidY + (moveEv.clientY - startY) / scale;
+          if (sharedBus) {
+            siblings.forEach((l) => {
+              l.mid_y = nextY;
+              delete l.mid_x;
+            });
+          } else {
+            link.mid_x = startMidX + (moveEv.clientX - startX) / scale;
+            link.mid_y = nextY;
+          }
           redrawConnectors({ rebind: false });
         }
 
@@ -1133,10 +1242,12 @@
         el.addEventListener("dblclick", (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
-          const link = findLink(from, to);
-          if (!link) return;
-          delete link.mid_x;
-          delete link.mid_y;
+          state.links
+            .filter((l) => l.from === from)
+            .forEach((l) => {
+              delete l.mid_x;
+              delete l.mid_y;
+            });
           redrawConnectors();
         });
       });
