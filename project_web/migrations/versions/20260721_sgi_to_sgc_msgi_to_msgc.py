@@ -1,7 +1,7 @@
 """Renombrar tipo MSGI → MSGC y códigos QDV-MSGI- → QDV-MSGC-.
 
 Revision ID: 20260721_sgi_to_sgc_msgi_to_msgc
-Revises: 20260714_sgi_soft_delete_msgi_anexos_iii_iv
+Revises: 20260714_rol_mant_ops
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260721_sgi_to_sgc_msgi_to_msgc"
-down_revision: Union[str, Sequence[str], None] = "20260714_sgi_soft_delete_msgi_anexos_iii_iv"
+down_revision: Union[str, Sequence[str], None] = "20260714_rol_mant_ops"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
