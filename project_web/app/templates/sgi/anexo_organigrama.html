@@ -3,7 +3,7 @@
 {% block title %}{{ anexo.codigo }} · Organigrama{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
-<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='7') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='8') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="app-page-head sgi-proc-no-print">
@@ -77,5 +77,5 @@
   };
 </script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='7') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='8') }}"></script>
 {% endblock %}
