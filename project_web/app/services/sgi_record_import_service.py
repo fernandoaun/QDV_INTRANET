@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import io
 import re
 import uuid
@@ -250,6 +251,191 @@ def _docx_tables(root: ET.Element) -> list[list[list[str]]]:
     return tables
 
 
+def _input_html(name: str, *, input_type: str = "text", extra_class: str = "") -> str:
+    cls = f"sgi-rec-inline {extra_class}".strip()
+    safe = html.escape(name, quote=True)
+    if input_type == "textarea":
+        return f'<textarea class="{cls}" data-sgi-field="{safe}" rows="3"></textarea>'
+    if input_type == "yes_no":
+        return (
+            f'<select class="{cls}" data-sgi-field="{safe}">'
+            f'<option value="">—</option><option value="Sí">Sí</option><option value="No">No</option>'
+            f"</select>"
+        )
+    return f'<input type="{html.escape(input_type)}" class="{cls}" data-sgi-field="{safe}" />'
+
+
+def _docx_bytes_to_html(data: bytes) -> str:
+    try:
+        import mammoth
+
+        result = mammoth.convert_to_html(io.BytesIO(data))
+        body = (result.value or "").strip()
+        if body:
+            return body
+    except Exception:
+        pass
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            xml = zf.read("word/document.xml")
+        root = ET.fromstring(xml)
+        chunks: list[str] = []
+        for p in root.iter(f"{_W}p"):
+            parts = [t.text or "" for t in p.iter(f"{_W}t") if t.text]
+            line = "".join(parts).strip()
+            if line:
+                chunks.append(f"<p>{html.escape(line)}</p>")
+        return "\n".join(chunks) if chunks else "<p></p>"
+    except Exception:
+        return "<p></p>"
+
+
+def _inject_fields_into_docx_html(raw_html: str, fields: list[dict[str, Any]]) -> str:
+    """Conserva la tipografía/tablas del Word e inserta inputs donde había blancos."""
+    text_fields = [f for f in fields if f.get("type") not in ("editable_table", "calculated")]
+    idx = 0
+
+    def repl_blank(match: re.Match[str]) -> str:
+        nonlocal idx
+        if idx >= len(text_fields):
+            name = f"campo_auto_{idx + 1}"
+            ftype = "text"
+        else:
+            name = text_fields[idx]["name"]
+            ftype = text_fields[idx].get("type") or "text"
+            idx += 1
+        if ftype in ("textarea", "observations"):
+            return _input_html(name, input_type="textarea")
+        if ftype == "yes_no":
+            return _input_html(name, input_type="yes_no")
+        itype = "date" if ftype == "date" else "text"
+        return _input_html(name, input_type=itype)
+
+    out = re.sub(r"_{3,}|\.{4,}|□|☐|\[\s*\]", repl_blank, raw_html)
+
+    def empty_td(m: re.Match[str]) -> str:
+        nonlocal idx
+        if idx < len(text_fields):
+            name = text_fields[idx]["name"]
+            ftype = text_fields[idx].get("type") or "text"
+            idx += 1
+        else:
+            name = f"celda_{idx + 1}"
+            ftype = "text"
+            idx += 1
+        attrs = m.group(1) or ""
+        body = _input_html(name, input_type="yes_no" if ftype == "yes_no" else "text")
+        return f"<td{attrs}>{body}</td>"
+
+    out = re.sub(r"<td([^>]*)>\s*</td>", empty_td, out, flags=re.I)
+
+    # Tablas editables detectadas: si el HTML no las cubrió, se agregan al final
+    for f in fields:
+        if f.get("type") != "editable_table":
+            continue
+        name = html.escape(f["name"], quote=True)
+        label = html.escape(f.get("label") or "Tabla")
+        cols = f.get("columns") or []
+        heads = "".join(f"<th>{html.escape(c.get('label') or c.get('key') or '')}</th>" for c in cols)
+        out += (
+            f'<div class="sgi-rec-table-block" data-sgi-table="{name}">'
+            f"<p><strong>{label}</strong></p>"
+            f'<table class="sgi-rec-doc-table"><thead><tr>{heads}</tr></thead>'
+            f'<tbody data-sgi-table-body="{name}"></tbody></table>'
+            f'<button type="button" class="sgi-rec-add-row sgi-proc-no-print" data-sgi-table-add="{name}">+ Fila</button>'
+            f"</div>"
+        )
+    return out
+
+
+def build_docx_layout(data: bytes, fields: list[dict[str, Any]]) -> str:
+    raw = _docx_bytes_to_html(data)
+    return _inject_fields_into_docx_html(raw, fields)
+
+
+def build_xlsx_layout(data: bytes, fields: list[dict[str, Any]]) -> str:
+    """Reproduce hojas Excel como tablas documentales editables (no formulario Bootstrap)."""
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        return "<p>No se pudo generar la vista del Excel.</p>"
+
+    try:
+        wb = load_workbook(io.BytesIO(data), data_only=False, read_only=True)
+    except Exception:
+        return "<p>No se pudo generar la vista del Excel.</p>"
+
+    table_fields = {f["name"]: f for f in fields if f.get("type") == "editable_table"}
+    text_fields = [f for f in fields if f.get("type") not in ("editable_table", "calculated")]
+    text_by_label = {(f.get("label") or "").strip().lower(): f for f in text_fields}
+
+    parts: list[str] = []
+    try:
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            parts.append(f'<h2 class="sgi-rec-sheet-title">{html.escape(sheet_name)}</h2>')
+            rows = []
+            for row in ws.iter_rows(max_row=60, max_col=20, values_only=False):
+                vals = list(row)
+                if any(c.value is not None for c in vals):
+                    rows.append(vals)
+                if len(rows) >= 40:
+                    break
+            if not rows:
+                continue
+
+            # Si hay tabla editable asociada a esta hoja, renderizarla como grilla documental
+            tname = f"tabla_{_slug(sheet_name)}"
+            tf = table_fields.get(tname)
+            if tf and len(rows) >= 1:
+                cols = tf.get("columns") or []
+                heads = "".join(f"<th>{html.escape(c.get('label') or '')}</th>" for c in cols)
+                parts.append(
+                    f'<div class="sgi-rec-table-block" data-sgi-table="{html.escape(tname, quote=True)}">'
+                    f'<table class="sgi-rec-doc-table sgi-rec-excel-table"><thead><tr>{heads}</tr></thead>'
+                    f'<tbody data-sgi-table-body="{html.escape(tname, quote=True)}"></tbody></table>'
+                    f'<button type="button" class="sgi-rec-add-row sgi-proc-no-print" data-sgi-table-add="{html.escape(tname, quote=True)}">+ Fila</button>'
+                    f"</div>"
+                )
+                continue
+
+            # Grilla celda a celda conservando valores fijos y editando vacíos / etiquetas
+            parts.append('<table class="sgi-rec-doc-table sgi-rec-excel-table">')
+            for ri, row in enumerate(rows):
+                parts.append("<tr>")
+                skip_next: set[int] = set()
+                for ci, cell in enumerate(row):
+                    if ci in skip_next:
+                        continue
+                    val = cell.value
+                    if isinstance(val, str) and val.startswith("="):
+                        parts.append(f'<td class="sgi-rec-formula">{html.escape(val)}</td>')
+                        continue
+                    if val is not None and str(val).strip() != "":
+                        label = str(val).strip().rstrip(":")
+                        nxt = row[ci + 1].value if ci + 1 < len(row) else "x"
+                        if ci + 1 < len(row) and (nxt is None or nxt == ""):
+                            fld = text_by_label.get(label.lower())
+                            name = fld["name"] if fld else _slug(label)
+                            ftype = (fld or {}).get("type") or infer_field_type(label)
+                            parts.append(f'<td class="sgi-rec-label">{html.escape(label)}</td>')
+                            itype = "yes_no" if ftype == "yes_no" else ("date" if ftype == "date" else "text")
+                            if ftype in ("textarea", "observations"):
+                                itype = "textarea"
+                            parts.append(f"<td>{_input_html(name, input_type=itype)}</td>")
+                            skip_next.add(ci + 1)
+                            continue
+                        parts.append(f"<td>{html.escape(str(val))}</td>")
+                    else:
+                        parts.append(f"<td>{_input_html(f'c_{ri}_{ci}')}</td>")
+                parts.append("</tr>")
+            parts.append("</table>")
+    finally:
+        wb.close()
+
+    return "\n".join(parts) if parts else "<p></p>"
+
+
 def analyze_docx(data: bytes) -> dict[str, Any]:
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
@@ -359,6 +545,7 @@ def analyze_docx(data: bytes) -> dict[str, Any]:
         )
 
     title = paragraphs[0][:120] if paragraphs else "Registro importado"
+    layout_html = build_docx_layout(data, fields)
     return {
         "detectedType": "word",
         "confidence": 0.75 if len(fields) > 1 else 0.45,
@@ -369,6 +556,8 @@ def analyze_docx(data: bytes) -> dict[str, Any]:
         "fields": fields,
         "tables": [f for f in fields if f["type"] == "editable_table"],
         "formulas": [],
+        "layoutHtml": layout_html,
+        "layoutMode": "document",
     }
 
 
@@ -551,6 +740,8 @@ def analyze_xlsx(data: bytes) -> dict[str, Any]:
         "fields": fields,
         "tables": [f for f in fields if f["type"] == "editable_table"],
         "formulas": formulas,
+        "layoutHtml": build_xlsx_layout(data, fields),
+        "layoutMode": "document",
     }
 
 

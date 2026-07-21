@@ -1,26 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Carga {{ '%04d'|format(entry.entry_number) }} · {{ summary.name }}{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
+{% endblock %}
 {% block content %}
-<div class="app-page-head">
-  <div>
-    <h1 class="app-page-title h5 mb-1">{{ summary.name }}</h1>
-    <p class="text-muted small mb-0">
-      Carga {{ '%04d'|format(entry.entry_number) }} · Estado: {{ entry.status }} · Versión definición {{ entry.version.version_number if entry.version else summary.version }}
-    </p>
+<div class="sgi-rec-workspace">
+  <div class="sgi-rec-toolbar sgi-proc-no-print">
+    <div>
+      <div class="fw-semibold">{{ summary.name }}</div>
+      <div class="sgi-rec-toolbar-meta">
+        {{ summary.code }} · Carga {{ '%04d'|format(entry.entry_number) }} · {{ entry.status }} ·
+        Versión {{ entry.version.version_number if entry.version else summary.version }}
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.record_entries_list', definition_id=defn.id) }}">← Atrás</a>
+      {% if not solo_lectura %}
+      <button type="button" class="btn btn-outline-primary btn-sm" id="btnSaveDraft">Guardar borrador</button>
+      <button type="button" class="btn btn-primary btn-sm" id="btnSubmit">Enviar</button>
+      <button type="button" class="btn btn-outline-danger btn-sm" id="btnClose">Cerrar</button>
+      {% endif %}
+    </div>
   </div>
-  <div class="app-page-actions d-flex flex-wrap gap-2">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.record_entries_list', definition_id=defn.id) }}">← Listado</a>
-    {% if not solo_lectura %}
-    <button type="button" class="btn btn-outline-primary btn-sm" id="btnSaveDraft">Guardar borrador</button>
-    <button type="button" class="btn btn-primary btn-sm" id="btnSubmit">Enviar</button>
-    <button type="button" class="btn btn-outline-danger btn-sm" id="btnClose">Cerrar</button>
-    {% endif %}
-  </div>
-</div>
 
-<div id="recordFormAlert" class="d-none"></div>
-<div class="card border-0 shadow-sm">
-  <div class="card-body" id="recordDynamicForm"></div>
+  <div id="recordFormAlert" class="alert d-none mx-auto" style="max-width:210mm"></div>
+
+  <div class="sgi-rec-sheet" id="sgiRecSheet">
+    <div class="text-center mb-3">
+      <div class="small text-uppercase fw-semibold">Química del Valle S.R.L.</div>
+      <div class="sgi-rec-sheet-title">{{ summary.name }}</div>
+      <div class="small">{{ summary.code }} · Rev. {{ entry.version.version_number if entry.version else summary.version }}</div>
+    </div>
+    <div id="recordDynamicForm"></div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}

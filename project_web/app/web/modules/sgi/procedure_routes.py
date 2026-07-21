@@ -1021,12 +1021,26 @@ def record_entries_list(definition_id: int):
     if defn is None:
         abort(404)
     from app.extensions import db
-    from app.models.sgi import SgiRecordDefinitionVersion
+    from app.models.sgi import SgiProcedimientoRegistro, SgiRecordDefinitionVersion, TIPO_SLUGS
+    from sqlalchemy import select
 
     entries = record_svc.list_entries(definition_id)
     summary = record_svc.definition_summary(defn)
     version = db.session.get(SgiRecordDefinitionVersion, defn.current_version_id) if defn.current_version_id else None
     schema = record_svc.parse_version_schema(version)
+
+    back_url = url_for("sgi.hub")
+    proc_reg = db.session.scalar(
+        select(SgiProcedimientoRegistro).where(
+            SgiProcedimientoRegistro.record_definition_id == int(definition_id)
+        )
+    )
+    if proc_reg is not None and proc_reg.proc_revision is not None:
+        doc = proc_reg.proc_revision.documento
+        if doc is not None:
+            slug = TIPO_SLUGS.get(doc.tipo, "pg")
+            back_url = url_for("sgi.listado_procedimientos", slug=slug)
+
     return render_template(
         "sgi/record_entries_list.html",
         defn=defn,
@@ -1034,6 +1048,7 @@ def record_entries_list(definition_id: int):
         entries=entries,
         schema=schema,
         puede_editar_cargas=user_can_manage_sgi_record_entries(u),
+        back_url=back_url,
     )
 
 

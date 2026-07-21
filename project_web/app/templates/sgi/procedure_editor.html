@@ -2,6 +2,7 @@
 {% block title %}{{ doc.codigo }} · Editor · {{ tipo_label }}{% endblock %}
 {% block extra_head %}
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
 {% block content %}

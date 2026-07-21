@@ -195,6 +195,7 @@
 {% endblock %}
 {% block scripts %}
 {% if puede_asociar_modulo or puede_crear_registro_digital or (puede_editar and tipo == 'MSGC') %}
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
 <script src="{{ url_for('static', filename='js/sgi_record_wizard.js') }}"></script>
 <script>
 (function () {

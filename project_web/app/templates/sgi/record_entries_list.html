@@ -1,28 +1,32 @@
 {% extends "base.html" %}
 {% block title %}{{ summary.code or defn.code }} · Cargas{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
+{% endblock %}
 {% block content %}
-<div class="app-page-head">
-  <div>
-    <h1 class="app-page-title h5 mb-1">{{ summary.name or defn.name }}</h1>
-    <p class="text-muted small mb-0">
-      {{ summary.code }} · {{ summary.origin_label }} · Versión {{ summary.version }} · {{ summary.status|capitalize }}
-    </p>
+<div class="sgi-rec-workspace">
+  <div class="sgi-rec-toolbar sgi-proc-no-print">
+    <div>
+      <div class="fw-semibold">{{ summary.name or defn.name }}</div>
+      <div class="sgi-rec-toolbar-meta">
+        {{ summary.code }} · {{ summary.origin_label }} · Versión {{ summary.version }} · {{ summary.status|capitalize }}
+      </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ back_url|default(url_for('sgi.hub')) }}">← Atrás</a>
+      {% if puede_editar_cargas %}
+      <form method="post" action="{{ url_for('sgi.record_entry_nueva', definition_id=defn.id) }}" class="d-inline">
+        {% include "_csrf.html" %}
+        <button type="submit" class="btn btn-primary btn-sm">Nueva carga</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
-  <div class="app-page-actions d-flex flex-wrap gap-2">
-    {% if puede_editar_cargas %}
-    <form method="post" action="{{ url_for('sgi.record_entry_nueva', definition_id=defn.id) }}">
-      {% include "_csrf.html" %}
-      <button type="submit" class="btn btn-primary btn-sm">Nueva carga</button>
-    </form>
-    {% endif %}
-  </div>
-</div>
 
-<div class="card border-0 shadow-sm">
-  <div class="card-body p-0">
+  <div class="sgi-rec-list-panel">
     <div class="table-responsive">
       <table class="table table-hover mb-0 align-middle">
-        <thead class="table-light">
+        <thead>
           <tr>
             <th>Número</th>
             <th>Fecha</th>
@@ -38,10 +42,10 @@
             <td>{{ '%04d'|format(e.entry_number) }}</td>
             <td class="small">{{ e.created_at[:16].replace('T', ' ') if e.created_at else '—' }}</td>
             <td>{{ e.created_by or '—' }}</td>
-            <td><span class="badge text-bg-secondary">{{ e.status }}</span></td>
+            <td>{{ e.status }}</td>
             <td>{{ e.version_number or '—' }}</td>
             <td class="text-end">
-              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.record_entry_edit', entry_id=e.id) }}">
+              <a class="btn btn-sm btn-outline-dark" href="{{ url_for('sgi.record_entry_edit', entry_id=e.id) }}">
                 {% if e.status == 'borrador' %}Continuar{% else %}Ver{% endif %}
               </a>
             </td>

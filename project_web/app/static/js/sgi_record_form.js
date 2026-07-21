@@ -1,5 +1,5 @@
 /**
- * Formulario dinámico de carga de registro SGC.
+ * Formulario de carga: conserva layout documental del Word/Excel.
  */
 (function () {
   "use strict";
@@ -10,212 +10,14 @@
   const schema = cfg.schema || {};
   const fields = Array.isArray(schema.fields) ? schema.fields.slice() : [];
   fields.sort((a, b) => (a.order || 0) - (b.order || 0));
+  const fieldByName = {};
+  fields.forEach((f) => {
+    fieldByName[f.name] = f;
+  });
   let data = cfg.data && typeof cfg.data === "object" ? { ...cfg.data } : {};
   const soloLectura = !!cfg.soloLectura;
-
-  function el(tag, attrs, children) {
-    const node = document.createElement(tag);
-    if (attrs) {
-      Object.entries(attrs).forEach(([k, v]) => {
-        if (v == null || v === false) return;
-        if (k === "className") node.className = v;
-        else if (k === "text") node.textContent = v;
-        else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
-        else node.setAttribute(k, v === true ? "" : String(v));
-      });
-    }
-    (children || []).forEach((c) => {
-      if (c == null) return;
-      node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
-    });
-    return node;
-  }
-
-  function inputFor(field) {
-    const name = field.name;
-    const val = data[name];
-    const common = {
-      className: "form-control",
-      id: `fld_${name}`,
-      name,
-      disabled: soloLectura || field.mode === "readonly" || field.type === "calculated",
-    };
-    const type = field.type || "text";
-
-    if (type === "textarea" || type === "observations") {
-      const ta = el("textarea", { ...common, rows: "3" });
-      ta.value = val != null ? String(val) : "";
-      ta.addEventListener("input", () => {
-        data[name] = ta.value;
-      });
-      return ta;
-    }
-    if (type === "yes_no") {
-      const sel = el("select", { ...common, className: "form-select" });
-      ["", "Sí", "No"].forEach((opt) => {
-        const o = el("option", { value: opt, text: opt || "—" });
-        if (String(val || "") === opt) o.selected = true;
-        sel.appendChild(o);
-      });
-      sel.addEventListener("change", () => {
-        data[name] = sel.value;
-      });
-      return sel;
-    }
-    if (type === "checkbox") {
-      const wrap = el("div", { className: "form-check" });
-      const cb = el("input", {
-        type: "checkbox",
-        className: "form-check-input",
-        id: common.id,
-        disabled: common.disabled,
-      });
-      cb.checked = !!val;
-      cb.addEventListener("change", () => {
-        data[name] = cb.checked;
-      });
-      wrap.appendChild(cb);
-      wrap.appendChild(el("label", { className: "form-check-label", for: common.id, text: field.label || name }));
-      return wrap;
-    }
-    if (type === "select" || type === "dropdown") {
-      const sel = el("select", { ...common, className: "form-select" });
-      sel.appendChild(el("option", { value: "", text: "—" }));
-      (field.options || []).forEach((opt) => {
-        const o = el("option", { value: String(opt), text: String(opt) });
-        if (String(val || "") === String(opt)) o.selected = true;
-        sel.appendChild(o);
-      });
-      sel.addEventListener("change", () => {
-        data[name] = sel.value;
-      });
-      return sel;
-    }
-    if (type === "editable_table") {
-      return renderTable(field);
-    }
-
-    let inputType = "text";
-    if (type === "date") inputType = "date";
-    else if (type === "datetime") inputType = "datetime-local";
-    else if (type === "time") inputType = "time";
-    else if (type === "email") inputType = "email";
-    else if (type === "integer" || type === "decimal" || type === "percent" || type === "currency") inputType = "number";
-
-    const inp = el("input", { ...common, type: inputType, placeholder: field.placeholder || "" });
-    if (val != null) inp.value = String(val);
-    inp.addEventListener("input", () => {
-      data[name] = inp.value;
-    });
-    return inp;
-  }
-
-  function renderTable(field) {
-    const cols = field.columns || [];
-    let rows = Array.isArray(data[field.name]) ? data[field.name] : [];
-    if (!rows.length) rows = [{}];
-    data[field.name] = rows;
-
-    const wrap = el("div", { className: "table-responsive" });
-    const table = el("table", { className: "table table-sm align-middle" });
-    const thead = el("thead");
-    const hr = el("tr");
-    cols.forEach((c) => hr.appendChild(el("th", { text: c.label || c.key })));
-    if (!soloLectura) hr.appendChild(el("th", { text: "" }));
-    thead.appendChild(hr);
-    table.appendChild(thead);
-    const tbody = el("tbody");
-
-    function sync() {
-      data[field.name] = rows;
-    }
-
-    function draw() {
-      tbody.innerHTML = "";
-      rows.forEach((row, ri) => {
-        const tr = el("tr");
-        cols.forEach((c) => {
-          const td = el("td");
-          const inp = el("input", {
-            type: "text",
-            className: "form-control form-control-sm",
-            disabled: soloLectura,
-            value: row[c.key] != null ? String(row[c.key]) : "",
-          });
-          inp.addEventListener("input", () => {
-            rows[ri][c.key] = inp.value;
-            sync();
-          });
-          td.appendChild(inp);
-          tr.appendChild(td);
-        });
-        if (!soloLectura) {
-          const td = el("td");
-          const btn = el("button", {
-            type: "button",
-            className: "btn btn-sm btn-link text-danger",
-            text: "×",
-            onclick: () => {
-              rows.splice(ri, 1);
-              if (!rows.length) rows.push({});
-              sync();
-              draw();
-            },
-          });
-          td.appendChild(btn);
-          tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      });
-    }
-    draw();
-    table.appendChild(tbody);
-    wrap.appendChild(table);
-    if (!soloLectura) {
-      wrap.appendChild(
-        el("button", {
-          type: "button",
-          className: "btn btn-sm btn-outline-secondary",
-          text: "Agregar fila",
-          onclick: () => {
-            rows.push({});
-            sync();
-            draw();
-          },
-        })
-      );
-    }
-    return wrap;
-  }
-
-  function render() {
-    root.innerHTML = "";
-    const bySection = {};
-    fields.forEach((f) => {
-      const sec = f.section || "Datos generales";
-      if (!bySection[sec]) bySection[sec] = [];
-      bySection[sec].push(f);
-    });
-    Object.keys(bySection).forEach((sec) => {
-      root.appendChild(el("h2", { className: "h6 mt-3 mb-2", text: sec }));
-      bySection[sec].forEach((f) => {
-        if (f.type === "checkbox") {
-          root.appendChild(el("div", { className: "mb-3" }, [inputFor(f)]));
-          return;
-        }
-        const group = el("div", { className: "mb-3" });
-        group.appendChild(
-          el("label", {
-            className: "form-label",
-            for: `fld_${f.name}`,
-            text: (f.label || f.name) + (f.required ? " *" : ""),
-          })
-        );
-        group.appendChild(inputFor(f));
-        root.appendChild(group);
-      });
-    });
-  }
+  const layoutHtml = schema.layoutHtml || "";
+  const useLayout = !!(layoutHtml && (schema.layoutMode || "document") === "document");
 
   function flash(kind, msg) {
     const box = document.getElementById("recordFormAlert");
@@ -223,6 +25,139 @@
     box.className = `alert alert-${kind}`;
     box.textContent = msg;
     box.classList.remove("d-none");
+  }
+
+  function bindControl(el) {
+    const name = el.getAttribute("data-sgi-field");
+    if (!name) return;
+    if (soloLectura) {
+      el.disabled = true;
+      el.readOnly = true;
+    }
+    const val = data[name];
+    if (el.tagName === "SELECT" || el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+      if (el.type === "checkbox") el.checked = !!val;
+      else if (val != null) el.value = String(val);
+    }
+    const handler = () => {
+      if (el.type === "checkbox") data[name] = el.checked;
+      else data[name] = el.value;
+    };
+    el.addEventListener("input", handler);
+    el.addEventListener("change", handler);
+  }
+
+  function renderTableBody(name) {
+    const field = fieldByName[name];
+    const cols = (field && field.columns) || [];
+    let rows = Array.isArray(data[name]) ? data[name] : [];
+    if (!rows.length) rows = [{}];
+    data[name] = rows;
+    const tbody = root.querySelector(`[data-sgi-table-body="${name.replace(/"/g, "")}"]`);
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    rows.forEach((row, ri) => {
+      const tr = document.createElement("tr");
+      cols.forEach((c) => {
+        const td = document.createElement("td");
+        const inp = document.createElement("input");
+        inp.type = "text";
+        inp.className = "sgi-rec-inline";
+        inp.value = row[c.key] != null ? String(row[c.key]) : "";
+        inp.disabled = soloLectura;
+        inp.addEventListener("input", () => {
+          rows[ri][c.key] = inp.value;
+          data[name] = rows;
+        });
+        td.appendChild(inp);
+        tr.appendChild(td);
+      });
+      if (!soloLectura) {
+        const td = document.createElement("td");
+        td.className = "sgi-proc-no-print";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "btn btn-sm btn-link text-danger";
+        btn.textContent = "×";
+        btn.addEventListener("click", () => {
+          rows.splice(ri, 1);
+          if (!rows.length) rows.push({});
+          data[name] = rows;
+          renderTableBody(name);
+        });
+        td.appendChild(btn);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function wireTables() {
+    root.querySelectorAll("[data-sgi-table-body]").forEach((tb) => {
+      renderTableBody(tb.getAttribute("data-sgi-table-body"));
+    });
+    root.querySelectorAll("[data-sgi-table-add]").forEach((btn) => {
+      if (soloLectura) {
+        btn.remove();
+        return;
+      }
+      btn.addEventListener("click", () => {
+        const name = btn.getAttribute("data-sgi-table-add");
+        if (!Array.isArray(data[name])) data[name] = [];
+        data[name].push({});
+        renderTableBody(name);
+      });
+    });
+  }
+
+  function renderFallbackFields() {
+    const bySection = {};
+    fields.forEach((f) => {
+      const sec = f.section || "Datos generales";
+      if (!bySection[sec]) bySection[sec] = [];
+      bySection[sec].push(f);
+    });
+    let html = "";
+    Object.keys(bySection).forEach((sec) => {
+      html += `<h2 class="sgi-rec-sheet-title">${sec}</h2>`;
+      html += `<table class="sgi-rec-doc-table"><tbody>`;
+      bySection[sec].forEach((f) => {
+        if (f.type === "editable_table") {
+          const cols = f.columns || [];
+          const heads = cols.map((c) => `<th>${c.label || c.key}</th>`).join("");
+          html += `</tbody></table>
+            <div class="sgi-rec-table-block" data-sgi-table="${f.name}">
+              <p><strong>${f.label || f.name}</strong></p>
+              <table class="sgi-rec-doc-table"><thead><tr>${heads}</tr></thead>
+              <tbody data-sgi-table-body="${f.name}"></tbody></table>
+              ${soloLectura ? "" : `<button type="button" class="sgi-rec-add-row" data-sgi-table-add="${f.name}">+ Fila</button>`}
+            </div><table class="sgi-rec-doc-table"><tbody>`;
+          return;
+        }
+        html += `<tr><td class="sgi-rec-label">${f.label || f.name}${f.required ? " *" : ""}</td><td>`;
+        if (f.type === "textarea" || f.type === "observations") {
+          html += `<textarea class="sgi-rec-inline" data-sgi-field="${f.name}" rows="3"></textarea>`;
+        } else if (f.type === "yes_no") {
+          html += `<select class="sgi-rec-inline" data-sgi-field="${f.name}"><option value="">—</option><option>Sí</option><option>No</option></select>`;
+        } else {
+          const t = f.type === "date" ? "date" : "text";
+          html += `<input type="${t}" class="sgi-rec-inline" data-sgi-field="${f.name}" />`;
+        }
+        html += `</td></tr>`;
+      });
+      html += `</tbody></table>`;
+    });
+    root.innerHTML = html || "<p>Sin campos configurados.</p>";
+  }
+
+  function render() {
+    if (useLayout) {
+      root.innerHTML = layoutHtml;
+    } else {
+      renderFallbackFields();
+    }
+    root.querySelectorAll("[data-sgi-field]").forEach(bindControl);
+    wireTables();
   }
 
   function save(opts) {

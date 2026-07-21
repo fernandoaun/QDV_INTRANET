@@ -82,7 +82,7 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" data-preview-vp="tablet">Tablet</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-preview-vp="mobile">Móvil</button>
           </div>
-          <div id="sgiCrPreviewFrame" class="border rounded p-3 mx-auto" style="max-width:100%"></div>
+          <div id="sgiCrPreviewFrame" class="sgi-rec-sheet mx-auto" style="min-height:auto;padding:12mm;max-width:100%"></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -173,6 +173,10 @@
       const frame = qs("#sgiCrPreviewFrame");
       const widths = { desktop: "100%", tablet: "768px", mobile: "390px" };
       frame.style.maxWidth = widths[vp] || "100%";
+      if (analysis && analysis.layoutHtml) {
+        frame.innerHTML = analysis.layoutHtml;
+        return;
+      }
       const bySec = {};
       fields.forEach((f) => {
         const s = f.section || "Datos generales";
@@ -180,15 +184,11 @@
       });
       let html = "";
       Object.keys(bySec).forEach((sec) => {
-        html += `<h6>${escapeHtml(sec)}</h6>`;
+        html += `<h2 class="sgi-rec-sheet-title">${escapeHtml(sec)}</h2><table class="sgi-rec-doc-table"><tbody>`;
         bySec[sec].forEach((f) => {
-          html += `<div class="mb-2"><label class="form-label small">${escapeHtml(f.label || f.name)}${f.required ? " *" : ""}</label>`;
-          if (f.type === "textarea" || f.type === "observations") html += `<textarea class="form-control form-control-sm" rows="2" disabled></textarea>`;
-          else if (f.type === "yes_no" || f.type === "select") html += `<select class="form-select form-select-sm" disabled><option>—</option></select>`;
-          else if (f.type === "editable_table") html += `<div class="border rounded p-2 small text-muted">Tabla editable</div>`;
-          else html += `<input class="form-control form-control-sm" disabled>`;
-          html += `</div>`;
+          html += `<tr><td class="sgi-rec-label">${escapeHtml(f.label || f.name)}${f.required ? " *" : ""}</td><td><input class="sgi-rec-inline" disabled></td></tr>`;
         });
+        html += `</tbody></table>`;
       });
       frame.innerHTML = html || '<p class="text-muted">Sin campos</p>';
     }
@@ -201,6 +201,8 @@
         formulas: (analysis && analysis.formulas) || [],
         detectedType: (analysis && analysis.detectedType) || "",
         confidence: (analysis && analysis.confidence) || 0,
+        layoutHtml: (analysis && analysis.layoutHtml) || "",
+        layoutMode: (analysis && analysis.layoutMode) || "document",
       };
     }
 

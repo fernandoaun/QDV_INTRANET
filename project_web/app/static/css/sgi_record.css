@@ -1,0 +1,172 @@
+/* Registros digitales — estética documental (misma línea que procedimientos SGC) */
+.sgi-rec-workspace {
+  background: #e8eaed;
+  min-height: calc(100vh - 120px);
+  padding: 1.5rem 1rem 4rem;
+}
+
+.sgi-rec-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #dee2e6);
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sgi-rec-toolbar-meta {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.sgi-rec-sheet {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.45;
+  color: #000;
+  background: #fff;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 0 auto 2rem;
+  padding: 18mm 20mm 22mm;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.sgi-rec-sheet h1,
+.sgi-rec-sheet h2,
+.sgi-rec-sheet .sgi-rec-sheet-title {
+  font-size: 13pt;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 0.75rem 0 1rem;
+}
+
+.sgi-rec-sheet p {
+  margin: 0.4rem 0;
+}
+
+.sgi-rec-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0 1.25rem;
+  font-size: 10pt;
+}
+
+.sgi-rec-doc-table th,
+.sgi-rec-doc-table td {
+  border: 1px solid #000;
+  padding: 0.35rem 0.45rem;
+  vertical-align: middle;
+}
+
+.sgi-rec-doc-table th {
+  background: #f3f3f3;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-rec-label {
+  font-weight: 600;
+  background: #fafafa;
+  white-space: nowrap;
+}
+
+.sgi-rec-formula {
+  font-family: Consolas, monospace;
+  font-size: 9pt;
+  color: #444;
+  background: #f7f7f7;
+}
+
+.sgi-rec-inline {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #666;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  padding: 0.15rem 0.2rem;
+  min-height: 1.4em;
+  box-sizing: border-box;
+}
+
+.sgi-rec-inline:focus {
+  outline: none;
+  border-bottom-color: #0d6efd;
+  background: #f8fbff;
+}
+
+td .sgi-rec-inline {
+  border-bottom: none;
+  min-height: 1.6em;
+}
+
+td .sgi-rec-inline:focus {
+  background: #eef5ff;
+}
+
+.sgi-rec-add-row {
+  border: 1px dashed #888;
+  background: #fff;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+  margin-top: 0.35rem;
+  cursor: pointer;
+}
+
+.sgi-rec-add-row:hover {
+  background: #f5f5f5;
+}
+
+.sgi-rec-table-block {
+  margin: 1rem 0 1.5rem;
+}
+
+.sgi-rec-list-panel {
+  background: #fff;
+  border: 1px solid #cfd4da;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.sgi-rec-list-panel table {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5pt;
+}
+
+.sgi-rec-list-panel thead th {
+  border-bottom: 2px solid #000;
+  background: #f3f3f3;
+  font-weight: 700;
+}
+
+@media print {
+  .sgi-rec-workspace {
+    background: #fff;
+    padding: 0;
+  }
+  .sgi-rec-toolbar,
+  .sgi-proc-no-print,
+  .sgi-rec-add-row {
+    display: none !important;
+  }
+  .sgi-rec-sheet {
+    box-shadow: none;
+    margin: 0;
+    width: auto;
+    min-height: auto;
+  }
+}

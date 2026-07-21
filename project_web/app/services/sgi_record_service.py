@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -191,6 +192,12 @@ def normalize_schema(payload: dict[str, Any] | None) -> dict[str, Any]:
             item["columns"] = cols
         fields.append(item)
     fields.sort(key=lambda x: int(x.get("order") or 0))
+    layout_html = str(data.get("layoutHtml") or data.get("layout_html") or "")
+    # Límite defensivo; sin scripts
+    if layout_html:
+        layout_html = re.sub(r"(?is)<script[^>]*>.*?</script>", "", layout_html)
+        layout_html = re.sub(r"(?is)\son\w+\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)", "", layout_html)
+        layout_html = layout_html[:200_000]
     return {
         "sections": sections,
         "fields": fields,
@@ -198,6 +205,8 @@ def normalize_schema(payload: dict[str, Any] | None) -> dict[str, Any]:
         "formulas": data.get("formulas") if isinstance(data.get("formulas"), list) else [],
         "detectedType": str(data.get("detectedType") or "")[:32],
         "confidence": float(data.get("confidence") or 0),
+        "layoutHtml": layout_html,
+        "layoutMode": str(data.get("layoutMode") or ("document" if layout_html else "fields"))[:32],
     }
 
 
@@ -208,7 +217,18 @@ def parse_version_schema(version: SgiRecordDefinitionVersion | None) -> dict[str
         data = json.loads(version.schema_json or "{}")
     except json.JSONDecodeError:
         data = {}
-    return normalize_schema(data if isinstance(data, dict) else {})
+    if not isinstance(data, dict):
+        data = {}
+    try:
+        ui = json.loads(version.ui_schema_json or "{}")
+    except json.JSONDecodeError:
+        ui = {}
+    if isinstance(ui, dict):
+        if ui.get("layoutHtml") and not data.get("layoutHtml"):
+            data["layoutHtml"] = ui.get("layoutHtml")
+        if ui.get("layoutMode") and not data.get("layoutMode"):
+            data["layoutMode"] = ui.get("layoutMode")
+    return normalize_schema(data)
 
 
 def definition_summary(defn: SgiRecordDefinition) -> dict[str, Any]:
@@ -313,8 +333,10 @@ def analyze_uploaded_file(file: FileStorage, user: User | None) -> tuple[bool, s
         "warnings": schema.get("warnings") or [],
         "sections": schema.get("sections") or [],
         "fields": schema.get("fields") or [],
-        "tables": schema.get("tables") if "tables" in schema else analysis.get("tables") or [],
+        "tables": analysis.get("tables") or [],
         "formulas": schema.get("formulas") or [],
+        "layoutHtml": schema.get("layoutHtml") or analysis.get("layoutHtml") or "",
+        "layoutMode": schema.get("layoutMode") or "document",
         "suggestedName": analysis.get("suggestedName") or "",
         "suggestedCode": analysis.get("suggestedCode") or "",
         "originType": import_svc.origin_type_for_ext(ext),
@@ -403,7 +425,13 @@ def create_definition_from_analysis(
             record_definition_id=defn.id,
             version_number=1,
             schema_json=json.dumps(schema, ensure_ascii=False),
-            ui_schema_json=json.dumps({"preview": True}, ensure_ascii=False),
+            ui_schema_json=json.dumps(
+                {
+                    "layoutMode": schema.get("layoutMode") or "document",
+                    "layoutHtml": schema.get("layoutHtml") or "",
+                },
+                ensure_ascii=False,
+            ),
             change_description="Versión inicial desde importación",
             created_by_id=int(user.id) if user else None,
         )
