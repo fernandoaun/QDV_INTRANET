@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Carga {{ '%04d'|format(entry.entry_number) }} · {{ summary.name }}{% endblock %}
 {% block extra_head %}
-<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}?v={{ static_v|default('1') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="sgi-rec-workspace">
@@ -43,5 +43,5 @@
     saveUrl: {{ url_for('sgi.record_entry_guardar', entry_id=entry.id)|tojson }}
   };
 </script>
-<script src="{{ url_for('static', filename='js/sgi_record_form.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_record_form.js') }}?v={{ static_v|default('1') }}"></script>
 {% endblock %}

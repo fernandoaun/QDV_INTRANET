@@ -229,6 +229,101 @@ def parse_version_schema(version: SgiRecordDefinitionVersion | None) -> dict[str
     return normalize_schema(data)
 
 
+def _source_file_bytes(rf: SgiRecordFile | None) -> tuple[bytes | None, str]:
+    """Lee bytes del Word/Excel fuente. Devuelve (data, ext)."""
+    if rf is None:
+        return None, ""
+    ext = (rf.extension or Path(rf.safe_name or "").suffix or "").lower()
+    candidates: list[Path] = []
+    if rf.storage_path:
+        candidates.append(uploads_workspace_root() / rf.storage_path)
+    if rf.safe_name:
+        parent = (uploads_workspace_root() / (rf.storage_path or "sgi/record_sources/_pending/x")).parent
+        candidates.append(parent / rf.safe_name)
+        candidates.append(parent / f"safe_{rf.safe_name}")
+        candidates.append(records_storage_dir(None) / "_pending" / rf.safe_name)
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            if path.is_file():
+                return path.read_bytes(), ext
+        except OSError:
+            continue
+    return None, ext
+
+
+def build_layout_from_source_file(rf: SgiRecordFile | None, fields: list[dict[str, Any]] | None = None) -> str:
+    """Regenera layoutHtml documental desde el archivo Word/Excel original."""
+    data, ext = _source_file_bytes(rf)
+    if not data or ext not in (".docx", ".xlsx", ".xls"):
+        return ""
+    try:
+        if ext == ".docx":
+            if fields is None:
+                analysis = import_svc.analyze_docx(data)
+                return str(analysis.get("layoutHtml") or "")
+            return import_svc.build_docx_layout(data, fields)
+        if fields is None:
+            analysis = import_svc.analyze_xlsx(data)
+            return str(analysis.get("layoutHtml") or "")
+        return import_svc.build_xlsx_layout(data, fields)
+    except Exception:
+        logger.exception("No se pudo regenerar layout desde archivo fuente id=%s", getattr(rf, "id", None))
+        return ""
+
+
+def persist_version_layout(version: SgiRecordDefinitionVersion, schema: dict[str, Any]) -> dict[str, Any]:
+    """Guarda layoutHtml en schema_json y ui_schema_json de la versión."""
+    schema = normalize_schema(schema)
+    version.schema_json = json.dumps(schema, ensure_ascii=False)
+    version.ui_schema_json = json.dumps(
+        {
+            "layoutMode": schema.get("layoutMode") or "document",
+            "layoutHtml": schema.get("layoutHtml") or "",
+        },
+        ensure_ascii=False,
+    )
+    return schema
+
+
+def ensure_document_layout(
+    defn: SgiRecordDefinition,
+    version: SgiRecordDefinitionVersion | None = None,
+    *,
+    persist: bool = True,
+) -> dict[str, Any]:
+    """
+    Asegura schema con layout documental.
+    Si falta layoutHtml, lo reconstruye desde el Word/Excel fuente (arregla
+    definiciones creadas antes de persistir el layout).
+    """
+    ver = version
+    if ver is None and defn.current_version_id:
+        ver = db.session.get(SgiRecordDefinitionVersion, int(defn.current_version_id))
+    schema = parse_version_schema(ver)
+    layout = (schema.get("layoutHtml") or "").strip()
+    if layout and (schema.get("layoutMode") or "document") == "document":
+        return schema
+
+    rf = defn.source_file
+    if rf is None and defn.source_file_id:
+        rf = db.session.get(SgiRecordFile, int(defn.source_file_id))
+    rebuilt = build_layout_from_source_file(rf, schema.get("fields") or [])
+    if not rebuilt:
+        return schema
+
+    schema["layoutHtml"] = rebuilt
+    schema["layoutMode"] = "document"
+    if persist and ver is not None:
+        persist_version_layout(ver, schema)
+        db.session.commit()
+    return schema
+
+
 def definition_summary(defn: SgiRecordDefinition) -> dict[str, Any]:
     ver = None
     if defn.current_version_id:
@@ -377,6 +472,12 @@ def create_definition_from_analysis(
     schema = normalize_schema(schema_payload)
     if not schema.get("fields"):
         return False, "La definición debe tener al menos un campo.", None
+    # Siempre anclar el layout al archivo fuente (no depender solo del payload del wizard)
+    if not (schema.get("layoutHtml") or "").strip():
+        rebuilt = build_layout_from_source_file(rf, schema.get("fields") or [])
+        if rebuilt:
+            schema["layoutHtml"] = rebuilt
+            schema["layoutMode"] = "document"
 
     st = (status or RECORD_STATUS_ACTIVE).strip().lower()
     if st not in (RECORD_STATUS_ACTIVE, RECORD_STATUS_DRAFT):
@@ -615,6 +716,11 @@ def create_new_version(
     if defn is None:
         return False, "Definición no encontrada.", None
     schema = normalize_schema(schema_payload)
+    if not (schema.get("layoutHtml") or "").strip():
+        rebuilt = build_layout_from_source_file(defn.source_file, schema.get("fields") or [])
+        if rebuilt:
+            schema["layoutHtml"] = rebuilt
+            schema["layoutMode"] = "document"
     max_v = db.session.scalar(
         select(func.coalesce(func.max(SgiRecordDefinitionVersion.version_number), 0)).where(
             SgiRecordDefinitionVersion.record_definition_id == defn.id
@@ -624,7 +730,13 @@ def create_new_version(
         record_definition_id=defn.id,
         version_number=int(max_v or 0) + 1,
         schema_json=json.dumps(schema, ensure_ascii=False),
-        ui_schema_json="{}",
+        ui_schema_json=json.dumps(
+            {
+                "layoutMode": schema.get("layoutMode") or "document",
+                "layoutHtml": schema.get("layoutHtml") or "",
+            },
+            ensure_ascii=False,
+        ),
         change_description=(change_description or "Nueva versión")[:2000],
         created_by_id=int(user.id) if user else None,
     )

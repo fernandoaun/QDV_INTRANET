@@ -36,6 +36,18 @@ from app.services import sgi_service as doc_svc
 from app.web.modules.sgi.routes import _no_access, _no_mutate, _require_view, _resolve_tipo, bp
 
 
+def _sgi_record_static_version() -> str:
+    """Cache-bust de CSS/JS de registros digitales (mtime)."""
+    static = Path(current_app.static_folder or "")
+    latest = 0
+    for rel in ("js/sgi_record_form.js", "css/sgi_record.css"):
+        try:
+            latest = max(latest, int((static / rel).stat().st_mtime))
+        except OSError:
+            continue
+    return str(latest or 1)
+
+
 def _require_procedure_read(doc: SgiDocumento | None = None):
     """Acceso al módulo SGC o lectura de un procedimiento aprobado asignado al perfil del usuario."""
     u = current_user()
@@ -1077,13 +1089,15 @@ def record_entry_edit(entry_id: int):
     defn = record_svc.get_definition(entry.record_definition_id)
     if defn is None:
         abort(404)
-    schema = record_svc.parse_version_schema(entry.version)
+    # Regenera layout desde el Word/Excel si la definición no lo tenía guardado
+    schema = record_svc.ensure_document_layout(defn, entry.version)
     try:
         data = json.loads(entry.data_json or "{}")
     except json.JSONDecodeError:
         data = {}
     if not isinstance(data, dict):
         data = {}
+    static_v = _sgi_record_static_version()
     return render_template(
         "sgi/record_entry_form.html",
         defn=defn,
@@ -1091,6 +1105,7 @@ def record_entry_edit(entry_id: int):
         schema=schema,
         data_json=json.dumps(data, ensure_ascii=False),
         summary=record_svc.definition_summary(defn),
+        static_v=static_v,
     )
 
 

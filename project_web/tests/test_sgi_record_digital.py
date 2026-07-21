@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import zipfile
 from pathlib import Path
 
@@ -290,6 +291,17 @@ def test_create_digital_record_and_entry_flow(auth_client, app):
     assert created["registro"]["record_url"]
     def_id = created["registro"]["record_definition_id"]
 
+    # Aunque el schema del POST no traiga layoutHtml, se regenera desde el Excel fuente
+    with app.app_context():
+        from app.models.sgi import SgiRecordDefinitionVersion
+
+        defn = db.session.get(SgiRecordDefinition, int(def_id))
+        assert defn is not None
+        ver = db.session.get(SgiRecordDefinitionVersion, defn.current_version_id)
+        schema_saved = record_svc.parse_version_schema(ver)
+        assert (schema_saved.get("layoutHtml") or "").strip()
+        assert schema_saved.get("layoutMode") == "document"
+
     # listado muestra Ir al registro
     lst = auth_client.get("/sgi/pg/procedimientos/")
     assert lst.status_code == 200
@@ -365,3 +377,89 @@ def test_listado_shows_crear_registro_when_unlinked(auth_client, app):
     html = r.get_data(as_text=True)
     assert "Crear registro" in html
     assert "Asociar registro existente" in html
+
+
+def test_ensure_document_layout_rebuilds_missing_html(app):
+    """Definiciones viejas sin layoutHtml recuperan la estética desde el Word fuente."""
+    from app.extensions import db
+    from app.models.sgi import (
+        ASSOC_IMPORTED_WORD,
+        RECORD_STATUS_ACTIVE,
+        SgiRecordDefinition,
+        SgiRecordDefinitionVersion,
+        SgiRecordFile,
+    )
+    from app.services import sgi_record_service as record_svc
+    from app.services.upload_paths import uploads_workspace_root
+
+    data = _minimal_docx_bytes(
+        ["Fecha: ______", "Lugar: ______"],
+        header_cells=[["Química del Valle", "REG-CAP"], ["", "Rev. 00"]],
+        header_image_png=_tiny_png(),
+    )
+    with app.app_context():
+        root = uploads_workspace_root()
+        dest_dir = root / "sgi" / "record_sources" / "_test_layout"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / "acta.docx"
+        dest.write_bytes(data)
+        rel = "sgi/record_sources/_test_layout/acta.docx"
+
+        rf = SgiRecordFile(
+            original_name="acta.docx",
+            safe_name="acta.docx",
+            extension=".docx",
+            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            size_bytes=len(data),
+            content_hash="abc123",
+            storage_path=rel,
+            analysis_status="analyzed",
+        )
+        db.session.add(rf)
+        db.session.flush()
+
+        defn = SgiRecordDefinition(
+            code="REG-LAYOUT",
+            name="Fecha:",
+            description="",
+            origin_type=ASSOC_IMPORTED_WORD,
+            source_file_id=rf.id,
+            status=RECORD_STATUS_ACTIVE,
+        )
+        db.session.add(defn)
+        db.session.flush()
+
+        ver = SgiRecordDefinitionVersion(
+            record_definition_id=defn.id,
+            version_number=1,
+            schema_json=json.dumps(
+                {
+                    "fields": [
+                        {"name": "fecha", "label": "Fecha", "type": "date", "order": 1, "section": "Datos generales"},
+                        {"name": "lugar", "label": "Lugar", "type": "text", "order": 2, "section": "Datos generales"},
+                    ],
+                    "sections": [{"id": "sec_general", "title": "Datos generales", "order": 0}],
+                    "layoutHtml": "",
+                    "layoutMode": "fields",
+                },
+                ensure_ascii=False,
+            ),
+            ui_schema_json="{}",
+            change_description="sin layout",
+        )
+        db.session.add(ver)
+        db.session.flush()
+        defn.current_version_id = ver.id
+        db.session.commit()
+
+        schema = record_svc.ensure_document_layout(defn, ver)
+        assert schema.get("layoutMode") == "document"
+        layout = schema.get("layoutHtml") or ""
+        assert "sgi-rec-doc-header" in layout
+        assert "Química del Valle" in layout
+        assert "REG-CAP" in layout
+
+        # Persistido
+        db.session.refresh(ver)
+        again = record_svc.parse_version_schema(ver)
+        assert "Química del Valle" in (again.get("layoutHtml") or "")
