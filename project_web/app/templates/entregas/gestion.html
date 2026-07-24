@@ -268,7 +268,9 @@
           </td>
           <td data-label="Producto">{% if e.producto_terminado %}{{ e.producto_terminado.nombre }}{% else %}{{ e.producto }}{% endif %} <span class="text-muted small">L</span></td>
           <td class="text-end" data-label="Cantidades">
-            {% if cantidad_cargada is not none %}
+            {% if e.carga_origen_entrega_id %}
+            <div class="small text-muted">Carga #{{ e.carga_origen_entrega_id }}</div>
+            {% elif cantidad_cargada is not none %}
             <div><span class="text-muted small">Cargado:</span> {{ cantidad_cargada }} L</div>
             {% endif %}
             <div><span class="text-muted small">A descargar:</span> {{ cantidad_programada }} L</div>
@@ -282,7 +284,7 @@
             {% elif st == 'programada' %}
             <span class="badge rounded-pill text-bg-secondary">Programada</span>
             {% elif st == 'cargada' %}
-            <span class="badge rounded-pill text-bg-warning text-dark">Cargada</span>
+            <span class="badge rounded-pill text-bg-warning text-dark">Cargada{% if e.carga_origen_entrega_id %} · parte{% endif %}</span>
             {% elif st == 'entregada' %}
             <span class="badge rounded-pill text-bg-success">Entregada</span>
             {% else %}

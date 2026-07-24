@@ -133,6 +133,7 @@ def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_i
     qty_expr = func.coalesce(Entrega.cantidad_real_cargada, Entrega.cantidad_programada, Entrega.cantidad)
     total = db.session.scalar(
         select(func.coalesce(func.sum(qty_expr), 0.0)).where(
+            Entrega.carga_origen_entrega_id.is_(None),
             Entrega.cargada_at_iso.isnot(None),
             func.trim(Entrega.cargada_at_iso) != "",
             Entrega.cargada_at_iso >= t_from,
