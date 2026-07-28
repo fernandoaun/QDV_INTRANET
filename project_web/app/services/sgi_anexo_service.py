@@ -409,31 +409,40 @@ def organigrama_ensure_complete_nodes(nodes: list[dict[str, Any]]) -> list[dict[
     for n in nodes:
         if isinstance(n, dict) and n.get("id"):
             by_id[str(n["id"])] = n
-    if required.issubset(by_id.keys()):
-        specs = _organigrama_spec_by_id()
-        ordered: list[dict[str, Any]] = []
-        for gid in (s["id"] for s in ORGANIGRAMA_QDV_GRID):
-            base = dict(specs.get(gid, {}))
-            saved = by_id.get(gid, {})
-            user_ids = _organigrama_node_user_ids(saved)
-            merged = {
-                "id": gid,
-                "titulo": (saved.get("titulo") or base.get("titulo") or gid),
-                "subtitulo": saved.get("subtitulo") or base.get("subtitulo") or "",
-                "parent_id": saved.get("parent_id") if saved.get("parent_id") is not None else base.get("parent_id"),
-                "user_id": user_ids[0] if user_ids else saved.get("user_id"),
-                "user_ids": user_ids,
-                "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
-                "nivel": saved.get("nivel") if saved.get("nivel") is not None else base.get("nivel"),
-            }
-            merged["kind"] = _organigrama_node_kind({**base, **saved, **merged})
-            ordered.append(merged)
-        return ordered
-    preserve: dict[str, int] = {}
-    for nid, n in by_id.items():
-        if n.get("user_id"):
-            preserve[nid] = int(n["user_id"])
-    return build_default_organigrama_nodes(preserve_users=preserve, pptx_path=organigrama_pptx_path())
+    if not required.issubset(by_id.keys()):
+        preserve: dict[str, int] = {}
+        for nid, n in by_id.items():
+            uids = _organigrama_node_user_ids(n)
+            if uids:
+                preserve[nid] = uids[0]
+            elif n.get("user_id") not in (None, "", 0):
+                try:
+                    preserve[nid] = int(n["user_id"])
+                except (TypeError, ValueError):
+                    pass
+        # Completar con SPECS (ids estables). No usar parse PPTX: genera slugs distintos.
+        for n in build_default_organigrama_nodes(preserve_users=preserve, pptx_path=None):
+            if isinstance(n, dict) and n.get("id") and str(n["id"]) not in by_id:
+                by_id[str(n["id"])] = n
+    specs = _organigrama_spec_by_id()
+    ordered: list[dict[str, Any]] = []
+    for gid in (s["id"] for s in ORGANIGRAMA_QDV_GRID):
+        base = dict(specs.get(gid, {}))
+        saved = by_id.get(gid, {})
+        user_ids = _organigrama_node_user_ids(saved)
+        merged = {
+            "id": gid,
+            "titulo": (saved.get("titulo") or base.get("titulo") or gid),
+            "subtitulo": saved.get("subtitulo") or base.get("subtitulo") or "",
+            "parent_id": saved.get("parent_id") if saved.get("parent_id") is not None else base.get("parent_id"),
+            "user_id": user_ids[0] if user_ids else saved.get("user_id"),
+            "user_ids": user_ids,
+            "orden": saved.get("orden") if saved.get("orden") is not None else base.get("orden"),
+            "nivel": saved.get("nivel") if saved.get("nivel") is not None else base.get("nivel"),
+        }
+        merged["kind"] = _organigrama_node_kind({**base, **saved, **merged})
+        ordered.append(merged)
+    return ordered
 
 
 def organigrama_flat_nodes(arbol: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:

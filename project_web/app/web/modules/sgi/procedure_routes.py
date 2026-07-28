@@ -491,12 +491,8 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
             org_ctx = anexo_svc.organigrama_view_context(doc=doc, rev=rev)
             return render_template(
                 "sgi/anexo_organigrama.html",
-                slug=slug,
-                doc=doc,
-                rev=rev,
                 anexo=item,
                 standalone=True,
-                puede_editar=puede_editar,
                 **_procedure_render_kwargs(slug=slug, doc=doc, rev=rev, puede_editar=puede_editar),
                 **org_ctx,
             )
