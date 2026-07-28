@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
 from typing import Any
 
 from sqlalchemy import exists, func, or_, select
@@ -1644,3 +1646,453 @@ def marcar_vacacion_tomada(vacacion_id: int) -> tuple[bool, str]:
     vac.estado = "tomada"
     db.session.commit()
     return True, "Vacación marcada como tomada."
+
+
+def _excel_fmt_date(val: date | None) -> str:
+    return val.strftime("%d/%m/%Y") if val else ""
+
+
+def _excel_safe_sheet_title(name: str) -> str:
+    s = re.sub(r"[" + re.escape("[]:*?/\\") + r"]", "_", (name or "").strip())[:31]
+    return s or "Hoja"
+
+
+def _excel_autosize(ws, ncols: int, nrows: int) -> None:
+    from openpyxl.utils import get_column_letter
+
+    if nrows < 1:
+        return
+    ws.freeze_panes = "A2"
+    last_col = get_column_letter(ncols)
+    ws.auto_filter.ref = f"A1:{last_col}{nrows}"
+    for c in range(1, ncols + 1):
+        col_letter = get_column_letter(c)
+        maxlen = 10
+        for r in range(1, min(nrows, 500) + 1):
+            v = ws.cell(row=r, column=c).value
+            if v is not None:
+                maxlen = max(maxlen, min(len(str(v)), 60))
+        ws.column_dimensions[col_letter].width = min(maxlen + 2, 55)
+
+
+def _excel_write_header_row(ws, headers: list[str]) -> None:
+    from openpyxl.styles import Alignment, Font
+
+    bold = Font(bold=True)
+    for col, h in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = bold
+        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+
+def build_legajos_list_export_xlsx(*, q: str = "", estado: str = "") -> BytesIO:
+    """Exporta todos los legajos (filtrados) con sus datos relacionados en un solo Excel."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment
+
+    empleados = list_empleados(q=q, estado=estado)
+    status_map = legajo_status_by_empleado_id(sync_users=False)
+    emp_ids = [int(e.id) for e in empleados]
+    emp_by_id = {int(e.id): e for e in empleados}
+
+    def _emp_cols(emp: EmpleadoPersonal) -> list[Any]:
+        return [emp.legajo, emp.nombre_completo]
+
+    def _add_table_sheet(wb, title: str, headers: list[str], rows: list[list[Any]]) -> None:
+        ws = wb.create_sheet(title=_excel_safe_sheet_title(title))
+        _excel_write_header_row(ws, headers)
+        for r_i, row in enumerate(rows, start=2):
+            for c_i, val in enumerate(row, start=1):
+                ws.cell(row=r_i, column=c_i, value=val).alignment = Alignment(vertical="top", wrap_text=True)
+        _excel_autosize(ws, len(headers), 1 + len(rows))
+
+    wb = Workbook()
+    # Primera hoja: Datos de todos los legajos
+    datos_headers = [
+        "Legajo",
+        "Usuario sistema",
+        "Apellido y nombre",
+        "DNI",
+        "CUIL",
+        "Puesto",
+        "Área",
+        "Estado",
+        "Perfil legajo",
+        "Fecha nacimiento",
+        "Fecha ingreso",
+        "Teléfono",
+        "Email",
+        "Domicilio",
+        "Talle pantalón",
+        "Talle camisa",
+        "Talle calzado",
+        "Talle guantes",
+        "Talle mameluco",
+        "Observaciones",
+    ]
+    datos_rows: list[list[Any]] = []
+    for emp in empleados:
+        st = status_map.get(emp.id) or {}
+        perfil = "Completo" if st.get("complete") else (
+            f"Incompleto ({st.get('missing_count', 0)})" if st else "—"
+        )
+        username = (emp.user.username if emp.user else "") or ""
+        datos_rows.append(
+            [
+                emp.legajo,
+                username,
+                emp.nombre_completo,
+                emp.dni or "",
+                emp.cuil or "",
+                emp.puesto or "",
+                emp.area or "",
+                ESTADO_EMPLEADO_LABELS.get(emp.estado, emp.estado),
+                perfil,
+                _excel_fmt_date(emp.fecha_nacimiento),
+                _excel_fmt_date(emp.fecha_ingreso),
+                emp.telefono or "",
+                emp.email or "",
+                emp.domicilio or "",
+                emp.talle_pantalon or "",
+                emp.talle_camisa or "",
+                emp.talle_calzado or "",
+                emp.talle_guantes or "",
+                emp.talle_mameluco or "",
+                emp.observaciones or "",
+            ]
+        )
+    ws_datos = wb.active
+    assert ws_datos is not None
+    ws_datos.title = _excel_safe_sheet_title("Datos")
+    _excel_write_header_row(ws_datos, datos_headers)
+    for r_i, row in enumerate(datos_rows, start=2):
+        for c_i, val in enumerate(row, start=1):
+            ws_datos.cell(row=r_i, column=c_i, value=val).alignment = Alignment(vertical="top", wrap_text=True)
+    _excel_autosize(ws_datos, len(datos_headers), 1 + len(datos_rows))
+
+    # EPP de todos
+    epp_rows: list[list[Any]] = []
+    if emp_ids:
+        entregas = (
+            db.session.query(PersonalEntregaEpp)
+            .join(EmpleadoPersonal)
+            .join(PersonalEppItem)
+            .filter(PersonalEntregaEpp.empleado_id.in_(emp_ids))
+            .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre, PersonalEntregaEpp.fecha.desc())
+            .all()
+        )
+        for e in entregas:
+            emp = emp_by_id.get(int(e.empleado_id)) or e.empleado
+            epp_rows.append(
+                [
+                    *_emp_cols(emp),
+                    _excel_fmt_date(e.fecha),
+                    e.item.nombre if e.item else "",
+                    CATEGORIA_EPP_LABELS.get((e.item.categoria if e.item else "") or "", (e.item.categoria if e.item else "")),
+                    e.talle or "",
+                    e.cantidad,
+                    ESTADO_ENTREGA_EPP_LABELS.get(e.estado, e.estado),
+                    "Sí" if e.prenda_anterior_devuelta else "No",
+                    e.observaciones or "",
+                ]
+            )
+    _add_table_sheet(
+        wb,
+        "EPP",
+        ["Legajo", "Apellido y nombre", "Fecha", "Ítem", "Categoría", "Talle", "Cantidad", "Estado", "Prenda anterior devuelta", "Observaciones"],
+        epp_rows,
+    )
+
+    # Cursos de todos
+    curso_rows: list[list[Any]] = []
+    if emp_ids:
+        cursos = (
+            db.session.query(PersonalCurso)
+            .join(EmpleadoPersonal)
+            .filter(PersonalCurso.empleado_id.in_(emp_ids))
+            .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre, PersonalCurso.nombre)
+            .all()
+        )
+        for c in cursos:
+            emp = emp_by_id.get(int(c.empleado_id)) or c.empleado
+            curso_rows.append(
+                [
+                    *_emp_cols(emp),
+                    c.nombre,
+                    c.institucion or "",
+                    _excel_fmt_date(c.fecha_realizacion),
+                    _excel_fmt_date(c.fecha_vencimiento),
+                    c.observaciones or "",
+                ]
+            )
+    _add_table_sheet(
+        wb,
+        "Cursos",
+        ["Legajo", "Apellido y nombre", "Nombre", "Institución", "Realización", "Vencimiento", "Observaciones"],
+        curso_rows,
+    )
+
+    # Apercibimientos de todos
+    aper_rows: list[list[Any]] = []
+    if emp_ids:
+        apercibimientos = (
+            db.session.query(PersonalApercibimiento)
+            .join(EmpleadoPersonal)
+            .filter(PersonalApercibimiento.empleado_id.in_(emp_ids))
+            .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre, PersonalApercibimiento.fecha.desc())
+            .all()
+        )
+        for a in apercibimientos:
+            emp = emp_by_id.get(int(a.empleado_id)) or a.empleado
+            aper_rows.append(
+                [
+                    *_emp_cols(emp),
+                    _excel_fmt_date(a.fecha),
+                    TIPO_APERCIBIMIENTO_LABELS.get(a.tipo, a.tipo),
+                    a.motivo or "",
+                    a.descripcion or "",
+                    a.registrado_por or "",
+                ]
+            )
+    _add_table_sheet(
+        wb,
+        "Apercibimientos",
+        ["Legajo", "Apellido y nombre", "Fecha", "Tipo", "Motivo", "Descripción", "Registrado por"],
+        aper_rows,
+    )
+
+    # ART de todos
+    art_rows: list[list[Any]] = []
+    if emp_ids:
+        arts = (
+            db.session.query(PersonalArt)
+            .join(EmpleadoPersonal)
+            .filter(PersonalArt.empleado_id.in_(emp_ids))
+            .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre)
+            .all()
+        )
+        for art in arts:
+            emp = emp_by_id.get(int(art.empleado_id)) or art.empleado
+            art_rows.append(
+                [
+                    *_emp_cols(emp),
+                    art.aseguradora or "",
+                    art.numero_poliza or "",
+                    _excel_fmt_date(art.fecha_alta),
+                    _excel_fmt_date(art.fecha_baja),
+                    art.observaciones or "",
+                ]
+            )
+    _add_table_sheet(
+        wb,
+        "ART",
+        ["Legajo", "Apellido y nombre", "Aseguradora", "Nº póliza", "Fecha alta", "Fecha baja", "Observaciones"],
+        art_rows,
+    )
+
+    # Vacaciones: saldos + solicitudes
+    saldo_rows: list[list[Any]] = []
+    vac_rows: list[list[Any]] = []
+    for emp in empleados:
+        for s in saldos_vacaciones_empleado(emp.id):
+            saldo_rows.append([*_emp_cols(emp), s["anio"], s["asignados"], s["usados"], s["disponibles"]])
+    if emp_ids:
+        vacaciones = (
+            db.session.query(PersonalVacacion)
+            .join(EmpleadoPersonal)
+            .filter(PersonalVacacion.empleado_id.in_(emp_ids))
+            .order_by(EmpleadoPersonal.apellido, EmpleadoPersonal.nombre, PersonalVacacion.fecha_desde.desc())
+            .all()
+        )
+        for v in vacaciones:
+            emp = emp_by_id.get(int(v.empleado_id)) or v.empleado
+            vac_rows.append(
+                [
+                    *_emp_cols(emp),
+                    _excel_fmt_date(v.fecha_desde),
+                    _excel_fmt_date(v.fecha_hasta),
+                    v.dias,
+                    v.anio,
+                    ESTADO_VACACION_LABELS.get(v.estado, v.estado),
+                    v.observaciones or "",
+                ]
+            )
+    _add_table_sheet(
+        wb,
+        "Saldos vacaciones",
+        ["Legajo", "Apellido y nombre", "Año", "Asignados", "Usados", "Disponibles"],
+        saldo_rows,
+    )
+    _add_table_sheet(
+        wb,
+        "Vacaciones",
+        ["Legajo", "Apellido y nombre", "Desde", "Hasta", "Días", "Año", "Estado", "Observaciones"],
+        vac_rows,
+    )
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def build_legajo_detalle_export_xlsx(empleado_id: int) -> BytesIO | None:
+    """Exporta un legajo completo (datos + EPP, cursos, apercibimientos, ART y vacaciones)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+
+    emp = get_empleado(empleado_id)
+    if emp is None:
+        return None
+
+    wb = Workbook()
+    bold = Font(bold=True)
+
+    # --- Datos ---
+    ws_datos = wb.active
+    assert ws_datos is not None
+    ws_datos.title = _excel_safe_sheet_title("Datos")
+    datos_rows = [
+        ("Legajo", emp.legajo),
+        ("Usuario sistema", (emp.user.username if emp.user else "") or "—"),
+        ("Apellido y nombre", emp.nombre_completo),
+        ("DNI", emp.dni or "—"),
+        ("CUIL", emp.cuil or "—"),
+        ("Estado", ESTADO_EMPLEADO_LABELS.get(emp.estado, emp.estado)),
+        ("Fecha nacimiento", _excel_fmt_date(emp.fecha_nacimiento) or "—"),
+        ("Fecha ingreso", _excel_fmt_date(emp.fecha_ingreso) or "—"),
+        ("Puesto", emp.puesto or "—"),
+        ("Área", emp.area or "—"),
+        ("Teléfono", emp.telefono or "—"),
+        ("Email", emp.email or "—"),
+        ("Domicilio", emp.domicilio or "—"),
+        ("Talle pantalón", emp.talle_pantalon or "—"),
+        ("Talle camisa", emp.talle_camisa or "—"),
+        ("Talle calzado", emp.talle_calzado or "—"),
+        ("Talle guantes", emp.talle_guantes or "—"),
+        ("Talle mameluco", emp.talle_mameluco or "—"),
+        ("Observaciones", emp.observaciones or "—"),
+    ]
+    ws_datos.cell(row=1, column=1, value="Campo").font = bold
+    ws_datos.cell(row=1, column=2, value="Valor").font = bold
+    for r_i, (label, val) in enumerate(datos_rows, start=2):
+        ws_datos.cell(row=r_i, column=1, value=label)
+        ws_datos.cell(row=r_i, column=2, value=val).alignment = Alignment(vertical="top", wrap_text=True)
+    _excel_autosize(ws_datos, 2, 1 + len(datos_rows))
+
+    def _add_table_sheet(title: str, headers: list[str], rows: list[list[Any]]) -> None:
+        ws = wb.create_sheet(title=_excel_safe_sheet_title(title))
+        _excel_write_header_row(ws, headers)
+        for r_i, row in enumerate(rows, start=2):
+            for c_i, val in enumerate(row, start=1):
+                ws.cell(row=r_i, column=c_i, value=val).alignment = Alignment(vertical="top", wrap_text=True)
+        _excel_autosize(ws, len(headers), 1 + len(rows))
+
+    # --- EPP ---
+    entregas = list_entregas_epp(empleado_id=empleado_id, limit=500)
+    _add_table_sheet(
+        "EPP",
+        ["Fecha", "Ítem", "Categoría", "Talle", "Cantidad", "Estado", "Prenda anterior devuelta", "Observaciones"],
+        [
+            [
+                _excel_fmt_date(e.fecha),
+                e.item.nombre if e.item else "",
+                CATEGORIA_EPP_LABELS.get((e.item.categoria if e.item else "") or "", (e.item.categoria if e.item else "")),
+                e.talle or "",
+                e.cantidad,
+                ESTADO_ENTREGA_EPP_LABELS.get(e.estado, e.estado),
+                "Sí" if e.prenda_anterior_devuelta else "No",
+                e.observaciones or "",
+            ]
+            for e in entregas
+        ],
+    )
+
+    # --- Cursos ---
+    cursos = emp.cursos.order_by(PersonalCurso.fecha_vencimiento.asc().nullslast(), PersonalCurso.nombre).all()
+    _add_table_sheet(
+        "Cursos",
+        ["Nombre", "Institución", "Realización", "Vencimiento", "Observaciones"],
+        [
+            [
+                c.nombre,
+                c.institucion or "",
+                _excel_fmt_date(c.fecha_realizacion),
+                _excel_fmt_date(c.fecha_vencimiento),
+                c.observaciones or "",
+            ]
+            for c in cursos
+        ],
+    )
+
+    # --- Apercibimientos ---
+    apercibimientos = emp.apercibimientos.order_by(PersonalApercibimiento.fecha.desc()).all()
+    _add_table_sheet(
+        "Apercibimientos",
+        ["Fecha", "Tipo", "Motivo", "Descripción", "Registrado por"],
+        [
+            [
+                _excel_fmt_date(a.fecha),
+                TIPO_APERCIBIMIENTO_LABELS.get(a.tipo, a.tipo),
+                a.motivo or "",
+                a.descripcion or "",
+                a.registrado_por or "",
+            ]
+            for a in apercibimientos
+        ],
+    )
+
+    # --- ART ---
+    art = emp.art
+    _add_table_sheet(
+        "ART",
+        ["Aseguradora", "Nº póliza", "Fecha alta", "Fecha baja", "Observaciones"],
+        [
+            [
+                art.aseguradora or "",
+                art.numero_poliza or "",
+                _excel_fmt_date(art.fecha_alta),
+                _excel_fmt_date(art.fecha_baja),
+                art.observaciones or "",
+            ]
+        ]
+        if art
+        else [],
+    )
+
+    # --- Vacaciones (saldos + solicitudes) ---
+    ws_vac = wb.create_sheet(title=_excel_safe_sheet_title("Vacaciones"))
+    ws_vac.cell(row=1, column=1, value="Saldos por período").font = bold
+    saldo_headers = ["Año", "Asignados", "Usados", "Disponibles"]
+    for col, h in enumerate(saldo_headers, start=1):
+        ws_vac.cell(row=2, column=col, value=h).font = bold
+    saldos = saldos_vacaciones_empleado(empleado_id)
+    next_row = 3
+    for s in saldos:
+        ws_vac.cell(row=next_row, column=1, value=s["anio"])
+        ws_vac.cell(row=next_row, column=2, value=s["asignados"])
+        ws_vac.cell(row=next_row, column=3, value=s["usados"])
+        ws_vac.cell(row=next_row, column=4, value=s["disponibles"])
+        next_row += 1
+    next_row += 1
+    ws_vac.cell(row=next_row, column=1, value="Solicitudes y registros").font = bold
+    next_row += 1
+    vac_headers = ["Desde", "Hasta", "Días", "Año", "Estado", "Observaciones"]
+    for col, h in enumerate(vac_headers, start=1):
+        ws_vac.cell(row=next_row, column=col, value=h).font = bold
+    next_row += 1
+    vacaciones = list_vacaciones(empleado_id=empleado_id)
+    for v in vacaciones:
+        ws_vac.cell(row=next_row, column=1, value=_excel_fmt_date(v.fecha_desde))
+        ws_vac.cell(row=next_row, column=2, value=_excel_fmt_date(v.fecha_hasta))
+        ws_vac.cell(row=next_row, column=3, value=v.dias)
+        ws_vac.cell(row=next_row, column=4, value=v.anio)
+        ws_vac.cell(row=next_row, column=5, value=ESTADO_VACACION_LABELS.get(v.estado, v.estado))
+        ws_vac.cell(row=next_row, column=6, value=v.observaciones or "")
+        next_row += 1
+    _excel_autosize(ws_vac, 6, max(next_row - 1, 2))
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf

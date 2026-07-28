@@ -101,6 +101,47 @@ def test_personal_legajo_crud(auth_client):
     assert r.status_code == 200
 
 
+def test_legajos_export_xlsx(auth_client, app):
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp_id = emp.id
+
+    r = auth_client.get("/personal/legajos/export.xlsx")
+    assert r.status_code == 200
+    assert "spreadsheetml" in (r.headers.get("Content-Type") or "")
+    assert r.data[:2] == b"PK"
+    wb = load_workbook(BytesIO(r.data))
+    assert "Datos" in wb.sheetnames
+    assert "EPP" in wb.sheetnames
+    assert "Cursos" in wb.sheetnames
+    assert "Apercibimientos" in wb.sheetnames
+    assert "ART" in wb.sheetnames
+    assert "Vacaciones" in wb.sheetnames
+    assert "Saldos vacaciones" in wb.sheetnames
+
+    r2 = auth_client.get(f"/personal/legajos/{emp_id}/export.xlsx")
+    assert r2.status_code == 200
+    assert "spreadsheetml" in (r2.headers.get("Content-Type") or "")
+    assert r2.data[:2] == b"PK"
+
+
+def test_mi_legajo_export_xlsx(auth_client):
+    r = auth_client.get("/personal/mi-legajo/export.xlsx")
+    assert r.status_code == 200
+    assert "spreadsheetml" in (r.headers.get("Content-Type") or "")
+    assert r.data[:2] == b"PK"
+
+
 def test_entrega_epp_workflow_devolucion_y_confirmacion(auth_client, app):
     from app.extensions import db
     from app.models import EmpleadoPersonal, PersonalEppItem, User

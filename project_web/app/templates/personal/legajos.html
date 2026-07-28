@@ -4,6 +4,7 @@
 <div class="app-page-head">
   <h1 class="app-page-title">Legajos</h1>
   <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('personal.legajos_export_xlsx', **request.args) }}" title="Descarga todos los legajos visibles (respeta filtros) con datos, EPP, cursos, apercibimientos, ART y vacaciones"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar todos los legajos</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
   </div>
 </div>

@@ -12,6 +12,10 @@
     </div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-success btn-sm"
+       href="{% if es_mi_legajo %}{{ url_for('personal.mi_legajo_export_xlsx') }}{% else %}{{ url_for('personal.legajo_export_xlsx', empleado_id=empleado.id) }}{% endif %}">
+      <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar legajo
+    </a>
     {% if puede_gestionar %}
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.legajo_editar', empleado_id=empleado.id) }}">Editar datos</a>
     {% endif %}

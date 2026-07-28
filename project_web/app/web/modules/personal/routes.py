@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+import re
+
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
 
 from app.auth_utils import (
     current_user,
@@ -82,6 +84,50 @@ def legajos():
         filtros={"q": request.args.get("q", ""), "estado": request.args.get("estado", "")},
         estado_labels=ps.ESTADO_EMPLEADO_LABELS,
         puede_gestionar=user_can_manage_personal(u),
+    )
+
+
+@bp.get("/legajos/export.xlsx")
+@login_required
+def legajos_export_xlsx():
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    buf = ps.build_legajos_list_export_xlsx(
+        q=request.args.get("q", ""),
+        estado=request.args.get("estado", ""),
+    )
+    fname = f"todos_los_legajos_{ps.today_operacion().isoformat()}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@bp.get("/legajos/<int:empleado_id>/export.xlsx")
+@login_required
+def legajo_export_xlsx(empleado_id: int):
+    u = current_user()
+    emp = ps.get_empleado(empleado_id)
+    if emp is None:
+        abort(404)
+    own = emp.user_id is not None and u is not None and int(emp.user_id) == int(u.id)
+    if not own:
+        _, redir = _require_view()
+        if redir is not None:
+            return redir
+    buf = ps.build_legajo_detalle_export_xlsx(empleado_id)
+    if buf is None:
+        abort(404)
+    safe_legajo = re.sub(r"[^\w\-]+", "_", emp.legajo or str(empleado_id))
+    fname = f"legajo_{safe_legajo}_{ps.today_operacion().isoformat()}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
@@ -358,6 +404,27 @@ def mi_legajo():
         puede_gestionar=False,
         puede_registrar_entregas=False,
         es_mi_legajo=True,
+    )
+
+
+@bp.get("/mi-legajo/export.xlsx")
+@login_required
+def mi_legajo_export_xlsx():
+    u = current_user()
+    emp = ps.resolve_empleado_for_user(u) if ps.user_requires_legajo(u) else ps.get_empleado_by_user_id(u.id)
+    if emp is None:
+        flash("No tenés un legajo de personal vinculado a tu usuario.", "warning")
+        return redirect(url_for("main.dashboard"))
+    buf = ps.build_legajo_detalle_export_xlsx(emp.id)
+    if buf is None:
+        abort(404)
+    safe_legajo = re.sub(r"[^\w\-]+", "_", emp.legajo or str(emp.id))
+    fname = f"legajo_{safe_legajo}_{ps.today_operacion().isoformat()}.xlsx"
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=fname,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
