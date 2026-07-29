@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from typing import Any
@@ -76,6 +77,54 @@ def cantidad_entregada_sql():
     return func.coalesce(Entrega.cantidad_real_entregada, Entrega.cantidad_programada, Entrega.cantidad)
 
 
+def es_origen_carga(entrega: Entrega) -> bool:
+    """True si la fila representa la carga del camión (no una entrega hermana del mismo viaje)."""
+    return entrega.carga_origen_entrega_id is None
+
+
+def sql_es_origen_carga():
+    """Filtro SQL: contar litros de carga una sola vez por camión."""
+    return Entrega.carga_origen_entrega_id.is_(None)
+
+
+def ensure_carga_grupo(entrega: Entrega) -> str:
+    gid = (entrega.carga_grupo_id or "").strip()
+    if gid:
+        return gid
+    gid = str(uuid.uuid4())
+    entrega.carga_grupo_id = gid
+    return gid
+
+
+def listar_hermanas_carga(entrega: Entrega) -> list[Entrega]:
+    """Otras entregas del mismo grupo de carga (excluye la fila dada)."""
+    gid = (entrega.carga_grupo_id or "").strip()
+    if not gid:
+        return []
+    return list(
+        db.session.scalars(
+            select(Entrega)
+            .where(Entrega.carga_grupo_id == gid, Entrega.id != int(entrega.id))
+            .order_by(Entrega.id.asc())
+        ).all()
+    )
+
+
+def origen_carga_de(entrega: Entrega) -> Entrega:
+    if entrega.carga_origen_entrega_id is None:
+        return entrega
+    origen = db.session.get(Entrega, int(entrega.carga_origen_entrega_id))
+    return origen if origen is not None else entrega
+
+
+def litros_carga_camion(entrega: Entrega) -> float:
+    """Litros cargados en el camión (origen), aunque la fila sea una entrega hermana."""
+    origen = origen_carga_de(entrega)
+    if origen.cantidad_real_cargada is not None:
+        return float(origen.cantidad_real_cargada)
+    return cantidad_programada_operativa(origen)
+
+
 def validate_cantidad_real(raw: float | int | str | None, label: str) -> float:
     try:
         qty = float(str(raw if raw is not None else "").replace(",", ".").strip() or 0)
@@ -117,8 +166,10 @@ def entregas_kpis_rolling(dias: int = ENTREGAS_KPI_ROLLING_DAYS_DEFAULT) -> dict
     start_s = start.isoformat(timespec="seconds")
     end_s = now.isoformat(timespec="seconds")
 
+    # Solo filas origen de carga: una carga repartida en N entregas no debe multiplicar litros ni conteo.
     qty_carga = cantidad_cargada_sql()
     q_carga = select(func.coalesce(func.sum(qty_carga), 0.0), func.count()).where(
+        sql_es_origen_carga(),
         Entrega.cargada_at_iso.isnot(None),
         Entrega.cargada_at_iso != "",
         qty_carga > 0,
@@ -206,6 +257,14 @@ def ejecutar_eliminar_entrega(entrega: Entrega) -> None:
     """Elimina la entrega y, si aplica, revierte el consumo de stock ligado a la carga."""
     if not puede_eliminar_entrega(entrega):
         raise ValueError("Solo se pueden eliminar entregas programadas o cargadas sin cerrar.")
+    if es_origen_carga(entrega) and listar_hermanas_carga(entrega):
+        raise ValueError(
+            "Esta carga tiene otras entregas asociadas. Eliminá primero las entregas del mismo camión."
+        )
+    # Hermanas no revierten stock: el consumo vive en el origen de la carga.
+    if not es_origen_carga(entrega):
+        db.session.delete(entrega)
+        return
     cid = entrega.consumo_stock_id
     entrega.consumo_stock_id = None
     db.session.flush()
@@ -274,6 +333,8 @@ def ejecutar_cargada(
     entrega.cantidad_programada = programada
     entrega.cantidad_real_cargada = qty_real
     entrega.updated_at_iso = iso
+    ensure_carga_grupo(entrega)
+    entrega.carga_origen_entrega_id = None
     if consumo_id is not None:
         entrega.consumo_stock_id = consumo_id
     detalle_carga: dict[str, Any] = {
@@ -630,4 +691,8 @@ def entrega_to_api_dict(e: Entrega) -> dict[str, Any]:
         "entregada_chofer_nombre": e.entregada_chofer_nombre,
         "entregada_lugar": e.entregada_lugar,
         "entregada_dia_semana": e.entregada_dia_semana,
+        "carga_grupo_id": ((e.carga_grupo_id or "").strip() or None),
+        "carga_origen_entrega_id": _opt_int(e.carga_origen_entrega_id),
+        "es_origen_carga": es_origen_carga(e),
+        "litros_carga_camion": litros_carga_camion(e),
     }

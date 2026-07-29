@@ -147,6 +147,166 @@ def assign_logistica_entrega(ent: Entrega, cli: object, lug: object, ch: ChoferE
     ent.chofer_previsto = str(ch.nombre).strip() if ch else None
 
 
+def parse_destinos_logistica_from_form(form: Any) -> list[dict[str, Any]]:
+    """Lee filas dest_*[] del formulario de asignación múltiple."""
+    clientes = form.getlist("dest_cliente_id") if hasattr(form, "getlist") else []
+    lugares = form.getlist("dest_lugar_entrega_id") if hasattr(form, "getlist") else []
+    cantidades = form.getlist("dest_cantidad") if hasattr(form, "getlist") else []
+    choferes = form.getlist("dest_chofer_entrega_id") if hasattr(form, "getlist") else []
+    n = max(len(clientes), len(lugares), len(cantidades), len(choferes))
+    if n == 0:
+        # Compatibilidad: un solo destino con nombres clásicos del form.
+        return [
+            {
+                "cliente_id": parse_entrega_positive_int(form.get("cliente_id")),
+                "lugar_entrega_id": parse_entrega_positive_int(form.get("lugar_entrega_id")),
+                "chofer_entrega_id": parse_entrega_positive_int(form.get("chofer_entrega_id")),
+                "cantidad": parse_entrega_float(form.get("cantidad_descargar")),
+            }
+        ]
+    rows: list[dict[str, Any]] = []
+    for i in range(n):
+        rows.append(
+            {
+                "cliente_id": parse_entrega_positive_int(clientes[i] if i < len(clientes) else None),
+                "lugar_entrega_id": parse_entrega_positive_int(lugares[i] if i < len(lugares) else None),
+                "chofer_entrega_id": parse_entrega_positive_int(choferes[i] if i < len(choferes) else None),
+                "cantidad": parse_entrega_float(cantidades[i] if i < len(cantidades) else None),
+            }
+        )
+    return rows
+
+
+def assign_logistica_multi_entregas(
+    origen: Entrega,
+    destinos: list[dict[str, Any]],
+    *,
+    fecha_prevista: str,
+    observaciones: str | None,
+    actor: User | None,
+    at_iso: str,
+) -> list[Entrega]:
+    """Asigna una carga (origen pendiente de logística) a una o varias entregas.
+
+    La primera fila actualiza el origen; el resto crea entregas hermanas del mismo
+    `carga_grupo_id` sin nuevo consumo de stock.
+    """
+    if not entregas_service.puede_editar_logistica_tras_carga(origen):
+        raise ValueError("Solo se pueden asignar destinos sobre una entrega en estado cargada.")
+    if not entregas_service.entrega_pendiente_logistica(origen):
+        raise ValueError("Esta carga ya tiene destino asignado.")
+    if not entregas_service.es_origen_carga(origen):
+        raise ValueError("Solo se puede repartir la carga desde la entrega de origen del camión.")
+    if entregas_service.listar_hermanas_carga(origen):
+        raise ValueError("Esta carga ya fue repartida en varias entregas.")
+    if not destinos:
+        raise ValueError("Indicá al menos un destino.")
+
+    fecha = (fecha_prevista or "").strip()
+    if not fecha:
+        raise ValueError("La fecha prevista es obligatoria.")
+
+    litros_camion = entregas_service.litros_carga_camion(origen)
+    parsed: list[tuple[Any, Any, ChoferEntrega | None, float]] = []
+    total = 0.0
+    for i, d in enumerate(destinos, start=1):
+        qty = float(d.get("cantidad") or 0)
+        if qty <= 0 or qty != qty:
+            raise ValueError(f"Destino {i}: el volumen a descargar debe ser mayor a cero.")
+        err, cli, lug, ch = validar_solo_logistica(
+            d.get("cliente_id"),
+            d.get("lugar_entrega_id"),
+            d.get("chofer_entrega_id"),
+        )
+        if err:
+            raise ValueError(f"Destino {i}: {err}")
+        assert cli is not None and lug is not None
+        parsed.append((cli, lug, ch, qty))
+        total += qty
+
+    if total > litros_camion + 1e-6:
+        raise ValueError(
+            f"La suma de volúmenes ({total:g} L) supera lo cargado en el camión ({litros_camion:g} L)."
+        )
+
+    grupo = entregas_service.ensure_carga_grupo(origen)
+    creadas: list[Entrega] = []
+
+    cli0, lug0, ch0, qty0 = parsed[0]
+    assign_logistica_entrega(origen, cli0, lug0, ch0)
+    origen.fecha_prevista = fecha
+    origen.cantidad = qty0
+    origen.cantidad_programada = qty0
+    origen.observaciones = observaciones
+    origen.updated_at_iso = at_iso
+    creadas.append(origen)
+
+    from app.auth_utils import user_display_name
+
+    for cli, lug, ch, qty in parsed[1:]:
+        hermana = Entrega(
+            cliente=str(cli.nombre).strip(),
+            lugar_entrega=str(lug.nombre).strip(),
+            producto=str(origen.producto or "").strip(),
+            cliente_id=int(cli.id),
+            lugar_entrega_id=int(lug.id),
+            producto_terminado_id=origen.producto_terminado_id,
+            chofer_entrega_id=int(ch.id) if ch else origen.chofer_entrega_id,
+            cantidad=qty,
+            cantidad_programada=qty,
+            cantidad_real_cargada=None,
+            unidad=origen.unidad or UNIDAD_ENTREGA,
+            fecha_prevista=fecha,
+            observaciones=observaciones,
+            chofer_previsto=(str(ch.nombre).strip() if ch else (origen.chofer_previsto or None)),
+            estado="cargada",
+            created_at_iso=at_iso,
+            updated_at_iso=at_iso,
+            created_by_user_id=int(actor.id) if actor else origen.created_by_user_id,
+            cargada_at_iso=origen.cargada_at_iso,
+            cargada_by_user_id=origen.cargada_by_user_id,
+            consumo_stock_id=None,
+            stock_categoria=origen.stock_categoria,
+            stock_marca=origen.stock_marca,
+            stock_equipo_id=origen.stock_equipo_id,
+            carga_grupo_id=grupo,
+            carga_origen_entrega_id=int(origen.id),
+        )
+        db.session.add(hermana)
+        db.session.flush()
+        entregas_service.append_evento(
+            int(hermana.id),
+            "creada",
+            at_iso,
+            actor,
+            user_display_name(actor),
+            {
+                "origen": "reparto_carga_logistica",
+                "carga_origen_entrega_id": int(origen.id),
+                "carga_grupo_id": grupo,
+                "cantidad_descargar": qty,
+                "litros_carga_camion": litros_camion,
+            },
+        )
+        creadas.append(hermana)
+
+    entregas_service.append_evento(
+        int(origen.id),
+        "editada",
+        at_iso,
+        actor,
+        user_display_name(actor),
+        {
+            "alcance": "logística · asignación a entregas",
+            "n_entregas": len(creadas),
+            "cantidades_descargar": [float(x[3]) for x in parsed],
+            "cantidad_real_cargada": litros_camion,
+            "entrega_ids": [int(e.id) for e in creadas],
+        },
+    )
+    return creadas
+
+
 def form_catalog_bundle(entrega: Entrega | None) -> dict[str, object]:
     pts = entregas_catalog_service.productos_terminados_activos()
     clientes = entregas_catalog_service.clientes_activos()

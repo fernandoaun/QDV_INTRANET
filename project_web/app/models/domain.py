@@ -442,6 +442,14 @@ class Entrega(db.Model):
     cargada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
     consumo_stock_id = db.Column(db.Integer, db.ForeignKey("consumos_stock.id"), nullable=True, unique=True)
 
+    # Una carga de camión puede repartirse en varias entregas (mismo grupo).
+    # Origen: carga_origen_entrega_id IS NULL (conserva cantidad_real_cargada y consumo_stock).
+    # Hermanas: apuntan al origen; comparten cargada_at / producto / stock meta.
+    carga_grupo_id = db.Column(db.String(36), nullable=True, index=True)
+    carga_origen_entrega_id = db.Column(
+        db.Integer, db.ForeignKey("entregas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     stock_categoria = db.Column(db.String(32), nullable=True)
     stock_marca = db.Column(db.String(256), nullable=True)
     stock_equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"), nullable=True)
@@ -456,6 +464,12 @@ class Entrega(db.Model):
     cliente_row = db.relationship("ClienteEntrega", foreign_keys=[cliente_id])
     lugar_row = db.relationship("LugarEntrega", foreign_keys=[lugar_entrega_id])
     chofer_row = db.relationship("ChoferEntrega", foreign_keys=[chofer_entrega_id])
+    carga_origen = db.relationship(
+        "Entrega",
+        remote_side=[id],
+        foreign_keys=[carga_origen_entrega_id],
+        uselist=False,
+    )
 
 
 class EntregaEvento(db.Model):

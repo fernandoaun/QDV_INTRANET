@@ -47,6 +47,10 @@ class EntregaListItem(TypedDict, total=False):
     entregada_chofer_nombre: str | None
     entregada_lugar: str | None
     entregada_dia_semana: str | None
+    carga_grupo_id: str | None
+    carga_origen_entrega_id: int | None
+    es_origen_carga: bool
+    litros_carga_camion: float
 
 
 class EntregaListResponse(TypedDict):

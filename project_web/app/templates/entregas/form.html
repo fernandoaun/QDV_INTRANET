@@ -2,11 +2,12 @@
 {% block title %}{% if entrega %}Editar entrega{% else %}Nueva entrega{% endif %} · QDV{% endblock %}
 {% block content %}
 {% set st = entrega.estado if entrega else 'nueva' %}
+{% set pendiente_log = pendiente_logistica|default(false) %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">{% if entrega %}Editar entrega #{{ entrega.id }}{% else %}Programar entrega{% endif %}</h1>
     <p class="app-intro mb-0">
-      {% if st == 'entregada' %}Solo podés agregar texto en observaciones.{% elif st == 'cargada' %}Asigná <strong>cliente</strong>, <strong>destino</strong> y podés ajustar el <strong>volumen a descargar</strong>. El volumen cargado en planta no se modifica.{% elif entrega %}Estado: <strong>{{ st }}</strong>.{% else %}Volúmenes siempre en <strong>litros (L)</strong>. Elegí cliente y luego el lugar de entrega asociado a ese cliente.{% endif %}
+      {% if st == 'entregada' %}Solo podés agregar texto en observaciones.{% elif pendiente_log %}Asigná esta carga a <strong>una o varias entregas</strong>: cliente, destino y volumen a descargar en cada una. El volumen cargado en planta no se modifica.{% elif st == 'cargada' %}Podés ajustar <strong>cliente</strong>, <strong>destino</strong> y el <strong>volumen a descargar</strong>. El volumen cargado en planta no se modifica.{% elif entrega %}Estado: <strong>{{ st }}</strong>.{% else %}Volúmenes siempre en <strong>litros (L)</strong>. Elegí cliente y luego el lugar de entrega asociado a ese cliente.{% endif %}
     </p>
   </div>
   <div class="app-page-actions">
@@ -16,7 +17,7 @@
 
 <div class="app-card">
   <div class="app-card-body">
-    {% if st != 'entregada' %}
+    {% if st != 'entregada' and not pendiente_log %}
     <div class="alert alert-secondary small mb-3" role="status">
       <p class="mb-2"><strong>Programar</strong> es planificación: <strong>no se exige stock en planta</strong> ni se descuenta stock al guardar. La validación estricta de stock operativo ocurre solo al confirmar <strong>Cargar</strong> en el listado de entregas.</p>
       {% if operational_indicators.ok %}
@@ -41,6 +42,101 @@
         <a class="btn btn-outline-secondary ms-1" href="{{ url_for('entregas.gestion') }}">Volver</a>
       </div>
     </form>
+    {% elif pendiente_log %}
+    <form method="post" class="row g-3" id="entregaMultiDestForm" data-entrega-lugares-api-prefix="{{ entrega_lugares_api_prefix|default('', true) }}" data-litros-camion="{{ litros_carga_camion|default(0) }}">
+    {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="asignar_multi">
+      <div class="col-12">
+        <div class="border rounded p-3 bg-light">
+          <div class="row g-2 small">
+            <div class="col-md-3"><span class="text-muted">Producto</span><br><strong>{{ entrega.producto_terminado.nombre if entrega.producto_terminado else entrega.producto }}</strong></div>
+            <div class="col-md-3"><span class="text-muted">Volumen cargado</span><br><strong>{{ litros_carga_camion }} L</strong></div>
+            <div class="col-md-3"><span class="text-muted">Chofer (carga)</span><br><strong>{{ entrega.chofer_previsto or '—' }}</strong></div>
+            <div class="col-md-3"><span class="text-muted">Restante por asignar</span><br><strong id="multiRestanteLitros">{{ litros_carga_camion }} L</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <label class="form-label">Fecha prevista <span class="text-danger">*</span></label>
+        <input class="form-control" name="fecha_prevista" type="date" value="{{ entrega.fecha_prevista if entrega else '' }}" required>
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Observaciones / logística</label>
+        <textarea class="form-control" name="observaciones" rows="1">{{ entrega.observaciones if entrega else '' }}</textarea>
+      </div>
+
+      <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h6 mb-0">Entregas de esta carga</h2>
+          <button type="button" class="btn btn-outline-primary btn-sm" id="multiAddDestBtn">+ Agregar entrega</button>
+        </div>
+        <div id="multiDestinosWrap" class="d-flex flex-column gap-3"></div>
+        <p class="form-text mb-0 mt-2">La suma de volúmenes no puede superar lo cargado ({{ litros_carga_camion }} L). Cada fila crea una entrega distinta con el mismo camión.</p>
+      </div>
+
+      {% if entrega and creador_display %}
+      <div class="col-12"><p class="small app-text-secondary mb-0">Alta por: {{ creador_display }} · {{ entrega.created_at_iso }}</p></div>
+      {% endif %}
+
+      <div class="col-12">
+        {% if not page_can_edit_current %}
+        <p class="small text-warning mb-2">Modo solo lectura: activá el turno de planta o los permisos de edición para guardar cambios.</p>
+        {% endif %}
+        <button type="submit" class="btn btn-primary" {% if not page_can_edit_current %}disabled title="No podés guardar en modo solo lectura"{% endif %}>Guardar asignaciones</button>
+        <a class="btn btn-outline-secondary ms-1" href="{{ url_for('entregas.gestion') }}">Cancelar</a>
+        {% if entrega %}
+        <a class="btn btn-outline-secondary ms-1" href="{{ url_for('entregas.historial', eid=entrega.id) }}">Historial</a>
+        {% endif %}
+      </div>
+    </form>
+    {% if entrega and page_can_edit_current %}
+    <form method="post" class="border-top mt-3 pt-3 app-text-secondary small" action="{{ url_for('entregas.editar', eid=entrega.id) }}" onsubmit='return confirm("Si la entrega estaba cargada, se revertirá el consumo de stock asociado. ¿Eliminar definitivamente esta entrega?");'>
+      {% include "_csrf.html" %}
+      <input type="hidden" name="action" value="eliminar">
+      <button type="submit" class="btn btn-outline-danger btn-sm">Eliminar entrega</button>
+      <span class="ms-2">Solo para entregas no cerradas (<strong>{{ st }}</strong>).</span>
+    </form>
+    {% endif %}
+
+    <template id="multiDestinoTpl">
+      <div class="border rounded p-3 multi-destino-row" data-multi-row>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <strong class="small multi-destino-title">Entrega</strong>
+          <button type="button" class="btn btn-link btn-sm text-danger p-0 multi-remove-btn" hidden>Quitar</button>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label small">Cliente <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm multi-cliente" name="dest_cliente_id" required autocomplete="off">
+              <option value="">— Elegir cliente —</option>
+              {% for c in clientes_entrega %}
+              <option value="{{ c.id }}">{{ c.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small">Lugar de entrega <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm multi-lugar" name="dest_lugar_entrega_id" required autocomplete="off" disabled>
+              <option value="">— Elegir lugar —</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">Volumen (L) <span class="text-danger">*</span></label>
+            <input class="form-control form-control-sm text-end multi-cantidad" name="dest_cantidad" type="number" step="any" min="0" required inputmode="decimal">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small">Chofer <span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm multi-chofer" name="dest_chofer_entrega_id" required>
+              <option value="">—</option>
+              {% for ch in choferes_entrega %}
+              <option value="{{ ch.id }}" {% if entrega and entrega.chofer_entrega_id == ch.id %}selected{% endif %}>{{ ch.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+    </template>
     {% else %}
     <form method="post" class="row g-3" id="entregaMainForm" data-entrega-lugares-api-prefix="{{ entrega_lugares_api_prefix|default('', true) }}" data-entrega-marcas-api-prefix="{{ entrega_marcas_api_prefix|default('', true) }}">
     {% include "_csrf.html" %}
@@ -91,9 +187,9 @@
         <input class="form-control" value="{{ entrega.producto_terminado.nombre if entrega.producto_terminado else entrega.producto }}" readonly tabindex="-1">
       </div>
       <div class="col-md-4">
-        <label class="form-label">Volumen cargado (L)</label>
-        <input class="form-control text-end" value="{{ entrega.cantidad_real_cargada if entrega.cantidad_real_cargada is not none else entrega.cantidad }}" readonly tabindex="-1">
-        <div class="form-text">Registrado por operaciones al cargar el camión.</div>
+        <label class="form-label">Volumen cargado en camión (L)</label>
+        <input class="form-control text-end" value="{{ litros_carga_camion if litros_carga_camion is not none else (entrega.cantidad_real_cargada if entrega.cantidad_real_cargada is not none else entrega.cantidad) }}" readonly tabindex="-1">
+        <div class="form-text">{% if carga_origen_id %}Parte de la carga #{{ carga_origen_id }}.{% else %}Registrado por operaciones al cargar el camión.{% endif %}</div>
       </div>
       <div class="col-md-4">
         <label class="form-label">Volumen a descargar (L) <span class="text-danger">*</span></label>
@@ -175,7 +271,134 @@
 </div>
 {% endblock %}
 {% block scripts %}
-{% if st != 'entregada' %}
+{% if pendiente_log %}
+<script>
+(() => {
+  const form = document.getElementById("entregaMultiDestForm");
+  const wrap = document.getElementById("multiDestinosWrap");
+  const tpl = document.getElementById("multiDestinoTpl");
+  const addBtn = document.getElementById("multiAddDestBtn");
+  const restanteEl = document.getElementById("multiRestanteLitros");
+  if (!form || !wrap || !tpl) return;
+
+  const LUGARES_CATALOGO = {{ lugares_entrega_catalogo | default([]) | tojson }};
+  const litrosCamion = Number(form.getAttribute("data-litros-camion") || 0) || 0;
+
+  function lugaresFromCatalogo(cidNum) {
+    return (Array.isArray(LUGARES_CATALOGO) ? LUGARES_CATALOGO : []).filter(function (x) {
+      return x && Number(x.cliente_id) === cidNum;
+    });
+  }
+
+  async function lugaresFromApi(cidNum) {
+    var prefix = (form.getAttribute("data-entrega-lugares-api-prefix") || "").trim();
+    if (!prefix) prefix = "/entregas/api/lugares-por-cliente/";
+    const r = await fetch(prefix + encodeURIComponent(cidNum), {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    });
+    if (!r.ok) return [];
+    try {
+      const data = await r.json();
+      return Array.isArray(data.lugares) ? data.lugares : [];
+    } catch (_e) {
+      return [];
+    }
+  }
+
+  function mergeLugares(catRows, apiRows) {
+    const map = new Map();
+    function add(x) {
+      if (!x || x.id == null) return;
+      const id = Number(x.id);
+      if (!Number.isFinite(id)) return;
+      map.set(id, { id: id, nombre: String(x.nombre != null ? x.nombre : "").trim() || "(sin nombre)" });
+    }
+    (catRows || []).forEach(add);
+    (apiRows || []).forEach(add);
+    return Array.from(map.values()).sort(function (a, b) {
+      return a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" });
+    });
+  }
+
+  function fillLugar(sel, rows) {
+    sel.innerHTML = '<option value="">— Elegir lugar —</option>';
+    (rows || []).forEach(function (x) {
+      const o = document.createElement("option");
+      o.value = x.id;
+      o.textContent = x.nombre || "";
+      sel.appendChild(o);
+    });
+  }
+
+  async function refreshLugarRow(row) {
+    const clienteSel = row.querySelector(".multi-cliente");
+    const lugarSel = row.querySelector(".multi-lugar");
+    if (!clienteSel || !lugarSel) return;
+    const cidNum = parseInt(String(clienteSel.value || "").trim(), 10);
+    if (!Number.isFinite(cidNum) || cidNum < 1) {
+      fillLugar(lugarSel, []);
+      lugarSel.disabled = true;
+      return;
+    }
+    lugarSel.disabled = false;
+    const cat = lugaresFromCatalogo(cidNum);
+    fillLugar(lugarSel, mergeLugares(cat, []));
+    const api = await lugaresFromApi(cidNum);
+    fillLugar(lugarSel, mergeLugares(cat, api));
+  }
+
+  function parseQty(raw) {
+    const v = Number(String(raw || "").replace(",", ".").trim());
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function updateRestante() {
+    let sum = 0;
+    wrap.querySelectorAll(".multi-cantidad").forEach(function (inp) {
+      sum += parseQty(inp.value);
+    });
+    const rest = litrosCamion - sum;
+    if (restanteEl) {
+      restanteEl.textContent = (Math.round(rest * 1000) / 1000) + " L";
+      restanteEl.classList.toggle("text-danger", rest < -1e-6);
+    }
+  }
+
+  function renumber() {
+    const rows = wrap.querySelectorAll("[data-multi-row]");
+    rows.forEach(function (row, idx) {
+      const title = row.querySelector(".multi-destino-title");
+      if (title) title.textContent = "Entrega " + (idx + 1);
+      const rm = row.querySelector(".multi-remove-btn");
+      if (rm) rm.hidden = rows.length <= 1;
+    });
+  }
+
+  function addRow(prefillQty) {
+    wrap.appendChild(tpl.content.cloneNode(true));
+    const live = wrap.lastElementChild;
+    const qty = live.querySelector(".multi-cantidad");
+    if (qty && prefillQty != null && prefillQty > 0) qty.value = String(prefillQty);
+    live.querySelector(".multi-cliente").addEventListener("change", function () {
+      refreshLugarRow(live);
+    });
+    live.querySelector(".multi-cantidad").addEventListener("input", updateRestante);
+    live.querySelector(".multi-remove-btn").addEventListener("click", function () {
+      if (wrap.querySelectorAll("[data-multi-row]").length <= 1) return;
+      live.remove();
+      renumber();
+      updateRestante();
+    });
+    renumber();
+    updateRestante();
+  }
+
+  if (addBtn) addBtn.addEventListener("click", function () { addRow(null); });
+  addRow(litrosCamion > 0 ? litrosCamion : null);
+})();
+</script>
+{% elif st != 'entregada' %}
 <script>
 (() => {
   try {
@@ -308,7 +531,6 @@
     } else {
       sel = "";
     }
-    /* Catálogo en página: relleno inmediato (sin esperar red). Evita combo “muerto” si el fetch tarda o falla. */
     var rowsSync = mergeLugaresRows(catRows, []);
     fillLugarSelect(rowsSync, sel || null);
     log("catálogo sync lugares count=", rowsSync.length);
@@ -412,16 +634,11 @@
   }
 
   if (clienteSel) {
-    /* Solo `change`: `input`/`blur` pueden dispararse en el mismo tick que `change` mientras
-       refreshLugares es async y el <select> lugar aún tiene el valor del cliente anterior;
-       preserveSelection=true reintroduciría un lugar inválido. */
     clienteSel.addEventListener("change", function () {
       log("event change cliente value=", clienteSel.value);
       syncLugaresAlCliente(false);
     });
   }
-  /* NO escuchar focus/mousedown en lugar: refreshLugares hace innerHTML en el <select> y rompe
-     la apertura del desplegable (opciones vacías / estado raro / “gris”). El lugar se actualiza con change/input/blur de cliente y al cargar. */
   if (ptSel) {
     ptSel.addEventListener("change", () => refreshMarcas());
   }

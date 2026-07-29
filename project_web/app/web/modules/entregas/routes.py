@@ -123,7 +123,7 @@ def gestion():
                 db.session.commit()
                 if stock_mut is not None:
                     stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
-                flash("Camión cargado. Logística asignará cliente y destino.", "success")
+                flash("Camión cargado. Logística puede asignar esa carga a una o varias entregas.", "success")
                 keep = {"quick_chofer_entrega_id": (request.form.get("chofer_entrega_id") or "").strip()}
                 return redirect(url_for("entregas.gestion", **{k: v for k, v in keep.items() if v}))
             except Exception as ex:  # noqa: BLE001
@@ -456,6 +456,37 @@ def editar(eid: int):
             return redirect(url_for("entregas.gestion"))
 
         if entregas_service.puede_editar_logistica_tras_carga(ent):
+            if entregas_service.entrega_pendiente_logistica(ent) and (
+                (request.form.get("action") or "").strip() == "asignar_multi"
+                or bool(request.form.getlist("dest_cliente_id"))
+            ):
+                try:
+                    destinos = ews.parse_destinos_logistica_from_form(request.form)
+                    fecha_prev = (request.form.get("fecha_prevista") or "").strip()
+                    obs = (request.form.get("observaciones") or "").strip() or None
+                    creadas = ews.assign_logistica_multi_entregas(
+                        ent,
+                        destinos,
+                        fecha_prevista=fecha_prev,
+                        observaciones=obs,
+                        actor=u,
+                        at_iso=iso,
+                    )
+                    db.session.commit()
+                    n = len(creadas)
+                    if n == 1:
+                        flash("Datos logísticos guardados.", "success")
+                    else:
+                        flash(
+                            f"Carga asignada a {n} entregas (#{', #'.join(str(e.id) for e in creadas)}).",
+                            "success",
+                        )
+                    return redirect(url_for("entregas.gestion"))
+                except ValueError as ex:
+                    db.session.rollback()
+                    flash(str(ex), "danger")
+                    return redirect(url_for("entregas.editar", eid=eid))
+
             cid = ews.parse_entrega_positive_int(request.form.get("cliente_id"))
             lid = ews.parse_entrega_positive_int(request.form.get("lugar_entrega_id"))
             chid = ews.parse_entrega_positive_int(request.form.get("chofer_entrega_id"))
@@ -472,6 +503,13 @@ def editar(eid: int):
                 return redirect(url_for("entregas.editar", eid=eid))
             if not fecha_prev:
                 flash("La fecha prevista es obligatoria.", "danger")
+                return redirect(url_for("entregas.editar", eid=eid))
+            litros_camion = entregas_service.litros_carga_camion(ent)
+            if cantidad_desc > litros_camion + 1e-6:
+                flash(
+                    f"El volumen a descargar ({cantidad_desc:g} L) supera lo cargado en el camión ({litros_camion:g} L).",
+                    "danger",
+                )
                 return redirect(url_for("entregas.editar", eid=eid))
 
             ews.assign_logistica_entrega(ent, cli, lug, ch)
@@ -500,6 +538,7 @@ def editar(eid: int):
 
     creador = db.session.get(User, ent.created_by_user_id) if ent.created_by_user_id else None
     stock_traza_hipo_server_visible = bool(is_hipo and entregas_service.puede_editar_campos_completos(ent))
+    pendiente_log = entregas_service.entrega_pendiente_logistica(ent)
     ctx = {
         **ews.form_catalog_bundle(ent),
         **(
@@ -517,6 +556,10 @@ def editar(eid: int):
         "selected_producto_terminado_id": int(ent.producto_terminado_id) if ent.producto_terminado_id else None,
         "entrega_lugares_api_prefix": _entrega_lugares_api_prefix(),
         "entrega_marcas_api_prefix": _entrega_marcas_api_prefix(),
+        "pendiente_logistica": pendiente_log,
+        "litros_carga_camion": entregas_service.litros_carga_camion(ent) if str(ent.estado or "") == "cargada" else None,
+        "es_origen_carga": entregas_service.es_origen_carga(ent),
+        "carga_origen_id": int(ent.carga_origen_entrega_id) if ent.carga_origen_entrega_id else None,
         **ews.gestion_constants_context(),
     }
     return render_template("entregas/form.html", **ctx)
