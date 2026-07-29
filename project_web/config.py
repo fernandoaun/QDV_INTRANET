@@ -261,6 +261,43 @@ def get_config_dict(base_dir: Path) -> dict:
     except ValueError:
         vencimiento_auto_mail_startup_delay_sec = 30
     vencimiento_auto_mail_startup_delay_sec = max(5, min(vencimiento_auto_mail_startup_delay_sec, 600))
+
+    db_backup_enabled = (os.environ.get("DB_BACKUP_ENABLED") or "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    db_backup_scheduler = (os.environ.get("DB_BACKUP_SCHEDULER") or "true").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    try:
+        db_backup_interval_days = int((os.environ.get("DB_BACKUP_INTERVAL_DAYS") or "7").strip())
+    except ValueError:
+        db_backup_interval_days = 7
+    db_backup_interval_days = max(1, min(db_backup_interval_days, 90))
+    try:
+        db_backup_keep = int((os.environ.get("DB_BACKUP_KEEP") or "8").strip())
+    except ValueError:
+        db_backup_keep = 8
+    db_backup_keep = max(1, min(db_backup_keep, 52))
+    try:
+        db_backup_check_interval_hours = int(
+            (os.environ.get("DB_BACKUP_CHECK_INTERVAL_HOURS") or "12").strip()
+        )
+    except ValueError:
+        db_backup_check_interval_hours = 12
+    db_backup_check_interval_hours = max(1, min(db_backup_check_interval_hours, 168))
+    try:
+        db_backup_startup_delay_sec = int(
+            (os.environ.get("DB_BACKUP_STARTUP_DELAY_SEC") or "20").strip()
+        )
+    except ValueError:
+        db_backup_startup_delay_sec = 20
+    db_backup_startup_delay_sec = max(5, min(db_backup_startup_delay_sec, 600))
+    db_backup_dir = (os.environ.get("DB_BACKUP_DIR") or "").strip()
+
     app_public_base_url = (os.environ.get("APP_PUBLIC_BASE_URL") or "").strip().rstrip("/")
     if not app_public_base_url:
         # Render inyecta RENDER_EXTERNAL_URL (https://servicio.onrender.com) si no hay dominio propio.
@@ -359,6 +396,13 @@ def get_config_dict(base_dir: Path) -> dict:
         "VENCIMIENTO_AUTO_MAIL_SCHEDULER": vencimiento_auto_mail_scheduler,
         "VENCIMIENTO_AUTO_MAIL_INTERVAL_HOURS": vencimiento_auto_mail_interval_hours,
         "VENCIMIENTO_AUTO_MAIL_STARTUP_DELAY_SEC": vencimiento_auto_mail_startup_delay_sec,
+        "DB_BACKUP_ENABLED": db_backup_enabled,
+        "DB_BACKUP_SCHEDULER": db_backup_scheduler,
+        "DB_BACKUP_INTERVAL_DAYS": db_backup_interval_days,
+        "DB_BACKUP_KEEP": db_backup_keep,
+        "DB_BACKUP_CHECK_INTERVAL_HOURS": db_backup_check_interval_hours,
+        "DB_BACKUP_STARTUP_DELAY_SEC": db_backup_startup_delay_sec,
+        "DB_BACKUP_DIR": db_backup_dir,
         "APP_PUBLIC_BASE_URL": app_public_base_url,
     }
     if sql_engine_options:

@@ -506,6 +506,16 @@ def create_app() -> Flask:
         return app_release_context()
 
     @app.context_processor
+    def inject_db_backup_status():
+        from app.services.db_backup_service import db_backup_context
+
+        try:
+            return db_backup_context(app)
+        except Exception:
+            app.logger.exception("inject_db_backup_status falló")
+            return {"db_backup_status": None}
+
+    @app.context_processor
     def inject_primera_vez():
         """Aviso si aún no hay usuarios (no existe clave por defecto en la web)."""
         from sqlalchemy import func, select
@@ -534,8 +544,10 @@ def create_app() -> Flask:
             "En PaaS seguí definiendo APP_UPLOAD_ROOT apuntando a un volumen persistente; ver DEPLOY_RENDER.md."
         )
 
+    from app.services.db_backup_scheduler import init_db_backup_scheduler
     from app.services.vencimiento_scheduler import init_vencimiento_mail_scheduler
 
     init_vencimiento_mail_scheduler(app)
+    init_db_backup_scheduler(app)
 
     return app

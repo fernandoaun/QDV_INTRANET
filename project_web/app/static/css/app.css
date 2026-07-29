@@ -175,6 +175,26 @@ body.app-body {
   background: rgba(255, 255, 255, 0.12);
 }
 
+.app-backup-status {
+  display: block;
+  max-width: 100%;
+  padding: 0 0.15rem;
+  color: var(--app-sidebar-muted);
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.app-backup-status--warn {
+  color: #e8b86d;
+}
+
 .app-guest-version {
   position: fixed;
   left: 0.75rem;

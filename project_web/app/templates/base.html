@@ -111,6 +111,18 @@
               title="Historial de actualizaciones del software">
         v{{ app_release_version }}
       </button>
+      {% if db_backup_status %}
+      <span class="app-backup-status{% if db_backup_status.ok is sameas false %} app-backup-status--warn{% endif %}"
+            title="{{ db_backup_status.title }}">
+        {% if db_backup_status.ok is none %}
+        Backup pendiente
+        {% elif db_backup_status.ok %}
+        Backup {{ db_backup_status.label }}
+        {% else %}
+        Backup {{ db_backup_status.label }}
+        {% endif %}
+      </span>
+      {% endif %}
     </div>
   </aside>
   <div class="app-wrap">

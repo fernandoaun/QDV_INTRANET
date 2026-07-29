@@ -154,6 +154,30 @@ def register_cli(app: Flask) -> None:
                 f"{item.get('status')} — {item.get('message')}"
             )
 
+    @app.cli.command("backup-db")
+    @click.option(
+        "--force",
+        is_flag=True,
+        help="Forzar respaldo aunque aún no haya pasado una semana desde el último.",
+    )
+    def backup_db(force: bool) -> None:
+        """Copia de seguridad de la base (SQLite online / Postgres via pg_dump). No interrumpe el uso."""
+        from app.services.db_backup_service import run_database_backup
+
+        with app.app_context():
+            out = run_database_backup(app, force=force)
+        if out.get("skipped"):
+            click.echo(out.get("message") or "Omitido.")
+            last = out.get("last") or {}
+            if last.get("finished_at_iso"):
+                click.echo(f"Último respaldo: {last.get('finished_at_iso')} · {last.get('filename') or ''}")
+            return
+        if out.get("ok"):
+            click.echo(f"OK · {out.get('filename')} · {out.get('size_bytes', 0)} bytes")
+            click.echo(out.get("path") or "")
+        else:
+            raise click.ClickException(out.get("message") or "Falló el respaldo.")
+
     @app.cli.command("seed-msgi-anexos")
     @click.option(
         "--codigo-manual",
