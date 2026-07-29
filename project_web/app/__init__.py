@@ -61,6 +61,42 @@ def create_app() -> Flask:
     limiter.init_app(app)
     csrf.init_app(app)
 
+    @app.before_request
+    def _dev_auto_login():
+        """En local con DEV_AUTO_LOGIN=1, inicia sesión como admin (sin formulario)."""
+        if not app.config.get("DEV_AUTO_LOGIN") or app.config.get("TESTING"):
+            return None
+        if not app.config.get("DEBUG"):
+            return None
+
+        from flask import request, session
+        from sqlalchemy import func as sa_func
+        from sqlalchemy import select
+
+        from app.auth_utils import set_session_for_user
+        from app.models import User
+
+        if (request.endpoint or "") == "static":
+            return None
+        if session.get("user_id"):
+            return None
+
+        username = (app.config.get("DEV_AUTO_LOGIN_USER") or "admin").strip().lower()
+        u = db.session.execute(
+            select(User).where(sa_func.lower(User.username) == username, User.activo.is_(True))
+        ).scalar_one_or_none()
+        if u is None:
+            u = db.session.scalars(
+                select(User)
+                .where(User.is_admin.is_(True), User.activo.is_(True))
+                .order_by(User.id)
+                .limit(1)
+            ).first()
+        if u is not None:
+            set_session_for_user(u)
+            app.logger.info("DEV_AUTO_LOGIN: sesión como %s (id=%s)", u.username, u.id)
+        return None
+
     @app.errorhandler(429)
     def _rate_limit_429(exc):
         from flask import flash, jsonify, redirect, request, url_for

@@ -348,10 +348,22 @@ def get_config_dict(base_dir: Path) -> dict:
     if not preferred_scheme and name == "production":
         preferred_scheme = "https"
 
+    # Solo local: entrar sin formulario de login. Nunca en production.
+    dev_auto_login = (os.environ.get("DEV_AUTO_LOGIN") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if name in ("production", "testing"):
+        dev_auto_login = False
+    dev_auto_login_user = (os.environ.get("DEV_AUTO_LOGIN_USER") or "admin").strip().lower() or "admin"
+
     out: dict = {
         "SECRET_KEY": secret_key,
         "DEBUG": getattr(cfg, "DEBUG", False),
         "TESTING": getattr(cfg, "TESTING", False),
+        "DEV_AUTO_LOGIN": dev_auto_login,
+        "DEV_AUTO_LOGIN_USER": dev_auto_login_user,
         "USE_PROXY_FIX": use_proxy_fix,
         "PREFERRED_URL_SCHEME": preferred_scheme or "http",
         "WTF_CSRF_ENABLED": getattr(cfg, "WTF_CSRF_ENABLED", True),
