@@ -325,6 +325,9 @@ def test_assign_multi_rejects_volume_over_truck(app):
             raise AssertionError("expected ValueError")
         except ValueError as ex:
             assert "supera lo cargado" in str(ex)
+
+
+def test_gestion_includes_previous_week_cargada_pending_delivery(app, monkeypatch):
     from app.extensions import db
     from app.models import Entrega
     from app.services import entregas_service
