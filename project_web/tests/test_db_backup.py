@@ -120,4 +120,5 @@ def test_sidebar_shows_backup_pending(auth_client):
     r = auth_client.get("/dashboard", follow_redirects=True)
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert "Backup pendiente" in html or "app-backup-status" in html
+    assert "app-backup-status" in html
+    assert "pendiente" in html or "Backup" in html

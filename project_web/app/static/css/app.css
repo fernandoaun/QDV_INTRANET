@@ -176,23 +176,60 @@ body.app-body {
 }
 
 .app-backup-status {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  box-sizing: border-box;
+  width: 100%;
   max-width: 100%;
-  padding: 0 0.15rem;
-  color: var(--app-sidebar-muted);
-  font-size: 0.5rem;
-  font-weight: 500;
+  padding: 0.1rem 0.2rem 0.15rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.55rem;
+  font-weight: 600;
   letter-spacing: 0.01em;
-  line-height: 1.25;
+  line-height: 1.2;
   text-align: center;
+  overflow: hidden;
+}
+
+.app-backup-status__label {
+  display: block;
+  width: 100%;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  opacity: 0.9;
+}
+
+.app-backup-status__date {
+  display: block;
+  width: 100%;
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-backup-status--ok {
+  color: #9fd8a8;
+}
+
+.app-backup-status--ok .app-backup-status__label {
+  color: rgba(159, 216, 168, 0.85);
 }
 
 .app-backup-status--warn {
-  color: #e8b86d;
+  color: #f0c57a;
+}
+
+.app-backup-status--warn .app-backup-status__label {
+  color: rgba(240, 197, 122, 0.9);
 }
 
 .app-guest-version {

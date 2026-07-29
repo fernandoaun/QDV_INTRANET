@@ -112,14 +112,14 @@
         v{{ app_release_version }}
       </button>
       {% if db_backup_status %}
-      <span class="app-backup-status{% if db_backup_status.ok is sameas false %} app-backup-status--warn{% endif %}"
+      <span class="app-backup-status{% if db_backup_status.ok is sameas false %} app-backup-status--warn{% elif db_backup_status.ok %} app-backup-status--ok{% endif %}"
             title="{{ db_backup_status.title }}">
         {% if db_backup_status.ok is none %}
-        Backup pendiente
-        {% elif db_backup_status.ok %}
-        Backup {{ db_backup_status.label }}
+        <span class="app-backup-status__label">Backup</span>
+        <span class="app-backup-status__date">pendiente</span>
         {% else %}
-        Backup {{ db_backup_status.label }}
+        <span class="app-backup-status__label">Backup</span>
+        <span class="app-backup-status__date">{{ db_backup_status.label }}</span>
         {% endif %}
       </span>
       {% endif %}
