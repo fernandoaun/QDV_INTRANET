@@ -22,6 +22,13 @@ Thumbs.db
 *.log
 *.tmp
 
-# App web (secretos y SQLite local; nunca subir)
+# App web (secretos y SQLite local; NUNCA subir — producción usa Postgres + env del host)
 project_web/.env
+project_web/.env.*
+!project_web/.env.example
 project_web/instance/
+project_web/**/*.db
+project_web/**/*.db-shm
+project_web/**/*.db-wal
+project_web/**/*.sqlite
+project_web/**/*.sqlite3

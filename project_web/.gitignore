@@ -1,8 +1,25 @@
+# =============================================================================
+# NUNCA subir a Git (local ≠ producción)
+# =============================================================================
+# .env          → secretos y config local (DEV_AUTO_LOGIN, SECRET_KEY, etc.)
+# instance/     → SQLite local (qdv_web.db) y uploads de desarrollo
+# *.db*         → cualquier archivo de base SQLite suelto
+# Sí se versiona: .env.example (plantilla sin secretos reales)
+# =============================================================================
+
 .env
+.env.*
+!.env.example
+
 instance/
+
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
 __pycache__/
 *.pyc
 .venv/
 venv/
-*.db-shm
-*.db-wal
