@@ -1,8 +1,7 @@
 /* Service worker QDV PWA — caché básica de recursos estáticos y fallback offline ligero. */
-var CACHE = "qdv-pwa-v1";
+var CACHE = "qdv-pwa-v2";
 var PRECACHE = [
   "/",
-  "/static/css/app.css",
   "/static/favicon.png",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
@@ -48,6 +47,25 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(
       fetch(event.request).catch(function () {
         return caches.match("/");
+      })
+    );
+    return;
+  }
+
+  // CSS/JS: red primero para no quedar con estilos/scripts viejos tras un deploy.
+  var path = url.pathname || "";
+  if (path.indexOf("/static/css/") === 0 || path.indexOf("/static/js/") === 0) {
+    event.respondWith(
+      fetch(event.request).then(function (response) {
+        if (response && response.status === 200 && response.type === "basic") {
+          var copy = response.clone();
+          caches.open(CACHE).then(function (cache) {
+            cache.put(event.request, copy);
+          });
+        }
+        return response;
+      }).catch(function () {
+        return caches.match(event.request);
       })
     );
     return;

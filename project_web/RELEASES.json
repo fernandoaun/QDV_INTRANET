@@ -1,6 +1,11 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "changelog": [
+    {
+      "version": "1.0.1",
+      "date": "2026-07-29",
+      "description": "Mejora la legibilidad del estado de backup en el menú lateral y evita que la PWA quede con CSS viejo."
+    },
     {
       "version": "1.0.0",
       "date": "2026-06-30",

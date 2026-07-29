@@ -17,11 +17,14 @@ def healthz():
 @bp.get("/sw.js")
 def service_worker():
     """Service worker en la raíz para que el alcance cubra toda la app (requisito PWA)."""
-    return send_from_directory(
+    response = send_from_directory(
         current_app.static_folder,
         "pwa/sw.js",
         mimetype="application/javascript",
     )
+    # Sin esto el navegador puede no detectar el SW nuevo tras un deploy.
+    response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
+    return response
 
 
 @bp.get("/instalar")
