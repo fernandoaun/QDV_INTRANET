@@ -46,6 +46,28 @@ Necesitás 2 cosas abiertas al mismo tiempo:
 
 
 --------------------------------------------------------------------------------
+  DATOS DE PRUEBA (opcional)
+--------------------------------------------------------------------------------
+
+Si querés pantallas con datos para probar (stock, entregas, producción, etc.):
+
+1) Hacé doble clic en:
+
+     CARGAR_DATOS_DEMO.bat
+
+2) Usuarios de ejemplo (contraseña demo123 si se crearon ahora):
+
+     admin      → administrador
+     demo_ops   → operaciones
+     demo_log   → logística
+     demo_adm   → administración
+     demo_mant  → mantenimiento
+     demo_sgi   → SGC
+
+Si "admin" ya existía con otra clave, seguí usando esa clave.
+
+
+--------------------------------------------------------------------------------
   Si algo no funciona
 --------------------------------------------------------------------------------
 

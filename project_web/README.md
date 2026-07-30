@@ -136,6 +136,20 @@ python -m flask --app run create-admin mi_usuario
 
 El nombre de usuario se guarda en **minúsculas**. El rol es **administrador** (`is_admin=true`, `activo=true`).
 
+### Datos de prueba (local)
+
+Para poblar la base con usuarios, stock, entregas, producción, personal, etc.:
+
+```powershell
+python -m flask --app run seed-demo
+```
+
+O doble clic en `CARGAR_DATOS_DEMO.bat`.
+
+Usuarios típicos (contraseña de los **nuevos**: `demo123`): `admin`, `demo_ops`, `demo_log`, `demo_adm`, `demo_mant`, `demo_sgi`.
+
+El comando es **idempotente**: no duplica datos si ya corriste. No lo uses en producción.
+
 ---
 
 ## 8. Checklist de pruebas mínimas

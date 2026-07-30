@@ -178,6 +178,44 @@ def register_cli(app: Flask) -> None:
         else:
             raise click.ClickException(out.get("message") or "Falló el respaldo.")
 
+    @app.cli.command("seed-demo")
+    @click.option(
+        "--password",
+        default="demo123",
+        show_default=True,
+        help="Contraseña de los usuarios demo que se creen (no cambia usuarios ya existentes).",
+    )
+    def seed_demo(password: str) -> None:
+        """Carga datos de prueba locales (usuarios, stock, entregas, producción, etc.).
+
+        Idempotente: se puede volver a ejecutar. Solo para desarrollo local.
+        """
+        from app.services.demo_seed_service import seed_demo_data
+
+        with app.app_context():
+            try:
+                out = seed_demo_data(password=password)
+            except Exception as exc:
+                db.session.rollback()
+                raise click.ClickException(f"seed-demo: {exc}") from exc
+
+        click.echo("=== Datos demo locales ===")
+        for line in out.get("logs") or []:
+            click.echo(f"  · {line}")
+        click.echo("")
+        click.echo(f"Contraseña de usuarios nuevos: {out.get('password')}")
+        click.echo("Usuarios:")
+        for u in out.get("users") or []:
+            mark = "nuevo" if u.get("created") else "ya existía"
+            click.echo(f"  · {u['username']} ({u['rol']}) — {mark}")
+        click.echo("")
+        click.echo("Listo. Abrí http://127.0.0.1:5000")
+        if "admin" in (out.get("created_users") or []):
+            click.echo(f"  Login admin con contraseña: {out.get('password')}")
+        else:
+            click.echo("  Usuario admin ya existía: usá su contraseña actual.")
+        click.echo(f"  Usuarios demo nuevos usan: {out.get('password')}")
+
     @app.cli.command("seed-msgi-anexos")
     @click.option(
         "--codigo-manual",

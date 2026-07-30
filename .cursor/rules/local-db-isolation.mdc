@@ -1,0 +1,18 @@
+---
+description: Aísla la SQLite local de la Postgres remota; advierte si hay riesgo de sync o de subir .env/.db
+alwaysApply: true
+---
+
+# Aislamiento base local vs remota
+
+Policy (verbatim):
+
+En local no definas DATABASE_URL en tu .env (así sigue usando SQLite).
+No subas nunca .env ni archivos .db.
+Podés borrar, cargar demo o romper datos en local sin tocar producción.
+
+Si detectás `DATABASE_URL` en `.env` local, o un commit/push de `.env` / `*.db` / `instance/`, o un pedido de sincronizar bases:
+
+1. Mostrá **ADVERTENCIA — aislamiento de base local**
+2. No ejecutes el paso riesgoso
+3. Seguí la skill `local-db-isolation` (correr `python .cursor/skills/local-db-isolation/scripts/check_local_db_isolation.py` si hace falta)
