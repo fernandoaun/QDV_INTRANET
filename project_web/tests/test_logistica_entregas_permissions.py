@@ -219,6 +219,10 @@ def test_logistica_asigna_carga_a_varias_entregas(auth_client, app, monkeypatch)
     html = r.get_data(as_text=True)
     assert 'id="entregaMultiDestForm"' in html
     assert "Agregar entrega" in html
+    # El JS de multi-destino vive en block scripts; no debe depender de {% set %}
+    # scoped al block content (Jinja 2.10+), o el botón no agrega filas.
+    assert "multiAddDestBtn" in html
+    assert "addRow(litrosCamion" in html
     m = re.search(r'name="csrf_token"\s+value="([^"]+)"', html)
     assert m is not None
 

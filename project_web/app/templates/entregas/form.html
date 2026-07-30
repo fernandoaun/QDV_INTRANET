@@ -1,8 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{% if entrega %}Editar entrega{% else %}Nueva entrega{% endif %} · QDV{% endblock %}
-{% block content %}
+{# Sets fuera de blocks: en Jinja 2.10+ las variables de un block no se ven en otros (p. ej. scripts). #}
 {% set st = entrega.estado if entrega else 'nueva' %}
 {% set pendiente_log = pendiente_logistica|default(false) %}
+{% block title %}{% if entrega %}Editar entrega{% else %}Nueva entrega{% endif %} · QDV{% endblock %}
+{% block content %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">{% if entrega %}Editar entrega #{{ entrega.id }}{% else %}Programar entrega{% endif %}</h1>
@@ -63,7 +64,7 @@
       </div>
       <div class="col-md-8">
         <label class="form-label">Observaciones / logística</label>
-        <textarea class="form-control" name="observaciones" rows="1">{{ entrega.observaciones if entrega else '' }}</textarea>
+        <textarea class="form-control" name="observaciones" rows="1">{{ (entrega.observaciones or '') if entrega else '' }}</textarea>
       </div>
 
       <div class="col-12">
@@ -240,7 +241,7 @@
 
       <div class="col-12">
         <label class="form-label">Observaciones / logística</label>
-        <textarea class="form-control" name="observaciones" rows="3">{{ entrega.observaciones if entrega else '' }}</textarea>
+        <textarea class="form-control" name="observaciones" rows="3">{{ (entrega.observaciones or '') if entrega else '' }}</textarea>
       </div>
 
       {% if entrega and creador_display %}
