@@ -1,4 +1,4 @@
-"""Tests del respaldo semanal de base de datos."""
+"""Tests del respaldo diario de base de datos."""
 from __future__ import annotations
 
 import sqlite3

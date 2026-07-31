@@ -158,7 +158,7 @@ def register_cli(app: Flask) -> None:
     @click.option(
         "--force",
         is_flag=True,
-        help="Forzar respaldo aunque aún no haya pasado una semana desde el último.",
+        help="Forzar respaldo aunque aún no haya pasado un día desde el último.",
     )
     def backup_db(force: bool) -> None:
         """Copia de seguridad de la base (SQLite online / Postgres via pg_dump). No interrumpe el uso."""

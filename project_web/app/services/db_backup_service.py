@@ -1,5 +1,5 @@
 """
-Respaldo semanal de la base de datos, sin interrumpir a quienes usan la app.
+Respaldo diario de la base de datos, sin interrumpir a quienes usan la app.
 
 - SQLite: API online ``Connection.backup`` (copia coherente mientras se sigue leyendo/escribiendo).
 - PostgreSQL: ``pg_dump`` si está disponible en el PATH (también en caliente).
@@ -136,7 +136,7 @@ def is_backup_due(app: Any) -> bool:
     last = _parse_iso(meta.get("finished_at_iso") or meta.get("created_at_iso"))
     if last is None:
         return True
-    interval_days = max(1, int(app.config.get("DB_BACKUP_INTERVAL_DAYS") or 7))
+    interval_days = max(1, int(app.config.get("DB_BACKUP_INTERVAL_DAYS") or 1))
     return _now_utc() >= last + timedelta(days=interval_days)
 
 
@@ -233,7 +233,7 @@ def run_database_backup(app: Any, *, force: bool = False) -> dict[str, Any]:
         return {
             "ok": True,
             "skipped": True,
-            "message": "Aún no corresponde un nuevo respaldo semanal.",
+            "message": "Aún no corresponde un nuevo respaldo diario.",
             "last": meta,
         }
 
@@ -328,7 +328,7 @@ def db_backup_context(app: Any | None = None) -> dict[str, Any]:
             "db_backup_status": {
                 "ok": None,
                 "label": "sin respaldo",
-                "title": "Aún no hay un respaldo semanal registrado. Se creará automáticamente.",
+                "title": "Aún no hay un respaldo diario registrado. Se creará automáticamente.",
                 "display": "",
             }
         }

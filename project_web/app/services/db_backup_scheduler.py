@@ -1,8 +1,8 @@
 """
-Programador en segundo plano: respaldo semanal de la BD sin cron externo.
+Programador en segundo plano: respaldo diario de la BD sin cron externo.
 
 Mientras la app esté en ejecución, revisa periódicamente si ya pasó el intervalo
-(por defecto 7 días) y genera una copia. El primer ciclo tras el arranque corre
+(por defecto 1 día) y genera una copia. El primer ciclo tras el arranque corre
 si nunca hubo respaldo o si ya venció el plazo.
 """
 
@@ -77,7 +77,7 @@ def _run_backup_cycle(app: Any) -> None:
 
 def _scheduler_loop(app: Any) -> None:
     startup_delay = max(5, int(app.config.get("DB_BACKUP_STARTUP_DELAY_SEC") or 20))
-    check_hours = max(1, int(app.config.get("DB_BACKUP_CHECK_INTERVAL_HOURS") or 12))
+    check_hours = max(1, int(app.config.get("DB_BACKUP_CHECK_INTERVAL_HOURS") or 6))
     interval_sec = check_hours * 3600
 
     time.sleep(startup_delay)
@@ -98,7 +98,7 @@ def init_db_backup_scheduler(app: Any) -> None:
             return
         _scheduler_started = True
 
-    days = max(1, int(app.config.get("DB_BACKUP_INTERVAL_DAYS") or 7))
+    days = max(1, int(app.config.get("DB_BACKUP_INTERVAL_DAYS") or 1))
     t = threading.Thread(
         target=_scheduler_loop,
         args=(app,),
@@ -107,6 +107,6 @@ def init_db_backup_scheduler(app: Any) -> None:
     )
     t.start()
     app.logger.info(
-        "Respaldo semanal de BD activo (cada %s día(s); revisión periódica en segundo plano).",
+        "Respaldo diario de BD activo (cada %s día(s); revisión periódica en segundo plano).",
         days,
     )

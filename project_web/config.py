@@ -273,9 +273,9 @@ def get_config_dict(base_dir: Path) -> dict:
         "yes",
     )
     try:
-        db_backup_interval_days = int((os.environ.get("DB_BACKUP_INTERVAL_DAYS") or "7").strip())
+        db_backup_interval_days = int((os.environ.get("DB_BACKUP_INTERVAL_DAYS") or "1").strip())
     except ValueError:
-        db_backup_interval_days = 7
+        db_backup_interval_days = 1
     db_backup_interval_days = max(1, min(db_backup_interval_days, 90))
     try:
         db_backup_keep = int((os.environ.get("DB_BACKUP_KEEP") or "8").strip())
@@ -284,10 +284,10 @@ def get_config_dict(base_dir: Path) -> dict:
     db_backup_keep = max(1, min(db_backup_keep, 52))
     try:
         db_backup_check_interval_hours = int(
-            (os.environ.get("DB_BACKUP_CHECK_INTERVAL_HOURS") or "12").strip()
+            (os.environ.get("DB_BACKUP_CHECK_INTERVAL_HOURS") or "6").strip()
         )
     except ValueError:
-        db_backup_check_interval_hours = 12
+        db_backup_check_interval_hours = 6
     db_backup_check_interval_hours = max(1, min(db_backup_check_interval_hours, 168))
     try:
         db_backup_startup_delay_sec = int(
