@@ -8,7 +8,9 @@
           class="sgi-org-node{% if n.id == 'gerencia_general' %} sgi-org-node--root{% endif %} sgi-org-node--{{ n.kind|default('internal') }}"
           data-node-id="{{ n.id }}"
           data-parent-id="{{ n.parent_id or '' }}"
-          {% if n.usuario %}
+          {% if n.usuarios %}
+          data-usuarios="{{ n.usuarios|tojson|e }}"
+          {% elif n.usuario %}
           data-nombre="{{ n.usuario.nombre|e }}"
           data-username="{{ n.usuario.username|e }}"
           data-rol="{{ n.usuario.rol|e }}"
@@ -18,6 +20,11 @@
           data-telefono="{{ n.usuario.telefono|e }}"
           {% endif %}>
     <span class="sgi-org-node-title">{{ n.titulo }}</span>
+    {% if n.usuarios %}
+    <span class="sgi-org-node-users">{% for u in n.usuarios %}<span class="sgi-org-node-user">{{ u.nombre }}</span>{% endfor %}</span>
+    {% elif n.usuario %}
+    <span class="sgi-org-node-users"><span class="sgi-org-node-user">{{ n.usuario.nombre }}</span></span>
+    {% endif %}
   </button>
 </div>
 {% endmacro %}

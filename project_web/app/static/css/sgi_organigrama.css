@@ -139,13 +139,53 @@
 }
 
 .sgi-org-node-users {
-  display: block;
-  font-size: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  font-size: 0.55rem;
   font-weight: 500;
   line-height: 1.15;
-  margin-top: 0.25rem;
+  margin-top: 0.28rem;
   color: #444;
   text-transform: none;
+}
+
+.sgi-org-node-user {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sgi-org-user-checklist {
+  max-height: 14rem;
+  overflow: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.5rem;
+  background: #fff;
+}
+
+.sgi-org-user-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  margin: 0;
+  padding: 0.28rem 0;
+  cursor: pointer;
+}
+
+.sgi-org-user-check + .sgi-org-user-check {
+  border-top: 1px solid #f1f1f1;
+}
+
+.sgi-org-user-check input {
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
 }
 
 /* —— Grilla fija QDV (legacy) —— */

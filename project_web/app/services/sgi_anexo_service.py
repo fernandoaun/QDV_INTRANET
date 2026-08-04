@@ -499,6 +499,9 @@ def organigrama_layout_items(arbol: list[dict[str, Any]]) -> list[dict[str, Any]
             "subtitulo": node.get("subtitulo") or "",
             "parent_id": node.get("parent_id"),
             "orden": node.get("orden") or 0,
+            "user_id": node.get("user_id"),
+            "user_ids": node.get("user_ids") or _organigrama_node_user_ids(node),
+            "kind": node.get("kind"),
         }
         for nid, node in flat.items()
     ]
@@ -606,16 +609,26 @@ def organigrama_view_context(
     nodes = editor_data["nodes"]
     if layout == "free":
         chart_levels = []
+        flat = organigrama_flat_nodes(organigrama_tree(nodes))
+        org_nodes: list[dict[str, Any]] = []
+        for n in nodes:
+            row = dict(n)
+            enriched = flat.get(str(n.get("id") or ""), {})
+            row["usuarios"] = enriched.get("usuarios") or []
+            row["usuario"] = enriched.get("usuario")
+            org_nodes.append(row)
     else:
         nodes = organigrama_ensure_complete_nodes(data.get("nodes") or [])
         chart_levels = organigrama_chart_levels(nodes)
+        org_nodes = editor_data["nodes"]
     return {
         "arbol": arbol,
         "chart_levels": chart_levels,
         "layout_items": organigrama_layout_items(arbol),
         "org_layout": layout,
-        "org_nodes": editor_data["nodes"],
+        "org_nodes": org_nodes,
         "org_links": editor_data["links"],
+        "org_usuarios": organigrama_usuarios_opciones(),
     }
 
 

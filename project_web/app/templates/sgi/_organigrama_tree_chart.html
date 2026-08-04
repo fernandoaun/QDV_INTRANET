@@ -21,7 +21,9 @@
           {% endif %}>
     <span class="sgi-org-node-title">{{ n.titulo }}</span>
     {% if n.usuarios %}
-    <span class="sgi-org-node-users">{{ n.usuarios | map(attribute='nombre') | join(', ') }}</span>
+    <span class="sgi-org-node-users">{% for u in n.usuarios %}<span class="sgi-org-node-user">{{ u.nombre }}</span>{% endfor %}</span>
+    {% elif n.usuario %}
+    <span class="sgi-org-node-users"><span class="sgi-org-node-user">{{ n.usuario.nombre }}</span></span>
     {% endif %}
   </button>
 </div>

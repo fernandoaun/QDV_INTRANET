@@ -6,7 +6,9 @@
             class="sgi-org-node{% if not n.children %} sgi-org-node--leaf{% endif %}{% if n.id == 'gerencia_general' %} sgi-org-node--root{% endif %}"
             data-node-id="{{ n.id }}"
             data-parent-id="{{ parent_id }}"
-            {% if n.usuario %}
+            {% if n.usuarios %}
+            data-usuarios="{{ n.usuarios|tojson|e }}"
+            {% elif n.usuario %}
             data-nombre="{{ n.usuario.nombre|e }}"
             data-username="{{ n.usuario.username|e }}"
             data-rol="{{ n.usuario.rol|e }}"
@@ -19,8 +21,10 @@
       {% if n.subtitulo %}
       <span class="sgi-org-node-sub">{{ n.subtitulo }}</span>
       {% endif %}
-      {% if n.usuario %}
-      <span class="sgi-org-node-person">{{ n.usuario.nombre }}</span>
+      {% if n.usuarios %}
+      <span class="sgi-org-node-users">{% for u in n.usuarios %}<span class="sgi-org-node-user">{{ u.nombre }}</span>{% endfor %}</span>
+      {% elif n.usuario %}
+      <span class="sgi-org-node-users"><span class="sgi-org-node-user">{{ n.usuario.nombre }}</span></span>
       {% else %}
       <span class="sgi-org-node-person sgi-org-node-person--vacant">Sin usuario asignado</span>
       {% endif %}

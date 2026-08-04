@@ -66,19 +66,31 @@
   }
 
   function resolveEditorUsuarios(node, catalog) {
+    if (Array.isArray(node?.usuarios) && node.usuarios.length) {
+      return node.usuarios.map((u) => ({
+        id: u.id,
+        nombre: u.nombre || u.label || "",
+        username: u.username || "",
+        rol: u.rol || "",
+        puesto: u.puesto || "",
+        area: u.area || "",
+        email: u.email || "",
+        telefono: u.telefono || "",
+      }));
+    }
     const ids = Array.isArray(node.user_ids)
       ? node.user_ids
       : node.user_id
         ? [node.user_id]
         : [];
-    const list = catalog || editorCfg?.usuarios || [];
+    const list = catalog || editorCfg?.usuarios || viewCfg?.usuarios || [];
     return ids
       .map((id) => list.find((u) => String(u.id) === String(id)))
       .filter(Boolean)
       .map((u) => ({
         id: u.id,
-        nombre: u.label,
-        username: "",
+        nombre: u.label || u.nombre || "",
+        username: u.username || "",
         rol: u.rol,
         puesto: u.puesto || "",
         area: "",
@@ -629,7 +641,11 @@
 
   function buildNodeHtml(n, usuarios, opts) {
     const kind = nodeKindFromData(n);
-    const usersLabel = usuarios.map((u) => u.nombre).join(", ");
+    const usersHtml = usuarios.length
+      ? `<span class="sgi-org-node-users">${usuarios
+          .map((u) => `<span class="sgi-org-node-user">${escHtml(u.nombre)}</span>`)
+          .join("")}</span>`
+      : "";
     const usersAttr = usuarios.length
       ? ` data-usuarios='${JSON.stringify(usuarios).replace(/'/g, "&#39;")}'`
       : "";
@@ -645,7 +661,7 @@
              tabindex="0"
              data-node-id="${escHtml(n.id)}"${usersAttr}>
           <span class="sgi-org-node-title" ${editable ? 'contenteditable="true" spellcheck="false"' : ""}>${escHtml(n.titulo || "Nuevo puesto")}</span>
-          ${usersLabel ? `<span class="sgi-org-node-users">${escHtml(usersLabel)}</span>` : ""}
+          ${usersHtml}
         </div>
       </div>`;
   }
@@ -653,7 +669,7 @@
   function renderFreeCanvas(wrap, nodes, links, opts) {
     if (!wrap) return;
     const { width, height } = canvasSize(nodes);
-    const catalog = editorCfg?.usuarios || [];
+    const catalog = editorCfg?.usuarios || viewCfg?.usuarios || [];
     let nodesHtml = "";
     nodes.forEach((n) => {
       const usuarios = resolveEditorUsuarios(n, catalog);
@@ -1036,20 +1052,21 @@
       if (!slot) return;
       const inner = qs(".sgi-org-node", slot);
       if (!inner) return;
-      const usuarios = resolveEditorUsuarios(node);
-      const usersLabel = usuarios.map((u) => u.nombre).join(", ");
       const titleEl = qs(".sgi-org-node-title", inner);
       if (titleEl && document.activeElement !== titleEl) {
         titleEl.textContent = node.titulo || "Nuevo puesto";
       }
+      const usuarios = resolveEditorUsuarios(node);
       let usersEl = qs(".sgi-org-node-users", inner);
-      if (usersLabel) {
+      if (usuarios.length) {
         if (!usersEl) {
           usersEl = document.createElement("span");
           usersEl.className = "sgi-org-node-users";
           inner.appendChild(usersEl);
         }
-        usersEl.textContent = usersLabel;
+        usersEl.innerHTML = usuarios
+          .map((u) => `<span class="sgi-org-node-user">${escHtml(u.nombre)}</span>`)
+          .join("");
       } else if (usersEl) {
         usersEl.remove();
       }
@@ -1160,10 +1177,13 @@
           : [];
       const kind = nodeKindFromData(node);
 
-      const usersOptions = (editorCfg.usuarios || [])
+      const usersChecklist = (editorCfg.usuarios || [])
         .map((u) => {
-          const sel = userIds.includes(String(u.id)) ? " selected" : "";
-          return `<option value="${u.id}"${sel}>${escHtml(u.label)} (${escHtml(u.rol)})</option>`;
+          const checked = userIds.includes(String(u.id)) ? " checked" : "";
+          return `<label class="sgi-org-user-check">
+            <input type="checkbox" value="${u.id}"${checked}>
+            <span>${escHtml(u.label)} <span class="text-muted">(${escHtml(u.rol)})</span></span>
+          </label>`;
         })
         .join("");
 
@@ -1194,9 +1214,9 @@
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label small mb-1">Usuarios</label>
-          <select class="form-select form-select-sm" id="orgPropUsers" multiple size="4">${usersOptions}</select>
-          <div class="form-text">Ctrl + clic para varios</div>
+          <label class="form-label small mb-1">Personas en el puesto</label>
+          <div class="sgi-org-user-checklist" id="orgPropUsers">${usersChecklist || `<p class="text-muted small mb-0">No hay usuarios activos.</p>`}</div>
+          <div class="form-text">Podés marcar varias personas.</div>
         </div>
         ${
           incoming.length
@@ -1233,12 +1253,17 @@
         });
         refreshCanvas({ skipProps: true });
       });
-      qs("#orgPropUsers", propsPanel)?.addEventListener("change", (ev) => {
-        node.user_ids = Array.from(ev.target.selectedOptions)
-          .map((opt) => parseInt(opt.value, 10))
+      const syncUsersFromChecks = () => {
+        const box = qs("#orgPropUsers", propsPanel);
+        node.user_ids = qsa('input[type="checkbox"]:checked', box)
+          .map((cb) => parseInt(cb.value, 10))
           .filter((uid) => Number.isFinite(uid) && uid > 0);
         node.user_id = node.user_ids[0] || null;
+        delete node.usuarios;
         updateCanvasNodeDom(node);
+      };
+      qsa('#orgPropUsers input[type="checkbox"]', propsPanel).forEach((cb) => {
+        cb.addEventListener("change", syncUsersFromChecks);
       });
       qsa(".org-link-del", propsPanel).forEach((btn) => {
         btn.addEventListener("click", () => removeLink(btn.dataset.from, btn.dataset.to));
