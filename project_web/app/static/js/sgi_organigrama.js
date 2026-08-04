@@ -1030,14 +1030,47 @@
       if (opts?.rebind !== false) bindLinkDragEvents();
     }
 
-    function refreshCanvas() {
+    function updateCanvasNodeDom(node) {
+      if (!node) return;
+      const slot = qsa(".sgi-org-canvas-node", wrap).find((el) => el.dataset.nodeId === String(node.id));
+      if (!slot) return;
+      const inner = qs(".sgi-org-node", slot);
+      if (!inner) return;
+      const usuarios = resolveEditorUsuarios(node);
+      const usersLabel = usuarios.map((u) => u.nombre).join(", ");
+      const titleEl = qs(".sgi-org-node-title", inner);
+      if (titleEl && document.activeElement !== titleEl) {
+        titleEl.textContent = node.titulo || "Nuevo puesto";
+      }
+      let usersEl = qs(".sgi-org-node-users", inner);
+      if (usersLabel) {
+        if (!usersEl) {
+          usersEl = document.createElement("span");
+          usersEl.className = "sgi-org-node-users";
+          inner.appendChild(usersEl);
+        }
+        usersEl.textContent = usersLabel;
+      } else if (usersEl) {
+        usersEl.remove();
+      }
+      if (usuarios.length) {
+        inner.setAttribute("data-usuarios", JSON.stringify(usuarios));
+      } else {
+        inner.removeAttribute("data-usuarios");
+      }
+      const kind = nodeKindFromData(node);
+      inner.classList.remove("sgi-org-node--internal", "sgi-org-node--external");
+      inner.classList.add(`sgi-org-node--${kind}`);
+    }
+
+    function refreshCanvas(opts) {
       renderFreeCanvas(wrap, state.nodes, state.links, {
         editable: true,
         selectedId: state.selectedId,
         connectSourceId: state.connectSourceId,
       });
       bindCanvasEvents();
-      renderPropsPanel();
+      if (!opts?.skipProps) renderPropsPanel();
     }
 
     function setTool(tool) {
@@ -1180,22 +1213,32 @@
         </button>`;
 
       qs("#orgPropTitulo", propsPanel)?.addEventListener("input", (ev) => {
-        node.titulo = ev.target.value.trim().toUpperCase();
-        refreshCanvas();
+        const input = ev.target;
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const upper = String(input.value || "").toUpperCase();
+        if (input.value !== upper) {
+          input.value = upper;
+          if (typeof start === "number" && typeof end === "number") {
+            input.setSelectionRange(start, end);
+          }
+        }
+        node.titulo = upper.trim() || node.titulo;
+        updateCanvasNodeDom(node);
       });
       qs("#orgPropKind", propsPanel)?.addEventListener("change", (ev) => {
         node.kind = ev.target.value === "external" ? "external" : "internal";
         state.links.forEach((l) => {
           if (l.to === node.id) l.style = linkStyleForTarget(state.nodes, node.id);
         });
-        refreshCanvas();
+        refreshCanvas({ skipProps: true });
       });
       qs("#orgPropUsers", propsPanel)?.addEventListener("change", (ev) => {
         node.user_ids = Array.from(ev.target.selectedOptions)
           .map((opt) => parseInt(opt.value, 10))
           .filter((uid) => Number.isFinite(uid) && uid > 0);
         node.user_id = node.user_ids[0] || null;
-        refreshCanvas();
+        updateCanvasNodeDom(node);
       });
       qsa(".org-link-del", propsPanel).forEach((btn) => {
         btn.addEventListener("click", () => removeLink(btn.dataset.from, btn.dataset.to));

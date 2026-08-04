@@ -207,6 +207,40 @@ def _organigrama_node_user_ids(node: dict[str, Any]) -> list[int]:
     return []
 
 
+def _organigrama_normalize_preserve_user_ids(value: Any) -> list[int]:
+    """Acepta int, lista o valores legacy y devuelve ids únicos positivos."""
+    if value is None or value == "" or value == 0:
+        return []
+    if isinstance(value, list):
+        out: list[int] = []
+        for item in value:
+            try:
+                uid = int(item)
+            except (TypeError, ValueError):
+                continue
+            if uid > 0 and uid not in out:
+                out.append(uid)
+        return out
+    try:
+        uid = int(value)
+    except (TypeError, ValueError):
+        return []
+    return [uid] if uid > 0 else []
+
+
+def _organigrama_preserve_users_from_nodes(nodes: Any) -> dict[str, list[int]]:
+    preserve: dict[str, list[int]] = {}
+    if not isinstance(nodes, list):
+        return preserve
+    for n in nodes:
+        if not isinstance(n, dict) or not n.get("id"):
+            continue
+        uids = _organigrama_node_user_ids(n)
+        if uids:
+            preserve[str(n["id"])] = uids
+    return preserve
+
+
 def _organigrama_node_nivel(node_id: str, by_id: dict[str, dict[str, Any]], depth_cache: dict[str, int]) -> int:
     """Altura visual del recuadro: 0 = fila superior, 1 = siguiente, etc."""
     node = by_id.get(node_id)
@@ -410,16 +444,11 @@ def organigrama_ensure_complete_nodes(nodes: list[dict[str, Any]]) -> list[dict[
         if isinstance(n, dict) and n.get("id"):
             by_id[str(n["id"])] = n
     if not required.issubset(by_id.keys()):
-        preserve: dict[str, int] = {}
+        preserve: dict[str, list[int]] = {}
         for nid, n in by_id.items():
             uids = _organigrama_node_user_ids(n)
             if uids:
-                preserve[nid] = uids[0]
-            elif n.get("user_id") not in (None, "", 0):
-                try:
-                    preserve[nid] = int(n["user_id"])
-                except (TypeError, ValueError):
-                    pass
+                preserve[nid] = uids
         # Completar con SPECS (ids estables). No usar parse PPTX: genera slugs distintos.
         for n in build_default_organigrama_nodes(preserve_users=preserve, pptx_path=None):
             if isinstance(n, dict) and n.get("id") and str(n["id"]) not in by_id:
@@ -668,7 +697,7 @@ def parse_organigrama_from_pptx(path: Path) -> list[dict[str, Any]] | None:
 
 def build_default_organigrama_nodes(
     *,
-    preserve_users: dict[str, int] | None = None,
+    preserve_users: dict[str, int | list[int]] | None = None,
     pptx_path: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Árbol inicial QDV; conserva asignaciones de usuario por id de nodo."""
@@ -683,19 +712,22 @@ def build_default_organigrama_nodes(
     nodes: list[dict[str, Any]] = []
     for i, spec in enumerate(specs):
         nid = spec.get("id") or _slug_id(spec.get("titulo", f"n{i}"))
-        uid = preserve.get(nid)
-        if uid is None and nid == "gerencia_general" and admin_id:
-            uid = int(admin_id)
-        if uid is None:
+        user_ids = _organigrama_normalize_preserve_user_ids(preserve.get(nid))
+        if not user_ids and nid == "gerencia_general" and admin_id:
+            user_ids = [int(admin_id)]
+        if not user_ids:
             rol = rol_by_id.get(nid) or spec.get("rol")
             if rol:
                 uid = _first_user_for_rol(rol)
+                if uid:
+                    user_ids = [int(uid)]
         node = {
             "id": nid,
             "titulo": (spec.get("titulo") or "").strip().upper()[:256],
             "subtitulo": (spec.get("subtitulo") or "")[:256],
             "parent_id": spec.get("parent_id"),
-            "user_id": uid,
+            "user_id": user_ids[0] if user_ids else None,
+            "user_ids": user_ids,
             "orden": int(spec.get("orden") if spec.get("orden") is not None else i),
         }
         node["kind"] = _organigrama_node_kind(node)
@@ -994,13 +1026,11 @@ def ensure_anexo_tipo_contenido(
     elif anexo.tipo_contenido == ANEXO_TIPO_ORGANIGRAMA:
         empty = not (anexo.contenido_json or "").strip() or anexo.contenido_json == "{}"
         if empty or refresh_organigrama:
-            preserve: dict[str, int] = {}
+            preserve: dict[str, list[int]] = {}
             if not empty:
                 try:
                     prev = json.loads(anexo.contenido_json or "{}")
-                    for n in prev.get("nodes") or []:
-                        if isinstance(n, dict) and n.get("id") and n.get("user_id"):
-                            preserve[str(n["id"])] = int(n["user_id"])
+                    preserve = _organigrama_preserve_users_from_nodes(prev.get("nodes") or [])
                 except (json.JSONDecodeError, TypeError, ValueError):
                     preserve = {}
             nodes = build_default_organigrama_nodes(preserve_users=preserve, pptx_path=pptx_path)
@@ -1093,13 +1123,11 @@ def ensure_documento_tipo_contenido(
     elif doc.tipo_contenido == ANEXO_TIPO_ORGANIGRAMA:
         empty = not (rev.contenido_json or "").strip() or rev.contenido_json == "{}"
         if empty or refresh_organigrama:
-            preserve: dict[str, int] = {}
+            preserve: dict[str, list[int]] = {}
             if not empty:
                 try:
                     prev = json.loads(rev.contenido_json or "{}")
-                    for n in prev.get("nodes") or []:
-                        if isinstance(n, dict) and n.get("id") and n.get("user_id"):
-                            preserve[str(n["id"])] = int(n["user_id"])
+                    preserve = _organigrama_preserve_users_from_nodes(prev.get("nodes") or [])
                 except (json.JSONDecodeError, TypeError, ValueError):
                     preserve = {}
             nodes = build_default_organigrama_nodes(preserve_users=preserve, pptx_path=pptx_path)
