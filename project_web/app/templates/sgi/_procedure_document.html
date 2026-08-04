@@ -172,7 +172,19 @@
 
     <div class="sgi-proc-seccion" data-seccion="control_registros">
       <div class="sgi-proc-seccion-titulo">7.- CONTROL DE REGISTROS</div>
-      <table class="sgi-proc-table" id="procTablaRegistros">
+      <table class="sgi-proc-table sgi-proc-table-registros" id="procTablaRegistros">
+        <colgroup>
+          <col class="sgi-rg-col-nombre">
+          <col class="sgi-rg-col-quien">
+          <col class="sgi-rg-col-como">
+          <col class="sgi-rg-col-donde">
+          <col class="sgi-rg-col-tiempo">
+          <col class="sgi-rg-col-usuarios">
+          <col class="sgi-rg-col-disp">
+          <col class="sgi-rg-col-modulo">
+          <col class="sgi-rg-col-acciones sgi-proc-no-print">
+          {% if not solo_lectura|default(false) %}<col class="sgi-rg-col-del sgi-proc-no-print">{% endif %}
+        </colgroup>
         <thead>
           <tr>
             <th>Nombre</th>

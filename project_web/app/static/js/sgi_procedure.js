@@ -844,7 +844,7 @@
       const origin = summary.origin_label || "Formulario editable";
       html += `<td colspan="1"><span class="badge text-bg-primary">${escapeHtml(summary.code || "REG")}</span>
         <div class="small text-muted">${escapeHtml(origin)}</div></td>`;
-      html += `<td class="sgi-proc-no-print text-nowrap">
+      html += `<td class="sgi-proc-no-print">
         ${recordUrl ? `<a class="btn btn-sm btn-primary" href="${escapeHtml(recordUrl)}">Ir al registro</a>` : ""}
         ${
           puedeCrearRegistroDigital && !soloLectura
@@ -875,7 +875,7 @@
       const filledUrl = meta.filled_url || row?.filled_url || "";
       const blankDisabled = blankUrl ? "" : ' disabled aria-disabled="true"';
       const filledDisabled = filledUrl ? "" : ' disabled aria-disabled="true"';
-      html += `<td class="sgi-proc-no-print text-nowrap">
+      html += `<td class="sgi-proc-no-print">
         <a class="btn btn-sm btn-outline-secondary rg-btn-blank"${blankUrl ? ` href="${escapeHtml(blankUrl)}" target="_blank" rel="noopener"` : ""}${blankDisabled}>Ver en blanco</a>
         <a class="btn btn-sm btn-outline-primary rg-btn-filled"${filledUrl ? ` href="${escapeHtml(filledUrl)}" target="_blank" rel="noopener"` : ""}${filledDisabled}>Ir al módulo</a>
       </td>`;

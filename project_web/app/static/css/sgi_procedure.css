@@ -140,9 +140,11 @@
 /* —— Tablas —— */
 .sgi-proc-table {
   width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
   margin: 0.5rem 0 1rem;
   font-size: 10pt;
+  table-layout: fixed;
 }
 
 .sgi-proc-table th,
@@ -150,6 +152,9 @@
   border: 1px solid #000;
   padding: 6px 8px;
   vertical-align: middle;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .sgi-proc-table thead th {
@@ -166,6 +171,8 @@
 .sgi-proc-table input,
 .sgi-proc-table textarea {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   border: none;
   background: transparent;
   font-family: Arial, Helvetica, sans-serif;
@@ -176,10 +183,69 @@
   text-align: center;
 }
 
+.sgi-proc-table select.form-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: inherit;
+  padding: 0.15rem 0.35rem;
+  min-height: 0;
+}
+
 .sgi-proc-table input:focus,
 .sgi-proc-table textarea:focus {
   outline: 2px solid #2980b9;
   background: #f8fbff;
+}
+
+/* Control de registros: muchas columnas → tipografía/padding compactos */
+.sgi-proc-table-registros {
+  font-size: 7.5pt;
+  line-height: 1.25;
+}
+
+.sgi-proc-table-registros th,
+.sgi-proc-table-registros td {
+  padding: 3px 4px;
+  vertical-align: top;
+  min-width: 0;
+}
+
+.sgi-proc-table-registros thead th {
+  font-size: 7pt;
+  line-height: 1.2;
+  padding: 4px 3px;
+}
+
+.sgi-proc-table-registros input,
+.sgi-proc-table-registros select.form-select {
+  min-width: 0;
+}
+
+.sgi-proc-table-registros col.sgi-rg-col-nombre { width: 18%; }
+.sgi-proc-table-registros col.sgi-rg-col-quien { width: 8%; }
+.sgi-proc-table-registros col.sgi-rg-col-como { width: 7%; }
+.sgi-proc-table-registros col.sgi-rg-col-donde { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-tiempo { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-usuarios { width: 12%; }
+.sgi-proc-table-registros col.sgi-rg-col-disp { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-modulo { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-acciones { width: 12%; }
+.sgi-proc-table-registros col.sgi-rg-col-del { width: 3%; }
+
+.sgi-proc-table-registros .sgi-proc-no-print .btn {
+  display: block;
+  width: 100%;
+  white-space: normal;
+  margin: 0 0 0.2rem;
+  padding: 0.15rem 0.25rem;
+  font-size: 7pt;
+  line-height: 1.2;
+}
+
+.sgi-proc-table-registros .badge {
+  white-space: normal;
+  font-size: 7pt;
 }
 
 .sgi-proc-table tr.sgi-cc-auto td {
@@ -572,12 +638,29 @@
     margin: 0;
     width: 100%;
     max-width: none;
+    /* @page ya aporta margen: no duplicar padding lateral */
+    padding: 0;
   }
   .sgi-proc-firma-gerente {
     position: fixed;
     right: 12mm;
     bottom: 10mm;
   }
+  .sgi-proc-table-registros {
+    font-size: 7pt;
+  }
+  .sgi-proc-table-registros thead th {
+    font-size: 6.5pt;
+  }
+  /* Sin columna Acciones en impresión: redistribuir anchos de datos */
+  .sgi-proc-table-registros col.sgi-rg-col-nombre { width: 20%; }
+  .sgi-proc-table-registros col.sgi-rg-col-quien { width: 9%; }
+  .sgi-proc-table-registros col.sgi-rg-col-como { width: 8%; }
+  .sgi-proc-table-registros col.sgi-rg-col-donde { width: 11%; }
+  .sgi-proc-table-registros col.sgi-rg-col-tiempo { width: 12%; }
+  .sgi-proc-table-registros col.sgi-rg-col-usuarios { width: 14%; }
+  .sgi-proc-table-registros col.sgi-rg-col-disp { width: 13%; }
+  .sgi-proc-table-registros col.sgi-rg-col-modulo { width: 13%; }
 }
 
 .table-app tbody tr.sgi-row-revision td {

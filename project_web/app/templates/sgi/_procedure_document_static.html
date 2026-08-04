@@ -64,7 +64,18 @@
     {% endfor %}
     <div class="sgi-proc-seccion">
       <div class="sgi-proc-seccion-titulo">7.- CONTROL DE REGISTROS</div>
-      <table class="sgi-proc-table">
+      <table class="sgi-proc-table sgi-proc-table-registros">
+        <colgroup>
+          <col class="sgi-rg-col-nombre">
+          <col class="sgi-rg-col-quien">
+          <col class="sgi-rg-col-como">
+          <col class="sgi-rg-col-donde">
+          <col class="sgi-rg-col-tiempo">
+          <col class="sgi-rg-col-usuarios">
+          <col class="sgi-rg-col-disp">
+          <col class="sgi-rg-col-modulo">
+          <col class="sgi-rg-col-acciones sgi-proc-no-print">
+        </colgroup>
         <thead>
           <tr>
             <th>Nombre</th><th>¿Quién archiva?</th><th>¿Cómo?</th><th>¿Dónde?</th>
@@ -79,7 +90,7 @@
             <td>{{ rg.nombre }}</td><td>{{ rg.quien_archiva }}</td><td>{{ rg.como }}</td><td>{{ rg.donde }}</td>
             <td>{{ rg.tiempo_guarda }}</td><td>{{ rg.usuarios }}</td><td>{{ rg.disposicion_final }}</td>
             <td>{{ rg.modulo_label or rg.modulo or "—" }}</td>
-            <td class="sgi-proc-no-print text-nowrap">
+            <td class="sgi-proc-no-print">
               {% if rg.blank_url %}
               <a class="btn btn-sm btn-outline-secondary" href="{{ rg.blank_url }}" target="_blank" rel="noopener">Ver en blanco</a>
               {% endif %}
