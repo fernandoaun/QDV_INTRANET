@@ -19,7 +19,8 @@
 
 <div class="app-card sgi-proc-no-print mb-3">
   <div class="app-card-header py-2">
-    <span class="fw-semibold">Sectores / perfiles a los que aplica</span>
+    <span class="fw-semibold">Puestos del organigrama a los que aplica</span>
+    <span class="text-muted small ms-2">Se notifica a los titulares del puesto y al perfil asociado.</span>
   </div>
   <div class="app-card-body py-2">
     <div class="d-flex flex-wrap gap-3" id="anexoPerfilesAplica">
@@ -33,7 +34,7 @@
       {% endfor %}
     </div>
     {% if not perfiles_aplica and puede_editar and rev.estado == 'borrador' %}
-    <p class="text-warning small mb-0 mt-2">Seleccioná al menos un sector antes de enviar a revisión.</p>
+    <p class="text-warning small mb-0 mt-2">Seleccioná al menos un puesto antes de enviar a revisión.</p>
     {% endif %}
   </div>
 </div>

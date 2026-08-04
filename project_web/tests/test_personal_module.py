@@ -1203,3 +1203,56 @@ def test_mis_entregas_epp_login_next_administracion(app):
     r3 = client.get("/personal/mis-entregas-epp")
     assert r3.status_code == 200
     assert b"Confirmar entrega" in r3.data
+
+def test_legajo_puesto_syncs_with_organigrama(app):
+    """Puesto del legajo <-> organigrama (no usa el rol/perfil del sistema)."""
+    from datetime import date
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import personal_service as ps
+    from app.services import sgi_anexo_service as anexo_svc
+
+    with app.app_context():
+        u = User(
+            username="pytest_legajo_org",
+            password_hash=generate_password_hash("x"),
+            rol="administracion",
+            activo=True,
+        )
+        db.session.add(u)
+        db.session.flush()
+        emp = EmpleadoPersonal(
+            legajo="2099-099",
+            apellido="Org",
+            nombre="Test",
+            fecha_ingreso=date(2099, 1, 1),
+            estado="activo",
+            user_id=u.id,
+            puesto="",
+        )
+        db.session.add(emp)
+        db.session.commit()
+
+        ok, msg, saved = ps.save_empleado(
+            {
+                "apellido": "Org",
+                "nombre": "Test",
+                "fecha_ingreso": "2099-01-01",
+                "estado": "activo",
+                "org_puestos": ["responsable_mantenimiento", "choferes"],
+            },
+            empleado_id=emp.id,
+            user_id=u.id,
+        )
+        assert ok, msg
+        db.session.refresh(emp)
+        label = emp.puesto or ""
+        assert "MANTENIMIENTO" in label.upper() or "mantenimiento" in label.lower()
+        assert "CHOFER" in label.upper() or "chofer" in label.lower()
+
+        # Admin/organigrama sync refleja en legajo
+        anexo_svc.organigrama_sync_user_puestos(int(u.id), ["operarios_planta"])
+        db.session.refresh(emp)
+        assert "OPERARIOS" in (emp.puesto or "").upper() or "planta" in (emp.puesto or "").lower()

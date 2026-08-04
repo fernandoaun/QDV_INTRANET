@@ -1229,7 +1229,7 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     if not (rev.reviso or "").strip():
         return False, "Indicá quién revisa (campo «Revisó» en la carátula) antes de enviar."
     if not perfil_svc.perfiles_aplica_documento(doc.id):
-        return False, "Seleccioná al menos un sector/perfil al que aplica el procedimiento."
+        return False, "Seleccioná al menos un puesto del organigrama al que aplica el procedimiento."
     app = current_app._get_current_object()
     recipients = workflow_svc.resolve_revision_recipients(app, rev)
     if not recipients:

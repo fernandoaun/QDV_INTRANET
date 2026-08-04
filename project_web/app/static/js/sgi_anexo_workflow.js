@@ -89,7 +89,7 @@
     if (accion === "enviar_revision") {
       const perfiles = qsa(".anexo-perfil-check:checked");
       if (!perfiles.length) {
-        flash("danger", "Seleccioná al menos un sector/perfil al que aplica el documento.");
+        flash("danger", "Seleccioná al menos un puesto del organigrama al que aplica el documento.");
         return;
       }
       const revisorCorreo = (qs("#anexoRevisorCorreo")?.value || "").trim();

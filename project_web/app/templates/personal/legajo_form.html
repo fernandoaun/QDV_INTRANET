@@ -53,8 +53,19 @@
         <div class="form-text">Determina el número de legajo del año.</div>
       </div>
       <div class="col-md-3">
-        <label class="form-label">Puesto</label>
-        <input type="text" class="form-control" name="puesto" value="{{ empleado.puesto if empleado else '' }}">
+        <label class="form-label" for="legajoOrgPuestos">Puesto (organigrama)</label>
+        {% if empleado and empleado.user_id %}
+        <select class="form-select" name="org_puestos" id="legajoOrgPuestos" multiple size="6"
+                {% if not organigrama_puestos|default([]) %}disabled{% endif %}>
+          {% for p in organigrama_puestos|default([]) %}
+          <option value="{{ p.id }}" {% if p.id in organigrama_puestos_selected|default([]) %}selected{% endif %}>{{ p.titulo }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">Ctrl + clic para varios. Se sincroniza con el organigrama SGC (no es el perfil del sistema).</div>
+        {% else %}
+        <input type="text" class="form-control" value="{{ empleado.puesto if empleado else '' }}" readonly>
+        <div class="form-text text-warning">Para asignar puestos del organigrama, vinculá un usuario del sistema a este legajo.</div>
+        {% endif %}
       </div>
       <div class="col-md-3">
         <label class="form-label">Área</label>

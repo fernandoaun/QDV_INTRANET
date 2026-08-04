@@ -9,7 +9,7 @@ from app.models import PermisoUsuario, User
 from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_notification_service as notif_svc
 from app.services import sgi_procedimiento_service as proc_svc
-from app.user_roles import ROLE_OPERACIONES
+from app.user_roles import ROLE_LOGISTICA, ROLE_OPERACIONES
 
 
 @pytest.fixture
@@ -76,4 +76,72 @@ def test_enviar_revision_requires_perfil(app, sgi_editor):
         db.session.commit()
         ok, msg = proc_svc.enviar_a_revision(rev.id, sgi_editor, "T")
         assert not ok
-        assert "sector" in msg.lower() or "perfil" in msg.lower()
+        assert "puesto" in msg.lower() or "sector" in msg.lower() or "perfil" in msg.lower()
+
+
+def test_organigrama_puesto_notifies_role_and_holders(app, sgi_editor, monkeypatch):
+    """Puesto del organigrama: notifica por rol asociado y por titular asignado."""
+    with app.app_context():
+        op = User(
+            username="pytest_org_op",
+            password_hash=generate_password_hash("x"),
+            rol=ROLE_OPERACIONES,
+            activo=True,
+        )
+        titular = User(
+            username="pytest_org_titular",
+            password_hash=generate_password_hash("x"),
+            rol=ROLE_LOGISTICA,
+            activo=True,
+        )
+        mant = User(
+            username="pytest_org_mant",
+            password_hash=generate_password_hash("x"),
+            rol="mantenimiento",
+            activo=True,
+        )
+        db.session.add_all([op, titular, mant])
+        db.session.commit()
+
+        monkeypatch.setattr(
+            "app.services.sgi_anexo_service.organigrama_puesto_holders",
+            lambda nid: (
+                [{"user_id": int(titular.id), "nombre": "Titular", "email": "", "titulo_puesto": "OP"}]
+                if nid == "operarios_planta"
+                else []
+            ),
+        )
+        monkeypatch.setattr(
+            "app.services.sgi_anexo_service.organigrama_node_ids_for_user",
+            lambda uid: ["operarios_planta"] if int(uid) == int(titular.id) else [],
+        )
+
+        doc, rev, _ = proc_svc.create_procedimiento_visual("PG", sgi_editor, "T", titulo="ORG PUESTO")
+        assert "operarios_planta" in perfil_svc.perfiles_opciones_documento()
+        perfil_svc.sync_perfiles_documento(doc.id, ["operarios_planta"])
+        rev.reviso = "R"
+        rev.revisor_correo = "revisor@example.com"
+        rev.aprobo = "A"
+        rev.aprobador_correo = "aprobador@example.com"
+        db.session.commit()
+
+        proc_svc.enviar_a_revision(rev.id, sgi_editor, "T")
+        proc_svc.marcar_como_revisado(rev.id, sgi_editor, "T")
+        proc_svc.aprobar_revision(rev.id, sgi_editor, "T")
+
+        users = notif_svc.users_to_notify_document_approved(doc, rev)
+        usernames = {u.username for u in users}
+        assert "pytest_org_op" in usernames  # rol operaciones del puesto
+        assert "pytest_org_titular" in usernames  # titular aunque sea logística
+        assert "pytest_org_mant" not in usernames
+        assert proc_svc.documento_accesible_por_perfil(titular, doc) is True
+        assert proc_svc.documento_accesible_por_perfil(mant, doc) is False
+
+
+def test_legacy_role_expand_in_editor(app, sgi_editor):
+    with app.app_context():
+        doc, _rev, _ = proc_svc.create_procedimiento_visual("PG", sgi_editor, "T", titulo="LEGACY")
+        perfil_svc.sync_perfiles_documento(doc.id, [ROLE_OPERACIONES])
+        selected = perfil_svc.perfiles_aplica_para_editor(doc.id)
+        assert "operarios_planta" in selected
+        assert "responsable_planta" in selected

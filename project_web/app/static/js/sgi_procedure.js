@@ -1671,7 +1671,7 @@
     if (accion === "enviar_revision") {
       const perfiles = qsa(".proc-perfil-check:checked");
       if (!perfiles.length) {
-        flashMsg("danger", "Seleccioná al menos un sector/perfil al que aplica el procedimiento.");
+        flashMsg("danger", "Seleccioná al menos un puesto del organigrama al que aplica el procedimiento.");
         return;
       }
       const revisorCorreo = (qs("#procRevisorCorreo")?.value || "").trim();

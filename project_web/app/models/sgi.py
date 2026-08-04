@@ -148,7 +148,7 @@ class SgiDocumento(db.Model):
 
 
 class SgiDocumentoPerfil(db.Model):
-    """Perfiles (sectores) de la organización a los que aplica un procedimiento."""
+    """Puestos del organigrama (o perfiles legacy) a los que aplica un procedimiento."""
 
     __tablename__ = "sgi_documento_perfiles"
 
@@ -156,7 +156,7 @@ class SgiDocumentoPerfil(db.Model):
     documento_id = db.Column(
         db.Integer, db.ForeignKey("sgi_documentos.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    perfil = db.Column(db.String(32), nullable=False, index=True)
+    perfil = db.Column(db.String(64), nullable=False, index=True)
 
     __table_args__ = (
         db.UniqueConstraint("documento_id", "perfil", name="uq_sgi_documento_perfil"),

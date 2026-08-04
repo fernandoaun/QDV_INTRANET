@@ -1074,25 +1074,92 @@ def _organigrama_apply_user_puestos(data: dict[str, Any], user_id: int, selected
     return data
 
 
-def organigrama_sync_user_puestos(user_id: int, node_ids: list[str] | set[str]) -> tuple[bool, str]:
+def organigrama_puestos_label(node_ids: list[str] | set[str] | None) -> str:
+    """Texto de legajo: títulos de puestos unidos (máx. 128)."""
+    opciones = {p["id"]: p["titulo"] for p in organigrama_puesto_opciones()}
+    titles: list[str] = []
+    seen: set[str] = set()
+    for raw in node_ids or []:
+        nid = str(raw).strip()
+        if not nid or nid in seen:
+            continue
+        titulo = (opciones.get(nid) or "").strip()
+        if not titulo:
+            continue
+        seen.add(nid)
+        titles.append(titulo)
+    return " · ".join(titles)[:128]
+
+
+def _organigrama_user_ids_in_data(data: dict[str, Any] | None) -> set[int]:
+    nodes = (data or {}).get("nodes") if isinstance(data, dict) else None
+    out: set[int] = set()
+    if not isinstance(nodes, list):
+        return out
+    for n in nodes:
+        if isinstance(n, dict):
+            out.update(_organigrama_node_user_ids(n))
+    return out
+
+
+def sync_empleado_puesto_from_organigrama(user_id: int) -> None:
+    """Actualiza EmpleadoPersonal.puesto con los títulos del organigrama (sin commit)."""
+    uid = int(user_id)
+    emp = db.session.scalar(select(EmpleadoPersonal).where(EmpleadoPersonal.user_id == uid).limit(1))
+    if emp is None:
+        return
+    emp.puesto = organigrama_puestos_label(organigrama_node_ids_for_user(uid))
+
+
+def sync_empleados_puestos_from_organigrama(user_ids: set[int] | list[int]) -> None:
+    for uid in user_ids:
+        try:
+            sync_empleado_puesto_from_organigrama(int(uid))
+        except (TypeError, ValueError):
+            continue
+
+
+def organigrama_sync_user_puestos(
+    user_id: int,
+    node_ids: list[str] | set[str],
+    *,
+    commit: bool = True,
+) -> tuple[bool, str]:
     """Asigna al usuario solo a los puestos indicados en todos los organigramas vivos."""
     selected = {str(x).strip() for x in node_ids if str(x).strip()}
     valid_ids = {p["id"] for p in organigrama_puesto_opciones()}
     selected &= valid_ids
     targets = _organigrama_content_targets()
     if not targets:
+        # Igual reflejamos el texto en el legajo para que coincida con la selección.
+        emp = db.session.scalar(
+            select(EmpleadoPersonal).where(EmpleadoPersonal.user_id == int(user_id)).limit(1)
+        )
+        if emp is not None:
+            emp.puesto = organigrama_puestos_label(selected)
+        if commit:
+            db.session.commit()
         return True, "Sin organigrama cargado; la asignación se aplicará cuando exista el documento."
     for _kind, obj in targets:
         data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
         data = _organigrama_apply_user_puestos(data, user_id, selected)
         obj.contenido_json = json.dumps(data, ensure_ascii=False)
-    db.session.commit()
+    sync_empleado_puesto_from_organigrama(int(user_id))
+    if commit:
+        db.session.commit()
     return True, "Puestos del organigrama actualizados."
 
 
 def organigrama_puestos_from_form(form) -> list[str]:
-    """Lee `org_puestos` (multi) del formulario de usuario."""
-    raw = form.getlist("org_puestos") if hasattr(form, "getlist") else []
+    """Lee `org_puestos` (multi) del formulario de usuario / legajo."""
+    if hasattr(form, "getlist"):
+        raw = form.getlist("org_puestos")
+    else:
+        raw = form.get("org_puestos") if isinstance(form, dict) else None
+        if raw is None:
+            raw = []
+        elif isinstance(raw, str):
+            raw = [raw]
     return [str(x).strip() for x in raw if str(x).strip()]
 
 
@@ -1109,11 +1176,15 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
         if titulo:
             anexo.nombre = titulo[:512]
     elif tipo == ANEXO_TIPO_ORGANIGRAMA:
+        prev = _organigrama_parse_raw_json(getattr(anexo, "contenido_json", None))
         try:
             _, data = organigrama_save_payload(payload)
         except ValueError:
             return False, "Estructura de organigrama inválida."
         anexo.contenido_json = json.dumps(data, ensure_ascii=False)
+        affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
+        db.session.flush()
+        sync_empleados_puestos_from_organigrama(affected)
     else:
         return False, "Este anexo no admite edición de contenido."
     db.session.commit()
@@ -1262,11 +1333,15 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
         if titulo:
             doc.titulo = titulo[:512]
     elif tipo == ANEXO_TIPO_ORGANIGRAMA:
+        prev = _organigrama_parse_raw_json(getattr(rev, "contenido_json", None))
         try:
             _, data = organigrama_save_payload(payload)
         except ValueError:
             return False, "Estructura de organigrama inválida."
         rev.contenido_json = json.dumps(data, ensure_ascii=False)
+        affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
+        db.session.flush()
+        sync_empleados_puestos_from_organigrama(affected)
     else:
         return False, "Este documento no admite edición de contenido."
     db.session.commit()

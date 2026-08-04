@@ -751,7 +751,6 @@ def save_empleado(
     emp.domicilio = (data.get("domicilio") or "").strip()[:256]
     emp.telefono = (data.get("telefono") or "").strip()[:64]
     emp.email = (data.get("email") or "").strip()[:256]
-    emp.puesto = (data.get("puesto") or "").strip()[:128]
     emp.area = (data.get("area") or "").strip()[:128]
     emp.fecha_ingreso = fecha_ingreso
     emp.estado = estado
@@ -764,6 +763,16 @@ def save_empleado(
     op_raw = (data.get("operador_id") or "").strip()
     emp.operador_id = int(op_raw) if op_raw.isdigit() else None
     emp.updated_by_id = user_id
+
+    # Puesto = organigrama (bidireccional). No usa el perfil/rol del sistema.
+    if emp.user_id:
+        from app.services import sgi_anexo_service as anexo_svc
+
+        selected = anexo_svc.organigrama_puestos_from_form(data)
+        anexo_svc.organigrama_sync_user_puestos(int(emp.user_id), selected, commit=False)
+        emp.puesto = anexo_svc.organigrama_puestos_label(selected)
+    # Sin usuario vinculado no se edita puesto desde acá (requiere cuenta del sistema).
+
     db.session.flush()
     renumber_legajos_for_year(fecha_ingreso.year)
     if old_year is not None and old_year != fecha_ingreso.year:

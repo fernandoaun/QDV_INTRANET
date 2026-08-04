@@ -251,11 +251,16 @@ def legajo_editar(empleado_id: int):
         flash(msg, "success" if ok else "danger")
         if ok:
             return redirect(url_for("personal.legajo_detalle", empleado_id=empleado_id))
+    from app.services import sgi_anexo_service as anexo_svc
+
+    org_selected = anexo_svc.organigrama_node_ids_for_user(int(emp.user_id)) if emp.user_id else []
     return render_template(
         "personal/legajo_form.html",
         empleado=emp,
         operadores=db.session.query(Operador).order_by(Operador.nombre).all(),
         estado_labels=ps.ESTADO_EMPLEADO_LABELS,
+        organigrama_puestos=anexo_svc.organigrama_puesto_opciones(),
+        organigrama_puestos_selected=org_selected,
     )
 
 
