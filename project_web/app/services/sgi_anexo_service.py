@@ -1038,6 +1038,11 @@ def organigrama_node_ids_for_user(user_id: int) -> list[str]:
     uid = int(user_id)
     found: list[str] = []
     seen: set[str] = set()
+    title_to_stable = {
+        str(s.get("titulo") or "").strip().upper(): str(s["id"])
+        for s in ORGANIGRAMA_QDV_SPECS
+        if s.get("id") and str(s.get("titulo") or "").strip()
+    }
     for _kind, obj in _organigrama_content_targets():
         data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
         nodes = data.get("nodes")
@@ -1047,7 +1052,8 @@ def organigrama_node_ids_for_user(user_id: int) -> list[str]:
             if not isinstance(n, dict) or not n.get("id"):
                 continue
             if uid in _organigrama_node_user_ids(n):
-                nid = str(n["id"])
+                titulo = str(n.get("titulo") or "").strip().upper()
+                nid = title_to_stable.get(titulo) or str(n["id"])
                 if nid not in seen:
                     seen.add(nid)
                     found.append(nid)
@@ -1058,8 +1064,12 @@ def _organigrama_apply_user_puestos(data: dict[str, Any], user_id: int, selected
     uid = int(user_id)
     nodes = data.get("nodes")
     if not isinstance(nodes, list) or not nodes:
-        nodes = build_default_organigrama_nodes(pptx_path=organigrama_pptx_path())
+        nodes = build_default_organigrama_nodes(pptx_path=None)
         data = {**data, "version": int(data.get("version") or 1), "nodes": nodes}
+
+    # Normalizar a ids estables QDV (el PPTX puede generar slugs distintos).
+    nodes = _organigrama_nodes_with_stable_ids(nodes)
+    data = {**data, "nodes": nodes}
 
     for n in nodes:
         if not isinstance(n, dict) or not n.get("id"):
@@ -1072,6 +1082,32 @@ def _organigrama_apply_user_puestos(data: dict[str, Any], user_id: int, selected
         n["user_id"] = ids[0] if ids else None
     data["nodes"] = nodes
     return data
+
+
+def _organigrama_nodes_with_stable_ids(nodes: list[Any]) -> list[dict[str, Any]]:
+    """Mapear nodos (p. ej. slugs PPTX) a ids ORGANIGRAMA_QDV_SPECS por título y completar grilla."""
+    title_to_stable = {
+        str(s.get("titulo") or "").strip().upper(): str(s["id"])
+        for s in ORGANIGRAMA_QDV_SPECS
+        if s.get("id") and str(s.get("titulo") or "").strip()
+    }
+    parent_map = {str(s["id"]): s.get("parent_id") for s in ORGANIGRAMA_QDV_SPECS if s.get("id")}
+    remapped: list[dict[str, Any]] = []
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        row = dict(n)
+        titulo = str(row.get("titulo") or "").strip().upper()
+        stable = title_to_stable.get(titulo)
+        if stable:
+            row["id"] = stable
+            if stable in parent_map:
+                row["parent_id"] = parent_map[stable]
+        remapped.append(row)
+    try:
+        return organigrama_ensure_complete_nodes(remapped)
+    except Exception:
+        return remapped
 
 
 def organigrama_puestos_label(node_ids: list[str] | set[str] | None) -> str:
@@ -1131,7 +1167,27 @@ def organigrama_sync_user_puestos(
     selected &= valid_ids
     targets = _organigrama_content_targets()
     if not targets:
-        # Igual reflejamos el texto en el legajo para que coincida con la selección.
+        # Sin ANEXO II aún: crear el documento organigrama MSGC (nodos QDV por defecto)
+        # para que la asignación de personal/admin quede persistida.
+        try:
+            from app.services import sgi_procedimiento_service as proc_svc
+
+            catalog = tuple(
+                row
+                for row in proc_svc.default_msgi_anexo_catalog()
+                if str(row.get("tipo_contenido") or "") == ANEXO_TIPO_ORGANIGRAMA
+            )
+            if catalog:
+                proc_svc.ensure_msgi_documentos(
+                    user_id=int(user_id),
+                    actor_label="Sistema",
+                    catalog=catalog,
+                )
+                db.session.flush()
+        except Exception:
+            db.session.rollback()
+        targets = _organigrama_content_targets()
+    if not targets:
         emp = db.session.scalar(
             select(EmpleadoPersonal).where(EmpleadoPersonal.user_id == int(user_id)).limit(1)
         )
@@ -1139,7 +1195,7 @@ def organigrama_sync_user_puestos(
             emp.puesto = organigrama_puestos_label(selected)
         if commit:
             db.session.commit()
-        return True, "Sin organigrama cargado; la asignación se aplicará cuando exista el documento."
+        return True, "Sin organigrama cargado; se actualizó el puesto del legajo. Creá QDV-ANEXO II para reflejarlo en el gráfico."
     for _kind, obj in targets:
         data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
         data = _organigrama_apply_user_puestos(data, user_id, selected)
