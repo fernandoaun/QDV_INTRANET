@@ -44,15 +44,36 @@ def _env_fallback(app: Any, key: str) -> list[str]:
     return out
 
 
+def _emails_from_puesto(puesto_id: str | None) -> list[str]:
+    nid = (puesto_id or "").strip()
+    if not nid:
+        return []
+    try:
+        from app.services.sgi_anexo_service import organigrama_emails_for_puesto
+
+        return list(organigrama_emails_for_puesto(nid))
+    except Exception:
+        log.exception("SGI workflow: no se pudieron resolver emails del puesto %s", nid)
+        return []
+
+
 def resolve_revision_recipients(app: Any, rev: SgiProcedimientoRevision) -> list[str]:
-    emails = _emails_from_text(rev.revisor_correo, rev.reviso)
+    from app.services.sgi_procedimiento_service import get_revision_puesto_ids
+
+    emails = _emails_from_puesto(get_revision_puesto_ids(rev).get("reviso_puesto_id"))
+    if not emails:
+        emails = _emails_from_text(rev.revisor_correo, rev.reviso)
     if not emails:
         emails = _env_fallback(app, "SGI_REVISION_MAIL_TO")
     return emails
 
 
 def resolve_approval_recipients(app: Any, rev: SgiProcedimientoRevision) -> list[str]:
-    emails = _emails_from_text(rev.aprobador_correo, rev.aprobo)
+    from app.services.sgi_procedimiento_service import get_revision_puesto_ids
+
+    emails = _emails_from_puesto(get_revision_puesto_ids(rev).get("aprobo_puesto_id"))
+    if not emails:
+        emails = _emails_from_text(rev.aprobador_correo, rev.aprobo)
     if not emails:
         emails = _env_fallback(app, "SGI_APROBACION_MAIL_TO")
     return emails

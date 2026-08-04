@@ -89,6 +89,9 @@ def _procedure_render_kwargs(**extra: object) -> dict:
     rev = extra.get("rev")
     if isinstance(rev, SgiProcedimientoRevision):
         out["doc_aprobado"] = rev.estado in ("aprobado", "vigente")
+        out.setdefault("puestos_ids", proc_svc.get_revision_puesto_ids(rev))
+    if "puestos_workflow" not in out:
+        out["puestos_workflow"] = anexo_svc.organigrama_puestos_workflow_opciones()
     return out
 
 
@@ -119,6 +122,8 @@ def _special_doc_editor_context(
         "perfiles_aplica": perfil_svc.perfiles_aplica_documento(doc.id),
         "perfiles_opciones": perfil_svc.SGI_PERFILES_APLICABLES_LABELS,
         "firma_gerente_url": proc_svc.firma_gerente_url_for_document(doc),
+        "puestos_workflow": anexo_svc.organigrama_puestos_workflow_opciones(),
+        "puestos_ids": proc_svc.get_revision_puesto_ids(rev),
     }
 
 
@@ -664,7 +669,17 @@ def procedimiento_workflow(slug: str, doc_id: int, rev_id: int):
     elif accion == "marcar_revisado":
         if not proc_svc.user_can_marcar_revisado(u, rev):
             return jsonify({"ok": False, "error": "sin_permiso"}), 403
-        if any(k in payload for k in ("aprobo", "aprobador_correo", "reviso", "revisor_correo")):
+        if any(
+            k in payload
+            for k in (
+                "aprobo",
+                "aprobador_correo",
+                "reviso",
+                "revisor_correo",
+                "aprobo_puesto_id",
+                "reviso_puesto_id",
+            )
+        ):
             proc_svc.save_workflow_caratula(rev_id, payload, u.id, label)
             rev = proc_svc.get_revision(rev_id)
             if rev is None:

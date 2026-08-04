@@ -933,6 +933,106 @@ def organigrama_puesto_opciones() -> list[dict[str, str]]:
     return [{"id": str(s["id"]), "titulo": str(s.get("titulo") or s["id"])} for s in ORGANIGRAMA_QDV_SPECS]
 
 
+def _organigrama_find_node(node_id: str) -> dict[str, Any] | None:
+    nid = (node_id or "").strip()
+    if not nid:
+        return None
+    for _kind, obj in _organigrama_content_targets():
+        data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
+        nodes = data.get("nodes")
+        if not isinstance(nodes, list):
+            continue
+        for n in nodes:
+            if isinstance(n, dict) and str(n.get("id") or "") == nid:
+                return n
+    for spec in ORGANIGRAMA_QDV_SPECS:
+        if str(spec.get("id") or "") == nid:
+            return dict(spec)
+    return None
+
+
+def organigrama_puesto_holders(node_id: str) -> list[dict[str, Any]]:
+    """Titulares de un puesto del organigrama con email del listado de personal."""
+    from app.services.personal_epp_reminder_service import resolve_empleado_email
+
+    node = _organigrama_find_node(node_id)
+    if node is None:
+        return []
+    user_ids = _organigrama_node_user_ids(node)
+    if not user_ids:
+        return []
+    users = {
+        u.id: u
+        for u in db.session.scalars(select(User).where(User.id.in_(user_ids))).all()
+    }
+    legajos = {
+        int(emp.user_id): emp
+        for emp in db.session.scalars(
+            select(EmpleadoPersonal).where(EmpleadoPersonal.user_id.in_(user_ids))
+        ).all()
+        if emp.user_id
+    }
+    out: list[dict[str, Any]] = []
+    for uid in user_ids:
+        u = users.get(uid)
+        if u is None:
+            continue
+        emp = legajos.get(uid)
+        email = resolve_empleado_email(emp) or ""
+        out.append(
+            {
+                "user_id": uid,
+                "nombre": (u.nombre_completo or u.username or "").strip(),
+                "email": email,
+                "titulo_puesto": str(node.get("titulo") or node.get("id") or ""),
+            }
+        )
+    return out
+
+
+def organigrama_emails_for_puesto(node_id: str) -> list[str]:
+    """Emails (legajos) de quienes ocupan el puesto; deduplicados y validados."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for holder in organigrama_puesto_holders(node_id):
+        email = (holder.get("email") or "").strip().lower()
+        if email and email not in seen:
+            seen.add(email)
+            out.append(email)
+    return out
+
+
+def organigrama_puestos_workflow_opciones() -> list[dict[str, Any]]:
+    """Puestos del organigrama con titulares y emails para la carátula del procedimiento."""
+    opciones = organigrama_puesto_opciones()
+    out: list[dict[str, Any]] = []
+    for opt in opciones:
+        holders = organigrama_puesto_holders(opt["id"])
+        emails = [h["email"] for h in holders if h.get("email")]
+        nombres = [h["nombre"] for h in holders if h.get("nombre")]
+        # Deduplicar emails conservando orden
+        seen: set[str] = set()
+        emails_uniq: list[str] = []
+        for e in emails:
+            el = e.lower()
+            if el not in seen:
+                seen.add(el)
+                emails_uniq.append(e)
+        out.append(
+            {
+                "id": opt["id"],
+                "titulo": opt["titulo"],
+                "emails": emails_uniq,
+                "emails_joined": ", ".join(emails_uniq),
+                "nombres": nombres,
+                "nombres_joined": ", ".join(nombres),
+                "tiene_titular": bool(holders),
+                "tiene_email": bool(emails_uniq),
+            }
+        )
+    return out
+
+
 def organigrama_node_ids_for_user(user_id: int) -> list[str]:
     """Ids de puestos del organigrama donde figura el usuario."""
     uid = int(user_id)

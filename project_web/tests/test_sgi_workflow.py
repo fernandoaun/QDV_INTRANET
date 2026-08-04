@@ -242,6 +242,78 @@ def test_angel_profile_can_aprobar_revision(app, sgi_editor):
         db.session.commit()
 
 
+def test_resolve_recipients_from_puesto_personal_email(app, sgi_editor, monkeypatch):
+    """Los mails del flujo salen del legajo de quien ocupa el puesto del organigrama."""
+    from app.models.personal import EmpleadoPersonal
+    from app.services import sgi_workflow_service as wf_svc
+
+    with app.app_context():
+        holder = User(
+            username="pytest_sgi_puesto_holder",
+            password_hash=generate_password_hash("x"),
+            rol="sgi",
+            activo=True,
+            nombre_completo="Silvano Puesto",
+        )
+        db.session.add(holder)
+        db.session.flush()
+        db.session.add(
+            EmpleadoPersonal(
+                user_id=holder.id,
+                legajo="WF-PUESTO-01",
+                apellido="Puesto",
+                nombre="Silvano",
+                email="silvano.puesto@example.com",
+            )
+        )
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="PUESTO WF")
+        assert err is None and doc and rev
+        rev.reviso = "GERENCIA GENERAL"
+        rev.revisor_correo = ""
+        rev.aprobo = "GERENCIA GENERAL"
+        rev.aprobador_correo = ""
+        proc_svc.apply_puesto_fields_from_payload(
+            rev,
+            {
+                "reviso_puesto_id": "gerencia_general",
+                "aprobo_puesto_id": "gerencia_general",
+            },
+            sync_labels=False,
+            sync_emails=False,
+        )
+        db.session.commit()
+
+        monkeypatch.setattr(
+            "app.services.sgi_anexo_service.organigrama_emails_for_puesto",
+            lambda node_id: ["silvano.puesto@example.com"] if node_id == "gerencia_general" else [],
+        )
+        monkeypatch.setattr(
+            "app.services.sgi_anexo_service.organigrama_puesto_holders",
+            lambda node_id: (
+                [{"user_id": holder.id, "nombre": "Silvano Puesto", "email": "silvano.puesto@example.com"}]
+                if node_id == "gerencia_general"
+                else []
+            ),
+        )
+
+        recipients = wf_svc.resolve_revision_recipients(app, rev)
+        assert recipients == ["silvano.puesto@example.com"]
+        recipients_ap = wf_svc.resolve_approval_recipients(app, rev)
+        assert recipients_ap == ["silvano.puesto@example.com"]
+
+        from app.services import sgi_documento_perfil_service as perfil_svc
+
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+        ok, msg = proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        assert ok, msg
+        db.session.refresh(rev)
+        assert rev.estado == ESTADO_EN_REVISION
+        assert proc_svc.user_can_marcar_revisado(holder, rev)
+
+        db.session.delete(holder)
+        db.session.commit()
+
 def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_editor):
     """MSGC: mismo flujo que PG/PO; la imagen de firma del gerente solo aparece tras aprobar."""
     from io import BytesIO

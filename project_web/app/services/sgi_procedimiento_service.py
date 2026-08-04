@@ -547,10 +547,122 @@ def _correo_matches_user(user: User, *parts: str | None) -> bool:
     return False
 
 
+def _user_in_puesto(user: User | None, puesto_id: str | None) -> bool:
+    if user is None:
+        return False
+    nid = (puesto_id or "").strip()
+    if not nid:
+        return False
+    try:
+        from app.services.sgi_anexo_service import organigrama_puesto_holders
+
+        return any(int(h.get("user_id") or 0) == int(user.id) for h in organigrama_puesto_holders(nid))
+    except Exception:
+        return False
+
+
+def _normalize_puesto_id(raw: Any) -> str:
+    return str(raw or "").strip()[:64]
+
+
+def _emails_joined_for_puesto(puesto_id: str) -> str:
+    if not puesto_id:
+        return ""
+    try:
+        from app.services.sgi_anexo_service import organigrama_emails_for_puesto
+
+        return ", ".join(organigrama_emails_for_puesto(puesto_id))[:256]
+    except Exception:
+        return ""
+
+
+def _titulo_for_puesto(puesto_id: str) -> str:
+    if not puesto_id:
+        return ""
+    try:
+        from app.services.sgi_anexo_service import organigrama_puesto_opciones
+
+        for opt in organigrama_puesto_opciones():
+            if opt["id"] == puesto_id:
+                return doc_svc.normalize_persona_campo(opt.get("titulo") or "")[:256]
+    except Exception:
+        pass
+    return ""
+
+
+def _parse_contenido_dict(rev: SgiProcedimientoRevision) -> dict[str, Any]:
+    try:
+        data = json.loads(rev.contenido_json or "{}")
+    except (json.JSONDecodeError, TypeError):
+        data = {}
+    return data if isinstance(data, dict) else {}
+
+
+def get_revision_puesto_ids(rev: SgiProcedimientoRevision | None) -> dict[str, str]:
+    """Ids de puesto Elaboró/Revisó/Aprobó guardados en contenido_json (sin columnas nuevas)."""
+    empty = {"elaboro_puesto_id": "", "reviso_puesto_id": "", "aprobo_puesto_id": ""}
+    if rev is None:
+        return empty
+    data = _parse_contenido_dict(rev)
+    puestos = data.get("puestos_workflow")
+    if not isinstance(puestos, dict):
+        puestos = {}
+    return {
+        "elaboro_puesto_id": _normalize_puesto_id(puestos.get("elaboro") or data.get("elaboro_puesto_id")),
+        "reviso_puesto_id": _normalize_puesto_id(puestos.get("reviso") or data.get("reviso_puesto_id")),
+        "aprobo_puesto_id": _normalize_puesto_id(puestos.get("aprobo") or data.get("aprobo_puesto_id")),
+    }
+
+
+def _write_revision_puesto_ids(rev: SgiProcedimientoRevision, puesto_ids: dict[str, str]) -> None:
+    data = _parse_contenido_dict(rev)
+    data["puestos_workflow"] = {
+        "elaboro": _normalize_puesto_id(puesto_ids.get("elaboro_puesto_id")),
+        "reviso": _normalize_puesto_id(puesto_ids.get("reviso_puesto_id")),
+        "aprobo": _normalize_puesto_id(puesto_ids.get("aprobo_puesto_id")),
+    }
+    rev.contenido_json = json.dumps(data, ensure_ascii=False)
+
+
+def apply_puesto_fields_from_payload(
+    rev: SgiProcedimientoRevision,
+    payload: dict[str, Any],
+    *,
+    sync_labels: bool = True,
+    sync_emails: bool = True,
+) -> None:
+    """Persiste ids de puesto en contenido_json y rellena título/correo desde el organigrama."""
+    current = get_revision_puesto_ids(rev)
+    mapping = (
+        ("elaboro_puesto_id", "elaboro", None),
+        ("reviso_puesto_id", "reviso", "revisor_correo"),
+        ("aprobo_puesto_id", "aprobo", "aprobador_correo"),
+    )
+    touched = False
+    for puesto_key, label_key, email_key in mapping:
+        if puesto_key not in payload:
+            continue
+        puesto_id = _normalize_puesto_id(payload.get(puesto_key))
+        current[puesto_key] = puesto_id
+        touched = True
+        if sync_labels and puesto_id:
+            titulo = _titulo_for_puesto(puesto_id)
+            if titulo:
+                setattr(rev, label_key, titulo)
+        if sync_emails and email_key and puesto_id:
+            emails = _emails_joined_for_puesto(puesto_id)
+            if emails:
+                setattr(rev, email_key, emails)
+    if touched:
+        _write_revision_puesto_ids(rev, current)
+
+
 def user_can_marcar_revisado(user: User | None, rev: SgiProcedimientoRevision) -> bool:
     if user is None or rev.estado != ESTADO_EN_REVISION:
         return False
     if user.is_admin:
+        return True
+    if _user_in_puesto(user, get_revision_puesto_ids(rev).get("reviso_puesto_id")):
         return True
     if _label_matches_user(rev.reviso, user):
         return True
@@ -565,6 +677,8 @@ def user_can_aprobar_revision(user: User | None, rev: SgiProcedimientoRevision) 
     if user.is_admin:
         return True
     if user_is_global_read_only(user):
+        return True
+    if _user_in_puesto(user, get_revision_puesto_ids(rev).get("aprobo_puesto_id")):
         return True
     if _label_matches_user(rev.aprobo, user):
         return True
@@ -965,7 +1079,19 @@ def save_revision_content(
     rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
     rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
     rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
-    rev.aprobador_correo = (payload.get("aprobador_correo") or "")[:256]
+    rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
+    apply_puesto_fields_from_payload(rev, payload, sync_labels=True, sync_emails=True)
+    # Si el payload trae títulos/correos explícitos, respetarlos sobre el auto-fill del puesto
+    if "elaboro" in payload and (payload.get("elaboro") or "").strip():
+        rev.elaboro = doc_svc.normalize_persona_campo(payload.get("elaboro"))[:256]
+    if "reviso" in payload and (payload.get("reviso") or "").strip():
+        rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
+    if "aprobo" in payload and (payload.get("aprobo") or "").strip():
+        rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
+    if "revisor_correo" in payload and (payload.get("revisor_correo") or "").strip():
+        rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
+    if "aprobador_correo" in payload and (payload.get("aprobador_correo") or "").strip():
+        rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
     rev.fecha_elaboracion = doc_svc.parse_iso_date(payload.get("fecha_elaboracion"))
     rev.fecha_revision = doc_svc.parse_iso_date(payload.get("fecha_revision"))
     rev.fecha_aprobacion = doc_svc.parse_iso_date(payload.get("fecha_aprobacion"))
@@ -1012,6 +1138,17 @@ def save_workflow_caratula(
         doc.responsable_aprobacion = rev.aprobo
     if "aprobador_correo" in payload:
         rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
+    apply_puesto_fields_from_payload(rev, payload, sync_labels=False, sync_emails=True)
+    if "reviso" in payload and (payload.get("reviso") or "").strip():
+        rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
+        doc.responsable_revision = rev.reviso
+    if "aprobo" in payload and (payload.get("aprobo") or "").strip():
+        rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
+        doc.responsable_aprobacion = rev.aprobo
+    if "revisor_correo" in payload and (payload.get("revisor_correo") or "").strip():
+        rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
+    if "aprobador_correo" in payload and (payload.get("aprobador_correo") or "").strip():
+        rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
     rev.updated_at = _utc_now()
     rev.updated_by_id = user_id
     doc.updated_at = _utc_now()
@@ -1046,6 +1183,20 @@ def save_revision_caratula_only(
         rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
         doc.responsable_aprobacion = rev.aprobo
     if "aprobador_correo" in payload:
+        rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
+    apply_puesto_fields_from_payload(rev, payload, sync_labels=True, sync_emails=True)
+    if "elaboro" in payload and (payload.get("elaboro") or "").strip():
+        rev.elaboro = doc_svc.normalize_persona_campo(payload.get("elaboro"))[:256]
+        doc.responsable_elaboracion = rev.elaboro
+    if "reviso" in payload and (payload.get("reviso") or "").strip():
+        rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
+        doc.responsable_revision = rev.reviso
+    if "aprobo" in payload and (payload.get("aprobo") or "").strip():
+        rev.aprobo = doc_svc.normalize_persona_campo(payload.get("aprobo"))[:256]
+        doc.responsable_aprobacion = rev.aprobo
+    if "revisor_correo" in payload and (payload.get("revisor_correo") or "").strip():
+        rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
+    if "aprobador_correo" in payload and (payload.get("aprobador_correo") or "").strip():
         rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
     rev.updated_at = _utc_now()
     rev.updated_by_id = user_id

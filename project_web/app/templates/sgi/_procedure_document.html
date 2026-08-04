@@ -19,10 +19,63 @@
         </tr>
       </thead>
       <tbody>
+        <tr class="sgi-proc-no-print">
+          <td>
+            <label class="form-label small mb-1" for="procElaboroPuesto">Puesto</label>
+            <select id="procElaboroPuesto" class="form-select form-select-sm proc-puesto-select"
+                    data-label-target="#procElaboro" data-email-target=""
+                    {% if solo_lectura|default(false) %}disabled{% endif %}>
+              <option value="">— Elegir puesto —</option>
+              {% for p in puestos_workflow|default([]) %}
+              <option value="{{ p.id }}"
+                      data-titulo="{{ p.titulo }}"
+                      data-emails="{{ p.emails_joined }}"
+                      data-nombres="{{ p.nombres_joined }}"
+                      {% if (puestos_ids.elaboro_puesto_id|default('')) == p.id %}selected{% endif %}>
+                {{ p.titulo }}{% if p.nombres_joined %} — {{ p.nombres_joined }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <label class="form-label small mb-1" for="procRevisoPuesto">Puesto</label>
+            <select id="procRevisoPuesto" class="form-select form-select-sm proc-puesto-select"
+                    data-label-target="#procReviso" data-email-target="#procRevisorCorreo"
+                    {% if solo_lectura|default(false) %}disabled{% endif %}>
+              <option value="">— Elegir puesto —</option>
+              {% for p in puestos_workflow|default([]) %}
+              <option value="{{ p.id }}"
+                      data-titulo="{{ p.titulo }}"
+                      data-emails="{{ p.emails_joined }}"
+                      data-nombres="{{ p.nombres_joined }}"
+                      {% if (puestos_ids.reviso_puesto_id|default('')) == p.id %}selected{% endif %}>
+                {{ p.titulo }}{% if p.nombres_joined %} — {{ p.nombres_joined }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </td>
+          <td>
+            <label class="form-label small mb-1" for="procAproboPuesto">Puesto</label>
+            <select id="procAproboPuesto" class="form-select form-select-sm proc-puesto-select"
+                    data-label-target="#procAprobo" data-email-target="#procAprobadorCorreo"
+                    {% if solo_lectura|default(false) and not (puede_marcar_revisado|default(false) and rev.estado == 'en_revision') %}disabled{% endif %}>
+              <option value="">— Elegir puesto —</option>
+              {% for p in puestos_workflow|default([]) %}
+              <option value="{{ p.id }}"
+                      data-titulo="{{ p.titulo }}"
+                      data-emails="{{ p.emails_joined }}"
+                      data-nombres="{{ p.nombres_joined }}"
+                      {% if (puestos_ids.aprobo_puesto_id|default('')) == p.id %}selected{% endif %}>
+                {{ p.titulo }}{% if p.nombres_joined %} — {{ p.nombres_joined }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </td>
+        </tr>
         <tr>
-          <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
-          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Nombre / área" {% if solo_lectura|default(false) and not (puede_marcar_revisado|default(false) and rev.estado == 'en_revision') %}readonly{% endif %}></td>
+          <td><input type="text" id="procElaboro" value="{{ rev.elaboro or doc.responsable_elaboracion or '' }}" placeholder="Puesto / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procReviso" value="{{ rev.reviso or doc.responsable_revision or '' }}" placeholder="Puesto / área" {% if solo_lectura|default(false) %}readonly{% endif %}></td>
+          <td><input type="text" id="procAprobo" value="{{ rev.aprobo or doc.responsable_aprobacion or '' }}" placeholder="Puesto / área" {% if solo_lectura|default(false) and not (puede_marcar_revisado|default(false) and rev.estado == 'en_revision') %}readonly{% endif %}></td>
         </tr>
       </tbody>
     </table>
@@ -47,15 +100,17 @@
     <div class="sgi-proc-cover-meta sgi-proc-no-print row g-2 mb-2">
       <div class="col-md-6">
         <label class="form-label small mb-0" for="procRevisorCorreo">Correo del revisor (aviso automático)</label>
-        <input type="email" class="form-control form-control-sm" id="procRevisorCorreo"
-               value="{{ rev.revisor_correo or '' }}" placeholder="revisor@empresa.com"
+        <input type="text" class="form-control form-control-sm" id="procRevisorCorreo"
+               value="{{ rev.revisor_correo or '' }}" placeholder="Se completa con el mail del personal del puesto"
                {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
+        <div class="form-text" id="procRevisoPuestoHint"></div>
       </div>
       <div class="col-md-6">
         <label class="form-label small mb-0" for="procAprobadorCorreo">Correo del aprobador (aviso automático)</label>
-        <input type="email" class="form-control form-control-sm" id="procAprobadorCorreo"
-               value="{{ rev.aprobador_correo or '' }}" placeholder="aprobador@empresa.com"
+        <input type="text" class="form-control form-control-sm" id="procAprobadorCorreo"
+               value="{{ rev.aprobador_correo or '' }}" placeholder="Se completa con el mail del personal del puesto"
                {% if solo_lectura|default(false) and not correo_aviso_editable|default(false) %}readonly{% endif %}>
+        <div class="form-text" id="procAproboPuestoHint"></div>
       </div>
     </div>
 

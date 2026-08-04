@@ -721,15 +721,63 @@
       anexos,
       fecha_vigencia: qs("#procFechaVigencia")?.value || "",
       elaboro: qs("#procElaboro")?.value || "",
+      elaboro_puesto_id: qs("#procElaboroPuesto")?.value || "",
       reviso: qs("#procReviso")?.value || "",
+      reviso_puesto_id: qs("#procRevisoPuesto")?.value || "",
       revisor_correo: qs("#procRevisorCorreo")?.value || "",
       aprobo: qs("#procAprobo")?.value || "",
+      aprobo_puesto_id: qs("#procAproboPuesto")?.value || "",
       aprobador_correo: qs("#procAprobadorCorreo")?.value || "",
       fecha_elaboracion: qs("#procFechaElab")?.value || "",
       fecha_revision: qs("#procFechaRev")?.value || "",
       fecha_aprobacion: qs("#procFechaAprob")?.value || "",
       perfiles_aplica: qsa(".proc-perfil-check:checked").map((el) => el.value),
     };
+  }
+
+  function applyPuestoSelect(selectEl) {
+    if (!selectEl) return;
+    const opt = selectEl.options[selectEl.selectedIndex];
+    const titulo = (opt?.dataset?.titulo || "").trim();
+    const emails = (opt?.dataset?.emails || "").trim();
+    const nombres = (opt?.dataset?.nombres || "").trim();
+    const labelSel = selectEl.dataset.labelTarget;
+    const emailSel = selectEl.dataset.emailTarget;
+    if (labelSel) {
+      const labelEl = qs(labelSel);
+      if (labelEl && titulo) labelEl.value = titulo.toUpperCase();
+      else if (labelEl && !selectEl.value) labelEl.value = labelEl.value;
+    }
+    if (emailSel) {
+      const emailEl = qs(emailSel);
+      if (emailEl) emailEl.value = emails;
+    }
+    const hintId =
+      selectEl.id === "procRevisoPuesto"
+        ? "#procRevisoPuestoHint"
+        : selectEl.id === "procAproboPuesto"
+          ? "#procAproboPuestoHint"
+          : null;
+    if (hintId) {
+      const hint = qs(hintId);
+      if (hint) {
+        if (!selectEl.value) hint.textContent = "";
+        else if (!emails) {
+          hint.textContent = nombres
+            ? `Sin email en listado de personal para: ${nombres}`
+            : "Este puesto no tiene personal asignado con email.";
+        } else {
+          hint.textContent = nombres ? `Titular(es): ${nombres}` : "";
+        }
+      }
+    }
+  }
+
+  function bindPuestoSelects() {
+    qsa(".proc-puesto-select").forEach((sel) => {
+      sel.addEventListener("change", () => applyPuestoSelect(sel));
+      if (sel.value) applyPuestoSelect(sel);
+    });
   }
 
   function renderControlCambios(rows) {
@@ -1628,11 +1676,14 @@
       }
       const revisorCorreo = (qs("#procRevisorCorreo")?.value || "").trim();
       const revisoTexto = (qs("#procReviso")?.value || "").trim();
-      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${revisorCorreo} ${revisoTexto}`);
+      const puestoEmails = (qs("#procRevisoPuesto")?.selectedOptions?.[0]?.dataset?.emails || "").trim();
+      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(
+        `${revisorCorreo} ${revisoTexto} ${puestoEmails}`
+      );
       if (!tieneEmail) {
         flashMsg(
           "danger",
-          "Completá el campo «Correo del revisor» en la carátula para enviar el aviso automático."
+          "Elegí el puesto que revisa (con email en listado de personal) o completá «Correo del revisor»."
         );
         return;
       }
@@ -1640,11 +1691,14 @@
     if (accion === "marcar_revisado") {
       const aprobadorCorreo = (qs("#procAprobadorCorreo")?.value || "").trim();
       const aproboTexto = (qs("#procAprobo")?.value || "").trim();
-      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${aprobadorCorreo} ${aproboTexto}`);
+      const puestoEmails = (qs("#procAproboPuesto")?.selectedOptions?.[0]?.dataset?.emails || "").trim();
+      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(
+        `${aprobadorCorreo} ${aproboTexto} ${puestoEmails}`
+      );
       if (!tieneEmail) {
         flashMsg(
           "danger",
-          "Completá el campo «Correo del aprobador» en la carátula para enviar el aviso automático."
+          "Elegí el puesto que aprueba (con email en listado de personal) o completá «Correo del aprobador»."
         );
         return;
       }
@@ -1653,13 +1707,15 @@
       const esRevision = (cfg.revEstado || "") === "en_revision";
       const correo = (qs(esRevision ? "#procRevisorCorreo" : "#procAprobadorCorreo")?.value || "").trim();
       const texto = (qs(esRevision ? "#procReviso" : "#procAprobo")?.value || "").trim();
-      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${correo} ${texto}`);
+      const puestoSel = qs(esRevision ? "#procRevisoPuesto" : "#procAproboPuesto");
+      const puestoEmails = (puestoSel?.selectedOptions?.[0]?.dataset?.emails || "").trim();
+      const tieneEmail = /[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}/.test(`${correo} ${texto} ${puestoEmails}`);
       if (!tieneEmail) {
         flashMsg(
           "danger",
           esRevision
-            ? "Completá «Correo del revisor» en la carátula antes de reenviar."
-            : "Completá «Correo del aprobador» en la carátula antes de reenviar."
+            ? "Elegí el puesto revisor con email en personal, o completá «Correo del revisor»."
+            : "Elegí el puesto aprobador con email en personal, o completá «Correo del aprobador»."
         );
         return;
       }
@@ -1682,6 +1738,7 @@
     }
     if (accion === "marcar_revisado") {
       body.aprobo = qs("#procAprobo")?.value || "";
+      body.aprobo_puesto_id = qs("#procAproboPuesto")?.value || "";
     }
     const res = await fetch(cfg.urls.workflow, {
       method: "POST",
@@ -1725,6 +1782,7 @@
     });
     bindUndoShortcuts();
     bindFormatBar();
+    bindPuestoSelects();
     qs("#btnGuardarBorrador")?.addEventListener("click", guardarBorrador);
     qs("#btnEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
     qs("#btnMarcarRevisado")?.addEventListener("click", () => workflow("marcar_revisado"));
