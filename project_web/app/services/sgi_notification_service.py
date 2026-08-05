@@ -39,7 +39,17 @@ def create_approval_notifications(
     actor_label: str,
 ) -> int:
     slug = TIPO_SLUGS.get(doc.tipo or "", "pg")
-    enlace = url_for("sgi.procedimiento_vista", slug=slug, doc_id=doc.id, rev_id=rev.id)
+    try:
+        enlace = url_for("sgi.procedimiento_vista", slug=slug, doc_id=doc.id, rev_id=rev.id)
+    except RuntimeError:
+        # Fuera de request (tests / CLI): ruta relativa suficiente para la campana.
+        from flask import current_app, has_app_context
+
+        if has_app_context():
+            with current_app.test_request_context():
+                enlace = url_for("sgi.procedimiento_vista", slug=slug, doc_id=doc.id, rev_id=rev.id)
+        else:
+            enlace = f"/sgi/{slug}/{doc.id}/ver/{rev.id}"
     perfiles = perfiles_aplica_documento(doc.id)
     mensaje = f"Nuevo procedimiento aprobado: {doc.codigo} — {doc.titulo[:120]}"
     if actor_label:

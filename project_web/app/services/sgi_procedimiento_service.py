@@ -1108,10 +1108,25 @@ def save_revision_content(
     doc.updated_by_id = user_id
 
     _sync_child_rows(rev, contenido)
+    perfiles_agregados: list[str] = []
     if "perfiles_aplica" in payload:
-        perfil_svc.sync_perfiles_documento(doc.id, payload.get("perfiles_aplica"))
+        _, perfiles_agregados, _ = perfil_svc.sync_perfiles_documento_diff(
+            doc.id, payload.get("perfiles_aplica")
+        )
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Guardado {rev.revision_label}")
+    doc_estado = doc.estado
     db.session.commit()
+    if perfiles_agregados and doc_estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+        try:
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            difusion_svc.notify_usuarios_por_nuevos_perfiles(
+                current_app._get_current_object(), doc, perfiles_agregados
+            )
+        except Exception:
+            current_app.logger.exception(
+                "SGI: fallo mail difusión al agregar perfiles doc_id=%s", doc.id
+            )
     return True, "Borrador guardado.", contenido.get("control_cambios") or []
 
 
@@ -1203,9 +1218,25 @@ def save_revision_caratula_only(
     doc.updated_at = _utc_now()
     doc.updated_by_id = user_id
     if "perfiles_aplica" in payload:
-        perfil_svc.sync_perfiles_documento(doc.id, payload.get("perfiles_aplica"))
+        _, perfiles_agregados, _ = perfil_svc.sync_perfiles_documento_diff(
+            doc.id, payload.get("perfiles_aplica")
+        )
+    else:
+        perfiles_agregados = []
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Carátula {rev.revision_label}")
+    doc_estado = doc.estado
     db.session.commit()
+    if perfiles_agregados and doc_estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+        try:
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            difusion_svc.notify_usuarios_por_nuevos_perfiles(
+                current_app._get_current_object(), doc, perfiles_agregados
+            )
+        except Exception:
+            current_app.logger.exception(
+                "SGI: fallo mail difusión al agregar perfiles (carátula) doc_id=%s", doc.id
+            )
     return True, "Datos guardados."
 
 
@@ -1504,8 +1535,20 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
         current_app.logger.exception("SGI: fallo notificaciones in-app al aprobar rev_id=%s", rev_id)
         n = 0
     db.session.commit()
-    if n > 0:
-        return True, f"Documento aprobado. Se notificó a {n} usuario(s) de los sectores seleccionados."
+    mailed = 0
+    try:
+        from app.services import sgi_difusion_mail_service as difusion_svc
+
+        mailed = difusion_svc.notify_approval_emails(current_app._get_current_object(), doc, rev)
+    except Exception:
+        current_app.logger.exception("SGI: fallo mails de difusión al aprobar rev_id=%s", rev_id)
+    if n > 0 or mailed > 0:
+        parts = []
+        if n > 0:
+            parts.append(f"campana a {n} usuario(s)")
+        if mailed > 0:
+            parts.append(f"correo a {mailed} usuario(s)")
+        return True, f"Documento aprobado. Se notificó ({', '.join(parts)}) de los sectores seleccionados."
     return True, "Documento aprobado. No hay usuarios activos en los sectores seleccionados para notificar."
 
 

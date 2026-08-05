@@ -41,6 +41,15 @@ def sgi_editor(app):
 
 def test_workflow_enviar_marcar_aprobar(app, sgi_editor):
     with app.app_context():
+        op = User(
+            username="pytest_wf_op_notif",
+            password_hash=generate_password_hash("x"),
+            rol="operaciones",
+            activo=True,
+        )
+        db.session.add(op)
+        db.session.commit()
+
         doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="WF TEST")
         assert err is None and doc and rev
 

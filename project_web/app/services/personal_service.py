@@ -765,9 +765,12 @@ def save_empleado(
     emp.updated_by_id = user_id
 
     # Puesto = organigrama (bidireccional). No usa el perfil/rol del sistema.
+    before_sgi_docs: frozenset[int] = frozenset()
     if emp.user_id:
         from app.services import sgi_anexo_service as anexo_svc
+        from app.services import sgi_difusion_mail_service as difusion_svc
 
+        before_sgi_docs = difusion_svc.coverage_doc_ids(int(emp.user_id))
         selected = anexo_svc.organigrama_puestos_from_form(data)
         anexo_svc.organigrama_sync_user_puestos(int(emp.user_id), selected, commit=False)
         emp.puesto = anexo_svc.organigrama_puestos_label(selected)
@@ -783,6 +786,23 @@ def save_empleado(
     except IntegrityError:
         db.session.rollback()
         return False, "No se pudo guardar el legajo (conflicto de datos). Revisá el número de legajo o contactá al administrador.", None
+    if emp.user_id:
+        try:
+            from flask import current_app, has_app_context
+
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            if has_app_context():
+                difusion_svc.notify_usuario_si_cobertura_aumenta(
+                    current_app._get_current_object(), int(emp.user_id), before_sgi_docs
+                )
+        except Exception:
+            from flask import current_app, has_app_context
+
+            if has_app_context():
+                current_app.logger.exception(
+                    "SGI: fallo mail difusión al guardar legajo user_id=%s", emp.user_id
+                )
     return True, "Legajo guardado.", emp
 
 

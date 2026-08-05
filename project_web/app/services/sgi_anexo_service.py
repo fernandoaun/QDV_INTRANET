@@ -1224,6 +1224,7 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
     if anexo is None:
         return False, "Anexo no encontrado."
     tipo = anexo.tipo_contenido
+    before_snap: dict[int, frozenset[int]] = {}
     if tipo == ANEXO_TIPO_DOCUMENTO:
         titulo = (payload.get("titulo") or anexo.nombre or "").strip().upper()
         secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
@@ -1239,11 +1240,26 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
             return False, "Estructura de organigrama inválida."
         anexo.contenido_json = json.dumps(data, ensure_ascii=False)
         affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
+        from app.services import sgi_difusion_mail_service as difusion_svc
+
+        before_snap = {uid: difusion_svc.coverage_doc_ids(uid) for uid in affected}
         db.session.flush()
         sync_empleados_puestos_from_organigrama(affected)
     else:
         return False, "Este anexo no admite edición de contenido."
     db.session.commit()
+    if before_snap:
+        try:
+            from flask import current_app
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            difusion_svc.notify_usuarios_cobertura_batch(
+                current_app._get_current_object(), before_snap
+            )
+        except Exception:
+            from flask import current_app
+
+            current_app.logger.exception("SGI: fallo mail difusión tras guardar organigrama anexo")
     return True, "Contenido guardado."
 
 
@@ -1382,6 +1398,7 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
     if not documento_es_especial(doc):
         return False, "Este documento no admite edición de contenido especial."
     tipo = normalize_tipo_contenido(doc.tipo_contenido)
+    before_snap: dict[int, frozenset[int]] = {}
     if tipo == ANEXO_TIPO_DOCUMENTO:
         titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
         secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
@@ -1396,9 +1413,24 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
             return False, "Estructura de organigrama inválida."
         rev.contenido_json = json.dumps(data, ensure_ascii=False)
         affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
+        from app.services import sgi_difusion_mail_service as difusion_svc
+
+        before_snap = {uid: difusion_svc.coverage_doc_ids(uid) for uid in affected}
         db.session.flush()
         sync_empleados_puestos_from_organigrama(affected)
     else:
         return False, "Este documento no admite edición de contenido."
     db.session.commit()
+    if before_snap:
+        try:
+            from flask import current_app
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            difusion_svc.notify_usuarios_cobertura_batch(
+                current_app._get_current_object(), before_snap
+            )
+        except Exception:
+            from flask import current_app
+
+            current_app.logger.exception("SGI: fallo mail difusión tras guardar organigrama documento")
     return True, "Contenido guardado."

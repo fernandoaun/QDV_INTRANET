@@ -118,6 +118,14 @@ def create_user():
     personal_svc.sync_empleado_for_user_role(u)
     db.session.commit()
     anexo_svc.organigrama_sync_user_puestos(int(u.id), anexo_svc.organigrama_puestos_from_form(request.form))
+    try:
+        from app.services import sgi_difusion_mail_service as difusion_svc
+
+        difusion_svc.notify_usuario_si_cobertura_aumenta(
+            current_app._get_current_object(), int(u.id), frozenset()
+        )
+    except Exception:
+        current_app.logger.exception("SGI: fallo mail difusión al crear usuario id=%s", u.id)
     audit_svc.record_event(
         action="user_create",
         module="admin",
@@ -152,6 +160,9 @@ def edit_user(uid: int):
             return redirect(url_for("admin_users.edit_user", uid=uid))
         act = request.form.get("action")
         if act == "core":
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            before_sgi_docs = difusion_svc.coverage_doc_ids(int(u.id))
             new_username = _normalize_username(request.form.get("username") or "")
             if len(new_username) < 3:
                 flash("El usuario debe tener al menos 3 caracteres.", "danger")
@@ -259,6 +270,14 @@ def edit_user(uid: int):
                     [(r.permiso, r.habilitado, r.puede_editar) for r in rows_dbg],
                 )
             anexo_svc.organigrama_sync_user_puestos(int(u.id), anexo_svc.organigrama_puestos_from_form(request.form))
+            try:
+                difusion_svc.notify_usuario_si_cobertura_aumenta(
+                    current_app._get_current_object(), int(u.id), before_sgi_docs
+                )
+            except Exception:
+                current_app.logger.exception(
+                    "SGI: fallo mail difusión al editar usuario id=%s", u.id
+                )
             new_snapshot = {
                 "username": u.username,
                 "rol": u.rol,

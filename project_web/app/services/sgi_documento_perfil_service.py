@@ -131,20 +131,28 @@ def perfiles_aplica_para_editor(documento_id: int) -> list[str]:
     return expand_keys_for_ui(perfiles_aplica_documento(documento_id))
 
 
-def sync_perfiles_documento(documento_id: int, perfiles: list[str] | None) -> list[str]:
-    """Reemplaza la lista de puestos/perfiles del documento. Devuelve la lista normalizada guardada."""
+def sync_perfiles_documento_diff(
+    documento_id: int, perfiles: list[str] | None
+) -> tuple[list[str], list[str], list[str]]:
+    """Reemplaza perfiles del documento. Devuelve (normalizados, agregados, quitados)."""
     doc_id = int(documento_id)
     normalized = normalize_perfil_keys(perfiles)
     existing = {
         str(r.perfil): r
         for r in db.session.query(SgiDocumentoPerfil).filter(SgiDocumentoPerfil.documento_id == doc_id).all()
     }
-    for key in normalized:
-        if key not in existing:
-            db.session.add(SgiDocumentoPerfil(documento_id=doc_id, perfil=key))
-    for key, row in existing.items():
-        if key not in normalized:
-            db.session.delete(row)
+    added = [key for key in normalized if key not in existing]
+    removed = [key for key in existing if key not in normalized]
+    for key in added:
+        db.session.add(SgiDocumentoPerfil(documento_id=doc_id, perfil=key))
+    for key in removed:
+        db.session.delete(existing[key])
+    return normalized, added, removed
+
+
+def sync_perfiles_documento(documento_id: int, perfiles: list[str] | None) -> list[str]:
+    """Reemplaza la lista de puestos/perfiles del documento. Devuelve la lista normalizada guardada."""
+    normalized, _added, _removed = sync_perfiles_documento_diff(documento_id, perfiles)
     return normalized
 
 
@@ -167,9 +175,10 @@ def _wanted_roles_and_nodes(keys: list[str]) -> tuple[set[str], set[str]]:
     return roles, nodes
 
 
-def user_perfil_aplica_documento(user: User, documento_id: int) -> bool:
+def user_alcanzado_por_documento(user: User, documento_id: int) -> bool:
+    """True si el puesto/rol del usuario está en los perfiles del documento (sin atajo admin)."""
     if user.is_admin:
-        return True
+        return False
     roles, nodes = _wanted_roles_and_nodes(perfiles_aplica_documento(documento_id))
     if not roles and not nodes:
         return False
@@ -179,6 +188,12 @@ def user_perfil_aplica_documento(user: User, documento_id: int) -> bool:
         return True
     covered = role_covers_perfiles(user.rol)
     return bool(covered & roles)
+
+
+def user_perfil_aplica_documento(user: User, documento_id: int) -> bool:
+    if user.is_admin:
+        return True
+    return user_alcanzado_por_documento(user, documento_id)
 
 
 def users_with_perfiles(perfiles: list[str]) -> list[User]:
