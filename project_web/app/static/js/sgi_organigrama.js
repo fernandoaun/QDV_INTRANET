@@ -1473,7 +1473,14 @@
     qs("#btnOrgAddNode")?.addEventListener("click", addNode);
 
     qs("#btnGuardarOrganigrama")?.addEventListener("click", () => {
-      const payload = buildPayload();
+      let payload;
+      try {
+        payload = buildPayload();
+      } catch (err) {
+        console.error(err);
+        flash("danger", "No se pudo armar el organigrama para guardar.");
+        return;
+      }
       fetch(editorCfg.guardarUrl, {
         method: "POST",
         headers: {
@@ -1484,9 +1491,26 @@
         credentials: "same-origin",
         body: JSON.stringify(payload),
       })
-        .then((r) => r.json())
-        .then((res) => flash(res.ok ? "success" : "danger", res.message || ""))
-        .catch(() => flash("danger", "No se pudo guardar."));
+        .then(async (r) => {
+          const text = await r.text();
+          let res = null;
+          try {
+            res = text ? JSON.parse(text) : null;
+          } catch {
+            res = null;
+          }
+          if (res && typeof res === "object") return res;
+          if (r.status === 400 && /csrf|token/i.test(text || "")) {
+            return { ok: false, message: "Sesión vencida (CSRF). Recargá la página e intentá de nuevo." };
+          }
+          if (r.status === 403) return { ok: false, message: "No tenés permiso para guardar." };
+          if (r.status >= 500) {
+            return { ok: false, message: "Error del servidor al guardar. Reintentá en unos segundos." };
+          }
+          return { ok: false, message: `No se pudo guardar (HTTP ${r.status || "?"}).` };
+        })
+        .then((res) => flash(res.ok ? "success" : "danger", res.message || (res.ok ? "Guardado." : "No se pudo guardar.")))
+        .catch(() => flash("danger", "No se pudo guardar. Revisá la conexión y reintentá."));
     });
   }
 

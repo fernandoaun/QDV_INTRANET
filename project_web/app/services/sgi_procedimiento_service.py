@@ -1284,7 +1284,14 @@ def save_revision_caratula_only(
         perfiles_agregados = []
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_EDICION, f"Carátula {rev.revision_label}")
     doc_estado = doc.estado
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "SGI: error al guardar carátula especial rev_id=%s", rev_id
+        )
+        return False, "No se pudo guardar (la base está ocupada o bloqueada). Cerrá otras ventanas y reintentá."
     if perfiles_agregados and doc_estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
         try:
             from app.services import sgi_difusion_mail_service as difusion_svc

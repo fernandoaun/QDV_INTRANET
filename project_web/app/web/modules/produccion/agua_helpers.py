@@ -34,6 +34,15 @@ def last_agua_created_at_iso_for_date(fecha_iso: str) -> str | None:
     )
 
 
+def last_agua_created_at_iso() -> str | None:
+    """Último análisis de agua global (ancla del cronómetro de 8 h, cruzando días)."""
+    return db.session.scalar(
+        select(AguaRegistro.created_at_iso)
+        .order_by(AguaRegistro.created_at_iso.desc(), AguaRegistro.id.desc())
+        .limit(1)
+    )
+
+
 def agua_row_to_dict(r: AguaRegistro) -> dict[str, Any]:
     return {
         "id": r.id,

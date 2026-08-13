@@ -8,7 +8,7 @@ from flask import Blueprint, current_app, jsonify, request
 from app.auth_utils import current_user, login_required, user_can
 from app.constants import AGUA_ANALYSIS_INTERVAL_SECONDS, ANALYSIS_INTERVAL_SECONDS
 from app.services import plant_stop_service as ps
-from app.web.modules.produccion.agua_helpers import last_agua_created_at_iso_for_date
+from app.web.modules.produccion.agua_helpers import last_agua_created_at_iso
 from app.web.modules.produccion.operativa_context import default_operador_for_salmuera, operador_display_line
 from app.web.modules.produccion.reactor_helpers import last_reactor_created_at_iso_for_date
 from app.web.modules.produccion.salmuera_helpers import last_salmuera_created_at_iso_for_electrolizador_and_date
@@ -28,7 +28,8 @@ def _last_created_for_circuit(circuit_key: str, fecha_iso: str) -> str | None:
     if circuit_key == ps.CIRCUIT_REACTOR:
         return last_reactor_created_at_iso_for_date(fecha_iso)
     if circuit_key == ps.CIRCUIT_AGUA:
-        return last_agua_created_at_iso_for_date(fecha_iso)
+        # Cronómetro de 8 h: ancla en el último análisis global (no solo el del día).
+        return last_agua_created_at_iso()
     return None
 
 

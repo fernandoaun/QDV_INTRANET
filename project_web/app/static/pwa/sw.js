@@ -1,5 +1,5 @@
 /* Service worker QDV PWA — caché básica de recursos estáticos y fallback offline ligero. */
-var CACHE = "qdv-pwa-v2";
+var CACHE = "qdv-pwa-v3";
 var PRECACHE = [
   "/",
   "/static/favicon.png",
@@ -32,6 +32,23 @@ self.addEventListener("activate", function (event) {
   );
 });
 
+function offlineShell(title, detail) {
+  var html =
+    "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"utf-8\">" +
+    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" +
+    "<title>" + title + "</title>" +
+    "<style>body{font-family:system-ui,sans-serif;margin:2rem;max-width:36rem;line-height:1.45}" +
+    "h1{font-size:1.25rem}code{background:#f3f4f6;padding:.1rem .35rem;border-radius:.25rem}</style>" +
+    "</head><body><h1>" + title + "</h1><p>" + detail + "</p>" +
+    "<p>En <code>project_web</code> ejecutá:</p>" +
+    "<p><code>python run.py</code></p>" +
+    "<p>Después recargá esta página (Ctrl+F5).</p></body></html>";
+  return new Response(html, {
+    status: 503,
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   if (event.request.method !== "GET") return;
 
@@ -46,7 +63,22 @@ self.addEventListener("fetch", function (event) {
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request).catch(function () {
-        return caches.match("/");
+        var path = url.pathname || "/";
+        if (path === "/login" || path.indexOf("/login") === 0) {
+          return offlineShell(
+            "Servidor local apagado",
+            "No se pudo abrir el inicio de sesión porque la app local no está corriendo."
+          );
+        }
+        return caches.match("/").then(function (cached) {
+          return (
+            cached ||
+            offlineShell(
+              "Sin conexión con QDV local",
+              "El navegador no pudo contactar a <code>127.0.0.1:5000</code>."
+            )
+          );
+        });
       })
     );
     return;

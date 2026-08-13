@@ -57,6 +57,29 @@
     });
   }
 
+  async function parseJsonResponse(res) {
+    const text = await res.text();
+    let data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+      data = null;
+    }
+    if (data && typeof data === "object") {
+      return data;
+    }
+    if (res.status === 400 && /csrf|token/i.test(text || "")) {
+      return { ok: false, message: "Sesión vencida (CSRF). Recargá la página e intentá de nuevo." };
+    }
+    if (res.status === 403) {
+      return { ok: false, message: "No tenés permiso para guardar." };
+    }
+    if (res.status >= 500) {
+      return { ok: false, message: "Error del servidor al guardar. Reintentá en unos segundos." };
+    }
+    return { ok: false, message: `No se pudo guardar (HTTP ${res.status || "?"}).` };
+  }
+
   async function postJson(url, data) {
     const token = qs('meta[name="csrf-token"]')?.content || cfg.csrf || "";
     const res = await fetch(url, {
@@ -69,20 +92,31 @@
       credentials: "same-origin",
       body: JSON.stringify(data),
     });
-    return res.json();
+    return parseJsonResponse(res);
   }
 
   async function guardarCaratula() {
-    const res = await postJson(cfg.urls.guardar, collectCaratula());
-    if (!res.ok) flash("danger", res.message || res.error || "No se pudo guardar.");
-    return res;
+    try {
+      const res = await postJson(cfg.urls.guardar, collectCaratula());
+      if (!res.ok) flash("danger", res.message || res.error || "No se pudo guardar.");
+      return res;
+    } catch {
+      const fail = { ok: false, message: "No se pudo guardar. Revisá la conexión y reintentá." };
+      flash("danger", fail.message);
+      return fail;
+    }
   }
 
   async function guardarContenidoSiHay() {
-    if (typeof cfg.onGuardarContenido === "function") {
-      return cfg.onGuardarContenido();
+    if (typeof cfg.onGuardarContenido !== "function") {
+      return { ok: true };
     }
-    return { ok: true };
+    try {
+      const res = await cfg.onGuardarContenido();
+      return res && typeof res === "object" ? res : { ok: false, message: "No se pudo guardar el contenido." };
+    } catch {
+      return { ok: false, message: "No se pudo guardar el contenido. Revisá la conexión y reintentá." };
+    }
   }
 
   async function workflow(accion) {
@@ -112,7 +146,10 @@
 
     if (!cfg.soloLectura) {
       const contenido = await guardarContenidoSiHay();
-      if (!contenido.ok) return;
+      if (!contenido.ok) {
+        flash("danger", contenido.message || contenido.error || "No se pudo guardar el contenido.");
+        return;
+      }
       const caratula = await guardarCaratula();
       if (!caratula.ok && accion !== "marcar_revisado") return;
     } else if (accion === "marcar_revisado") {
@@ -129,16 +166,20 @@
       body.aprobo_puesto_id = qs("#anexoAproboPuesto")?.value || "";
     }
 
-    const res = await postJson(cfg.urls.workflow, body);
-    if (res.ok) {
-      flash("success", res.message || "Listo.");
-      if (res.redirect) {
-        window.location.href = res.redirect;
+    try {
+      const res = await postJson(cfg.urls.workflow, body);
+      if (res.ok) {
+        flash("success", res.message || "Listo.");
+        if (res.redirect) {
+          window.location.href = res.redirect;
+        } else {
+          window.location.reload();
+        }
       } else {
-        window.location.reload();
+        flash("danger", res.message || res.error || "No se pudo completar la acción.");
       }
-    } else {
-      flash("danger", res.message || res.error || "No se pudo completar la acción.");
+    } catch {
+      flash("danger", "No se pudo completar la acción. Revisá la conexión y reintentá.");
     }
   }
 
@@ -146,9 +187,16 @@
 
   qs("#btnAnexoGuardarCaratula")?.addEventListener("click", async () => {
     const contenido = await guardarContenidoSiHay();
-    if (!contenido.ok) return;
+    if (!contenido.ok) {
+      flash("danger", contenido.message || contenido.error || "No se pudo guardar el contenido.");
+      return;
+    }
     const res = await guardarCaratula();
-    flash(res.ok ? "success" : "danger", res.message || (res.ok ? "Guardado." : "Error."));
+    if (res.ok) {
+      flash("success", res.message || "Guardado.");
+    } else {
+      flash("danger", res.message || res.error || "No se pudo guardar.");
+    }
   });
   qs("#btnAnexoEnviarRevision")?.addEventListener("click", () => workflow("enviar_revision"));
   qs("#btnAnexoMarcarRevisado")?.addEventListener("click", () => workflow("marcar_revisado"));

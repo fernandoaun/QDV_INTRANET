@@ -133,7 +133,7 @@
 {% if not anexo.archivo_path %}
 <script src="{{ url_for('static', filename='js/sgi_anexo_document.js') }}"></script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js', v='2') }}"></script>
 {% if anexo.archivo_path and not solo_lectura|default(false) %}
 <script>
   (function () {

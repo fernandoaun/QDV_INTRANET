@@ -1219,35 +1219,33 @@ def organigrama_puestos_from_form(form) -> list[str]:
     return [str(x).strip() for x in raw if str(x).strip()]
 
 
-def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, str]:
-    anexo = db.session.get(SgiProcedimientoAnexo, int(anexo_id))
-    if anexo is None:
-        return False, "Anexo no encontrado."
-    tipo = anexo.tipo_contenido
-    before_snap: dict[int, frozenset[int]] = {}
-    if tipo == ANEXO_TIPO_DOCUMENTO:
-        titulo = (payload.get("titulo") or anexo.nombre or "").strip().upper()
-        secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
-        data = {"titulo": titulo, "secciones": secciones}
-        anexo.contenido_json = json.dumps(data, ensure_ascii=False)
-        if titulo:
-            anexo.nombre = titulo[:512]
-    elif tipo == ANEXO_TIPO_ORGANIGRAMA:
-        prev = _organigrama_parse_raw_json(getattr(anexo, "contenido_json", None))
-        try:
-            _, data = organigrama_save_payload(payload)
-        except ValueError:
-            return False, "Estructura de organigrama inválida."
-        anexo.contenido_json = json.dumps(data, ensure_ascii=False)
-        affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
-        from app.services import sgi_difusion_mail_service as difusion_svc
+def _preserve_puestos_workflow(prev: dict[str, Any] | None, data: dict[str, Any]) -> dict[str, Any]:
+    """Conserva elaboró/revisó/aprobó al reescribir el JSON del organigrama."""
+    if not isinstance(prev, dict):
+        return data
+    puestos = prev.get("puestos_workflow")
+    if isinstance(puestos, dict) and puestos:
+        data = dict(data)
+        data["puestos_workflow"] = {
+            "elaboro": str(puestos.get("elaboro") or "").strip()[:64],
+            "reviso": str(puestos.get("reviso") or "").strip()[:64],
+            "aprobo": str(puestos.get("aprobo") or "").strip()[:64],
+        }
+    return data
 
-        before_snap = {uid: difusion_svc.coverage_doc_ids(uid) for uid in affected}
-        db.session.flush()
-        sync_empleados_puestos_from_organigrama(affected)
-    else:
-        return False, "Este anexo no admite edición de contenido."
-    db.session.commit()
+
+def _commit_organigrama_save(before_snap: dict[int, frozenset[int]], *, log_label: str) -> tuple[bool, str]:
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        from flask import current_app
+
+        current_app.logger.exception("SGI: error al confirmar guardado de %s", log_label)
+        return (
+            False,
+            "No se pudo guardar (la base está ocupada o bloqueada). Cerrá otras ventanas del sistema y reintentá.",
+        )
     if before_snap:
         try:
             from flask import current_app
@@ -1259,8 +1257,52 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
         except Exception:
             from flask import current_app
 
-            current_app.logger.exception("SGI: fallo mail difusión tras guardar organigrama anexo")
+            current_app.logger.exception("SGI: fallo mail difusión tras guardar %s", log_label)
     return True, "Contenido guardado."
+
+
+def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, str]:
+    anexo = db.session.get(SgiProcedimientoAnexo, int(anexo_id))
+    if anexo is None:
+        return False, "Anexo no encontrado."
+    tipo = anexo.tipo_contenido
+    before_snap: dict[int, frozenset[int]] = {}
+    try:
+        if tipo == ANEXO_TIPO_DOCUMENTO:
+            titulo = (payload.get("titulo") or anexo.nombre or "").strip().upper()
+            secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
+            data = {"titulo": titulo, "secciones": secciones}
+            anexo.contenido_json = json.dumps(data, ensure_ascii=False)
+            if titulo:
+                anexo.nombre = titulo[:512]
+        elif tipo == ANEXO_TIPO_ORGANIGRAMA:
+            prev = _organigrama_parse_raw_json(getattr(anexo, "contenido_json", None))
+            try:
+                _, data = organigrama_save_payload(payload)
+            except ValueError:
+                return False, "Estructura de organigrama inválida."
+            data = _preserve_puestos_workflow(prev, data)
+            anexo.contenido_json = json.dumps(data, ensure_ascii=False)
+            affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
+            from app.services import sgi_difusion_mail_service as difusion_svc
+
+            before_snap = {uid: difusion_svc.coverage_doc_ids(uid) for uid in affected}
+            db.session.flush()
+            try:
+                sync_empleados_puestos_from_organigrama(affected)
+            except Exception:
+                from flask import current_app
+
+                current_app.logger.exception("SGI: sync puestos tras guardar organigrama anexo")
+        else:
+            return False, "Este anexo no admite edición de contenido."
+        return _commit_organigrama_save(before_snap, log_label="organigrama anexo")
+    except Exception:
+        db.session.rollback()
+        from flask import current_app
+
+        current_app.logger.exception("SGI: error al guardar contenido de anexo %s", anexo_id)
+        return False, "No se pudo guardar el contenido. Reintentá o recargá la página."
 
 
 def ensure_anexo_tipo_contenido(
@@ -1399,38 +1441,40 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
         return False, "Este documento no admite edición de contenido especial."
     tipo = normalize_tipo_contenido(doc.tipo_contenido)
     before_snap: dict[int, frozenset[int]] = {}
-    if tipo == ANEXO_TIPO_DOCUMENTO:
-        titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
-        secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
-        rev.contenido_json = json.dumps({"titulo": titulo, "secciones": secciones}, ensure_ascii=False)
-        if titulo:
-            doc.titulo = titulo[:512]
-    elif tipo == ANEXO_TIPO_ORGANIGRAMA:
-        prev = _organigrama_parse_raw_json(getattr(rev, "contenido_json", None))
-        try:
-            _, data = organigrama_save_payload(payload)
-        except ValueError:
-            return False, "Estructura de organigrama inválida."
-        rev.contenido_json = json.dumps(data, ensure_ascii=False)
-        affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
-        from app.services import sgi_difusion_mail_service as difusion_svc
-
-        before_snap = {uid: difusion_svc.coverage_doc_ids(uid) for uid in affected}
-        db.session.flush()
-        sync_empleados_puestos_from_organigrama(affected)
-    else:
-        return False, "Este documento no admite edición de contenido."
-    db.session.commit()
-    if before_snap:
-        try:
-            from flask import current_app
+    try:
+        if tipo == ANEXO_TIPO_DOCUMENTO:
+            titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
+            secciones = proc_svc.normalize_procedure_secciones(payload.get("secciones") or {})
+            rev.contenido_json = json.dumps({"titulo": titulo, "secciones": secciones}, ensure_ascii=False)
+            if titulo:
+                doc.titulo = titulo[:512]
+        elif tipo == ANEXO_TIPO_ORGANIGRAMA:
+            prev = _organigrama_parse_raw_json(getattr(rev, "contenido_json", None))
+            try:
+                _, data = organigrama_save_payload(payload)
+            except ValueError:
+                return False, "Estructura de organigrama inválida."
+            data = _preserve_puestos_workflow(prev, data)
+            rev.contenido_json = json.dumps(data, ensure_ascii=False)
+            affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
             from app.services import sgi_difusion_mail_service as difusion_svc
 
-            difusion_svc.notify_usuarios_cobertura_batch(
-                current_app._get_current_object(), before_snap
-            )
-        except Exception:
-            from flask import current_app
+            before_snap = {uid: difusion_svc.coverage_doc_ids(uid) for uid in affected}
+            db.session.flush()
+            try:
+                sync_empleados_puestos_from_organigrama(affected)
+            except Exception:
+                from flask import current_app
 
-            current_app.logger.exception("SGI: fallo mail difusión tras guardar organigrama documento")
-    return True, "Contenido guardado."
+                current_app.logger.exception("SGI: sync puestos tras guardar organigrama documento")
+        else:
+            return False, "Este documento no admite edición de contenido."
+        return _commit_organigrama_save(before_snap, log_label="organigrama documento")
+    except Exception:
+        db.session.rollback()
+        from flask import current_app
+
+        current_app.logger.exception(
+            "SGI: error al guardar contenido especial doc_id=%s rev_id=%s", doc_id, rev_id
+        )
+        return False, "No se pudo guardar el contenido. Reintentá o recargá la página."

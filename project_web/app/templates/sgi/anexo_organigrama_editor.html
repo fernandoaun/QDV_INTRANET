@@ -95,19 +95,33 @@
     onGuardarContenido: function () {
       if (typeof window.sgiOrgCollectPayload !== "function") return Promise.resolve({ ok: true });
       const data = window.sgiOrgCollectPayload();
+      const token = (document.querySelector('meta[name="csrf-token"]') || {}).content || window.SGI_ORG_EDITOR.csrf || "";
       return fetch(window.SGI_ORG_EDITOR.guardarUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CSRFToken": window.SGI_ORG_EDITOR.csrf,
+          "X-CSRFToken": token,
           "X-Requested-With": "XMLHttpRequest",
         },
         credentials: "same-origin",
         body: JSON.stringify(data),
-      }).then((r) => r.json());
+      }).then(async (r) => {
+        const text = await r.text();
+        try {
+          return text ? JSON.parse(text) : { ok: false, message: "Respuesta vacía del servidor." };
+        } catch {
+          if (r.status === 400 && /csrf|token/i.test(text || "")) {
+            return { ok: false, message: "Sesión vencida (CSRF). Recargá la página e intentá de nuevo." };
+          }
+          if (r.status >= 500) {
+            return { ok: false, message: "Error del servidor al guardar. Reintentá en unos segundos." };
+          }
+          return { ok: false, message: `No se pudo guardar el organigrama (HTTP ${r.status || "?"}).` };
+        }
+      });
     },
   };
 </script>
-<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='10') }}"></script>
-<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='11') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js', v='2') }}"></script>
 {% endblock %}

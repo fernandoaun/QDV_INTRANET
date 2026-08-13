@@ -970,6 +970,82 @@ def test_documento_es_especial():
     assert documento_es_especial(doc2) is False
 
 
+def test_msgi_organigrama_guardar_contenido_y_caratula(auth_client, app):
+    """Guardar organigrama + carátula de QDV-ANEXO II debe responder JSON ok."""
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_anexo_service as anexo_svc
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO II",
+            "nombre": "ORGANIGRAMA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "organigrama",
+        },
+    )
+    with app.app_context():
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
+        doc_id, rev_id = doc.id, rev.id
+        prepared = anexo_svc.organigrama_prepare_editor_data(
+            anexo_svc.parse_documento_contenido(doc, rev)
+        )
+        nodes = prepared["nodes"]
+        links = prepared["links"] or anexo_svc.organigrama_links_from_parents(nodes)
+        for i, n in enumerate(nodes):
+            n.setdefault("x", 40 + (i % 4) * 180)
+            n.setdefault("y", 40 + (i // 4) * 120)
+
+    csrf = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/editor/{rev_id}").data.decode(
+        "utf-8", "ignore"
+    )
+    import re
+
+    m = re.search(r'name="csrf-token" content="([^"]+)"', csrf)
+    token = m.group(1) if m else ""
+
+    r_contenido = auth_client.post(
+        f"/sgi/msgc/procedimientos/{doc_id}/revision/{rev_id}/contenido",
+        json={"layout": "free", "nodes": nodes, "links": links},
+        headers={"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r_contenido.status_code == 200
+    assert r_contenido.is_json
+    assert r_contenido.get_json().get("ok") is True
+
+    r_car = auth_client.post(
+        f"/sgi/msgc/procedimientos/{doc_id}/revision/{rev_id}/guardar",
+        json={
+            "elaboro": "FERNANDO AUN",
+            "elaboro_puesto_id": "",
+            "reviso": "FERNANDO AUN",
+            "reviso_puesto_id": "",
+            "aprobo": "SILVANO PACHER",
+            "aprobo_puesto_id": "",
+            "revisor_correo": "fernandoaun@gmail.com",
+            "aprobador_correo": "silvapacher@gmail.com",
+            "perfiles_aplica": [p["id"] for p in anexo_svc.organigrama_puesto_opciones()],
+        },
+        headers={"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r_car.status_code == 200
+    assert r_car.is_json
+    body = r_car.get_json()
+    assert body.get("ok") is True
+    assert "guardado" in (body.get("message") or "").lower()
+
+    with app.app_context():
+        doc = db.session.get(SgiDocumento, doc_id)
+        for rev in list(doc.revisiones_proc):
+            db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+
+
 def test_anexo_vista_tipo():
     from app.services.sgi_procedimiento_service import anexo_vista_tipo
 
