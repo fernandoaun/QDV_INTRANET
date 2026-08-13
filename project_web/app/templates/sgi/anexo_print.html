@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <title>{{ anexo.codigo }} · {{ anexo.revision }}</title>
+  <title>{% if para_export and mode == 'documento' %} {% else %}{{ anexo.codigo }} · {{ anexo.revision }}{% endif %}</title>
   <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
   {% if mode == 'organigrama' %}
   <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='16') }}" rel="stylesheet">
@@ -23,16 +23,28 @@
     .sgi-anexo-print-media { position: relative; }
     {% if mode == 'documento' %}
     /* Una hoja A4: texto arriba, firma en el blanco, fecha al pie. */
-    @page { size: A4; margin: 12mm; }
+    @page { size: A4; margin: 14mm 16mm 14mm 16mm; }
     html, body { width: 100%; height: 100%; }
+    .sgi-print-hint {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      margin: 0 0 12px;
+      padding: 10px 14px;
+      background: #fff8e6;
+      border: 1px solid #e0c36a;
+      font: 13px/1.4 Arial, Helvetica, sans-serif;
+      color: #333;
+    }
+    .sgi-print-hint strong { display: block; margin-bottom: 2px; }
     .sgi-anexo-doc-print {
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
       width: 100%;
-      min-height: 273mm;
-      height: 273mm;
-      max-height: 273mm;
+      min-height: 269mm;
+      height: 269mm;
+      max-height: 269mm;
       margin: 0;
       padding: 0;
       box-shadow: none;
@@ -42,10 +54,10 @@
     }
     .sgi-anexo-doc-print-header {
       flex: 0 0 auto;
-      margin: 0 0 10mm;
+      margin: 0 0 8mm;
       /* Evita que Chrome/Edge corten el borde inferior del encabezado
          (bug típico de border-collapse + rowspan al imprimir). */
-      border: 1.25pt solid #000;
+      border: 1.5pt solid #000;
       box-sizing: border-box;
       overflow: visible;
     }
@@ -54,11 +66,13 @@
       border-spacing: 0;
       border: none;
       width: 100%;
+      table-layout: fixed;
     }
     .sgi-anexo-doc-print-header .sgi-proc-header-table td {
       border: none;
       border-right: 1pt solid #000;
       border-bottom: 1pt solid #000;
+      padding: 3px 6px;
     }
     .sgi-anexo-doc-print-header .sgi-proc-header-table tr:last-child td {
       border-bottom: none;
@@ -70,6 +84,13 @@
     .sgi-anexo-doc-print-header .sgi-proc-header-logo-cell,
     .sgi-anexo-doc-print-header .sgi-proc-header-titulo-cell {
       border-bottom: none;
+    }
+    .sgi-anexo-doc-print-header .sgi-proc-header-logo-cell .sgi-proc-logo-img {
+      max-height: 48px;
+      max-width: 120px;
+    }
+    .sgi-anexo-doc-print-header .sgi-proc-header-titulo-cell {
+      font-size: 12pt;
     }
     .sgi-anexo-doc-print-body { flex: 0 0 auto; }
     .sgi-anexo-doc-print-cuerpo {
@@ -115,10 +136,11 @@
       font-size: 10pt;
     }
     @media print {
+      .sgi-print-hint { display: none !important; }
       html, body { width: auto; height: auto; }
       .sgi-anexo-doc-print {
-        height: 273mm;
-        max-height: 273mm;
+        height: 269mm;
+        max-height: 269mm;
         overflow: hidden !important;
       }
       .sgi-anexo-doc-print-header {
@@ -232,6 +254,13 @@
   </style>
 </head>
 <body>
+  {% if para_export and mode == 'documento' %}
+  <div class="sgi-print-hint" id="sgiPrintHint">
+    <strong>Para un PDF limpio</strong>
+    En el diálogo elegí <em>Guardar como PDF</em> y desactivá
+    <em>Encabezados y pies de página</em> (así no aparecen la fecha ni el título del navegador).
+  </div>
+  {% endif %}
   {% if mode == 'image' %}
   <div class="sgi-anexo-print-media">
     <img class="sgi-anexo-print-img"
@@ -320,6 +349,13 @@
   {% if para_export and mode != 'organigrama' %}
   <script>
     window.addEventListener("load", function () {
+      var originalTitle = document.title;
+      // Chrome/Edge ponen el <title> en el encabezado del PDF si están activos
+      // «Encabezados y pies de página». Dejamos el título vacío al imprimir.
+      document.title = " ";
+      window.addEventListener("afterprint", function () {
+        document.title = originalTitle;
+      }, { once: true });
       requestAnimationFrame(function () {
         requestAnimationFrame(function () { window.print(); });
       });
