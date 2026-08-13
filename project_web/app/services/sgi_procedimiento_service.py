@@ -40,7 +40,7 @@ from app.models.sgi import (
     TIPOS_PROCEDIMIENTO_VISUAL,
 )
 from app.models.personal import EmpleadoPersonal
-from app.models.user import User
+from app.models.user import PermisoUsuario, User
 from app.auth_utils import (
     user_can_asociar_sgi_registro_modulo,
     user_can_edit_sgi_documentos,
@@ -697,6 +697,61 @@ def user_can_reenviar_aviso(user: User | None, rev: SgiProcedimientoRevision) ->
     return False
 
 
+def _user_has_sgi_documentos_edit_perm(user: User) -> bool:
+    """Permiso de edición SGC; funciona dentro y fuera de request (tests/jobs)."""
+    if user.is_admin:
+        return True
+    if user_is_global_read_only(user):
+        return False
+    from flask import has_request_context
+
+    if has_request_context():
+        return user_can_edit_sgi_documentos(user)
+    row = db.session.scalar(
+        select(PermisoUsuario).where(
+            PermisoUsuario.user_id == int(user.id),
+            PermisoUsuario.permiso == "sgi_documentos_edit",
+            PermisoUsuario.habilitado.is_(True),
+            PermisoUsuario.puede_editar.is_(True),
+        )
+    )
+    return row is not None
+
+
+def user_can_edit_revision_content(user: User | None, rev: SgiProcedimientoRevision) -> bool:
+    """Quién puede modificar el procedimiento (contenido, carátula, anexos, etc.).
+
+    - Editores SGC / admin: borrador, en revisión o revisado.
+    - Quien revisa (puesto/correo/nombre): en revisión.
+    - Quien aprueba (puesto/correo/nombre): revisado.
+    - Perfil solo lectura total (Angel): no edita (sí puede aprobar).
+    """
+    if user is None or user_is_global_read_only(user):
+        return False
+    if rev.estado not in (ESTADO_BORRADOR, ESTADO_EN_REVISION, ESTADO_REVISADO):
+        return False
+    if user.is_admin:
+        return True
+
+    puestos = get_revision_puesto_ids(rev)
+    if rev.estado == ESTADO_EN_REVISION:
+        if _user_in_puesto(user, puestos.get("reviso_puesto_id")):
+            return True
+        if _label_matches_user(rev.reviso, user):
+            return True
+        if _correo_matches_user(user, rev.revisor_correo, rev.reviso):
+            return True
+    elif rev.estado == ESTADO_REVISADO:
+        if _user_in_puesto(user, puestos.get("aprobo_puesto_id")):
+            return True
+        if _label_matches_user(rev.aprobo, user):
+            return True
+        if _correo_matches_user(user, rev.aprobador_correo, rev.aprobo):
+            return True
+
+    return _user_has_sgi_documentos_edit_perm(user)
+
+
 def user_participates_workflow(user: User | None, rev: SgiProcedimientoRevision) -> bool:
     if user is None:
         return False
@@ -1038,8 +1093,10 @@ def save_revision_content(
     rev = get_revision(rev_id)
     if rev is None:
         return False, "Revisión no encontrada.", []
-    if rev.estado not in (ESTADO_BORRADOR, ESTADO_EN_REVISION):
-        return False, "Solo se puede editar un borrador o documento en revisión.", []
+    if actor is None and user_id:
+        actor = db.session.get(User, int(user_id))
+    if not user_can_edit_revision_content(actor, rev):
+        return False, "No tenés permiso para editar este documento en su estado actual.", []
 
     doc = rev.documento
     titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
@@ -1048,8 +1105,6 @@ def save_revision_content(
 
     secciones = normalize_procedure_secciones(payload.get("secciones") or {})
     registros = list(payload.get("registros") or [])
-    if actor is None and user_id:
-        actor = db.session.get(User, int(user_id))
     if not user_can_asociar_sgi_registro_modulo(actor):
         existing_by_id = {r.id: (r.modulo or "") for r in rev.registros.all()}
         existing_by_orden = {r.orden: (r.modulo or "") for r in rev.registros.all()}
@@ -1177,13 +1232,17 @@ def save_revision_caratula_only(
     payload: dict[str, Any],
     user_id: int,
     actor_label: str,
+    *,
+    actor: User | None = None,
 ) -> tuple[bool, str]:
     """Guarda carátula y perfiles sin modificar contenido_json (QDV-ANEXO I–IV)."""
     rev = get_revision(rev_id)
     if rev is None:
         return False, "Revisión no encontrada."
-    if rev.estado not in (ESTADO_BORRADOR, ESTADO_EN_REVISION):
-        return False, "Solo se puede editar un borrador o documento en revisión."
+    if actor is None and user_id:
+        actor = db.session.get(User, int(user_id))
+    if not user_can_edit_revision_content(actor, rev):
+        return False, "No tenés permiso para editar este documento en su estado actual."
 
     doc = rev.documento
     if "elaboro" in payload:

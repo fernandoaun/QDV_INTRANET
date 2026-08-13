@@ -284,7 +284,11 @@ def firma_gerente(slug: str, doc_id: int):
         abort(404)
 
     if request.method == "POST":
-        if not user_can_edit_sgi_documentos(u):
+        rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
+        can_edit = user_can_edit_sgi_documentos(u) or (
+            rev is not None and proc_svc.user_can_edit_revision_content(u, rev)
+        )
+        if not can_edit:
             return _no_mutate()
         f = request.files.get("firma") or request.files.get("archivo")
         ok, msg = proc_svc.save_firma_gerente_file(doc_id, f, u.id)

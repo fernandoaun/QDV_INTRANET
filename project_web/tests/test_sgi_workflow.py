@@ -213,6 +213,103 @@ def test_revisor_por_correo_legajo_puede_marcar_revisado(app, sgi_editor):
         assert rev.estado == ESTADO_REVISADO
 
 
+def test_revisor_y_aprobador_pueden_editar_contenido(app, sgi_editor):
+    """Quien revisa (en_revision) y quien aprueba (revisado) pueden modificar el procedimiento."""
+    from app.models import EmpleadoPersonal
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="EDIT WF")
+        assert err is None and doc and rev
+
+        revisor = User(
+            username="pytest_sgi_wf_edit_rev",
+            password_hash=generate_password_hash("x"),
+            rol="operaciones",
+            activo=True,
+        )
+        aprobador = User(
+            username="pytest_sgi_wf_edit_apr",
+            password_hash=generate_password_hash("x"),
+            rol="operaciones",
+            activo=True,
+        )
+        db.session.add_all([revisor, aprobador])
+        db.session.flush()
+        db.session.add_all(
+            [
+                EmpleadoPersonal(
+                    user_id=revisor.id,
+                    legajo="WF-EDIT-REV",
+                    apellido="Revisor",
+                    nombre="Edit",
+                    email="revisor.edit@example.com",
+                ),
+                EmpleadoPersonal(
+                    user_id=aprobador.id,
+                    legajo="WF-EDIT-APR",
+                    apellido="Aprobador",
+                    nombre="Edit",
+                    email="aprobador.edit@example.com",
+                ),
+            ]
+        )
+        rev.reviso = "Revisor Edit"
+        rev.revisor_correo = "revisor.edit@example.com"
+        rev.aprobo = "Aprobador Edit"
+        rev.aprobador_correo = "aprobador.edit@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+
+        ok, msg = proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        assert ok, msg
+        db.session.refresh(rev)
+        assert rev.estado == ESTADO_EN_REVISION
+        assert proc_svc.user_can_edit_revision_content(revisor, rev)
+        assert not proc_svc.user_can_edit_revision_content(aprobador, rev)
+
+        payload = proc_svc.revision_to_payload(rev)
+        payload["titulo"] = "TITULO CORREGIDO POR REVISOR"
+        payload["elaboro"] = rev.elaboro or ""
+        payload["reviso"] = rev.reviso or ""
+        payload["aprobo"] = rev.aprobo or ""
+        payload["revisor_correo"] = rev.revisor_correo or ""
+        payload["aprobador_correo"] = rev.aprobador_correo or ""
+        payload["secciones"] = dict(payload.get("secciones") or {})
+        payload["secciones"]["objeto"] = "<p>Cambio del revisor</p>"
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev.id, payload, revisor.id, "Revisor Edit", actor=revisor
+        )
+        assert ok, msg
+        db.session.refresh(doc)
+        assert doc.titulo == "TITULO CORREGIDO POR REVISOR"
+
+        ok, msg = proc_svc.marcar_como_revisado(rev.id, revisor.id, "Revisor Edit")
+        assert ok, msg
+        db.session.refresh(rev)
+        assert rev.estado == ESTADO_REVISADO
+        assert not proc_svc.user_can_edit_revision_content(revisor, rev)
+        assert proc_svc.user_can_edit_revision_content(aprobador, rev)
+
+        payload = proc_svc.revision_to_payload(rev)
+        payload["titulo"] = "TITULO CORREGIDO POR APROBADOR"
+        payload["elaboro"] = rev.elaboro or ""
+        payload["reviso"] = rev.reviso or ""
+        payload["aprobo"] = rev.aprobo or ""
+        payload["revisor_correo"] = rev.revisor_correo or ""
+        payload["aprobador_correo"] = rev.aprobador_correo or ""
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev.id, payload, aprobador.id, "Aprobador Edit", actor=aprobador
+        )
+        assert ok, msg
+        db.session.refresh(doc)
+        assert doc.titulo == "TITULO CORREGIDO POR APROBADOR"
+
+        db.session.delete(revisor)
+        db.session.delete(aprobador)
+        db.session.commit()
+
+
 def test_angel_profile_can_aprobar_revision(app, sgi_editor):
     """Perfil Angel (solo lectura total) puede aprobar procedimientos en estado revisado."""
     from app.services import sgi_documento_perfil_service as perfil_svc
@@ -242,6 +339,7 @@ def test_angel_profile_can_aprobar_revision(app, sgi_editor):
         assert rev.estado == ESTADO_REVISADO
 
         assert proc_svc.user_can_aprobar_revision(angel, rev)
+        assert not proc_svc.user_can_edit_revision_content(angel, rev)
         ok, msg = proc_svc.aprobar_revision(rev.id, angel.id, "Angel Test")
         assert ok, msg
         db.session.refresh(rev)

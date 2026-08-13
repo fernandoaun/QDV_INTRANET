@@ -23,7 +23,6 @@ from app.models.sgi import (
     ANEXO_TIPO_ARCHIVO,
     ANEXO_TIPO_DOCUMENTO,
     ANEXO_TIPO_ORGANIGRAMA,
-    ESTADO_EN_REVISION,
     SgiDocumento,
     SgiProcedimientoRevision,
     TIPO_MSGI,
@@ -95,6 +94,26 @@ def _procedure_render_kwargs(**extra: object) -> dict:
     return out
 
 
+def _require_edit():
+    u = current_user()
+    if not user_can_edit_sgi_documentos(u):
+        return None, _no_mutate()
+    return u, None
+
+
+def _require_procedure_content_edit(rev: SgiProcedimientoRevision | None):
+    """Edición de contenido: editor SGC, quien revisa o quien aprueba (según estado)."""
+    u = current_user()
+    if u is None or rev is None or not proc_svc.user_can_edit_revision_content(u, rev):
+        return None, _no_mutate()
+    return u, None
+
+
+def _editor_solo_lectura(u, rev: SgiProcedimientoRevision, _puede_editar: bool = False) -> bool:
+    """False si el usuario puede modificar el procedimiento en este estado."""
+    return not proc_svc.user_can_edit_revision_content(u, rev)
+
+
 def _special_doc_editor_context(
     slug: str,
     doc: SgiDocumento,
@@ -105,9 +124,7 @@ def _special_doc_editor_context(
     puede_marcar_revisado = proc_svc.user_can_marcar_revisado(u, rev)
     puede_aprobar = proc_svc.user_can_aprobar_revision(u, rev)
     puede_reenviar_aviso = proc_svc.user_can_reenviar_aviso(u, rev)
-    solo_lectura = not puede_editar or rev.estado not in ("borrador", "en_revision")
-    if rev.estado in ("en_revision", "revisado") and (puede_marcar_revisado or puede_aprobar):
-        solo_lectura = True
+    solo_lectura = _editor_solo_lectura(u, rev, puede_editar)
     return {
         "slug": slug,
         "doc": doc,
@@ -118,20 +135,13 @@ def _special_doc_editor_context(
         "puede_marcar_revisado": puede_marcar_revisado,
         "puede_aprobar": puede_aprobar,
         "puede_reenviar_aviso": puede_reenviar_aviso,
-        "correo_aviso_editable": puede_reenviar_aviso,
+        "correo_aviso_editable": puede_reenviar_aviso or not solo_lectura,
         "perfiles_aplica": perfil_svc.perfiles_aplica_para_editor(doc.id),
         "perfiles_opciones": perfil_svc.perfiles_opciones_documento(),
         "firma_gerente_url": proc_svc.firma_gerente_url_for_document(doc),
         "puestos_workflow": anexo_svc.organigrama_puestos_workflow_opciones(),
         "puestos_ids": proc_svc.get_revision_puesto_ids(rev),
     }
-
-
-def _require_edit():
-    u = current_user()
-    if not user_can_edit_sgi_documentos(u):
-        return None, _no_mutate()
-    return u, None
 
 
 @bp.get("/<slug>/procedimientos/")
@@ -401,9 +411,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
     puede_marcar_revisado = proc_svc.user_can_marcar_revisado(u, rev)
     puede_aprobar = proc_svc.user_can_aprobar_revision(u, rev)
     puede_reenviar_aviso = proc_svc.user_can_reenviar_aviso(u, rev)
-    solo_lectura = not puede_editar or rev.estado not in ("borrador", "en_revision")
-    if rev.estado in ("en_revision", "revisado") and (puede_marcar_revisado or puede_aprobar):
-        solo_lectura = True
+    solo_lectura = _editor_solo_lectura(u, rev, puede_editar)
 
     return render_template(
         "sgi/procedure_editor.html",
@@ -422,7 +430,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             puede_marcar_revisado=puede_marcar_revisado,
             puede_aprobar=puede_aprobar,
             puede_reenviar_aviso=puede_reenviar_aviso,
-            correo_aviso_editable=puede_reenviar_aviso,
+            correo_aviso_editable=puede_reenviar_aviso or not solo_lectura,
             perfiles_aplica=perfil_svc.perfiles_aplica_para_editor(doc.id),
             perfiles_opciones=perfil_svc.perfiles_opciones_documento(),
             modulos_registro_json=json.dumps(proc_svc.registro_modulos_catalog_for_js(), ensure_ascii=False),
@@ -541,40 +549,32 @@ def procedimiento_guardar(slug: str, doc_id: int, rev_id: int):
     if rev is None or rev.documento_id != doc_id:
         return jsonify({"ok": False, "error": "no_encontrado"}), 404
 
-    u = current_user()
-    if u is None:
+    u, redir = _require_procedure_content_edit(rev)
+    if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
 
     data = request.get_json(silent=True) or {}
     label = user_display_name(u)
-
-    if user_can_edit_sgi_documentos(u):
-        u_edit, redir = _require_edit()
-        if redir is not None:
-            return jsonify({"ok": False, "error": "sin_permiso"}), 403
-        tipo, _ = _resolve_tipo(slug)
-        doc = doc_svc.get_documento(doc_id)
-        if doc is None or doc.tipo != tipo:
-            return jsonify({"ok": False, "error": "no_encontrado"}), 404
-        if anexo_svc.documento_es_especial(doc):
-            ok, msg = proc_svc.save_revision_caratula_only(rev_id, data, u.id, label)
-            return jsonify({"ok": ok, "message": msg, "control_cambios": []}), (200 if ok else 400)
-        ok, msg, control_cambios = proc_svc.save_revision_content(
-            rev_id, data, u.id, label, actor=u
-        )
-        return jsonify({"ok": ok, "message": msg, "control_cambios": control_cambios}), (200 if ok else 400)
-
-    if proc_svc.user_can_marcar_revisado(u, rev) and rev.estado == ESTADO_EN_REVISION:
-        ok, msg = proc_svc.save_workflow_caratula(rev_id, data, u.id, label)
+    tipo, _ = _resolve_tipo(slug)
+    doc = doc_svc.get_documento(doc_id)
+    if doc is None or doc.tipo != tipo:
+        return jsonify({"ok": False, "error": "no_encontrado"}), 404
+    if anexo_svc.documento_es_especial(doc):
+        ok, msg = proc_svc.save_revision_caratula_only(rev_id, data, u.id, label, actor=u)
         return jsonify({"ok": ok, "message": msg, "control_cambios": []}), (200 if ok else 400)
-
-    return jsonify({"ok": False, "error": "sin_permiso"}), 403
+    ok, msg, control_cambios = proc_svc.save_revision_content(
+        rev_id, data, u.id, label, actor=u
+    )
+    return jsonify({"ok": ok, "message": msg, "control_cambios": control_cambios}), (200 if ok else 400)
 
 
 @bp.post("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/contenido")
 @login_required
 def procedimiento_guardar_contenido(slug: str, doc_id: int, rev_id: int):
-    u, redir = _require_edit()
+    rev = proc_svc.get_revision(rev_id)
+    if rev is None or rev.documento_id != doc_id:
+        return jsonify({"ok": False, "error": "no_encontrado"}), 404
+    u, redir = _require_procedure_content_edit(rev)
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
     tipo, _ = _resolve_tipo(slug)
@@ -589,15 +589,16 @@ def procedimiento_guardar_contenido(slug: str, doc_id: int, rev_id: int):
 @bp.post("/<slug>/procedimientos/<int:doc_id>/archivo")
 @login_required
 def procedimiento_upload_archivo(slug: str, doc_id: int):
-    u, redir = _require_edit()
-    if redir is not None:
-        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            return jsonify({"ok": False, "error": "sin_permiso"}), 403
-        return redir
     tipo, _ = _resolve_tipo(slug)
     doc = doc_svc.get_documento(doc_id)
     if doc is None or doc.tipo != tipo:
         return jsonify({"ok": False, "message": "Documento no encontrado."}), 404
+    rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
+    u, redir = _require_procedure_content_edit(rev)
+    if redir is not None:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "error": "sin_permiso"}), 403
+        return redir
     f = request.files.get("archivo")
     ok, msg = proc_svc.save_documento_archivo(
         doc_id,
@@ -775,7 +776,16 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
 @bp.post("/<slug>/procedimientos/anexo/<int:anexo_id>/archivo")
 @login_required
 def procedimiento_anexo_upload(slug: str, anexo_id: int):
-    u, redir = _require_edit()
+    from app.extensions import db
+    from app.models.sgi import SgiProcedimientoAnexo
+
+    anexo = db.session.get(SgiProcedimientoAnexo, int(anexo_id))
+    if anexo is None:
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"ok": False, "error": "no_encontrado"}), 404
+        abort(404)
+    rev = anexo.proc_revision
+    u, redir = _require_procedure_content_edit(rev)
     if redir is not None:
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return jsonify({"ok": False, "error": "sin_permiso"}), 403
@@ -785,11 +795,11 @@ def procedimiento_anexo_upload(slug: str, anexo_id: int):
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         extra: dict = {}
         if ok:
-            anexo, _ = proc_svc.get_anexo_for_access(anexo_id)
-            if anexo is not None:
+            anexo2, _ = proc_svc.get_anexo_for_access(anexo_id)
+            if anexo2 is not None:
                 extra = {
-                    "archivo_nombre": proc_svc.anexo_archivo_nombre(anexo.archivo_path),
-                    "vista_tipo": proc_svc.anexo_vista_tipo(anexo.archivo_path),
+                    "archivo_nombre": proc_svc.anexo_archivo_nombre(anexo2.archivo_path),
+                    "vista_tipo": proc_svc.anexo_vista_tipo(anexo2.archivo_path),
                 }
         return jsonify({"ok": ok, "message": msg, **extra}), (200 if ok else 400)
     flash(msg, "success" if ok else "danger")
@@ -806,9 +816,11 @@ def _anexo_access(anexo_id: int, slug: str):
     u, redir = _require_procedure_read(doc)
     if redir is not None:
         return None, None, None, redir
-    if not user_can_edit_sgi_documentos(u) and rev.estado not in ("aprobado", "vigente"):
+    if user_can_edit_sgi_documentos(u) or proc_svc.user_can_edit_revision_content(u, rev):
+        return anexo, doc, rev, None
+    if rev.estado not in ("aprobado", "vigente"):
         abort(404)
-    if not user_can_edit_sgi_documentos(u) and not proc_svc.documento_accesible_por_perfil(u, doc):
+    if not proc_svc.documento_accesible_por_perfil(u, doc):
         abort(404)
     return anexo, doc, rev, None
 
@@ -931,10 +943,10 @@ def procedimiento_anexo_editor(slug: str, anexo_id: int):
 @bp.post("/<slug>/procedimientos/anexo/<int:anexo_id>/contenido")
 @login_required
 def procedimiento_anexo_guardar_contenido(slug: str, anexo_id: int):
-    u, redir = _require_edit()
+    anexo, doc, rev, redir = _anexo_access(anexo_id, slug)
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
-    anexo, _, _, redir = _anexo_access(anexo_id, slug)
+    u, redir = _require_procedure_content_edit(rev)
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
     data = request.get_json(silent=True) or {}

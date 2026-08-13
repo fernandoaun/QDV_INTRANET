@@ -36,7 +36,7 @@
       <label class="form-check mb-0">
         <input class="form-check-input proc-perfil-check" type="checkbox" value="{{ key }}"
                {% if key in perfiles_aplica %}checked{% endif %}
-               {% if solo_lectura or not puede_editar %}disabled{% endif %}>
+               {% if solo_lectura %}disabled{% endif %}>
         <span class="form-check-label">{{ label }}</span>
       </label>
       {% endfor %}
@@ -55,7 +55,7 @@
     <input type="text" class="form-control form-control-sm" id="procTituloInput" value="{{ doc.titulo }}">
   </div>
   <div class="d-flex flex-wrap gap-1 align-items-end">
-    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBorrador"><i class="bi bi-save me-1"></i>Guardar borrador</button>
+    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBorrador"><i class="bi bi-save me-1"></i>{% if rev.estado == 'borrador' %}Guardar borrador{% else %}Guardar cambios{% endif %}</button>
     {% if rev.estado == 'borrador' and puede_editar %}
     <button type="button" class="btn btn-warning btn-sm" id="btnEnviarRevision"><i class="bi bi-send me-1"></i>Enviar a revisión</button>
     {% endif %}
