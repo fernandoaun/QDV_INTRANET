@@ -5,12 +5,12 @@
   <title>{{ anexo.codigo }} · {{ anexo.revision }}</title>
   <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
   {% if mode == 'organigrama' %}
-  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='15') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='16') }}" rel="stylesheet">
   {% endif %}
   <style>
     body { margin: 0; background: #fff; }
     {% if mode == 'organigrama' %}
-    @page { size: A4 landscape; margin: 8mm; }
+    @page { size: A4 landscape; margin: 6mm; }
     {% else %}
     @page { size: A4; margin: 12mm; }
     {% endif %}
@@ -20,36 +20,49 @@
       min-height: 70vh;
       border: none;
     }
-    .sgi-anexo-print-media {
-      position: relative;
-    }
+    .sgi-anexo-print-media { position: relative; }
     {% if mode == 'organigrama' %}
-    .sgi-org-sheet {
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+    /* Una sola hoja A4 apaisada: alto fijo, gráfico en el espacio libre. */
+    .sgi-org-sheet--print-onepage {
       max-width: none;
       box-shadow: none;
       border-radius: 0;
       padding: 0;
-      overflow: visible;
+      width: 100%;
+      height: 198mm;
+      max-height: 198mm;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-sizing: border-box;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .sgi-org-sheet-header {
-      margin-bottom: 0.35rem;
+      flex: 0 0 auto;
+      margin-bottom: 0.25rem;
     }
     .sgi-org-sheet-header .sgi-proc-header-logo-cell .sgi-proc-logo-img {
-      max-height: 40px;
-      max-width: 120px;
+      max-height: 36px;
+      max-width: 110px;
     }
     .sgi-org-chart-wrap {
-      display: block;
+      flex: 1 1 auto;
+      min-height: 0;
       width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      overflow: visible;
+      overflow: hidden;
       padding: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
     }
     .sgi-org-print-fit {
-      /* Contiene el canvas ya dimensionado al fit; sin transform. */
       overflow: hidden;
-      margin: 0 auto;
+      flex: 0 0 auto;
       max-width: 100%;
     }
     .sgi-org-canvas--print {
@@ -59,56 +72,42 @@
       overflow: hidden !important;
       position: relative;
     }
-    /* Anula el tamaño fijo 132×64 del editor: las cajas siguen al modelo escalado. */
-    .sgi-org-canvas--print .sgi-org-canvas-node {
-      width: auto;
-      cursor: default;
-      box-sizing: border-box;
-    }
-    .sgi-org-canvas--print .sgi-org-canvas-node .sgi-org-node {
-      width: 100% !important;
-      min-width: 0 !important;
-      max-width: none !important;
-      height: 100% !important;
-      min-height: 0 !important;
-      box-sizing: border-box;
-      padding: 2px 3px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      overflow: hidden;
-    }
-    .sgi-org-canvas--print .sgi-org-node-title {
-      font-size: var(--org-print-fs, 10px);
-      line-height: 1.1;
-    }
-    .sgi-org-canvas--print .sgi-org-node-user,
-    .sgi-org-canvas--print .sgi-org-node-users {
-      font-size: calc(var(--org-print-fs, 10px) * 0.85);
-      line-height: 1.1;
+    .sgi-org-print-footer {
+      flex: 0 0 auto;
+      padding-top: 0.2rem;
     }
     .sgi-org-print-meta {
-      margin-top: 0.35rem !important;
-      font-size: 9pt;
+      margin: 0 0 0.2rem !important;
+      font-size: 8pt;
     }
     .sgi-anexo-firmas-vista {
-      margin-top: 0.4rem !important;
-      overflow: visible;
+      margin-top: 0 !important;
     }
     .sgi-anexo-firmas-vista .sgi-proc-table {
-      font-size: 9pt;
+      font-size: 8pt;
       width: 100%;
       table-layout: fixed;
+      margin-bottom: 0.15rem;
     }
     .sgi-anexo-firmas-vista .sgi-proc-firma-gerente {
       position: static !important;
-      margin-top: 0.35rem;
+      margin-top: 0.15rem;
     }
     .sgi-anexo-firmas-vista .sgi-proc-firma-gerente-img {
-      max-height: 18mm;
-      max-width: 40mm;
+      max-height: 12mm;
+      max-width: 32mm;
     }
     @media print {
+      html, body {
+        width: auto;
+        height: auto;
+      }
+      .sgi-org-sheet--print-onepage {
+        height: 198mm;
+        max-height: 198mm;
+        overflow: hidden !important;
+      }
+      .sgi-org-chart-wrap,
       .sgi-org-print-fit,
       .sgi-org-canvas--print {
         overflow: hidden !important;
@@ -142,13 +141,13 @@
   {% elif mode == 'documento' %}
   {% include "sgi/_procedure_anexo_document_static.html" %}
   {% elif mode == 'organigrama' %}
-  <div class="sgi-org-sheet">
+  <div class="sgi-org-sheet sgi-org-sheet--print-onepage">
     <div class="sgi-org-sheet-header">
       {% set header_titulo = 'ORGANIGRAMA' %}
       {% set doc_cover = doc %}
       {% include "sgi/_procedure_page_header.html" %}
     </div>
-    <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="view" data-layout="{{ org_layout|default('auto') }}">
+    <div class="sgi-org-chart-wrap" id="sgiOrgPrintWrap" data-mode="view" data-layout="{{ org_layout|default('auto') }}">
       {% if org_layout|default('auto') == 'free' and org_print %}
       {% include "sgi/_organigrama_free_print.html" %}
       {% elif org_layout|default('auto') != 'free' %}
@@ -157,20 +156,64 @@
       <p class="text-muted">No hay datos de organigrama para imprimir.</p>
       {% endif %}
     </div>
-    <p class="sgi-org-print-meta text-end text-muted small mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
-    {% include "sgi/_anexo_firmas_vista.html" %}
+    <div class="sgi-org-print-footer">
+      <p class="sgi-org-print-meta text-end text-muted small mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
+      {% include "sgi/_anexo_firmas_vista.html" %}
+    </div>
   </div>
-  {% if org_layout|default('auto') != 'free' %}
-  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='15') }}"></script>
-  {% endif %}
-  {% endif %}
+  {% if org_layout|default('auto') == 'free' and org_print %}
+  <script>
+    (function () {
+      function fitOrganigramaPrint() {
+        var wrap = document.getElementById("sgiOrgPrintWrap");
+        var fit = document.getElementById("sgiOrgPrintFit");
+        var canvas = document.getElementById("sgiOrgPrintCanvas");
+        if (!wrap || !fit || !canvas) return;
+        var cw = parseFloat(canvas.getAttribute("data-native-w") || "0") || canvas.offsetWidth;
+        var ch = parseFloat(canvas.getAttribute("data-native-h") || "0") || canvas.offsetHeight;
+        var aw = wrap.clientWidth;
+        var ah = wrap.clientHeight;
+        if (cw < 1 || ch < 1 || aw < 20 || ah < 20) return;
+        var s = Math.min(aw / cw, ah / ch, 1);
+        fit.style.width = (cw * s) + "px";
+        fit.style.height = (ch * s) + "px";
+        canvas.style.width = cw + "px";
+        canvas.style.height = ch + "px";
+        canvas.style.transform = "scale(" + s + ")";
+        canvas.style.transformOrigin = "top left";
+      }
+      window.addEventListener("beforeprint", fitOrganigramaPrint);
+      window.addEventListener("load", function () {
+        fitOrganigramaPrint();
+        {% if para_export %}
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            fitOrganigramaPrint();
+            window.print();
+          });
+        });
+        {% endif %}
+      });
+    })();
+  </script>
+  {% elif org_layout|default('auto') != 'free' %}
+  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='16') }}"></script>
   {% if para_export %}
   <script>
     window.addEventListener("load", function () {
       requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          window.print();
-        });
+        requestAnimationFrame(function () { window.print(); });
+      });
+    });
+  </script>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+  {% if para_export and mode != 'organigrama' %}
+  <script>
+    window.addEventListener("load", function () {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { window.print(); });
       });
     });
   </script>

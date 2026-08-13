@@ -1132,6 +1132,8 @@ def test_msgi_organigrama_guardar_contenido_y_caratula(auth_client, app):
     assert "Abrí la vista del organigrama" not in pdf_html
     assert "sgi-org-canvas--print" in pdf_html
     assert "sgi-org-print-fit" in pdf_html
+    assert "sgi-org-sheet--print-onepage" in pdf_html
+    assert "fitOrganigramaPrint" in pdf_html
     assert "sgi-org-canvas-node" in pdf_html
     assert "landscape" in pdf_html
     assert "SGI_ORG_VIEW" not in pdf_html
@@ -1170,8 +1172,8 @@ def test_organigrama_free_print_model():
     assert model["fit_width"] <= model["width"] + 0.1
     assert model["fit_width"] <= _ORG_PRINT_FIT_W + 0.1
     assert model["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
-    assert model["width"] == model["fit_width"]
-    assert model["height"] == model["fit_height"]
+    assert model["width"] >= model["fit_width"] - 0.1
+    assert model["node_w"] == 132
 
     tall = organigrama_free_print_model(
         [
@@ -1186,8 +1188,8 @@ def test_organigrama_free_print_model():
     )
     assert tall["scale"] < 1
     assert tall["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
-    assert tall["height"] == tall["fit_height"]
-    assert tall["nodes"][2]["y"] < 900
+    assert tall["height"] > tall["fit_height"]
+    assert tall["nodes"][2]["y"] == 900
 
 
 def test_anexo_vista_tipo():

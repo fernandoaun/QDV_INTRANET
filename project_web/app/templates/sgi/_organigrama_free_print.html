@@ -1,27 +1,25 @@
-{# Canvas libre estático para PDF/impresión (sin JS). Espera org_print.
-   Coordenadas ya escaladas; las cajas deben usar width/height del modelo
-   (no el CSS fijo de 132×64 del editor). #}
+{# Canvas libre para PDF: tamaño natural + scale en contenedor (una hoja). #}
 {% set p = org_print %}
-{% set fs = ([8, (11 * (p.scale|default(1)))|round|int]|max) %}
-<div class="sgi-org-print-fit" style="width:{{ p.fit_width }}px;height:{{ p.fit_height }}px;">
-  <div class="sgi-org-canvas sgi-org-canvas--print"
-       style="width:{{ p.width }}px;height:{{ p.height }}px;--org-print-fs:{{ fs }}px;">
+<div class="sgi-org-print-fit" id="sgiOrgPrintFit"
+     style="width:{{ p.fit_width }}px;height:{{ p.fit_height }}px;">
+  <div class="sgi-org-canvas sgi-org-canvas--print" id="sgiOrgPrintCanvas"
+       data-native-w="{{ p.width }}" data-native-h="{{ p.height }}"
+       style="width:{{ p.width }}px;height:{{ p.height }}px;transform:scale({{ p.scale }});transform-origin:top left;">
     <svg class="sgi-org-connectors" width="{{ p.width }}" height="{{ p.height }}" aria-hidden="true">
       {% for line in p.polylines %}
       <polyline class="sgi-org-link-seg"
                 fill="none"
                 stroke="{{ '#222222' if line.style == 'dashed' else '#c45c26' }}"
-                stroke-width="{{ [1.5, 2.5 * (p.scale|default(1))]|max }}"
+                stroke-width="2.5"
                 stroke-linecap="square"
                 stroke-linejoin="miter"
-                {% if line.style == 'dashed' %}stroke-dasharray="6 4"{% endif %}
+                {% if line.style == 'dashed' %}stroke-dasharray="7 5"{% endif %}
                 points="{{ line.points }}"></polyline>
       {% endfor %}
     </svg>
     <div class="sgi-org-canvas-nodes">
       {% for n in p.nodes %}
-      <div class="sgi-org-canvas-node"
-           style="left:{{ n.x or 0 }}px;top:{{ n.y or 0 }}px;width:{{ p.node_w }}px;height:{{ p.node_h }}px;">
+      <div class="sgi-org-canvas-node" style="left:{{ n.x or 0 }}px;top:{{ n.y or 0 }}px;width:{{ p.node_w }}px;">
         <div class="sgi-org-node sgi-org-node--{{ n.kind|default('internal') }}">
           <span class="sgi-org-node-title">{{ n.titulo or 'Puesto' }}</span>
           {% if n.usuarios %}
