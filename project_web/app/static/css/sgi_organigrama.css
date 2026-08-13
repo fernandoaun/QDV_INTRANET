@@ -502,4 +502,9 @@
     background: none !important;
     overflow: visible !important;
   }
+
+  .sgi-org-canvas--print,
+  .sgi-org-print-fit {
+    overflow: hidden !important;
+  }
 }

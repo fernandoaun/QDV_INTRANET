@@ -1060,7 +1060,11 @@ def test_msgi_organigrama_guardar_contenido_y_caratula(auth_client, app):
 
 
 def test_organigrama_free_print_model():
-    from app.services.sgi_anexo_service import organigrama_free_print_model
+    from app.services.sgi_anexo_service import (
+        _ORG_PRINT_FIT_H,
+        _ORG_PRINT_FIT_W,
+        organigrama_free_print_model,
+    )
 
     nodes = [
         {"id": "a", "titulo": "Dir", "parent_id": None, "orden": 0, "x": 100, "y": 40, "kind": "internal"},
@@ -1079,6 +1083,23 @@ def test_organigrama_free_print_model():
     assert model["polylines"][0]["style"] == "solid"
     assert model["polylines"][1]["style"] == "dashed"
     assert model["fit_width"] <= model["width"] + 0.1
+    assert model["fit_width"] <= _ORG_PRINT_FIT_W + 0.1
+    assert model["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
+
+    tall = organigrama_free_print_model(
+        [
+            {"id": "a", "titulo": "Dir", "parent_id": None, "orden": 0, "x": 100, "y": 40, "kind": "internal"},
+            {"id": "b", "titulo": "Mid", "parent_id": "a", "orden": 1, "x": 100, "y": 400, "kind": "internal"},
+            {"id": "c", "titulo": "Low", "parent_id": "b", "orden": 2, "x": 100, "y": 900, "kind": "internal"},
+        ],
+        [
+            {"from": "a", "to": "b", "style": "solid"},
+            {"from": "b", "to": "c", "style": "solid"},
+        ],
+    )
+    assert tall["height"] > _ORG_PRINT_FIT_H
+    assert tall["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
+    assert tall["scale"] < 1
 
 
 def test_anexo_vista_tipo():

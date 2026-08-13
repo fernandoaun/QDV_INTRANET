@@ -5,7 +5,7 @@
   <title>{{ anexo.codigo }} · {{ anexo.revision }}</title>
   <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
   {% if mode == 'organigrama' %}
-  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='12') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='13') }}" rel="stylesheet">
   {% endif %}
   <style>
     body { margin: 0; background: #fff; }
@@ -22,30 +22,48 @@
       border-radius: 0;
       padding: 0;
     }
+    .sgi-org-sheet-header {
+      margin-bottom: 0.4rem;
+    }
     .sgi-org-chart-wrap {
       display: block;
       width: 100%;
       max-width: 100%;
       min-width: 0;
-      overflow: visible;
+      overflow: hidden;
       padding: 0;
     }
     .sgi-org-print-fit {
-      overflow: visible;
+      /* Contiene el canvas a tamaño real; el scale no reduce el layout box. */
+      overflow: hidden;
       margin: 0 auto;
+      max-width: 100%;
     }
     .sgi-org-canvas--print {
       background: none !important;
       min-width: 0 !important;
       min-height: 0 !important;
-      overflow: visible !important;
+      overflow: hidden !important;
+    }
+    .sgi-org-print-meta {
+      margin-top: 0.35rem !important;
+    }
+    .sgi-anexo-firmas-vista {
+      margin-top: 0.5rem !important;
     }
     @media print {
-      .sgi-org-sheet,
+      .sgi-org-sheet {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       .sgi-org-chart-wrap,
-      .sgi-org-print-fit,
+      .sgi-org-print-fit {
+        overflow: hidden !important;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
       .sgi-org-canvas--print {
-        overflow: visible !important;
+        overflow: hidden !important;
       }
     }
     {% endif %}
@@ -75,11 +93,11 @@
       <p class="text-muted">No hay datos de organigrama para imprimir.</p>
       {% endif %}
     </div>
-    <p class="text-end text-muted small mt-3 mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
+    <p class="sgi-org-print-meta text-end text-muted small mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
     {% include "sgi/_anexo_firmas_vista.html" %}
   </div>
   {% if org_layout|default('auto') != 'free' %}
-  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='12') }}"></script>
+  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='13') }}"></script>
   {% endif %}
   {% endif %}
   {% if para_export %}

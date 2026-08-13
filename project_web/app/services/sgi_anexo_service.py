@@ -397,8 +397,10 @@ _ORG_NODE_H = 64
 _ORG_NODE_GAP_X = 24
 _ORG_NODE_GAP_Y = 88
 _ORG_CANVAS_PAD = 48
-# Ancho útil aprox. de A4 apaisado con márgenes (px CSS @ 96dpi).
+# Área útil aprox. de A4 apaisado con márgenes, dejando espacio a
+# encabezado + fecha/firmas (px CSS @ 96dpi).
 _ORG_PRINT_FIT_W = 1040.0
+_ORG_PRINT_FIT_H = 520.0
 
 
 def organigrama_seed_free_positions(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -496,7 +498,9 @@ def organigrama_free_print_model(
                 "points": " ".join(f"{px:.1f},{py:.1f}" for px, py in pts),
             }
         )
-    scale = min(1.0, _ORG_PRINT_FIT_W / width) if width > 0 else 1.0
+    scale_w = _ORG_PRINT_FIT_W / width if width > 0 else 1.0
+    scale_h = _ORG_PRINT_FIT_H / height if height > 0 else 1.0
+    scale = min(1.0, scale_w, scale_h)
     return {
         "nodes": placed,
         "width": width,
