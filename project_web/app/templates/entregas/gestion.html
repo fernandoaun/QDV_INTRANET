@@ -61,36 +61,183 @@
   .entregas-list-actions .btn {
     margin-bottom: .2rem;
   }
+  .entregas-kpi-note,
+  .entregas-list-note {
+    margin-bottom: 1rem;
+  }
   @media (max-width: 767.98px) {
+    .entregas-page-alert {
+      font-size: .78rem;
+      margin-bottom: .65rem !important;
+      padding: .5rem .65rem;
+    }
+    .entregas-kpis-row {
+      --bs-gutter-y: 0.5rem;
+      margin-bottom: .65rem !important;
+    }
+    .entregas-kpis-row .app-panel-kpi .app-card-body {
+      padding: .55rem .7rem;
+    }
+    .entregas-kpis-row .app-panel-kpi-value {
+      font-size: 1.15rem;
+      line-height: 1.2;
+    }
+    .entregas-kpis-row .app-card-header {
+      padding: .4rem .7rem;
+    }
+    .entregas-kpis-row .app-text-secondary,
+    .entregas-kpis-row .text-muted {
+      display: none;
+    }
+    .entregas-kpi-note,
+    .entregas-list-note {
+      display: none;
+    }
     .table-responsive.app-table-scroll.entregas-list-wrap {
-      overflow-x: auto;
+      overflow-x: hidden;
+    }
+    .entregas-list-table,
+    .entregas-list-table colgroup,
+    .entregas-list-table thead,
+    .entregas-list-table tbody,
+    .entregas-list-table tr,
+    .entregas-list-table th,
+    .entregas-list-table td {
+      display: block;
+      width: 100% !important;
+      max-width: 100%;
+      min-width: 0 !important;
+    }
+    .entregas-list-table colgroup {
+      display: none;
+    }
+    .entregas-list-table thead {
+      display: none;
     }
     .entregas-list-table {
-      min-width: 64rem;
-      table-layout: fixed;
+      table-layout: auto;
+      border: 0;
     }
-    /* Columnas con mínimo real al hacer scroll (cantidades en dos líneas + badge de estado) */
-    .table-app.table-compact.entregas-list-table thead th:nth-child(5),
-    .table-app.table-compact.entregas-list-table tbody td:nth-child(5) {
-      box-sizing: border-box;
-      min-width: 10.5rem;
-      padding-right: 1rem;
-      width: 12%;
+    .table-app.table-compact.entregas-list-table tbody tr {
+      background: #fff;
+      border: 1px solid rgba(33, 37, 41, 0.12);
+      border-radius: .5rem;
+      box-shadow: 0 1px 2px rgba(30, 45, 61, 0.04);
+      margin: .65rem .75rem;
+      overflow: hidden;
+      padding: .55rem .7rem .65rem;
     }
-    .table-app.table-compact.entregas-list-table thead th:nth-child(6),
-    .table-app.table-compact.entregas-list-table tbody td:nth-child(6) {
-      box-sizing: border-box;
-      min-width: 7.75rem;
-      padding-left: 1rem;
-      width: 11%;
+    .table-app.table-compact.entregas-list-table tbody tr:not(.entregas-quick-row):not(.entregas-list-empty) {
+      display: grid;
+      gap: .15rem .65rem;
+      grid-template-columns: 1fr 1fr;
     }
-    .table-app.table-compact.entregas-list-table tbody td:nth-child(6) .badge {
+    .table-app.table-compact.entregas-list-table tbody tr:not(.entregas-quick-row):not(.entregas-list-empty) > td {
+      width: auto !important;
+    }
+    .table-app.table-compact.entregas-list-table tbody tr.table-warning {
+      background: #fff8e6;
+      border-color: rgba(255, 193, 7, 0.55);
+      box-shadow: 0 0 0 1px rgba(255, 193, 7, 0.25);
+    }
+    .table-app.table-compact.entregas-list-table tbody tr.border-start {
+      border-left-width: 1px !important;
+    }
+    .table-app.table-compact.entregas-list-table tbody td {
+      border: 0 !important;
+      padding: .2rem 0 !important;
+      text-align: left !important;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label]::before {
+      color: #6c757d;
+      content: attr(data-label);
+      display: block;
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      margin-bottom: .1rem;
+      text-transform: uppercase;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Cliente"] {
+      font-size: 1rem;
+      grid-column: 1 / -1;
+      order: 1;
+      padding-top: .1rem !important;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Estado"] {
+      order: 2;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Fecha"] {
+      order: 3;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Lugar"] {
+      grid-column: 1 / -1;
+      order: 4;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Cantidades"] {
+      order: 5;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Producto"] {
+      order: 6;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Chofer"] {
+      grid-column: 1 / -1;
+      order: 7;
+    }
+    .table-app.table-compact.entregas-list-table tbody td[data-label="Estado"] .badge {
       display: inline-block;
       max-width: 100%;
       white-space: normal;
     }
     .entregas-list-actions {
+      border-top: 1px solid rgba(33, 37, 41, 0.08) !important;
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: .35rem;
+      grid-column: 1 / -1;
+      margin-top: .35rem;
+      order: 8;
+      padding-top: .55rem !important;
       white-space: normal !important;
+    }
+    .entregas-list-actions::before {
+      content: none !important;
+    }
+    .entregas-list-actions .btn {
+      flex: 1 1 auto;
+      font-size: .8rem;
+      margin-bottom: 0;
+      min-height: 2.15rem;
+      padding: .3rem .55rem;
+      white-space: nowrap;
+    }
+    .entregas-list-empty td {
+      border: 0 !important;
+      padding: 1rem .5rem !important;
+      text-align: center !important;
+    }
+    /* Fila rápida: campos apilados, botón compacto */
+    .entregas-quick-row {
+      background: #f7fbff !important;
+      border-color: rgba(13, 110, 253, 0.35) !important;
+    }
+    .entregas-quick-row td {
+      background: transparent;
+      border: 0 !important;
+      padding: .35rem 0 !important;
+    }
+    .entregas-quick-row .entregas-quick-input {
+      font-size: .9rem;
+      min-height: 2.35rem;
+      padding: .35rem .5rem;
+    }
+    .entregas-quick-row .entregas-list-actions {
+      border-top: 1px solid rgba(13, 110, 253, 0.18) !important;
+    }
+    .entregas-quick-row .entregas-list-actions .btn {
+      flex: 1 1 100%;
+      font-size: .85rem;
+      font-weight: 600;
     }
   }
 </style>
@@ -99,36 +246,36 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title text-uppercase">Entregas</h1>
-    <p class="app-intro mb-0">Tabla operativa. Las acciones críticas piden confirmación y se validan en el servidor.</p>
+    <p class="app-intro mb-0 d-none d-md-block">Tabla operativa. Las acciones críticas piden confirmación y se validan en el servidor.</p>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('entregas.hub') }}">← Hub</a>
-    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('entregas.historial_entregas_lista') }}">Ver historial de entregas</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('entregas.historial_entregas_lista') }}"><span class="d-md-none">Historial</span><span class="d-none d-md-inline">Ver historial de entregas</span></a>
   </div>
 </div>
 
 {% if user_can_entregas_hub and not user_can_entregas_cargar() %}
-<div class="alert alert-warning small mb-3" role="status">
+<div class="alert alert-warning small mb-3 entregas-page-alert" role="status">
   No tenés permiso para confirmar la <strong>carga en camión</strong>. Pedí a un administrador que revise tu usuario en <strong>Usuarios → Editar</strong> y habilite <strong>Entregas → Cargar en camión (operaciones)</strong>. Si acaban de cambiar permisos, cerrá sesión y volvé a entrar.
 </div>
 {% elif user_can_entregas_cargar() %}
-<div class="alert alert-info small mb-3" role="status">
-  Completá <strong>volumen cargado</strong> y <strong>chofer</strong>; la fecha se registra sola. Usá el botón <strong>CARGAR CAMIÓN</strong> en la primera fila del listado. Logística asignará cliente, destino y volumen a descargar.
+<div class="alert alert-info small mb-3 entregas-page-alert" role="status">
+  Completá <strong>volumen cargado</strong> y <strong>chofer</strong>; la fecha se registra sola. Usá el botón <strong>Cargar camión</strong> en la primera fila del listado. Logística asignará cliente, destino y volumen a descargar.
 </div>
 {% elif user_can_entregas_programar() %}
-<div class="alert alert-info small mb-3" role="status">
+<div class="alert alert-info small mb-3 entregas-page-alert" role="status">
   Asigná <strong>cliente</strong>, <strong>destino</strong> y, si hace falta, ajustá el <strong>volumen a descargar</strong> en camiones ya cargados (estado <strong>Cargada</strong> sin destino). Después podés marcar <strong>Entregado</strong>.
 </div>
 {% endif %}
 
-<div class="row g-3 mb-3">
-  <div class="col-md-6">
+<div class="row g-3 mb-3 entregas-kpis-row">
+  <div class="col-6 col-md-6">
     <div
       class="app-card app-panel-kpi h-100 mb-0"
       title="Suma de litros reales cargados con fecha/hora de «Cargar» (cargada_at_iso) en los últimos {{ entregas_kpis.periodo_dias }} días corridos, hora planta. No incluye solo programadas."
     >
       <div class="app-card-header app-card-header--split">
-        <span class="text-uppercase fw-semibold small">Producto cargado último mes</span>
+        <span class="text-uppercase fw-semibold small"><span class="d-md-none">Cargado</span><span class="d-none d-md-inline">Producto cargado último mes</span></span>
         <span class="small app-text-secondary">{{ entregas_kpis.unidad }}</span>
       </div>
       <div class="app-card-body">
@@ -138,13 +285,13 @@
       </div>
     </div>
   </div>
-  <div class="col-md-6">
+  <div class="col-6 col-md-6">
     <div
       class="app-card app-panel-kpi h-100 mb-0"
       title="Suma de litros reales entregados con estado entregada y fecha/hora de «Entregado» (entregada_at_iso) en los últimos {{ entregas_kpis.periodo_dias }} días corridos. No incluye cargado sin entregar."
     >
       <div class="app-card-header app-card-header--split">
-        <span class="text-uppercase fw-semibold small">Producto entregado último mes</span>
+        <span class="text-uppercase fw-semibold small"><span class="d-md-none">Entregado</span><span class="d-none d-md-inline">Producto entregado último mes</span></span>
         <span class="small app-text-secondary">{{ entregas_kpis.unidad }}</span>
       </div>
       <div class="app-card-body">
@@ -155,10 +302,10 @@
     </div>
   </div>
 </div>
-<p class="small app-text-secondary mb-3 mb-md-2">
+<p class="small app-text-secondary mb-3 mb-md-2 entregas-kpi-note">
   Criterio temporal: <strong>últimos {{ entregas_kpis.periodo_dias }} días corridos</strong> hasta el momento actual (zona horaria de operación). Los títulos dicen «último mes» en sentido operativo; el cálculo es la ventana móvil de {{ entregas_kpis.periodo_dias }} días, no el mes calendario.
 </p>
-<p class="small app-text-secondary mb-3 mb-md-2">
+<p class="small app-text-secondary mb-3 mb-md-2 entregas-list-note">
   <strong>Listado principal:</strong> entregas desde <strong>lun {{ entregas_vista_semana_lunes.strftime('%Y-%m-%d') }}</strong> en adelante, más entregas de fechas anteriores cuyo estado aún no es entregada. El resto del historial está en <a href="{{ url_for('entregas.historial_entregas_lista') }}">Ver historial de entregas</a>.
 </p>
 
@@ -235,8 +382,8 @@
               {% endfor %}
             </select>
           </td>
-          <td class="text-end entregas-list-actions">
-            <button type="submit" form="entregaCargaCamionForm" class="btn btn-warning btn-lg fw-semibold px-3" {% if not quick_producto_terminado_id %}disabled title="Falta producto terminado activo"{% endif %}>CARGAR CAMIÓN</button>
+          <td class="text-end entregas-list-actions" data-label="Acciones">
+            <button type="submit" form="entregaCargaCamionForm" class="btn btn-warning btn-sm fw-semibold" {% if not quick_producto_terminado_id %}disabled title="Falta producto terminado activo"{% endif %}>Cargar camión</button>
           </td>
         </tr>
         {% endif %}
@@ -319,7 +466,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-center app-text-secondary py-4">No hay entregas en esta vista (desde el lunes actual + pendientes de fechas anteriores sin entregar).</td></tr>
+        <tr class="entregas-list-empty"><td colspan="8" class="text-center app-text-secondary py-4">No hay entregas en esta vista (desde el lunes actual + pendientes de fechas anteriores sin entregar).</td></tr>
         {% endfor %}
       </tbody>
     </table>
