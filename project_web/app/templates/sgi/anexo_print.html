@@ -5,25 +5,40 @@
   <title>{{ anexo.codigo }} · {{ anexo.revision }}</title>
   <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
   {% if mode == 'organigrama' %}
-  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='13') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='14') }}" rel="stylesheet">
   {% endif %}
   <style>
     body { margin: 0; background: #fff; }
     {% if mode == 'organigrama' %}
-    @page { size: A4 landscape; margin: 8mm; }
+    @page { size: A4 landscape; margin: 6mm; }
     {% else %}
     @page { size: A4; margin: 12mm; }
     {% endif %}
     .sgi-anexo-print-img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+    .sgi-anexo-print-pdf-frame {
+      width: 100%;
+      min-height: 70vh;
+      border: none;
+    }
+    .sgi-anexo-print-media {
+      position: relative;
+    }
     {% if mode == 'organigrama' %}
     .sgi-org-sheet {
       max-width: none;
       box-shadow: none;
       border-radius: 0;
       padding: 0;
+      max-height: 198mm;
+      overflow: hidden;
+      box-sizing: border-box;
     }
     .sgi-org-sheet-header {
-      margin-bottom: 0.4rem;
+      margin-bottom: 0.25rem;
+    }
+    .sgi-org-sheet-header .sgi-proc-header-logo-cell .sgi-proc-logo-img {
+      max-height: 36px;
+      max-width: 110px;
     }
     .sgi-org-chart-wrap {
       display: block;
@@ -34,7 +49,6 @@
       padding: 0;
     }
     .sgi-org-print-fit {
-      /* Contiene el canvas a tamaño real; el scale no reduce el layout box. */
       overflow: hidden;
       margin: 0 auto;
       max-width: 100%;
@@ -44,26 +58,51 @@
       min-width: 0 !important;
       min-height: 0 !important;
       overflow: hidden !important;
+      position: relative;
+    }
+    .sgi-org-canvas--print .sgi-org-node {
+      font-size: 9px;
+      padding: 2px 4px;
+      min-height: 0 !important;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    .sgi-org-canvas--print .sgi-org-canvas-node {
+      box-sizing: border-box;
+    }
+    .sgi-org-canvas--print .sgi-org-node-title {
+      font-size: 9px;
+      line-height: 1.15;
+    }
+    .sgi-org-canvas--print .sgi-org-node-user {
+      font-size: 8px;
     }
     .sgi-org-print-meta {
-      margin-top: 0.35rem !important;
+      margin-top: 0.2rem !important;
+      font-size: 8pt;
     }
     .sgi-anexo-firmas-vista {
-      margin-top: 0.5rem !important;
+      margin-top: 0.25rem !important;
+    }
+    .sgi-anexo-firmas-vista .sgi-proc-table {
+      font-size: 8pt;
+    }
+    .sgi-anexo-firmas-vista .sgi-proc-firma-gerente-img {
+      max-height: 16mm;
+      max-width: 36mm;
     }
     @media print {
       .sgi-org-sheet {
-        page-break-inside: avoid;
-        break-inside: avoid;
+        max-height: 198mm;
+        overflow: hidden !important;
       }
       .sgi-org-chart-wrap,
-      .sgi-org-print-fit {
-        overflow: hidden !important;
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
+      .sgi-org-print-fit,
       .sgi-org-canvas--print {
         overflow: hidden !important;
+      }
+      .sgi-proc-firma-gerente {
+        position: static !important;
       }
     }
     {% endif %}
@@ -71,9 +110,22 @@
 </head>
 <body>
   {% if mode == 'image' %}
-  <img class="sgi-anexo-print-img"
-       src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
-       alt="{{ anexo.nombre }}">
+  {% set firma_gerente_en_adjunto = true %}
+  <div class="sgi-anexo-print-media">
+    {% include "sgi/_anexo_firma_adjunto_bar.html" %}
+    <img class="sgi-anexo-print-img"
+         src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+         alt="{{ anexo.nombre }}">
+  </div>
+  {% include "sgi/_anexo_firmas_vista.html" %}
+  {% elif mode == 'pdf_adjunto' %}
+  {% set firma_gerente_en_adjunto = true %}
+  <div class="sgi-anexo-print-media">
+    {% include "sgi/_anexo_firma_adjunto_bar.html" %}
+    <iframe class="sgi-anexo-print-pdf-frame"
+            src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+            title="{{ anexo.nombre }}"></iframe>
+  </div>
   {% include "sgi/_anexo_firmas_vista.html" %}
   {% elif mode == 'documento' %}
   {% include "sgi/_procedure_anexo_document_static.html" %}
@@ -97,7 +149,7 @@
     {% include "sgi/_anexo_firmas_vista.html" %}
   </div>
   {% if org_layout|default('auto') != 'free' %}
-  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='13') }}"></script>
+  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='14') }}"></script>
   {% endif %}
   {% endif %}
   {% if para_export %}

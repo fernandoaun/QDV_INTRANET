@@ -79,6 +79,32 @@
   text-align: right;
 }
 
+/* Firma visible junto al adjunto (no tapada por el iframe del PDF) */
+.sgi-anexo-firma-adjunto-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 0.65rem 0.25rem 0.85rem;
+  margin-bottom: 0.35rem;
+  border-bottom: 1px solid #dee2e6;
+  background: #fff;
+}
+
+.sgi-anexo-firma-adjunto-bar .sgi-proc-firma-gerente {
+  position: static;
+  right: auto;
+  bottom: auto;
+  max-width: none;
+}
+
+.sgi-anexo-firma-adjunto-label {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0;
+}
+
 /* —— Logo (extraído de QDV-PG-01) —— */
 .sgi-proc-logo-img {
   display: block;

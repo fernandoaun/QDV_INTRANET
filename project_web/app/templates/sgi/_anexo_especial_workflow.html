@@ -128,7 +128,7 @@
         <img src="{{ firma_gerente_url }}" alt="Vista previa firma" class="sgi-proc-firma-gerente-img border" style="max-width:180px;">
       </div>
       {% endif %}
-      {% if not solo_lectura|default(false) %}
+      {% if (not solo_lectura|default(false)) or puede_editar|default(false) %}
       <input type="file" class="form-control form-control-sm" id="anexoFirmaGerenteInput" accept="image/png,image/jpeg,image/webp,image/gif">
       {% elif not firma_gerente_url %}
       <p class="text-muted small mb-0">Sin firma cargada.</p>

@@ -865,6 +865,91 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
         shutil.rmtree(uploads_workspace_root().joinpath("sgi", str(doc_id)), ignore_errors=True)
 
 
+def test_msgi_politica_aprobada_muestra_firma_gerente(auth_client, app, tmp_path, admin_user):
+    from io import BytesIO
+
+    from app.extensions import db
+    from app.models import User
+    from app.services import sgi_documento_perfil_service as perfil_svc
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.services.upload_paths import uploads_workspace_root
+    from werkzeug.datastructures import FileStorage
+
+    src = tmp_path / "politica.pdf"
+    src.write_bytes(b"%PDF-1.4 test")
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO I",
+            "nombre": "POLÍTICA CSSA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "documento",
+            "archivo": src,
+        },
+    )
+
+    with app.app_context():
+        admin = db.session.scalar(db.select(User).where(User.username == admin_user))
+        assert admin is not None
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        rev = proc_svc.revision_actual(doc) or proc_svc.revision_en_trabajo(doc)
+        assert rev is not None
+        rev.reviso = "Revisor Test"
+        rev.revisor_correo = "revisor@example.com"
+        rev.aprobo = "Aprobador Test"
+        rev.aprobador_correo = "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        png = (
+            b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+            b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+            b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+        )
+        ok, msg = proc_svc.save_firma_gerente_file(
+            doc.id,
+            FileStorage(stream=BytesIO(png), filename="firma.png", content_type="image/png"),
+            admin.id,
+        )
+        assert ok, msg
+        ok, msg = proc_svc.enviar_a_revision(rev.id, admin.id, "Tester")
+        assert ok, msg
+        ok, msg = proc_svc.marcar_como_revisado(rev.id, admin.id, "Tester")
+        assert ok, msg
+        ok, msg = proc_svc.aprobar_revision(rev.id, admin.id, "Tester")
+        assert ok, msg
+        doc_id, rev_id = doc.id, rev.id
+
+    r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista/{rev_id}")
+    assert r_vista.status_code == 200
+    html = r_vista.get_data(as_text=True)
+    assert "sgi-anexo-firma-adjunto-bar" in html
+    assert "Firma del gerente general" in html
+    assert f"/sgi/msgc/{doc_id}/firma-gerente" in html
+    assert 'class="sgi-proc-firma-gerente"' in html
+
+    r_pdf = auth_client.get(
+        f"/sgi/msgc/procedimientos/{doc_id}/revision/{rev_id}/export/pdf"
+    )
+    assert r_pdf.status_code == 200
+    assert r_pdf.headers.get("Content-Type", "").startswith("text/html")
+    pdf_html = r_pdf.get_data(as_text=True)
+    assert "sgi-anexo-firma-adjunto-bar" in pdf_html
+    assert f"/sgi/msgc/{doc_id}/firma-gerente" in pdf_html
+
+    with app.app_context():
+        import shutil
+
+        from app.models.sgi import SgiDocumento
+
+        doc = db.session.get(SgiDocumento, doc_id)
+        for rev in list(doc.revisiones_proc):
+            db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+        shutil.rmtree(uploads_workspace_root().joinpath("sgi", "procedimientos", str(doc_id)), ignore_errors=True)
+        shutil.rmtree(uploads_workspace_root().joinpath("sgi", str(doc_id)), ignore_errors=True)
+
+
 def test_msgi_editor_foda_muestra_adjunto(auth_client, app, tmp_path):
     from app.extensions import db
     from app.models.sgi import SgiDocumento
@@ -1085,6 +1170,8 @@ def test_organigrama_free_print_model():
     assert model["fit_width"] <= model["width"] + 0.1
     assert model["fit_width"] <= _ORG_PRINT_FIT_W + 0.1
     assert model["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
+    assert model["width"] == model["fit_width"]
+    assert model["height"] == model["fit_height"]
 
     tall = organigrama_free_print_model(
         [
@@ -1097,9 +1184,10 @@ def test_organigrama_free_print_model():
             {"from": "b", "to": "c", "style": "solid"},
         ],
     )
-    assert tall["height"] > _ORG_PRINT_FIT_H
-    assert tall["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
     assert tall["scale"] < 1
+    assert tall["fit_height"] <= _ORG_PRINT_FIT_H + 0.1
+    assert tall["height"] == tall["fit_height"]
+    assert tall["nodes"][2]["y"] < 900
 
 
 def test_anexo_vista_tipo():

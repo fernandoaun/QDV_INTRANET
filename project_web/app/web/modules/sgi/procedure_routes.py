@@ -754,10 +754,10 @@ def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimien
     path = doc_svc.attachment_absolute_path(doc.archivo_path) if doc.archivo_path else None
     vista = proc_svc.anexo_vista_tipo(doc.archivo_path) if path is not None else None
 
-    # Misma regla que procedimiento_vista: documento/archivo con adjunto → el archivo.
+    # Adjunto + versión aprobada: HTML de impresión con firma del gerente.
+    # Borradores / sin firma visual: mismo archivo que «Ver»/Descargar.
     if tc != ANEXO_TIPO_ORGANIGRAMA and path is not None:
-        if fmt == "pdf" and vista == "pdf":
-            return _send_documento_archivo(doc, as_attachment=False)
+        aprobado = rev.estado in ("aprobado", "vigente")
         if fmt == "pdf" and vista == "image":
             html = render_template(
                 "sgi/anexo_print.html",
@@ -772,6 +772,22 @@ def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimien
                 ),
             )
             return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+        if fmt == "pdf" and vista == "pdf" and aprobado:
+            html = render_template(
+                "sgi/anexo_print.html",
+                **_procedure_render_kwargs(
+                    mode="pdf_adjunto",
+                    slug=slug,
+                    doc=doc,
+                    rev=rev,
+                    anexo=item,
+                    standalone=True,
+                    para_export=True,
+                ),
+            )
+            return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+        if fmt == "pdf" and vista == "pdf":
+            return _send_documento_archivo(doc, as_attachment=False)
         if fmt in ("pdf", "word"):
             return _send_documento_archivo(doc, as_attachment=True)
         abort(404)

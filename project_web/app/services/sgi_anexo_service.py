@@ -398,9 +398,10 @@ _ORG_NODE_GAP_X = 24
 _ORG_NODE_GAP_Y = 88
 _ORG_CANVAS_PAD = 48
 # Área útil aprox. de A4 apaisado con márgenes, dejando espacio a
-# encabezado + fecha/firmas (px CSS @ 96dpi).
-_ORG_PRINT_FIT_W = 1040.0
-_ORG_PRINT_FIT_H = 520.0
+# encabezado + fecha/firmas (px CSS @ 96dpi). Más bajo que el alto
+# imprimible para que el bloque completo entre en una sola hoja.
+_ORG_PRINT_FIT_W = 1000.0
+_ORG_PRINT_FIT_H = 400.0
 
 
 def organigrama_seed_free_positions(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -501,16 +502,42 @@ def organigrama_free_print_model(
     scale_w = _ORG_PRINT_FIT_W / width if width > 0 else 1.0
     scale_h = _ORG_PRINT_FIT_H / height if height > 0 else 1.0
     scale = min(1.0, scale_w, scale_h)
+    # Coordenadas ya escaladas: evita transform:scale (en impresión el
+    # layout box no se reduce y genera una segunda hoja).
+    fit_w = round(width * scale, 1)
+    fit_h = round(height * scale, 1)
+    node_w = round(_ORG_NODE_W * scale, 1)
+    node_h = round(_ORG_NODE_H * scale, 1)
+    scaled_nodes: list[dict[str, Any]] = []
+    for n in placed:
+        row = dict(n)
+        x = _organigrama_coord(n.get("x")) or 0.0
+        y = _organigrama_coord(n.get("y")) or 0.0
+        row["x"] = round(x * scale, 1)
+        row["y"] = round(y * scale, 1)
+        scaled_nodes.append(row)
+    scaled_lines: list[dict[str, Any]] = []
+    for line in polylines:
+        pts = []
+        for pair in str(line.get("points") or "").split():
+            if "," not in pair:
+                continue
+            sx, sy = pair.split(",", 1)
+            try:
+                pts.append(f"{float(sx) * scale:.1f},{float(sy) * scale:.1f}")
+            except ValueError:
+                continue
+        scaled_lines.append({"style": line.get("style"), "points": " ".join(pts)})
     return {
-        "nodes": placed,
-        "width": width,
-        "height": height,
-        "polylines": polylines,
+        "nodes": scaled_nodes,
+        "width": fit_w,
+        "height": fit_h,
+        "polylines": scaled_lines,
         "scale": round(scale, 4),
-        "fit_width": round(width * scale, 1),
-        "fit_height": round(height * scale, 1),
-        "node_w": _ORG_NODE_W,
-        "node_h": _ORG_NODE_H,
+        "fit_width": fit_w,
+        "fit_height": fit_h,
+        "node_w": node_w,
+        "node_h": node_h,
     }
 
 

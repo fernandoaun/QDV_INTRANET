@@ -1,0 +1,7 @@
+{# Barra de firma sobre el adjunto — evita que el iframe PDF la tape. #}
+{% if firma_gerente_url and doc_aprobado|default(false) %}
+<div class="sgi-anexo-firma-adjunto-bar">
+  <p class="sgi-anexo-firma-adjunto-label mb-0">Firma del gerente general</p>
+  {% include "sgi/_procedure_firma_gerente.html" %}
+</div>
+{% endif %}

@@ -17,6 +17,7 @@
 </div>
 
 {% if anexo.archivo_path %}
+{% set firma_gerente_en_adjunto = vista_tipo in ('image', 'pdf') %}
 <div class="app-card mb-3">
   <div class="app-card-header py-2 d-flex justify-content-between align-items-center sgi-proc-no-print">
     <span class="fw-semibold">Documento adjunto</span>
@@ -27,12 +28,18 @@
   </div>
   <div class="app-card-body sgi-anexo-view-body">
     {% if vista_tipo == 'image' %}
-    <img src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
-         alt="{{ anexo.nombre }}" class="sgi-anexo-view-img">
+    <div class="sgi-msgi-pdf-wrap">
+      {% include "sgi/_anexo_firma_adjunto_bar.html" %}
+      <img src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+           alt="{{ anexo.nombre }}" class="sgi-anexo-view-img">
+    </div>
     {% elif vista_tipo == 'pdf' %}
-    <iframe class="sgi-anexo-view-pdf"
-            src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
-            title="{{ anexo.nombre }}"></iframe>
+    <div class="sgi-msgi-pdf-wrap">
+      {% include "sgi/_anexo_firma_adjunto_bar.html" %}
+      <iframe class="sgi-anexo-view-pdf"
+              src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+              title="{{ anexo.nombre }}"></iframe>
+    </div>
     {% elif vista_tipo == 'office' %}
     <div class="text-center py-5">
       <i class="bi bi-file-earmark-text display-4 text-muted d-block mb-3" aria-hidden="true"></i>

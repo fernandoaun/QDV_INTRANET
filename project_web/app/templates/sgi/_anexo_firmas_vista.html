@@ -16,6 +16,8 @@
   {% if rev.fecha_aprobacion %}
   <p class="text-end text-muted small mb-0">Fecha de aprobación: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') }}</p>
   {% endif %}
+  {% if not firma_gerente_en_adjunto|default(false) %}
   {% include "sgi/_procedure_firma_gerente.html" %}
+  {% endif %}
 </div>
 {% endif %}

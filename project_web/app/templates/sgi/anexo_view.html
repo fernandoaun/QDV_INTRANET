@@ -5,6 +5,7 @@
 <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
+{% set firma_gerente_en_adjunto = vista_tipo in ('image', 'pdf') %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title h5 mb-1">{{ anexo.codigo }} — {{ anexo.nombre }}</h1>
@@ -30,13 +31,19 @@
 <div class="app-card">
   <div class="app-card-body sgi-anexo-view-body">
     {% if vista_tipo == 'image' %}
-    <img src="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}{% endif %}"
-         alt="{{ anexo.nombre }}"
-         class="sgi-anexo-view-img">
+    <div class="sgi-msgi-pdf-wrap">
+      {% include "sgi/_anexo_firma_adjunto_bar.html" %}
+      <img src="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}{% endif %}"
+           alt="{{ anexo.nombre }}"
+           class="sgi-anexo-view-img">
+    </div>
     {% elif vista_tipo == 'pdf' %}
-    <iframe class="sgi-anexo-view-pdf"
-            src="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}{% endif %}"
-            title="{{ anexo.nombre }}"></iframe>
+    <div class="sgi-msgi-pdf-wrap">
+      {% include "sgi/_anexo_firma_adjunto_bar.html" %}
+      <iframe class="sgi-anexo-view-pdf"
+              src="{% if standalone %}{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}{% else %}{{ url_for('sgi.procedimiento_anexo_download', slug=slug, anexo_id=anexo.id, inline=1) }}{% endif %}"
+              title="{{ anexo.nombre }}"></iframe>
+    </div>
     {% elif vista_tipo == 'office' %}
     <div class="text-center py-5">
       <i class="bi bi-file-earmark-text display-4 text-muted d-block mb-3" aria-hidden="true"></i>
