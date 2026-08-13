@@ -21,6 +21,23 @@
       border: none;
     }
     .sgi-anexo-print-media { position: relative; }
+    {% if mode == 'documento' %}
+    /* Firma debajo del texto del documento, no flotando sobre la hoja. */
+    .sgi-proc-sheet .sgi-proc-firma-gerente {
+      position: static;
+      display: block;
+      text-align: right;
+      margin: 1.25rem 0 0;
+      max-width: none;
+    }
+    @media print {
+      .sgi-proc-sheet .sgi-proc-firma-gerente {
+        position: static !important;
+        right: auto;
+        bottom: auto;
+      }
+    }
+    {% endif %}
     {% if mode == 'organigrama' %}
     html, body {
       width: 100%;
@@ -94,8 +111,8 @@
       margin-top: 0.15rem;
     }
     .sgi-anexo-firmas-vista .sgi-proc-firma-gerente-img {
-      max-height: 12mm;
-      max-width: 32mm;
+      max-height: 24mm;
+      max-width: 50mm;
     }
     @media print {
       html, body {
@@ -121,18 +138,14 @@
 </head>
 <body>
   {% if mode == 'image' %}
-  {% set firma_gerente_en_adjunto = true %}
   <div class="sgi-anexo-print-media">
-    {% include "sgi/_anexo_firma_adjunto_bar.html" %}
     <img class="sgi-anexo-print-img"
          src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
          alt="{{ anexo.nombre }}">
   </div>
   {% include "sgi/_anexo_firmas_vista.html" %}
   {% elif mode == 'pdf_adjunto' %}
-  {% set firma_gerente_en_adjunto = true %}
   <div class="sgi-anexo-print-media">
-    {% include "sgi/_anexo_firma_adjunto_bar.html" %}
     <iframe class="sgi-anexo-print-pdf-frame"
             src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
             title="{{ anexo.nombre }}"></iframe>

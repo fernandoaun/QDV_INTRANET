@@ -747,15 +747,48 @@ def _send_documento_archivo(doc: SgiDocumento, *, as_attachment: bool):
 
 
 def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimientoRevision, fmt: str):
-    """PDF/Word de anexos MSGC: igual que «Ver», sin plantilla de procedimiento PG/PO."""
+    """PDF/Word de anexos MSGC especiales.
+
+    - documento (política, FODA): contenido visual + firma debajo del texto.
+      El Word/PDF original se obtiene con «Descargar», no con «PDF».
+    - archivo (mapa, etc.): el adjunto, con firma en impresión si aplica.
+    - organigrama: canvas de una hoja.
+    """
     tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)
     item = anexo_svc.documento_view_item(doc, rev)
     safe_name = f"{doc.codigo}_{rev.revision_label}".replace(" ", "_").replace(".", "")
     path = doc_svc.attachment_absolute_path(doc.archivo_path) if doc.archivo_path else None
     vista = proc_svc.anexo_vista_tipo(doc.archivo_path) if path is not None else None
 
-    # Adjunto + versión aprobada: HTML de impresión con firma del gerente.
-    # Borradores / sin firma visual: mismo archivo que «Ver»/Descargar.
+    if tc == ANEXO_TIPO_DOCUMENTO:
+        html = render_template(
+            "sgi/anexo_print.html",
+            **_procedure_render_kwargs(
+                mode="documento",
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                anexo=item,
+                standalone=True,
+                payload=anexo_svc.documento_payload_for_view(doc, rev),
+                secciones=PROCEDIMIENTO_SECCIONES,
+                para_export=True,
+            ),
+        )
+        if fmt == "pdf":
+            return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+        if fmt == "word":
+            return (
+                html,
+                200,
+                {
+                    "Content-Type": "application/msword",
+                    "Content-Disposition": f'attachment; filename="{safe_name}.doc"',
+                },
+            )
+        abort(404)
+
+    # Adjunto puro (mapa de procesos, etc.)
     if tc != ANEXO_TIPO_ORGANIGRAMA and path is not None:
         aprobado = rev.estado in ("aprobado", "vigente")
         if fmt == "pdf" and vista == "image":
@@ -790,34 +823,6 @@ def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimien
             return _send_documento_archivo(doc, as_attachment=False)
         if fmt in ("pdf", "word"):
             return _send_documento_archivo(doc, as_attachment=True)
-        abort(404)
-
-    if tc == ANEXO_TIPO_DOCUMENTO:
-        html = render_template(
-            "sgi/anexo_print.html",
-            **_procedure_render_kwargs(
-                mode="documento",
-                slug=slug,
-                doc=doc,
-                rev=rev,
-                anexo=item,
-                standalone=True,
-                payload=anexo_svc.documento_payload_for_view(doc, rev),
-                secciones=PROCEDIMIENTO_SECCIONES,
-                para_export=True,
-            ),
-        )
-        if fmt == "pdf":
-            return html, 200, {"Content-Type": "text/html; charset=utf-8"}
-        if fmt == "word":
-            return (
-                html,
-                200,
-                {
-                    "Content-Type": "application/msword",
-                    "Content-Disposition": f'attachment; filename="{safe_name}.doc"',
-                },
-            )
         abort(404)
 
     if tc == ANEXO_TIPO_ORGANIGRAMA:
