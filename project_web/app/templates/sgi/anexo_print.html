@@ -5,12 +5,12 @@
   <title>{{ anexo.codigo }} · {{ anexo.revision }}</title>
   <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
   {% if mode == 'organigrama' %}
-  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='14') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='15') }}" rel="stylesheet">
   {% endif %}
   <style>
     body { margin: 0; background: #fff; }
     {% if mode == 'organigrama' %}
-    @page { size: A4 landscape; margin: 6mm; }
+    @page { size: A4 landscape; margin: 8mm; }
     {% else %}
     @page { size: A4; margin: 12mm; }
     {% endif %}
@@ -29,26 +29,25 @@
       box-shadow: none;
       border-radius: 0;
       padding: 0;
-      max-height: 198mm;
-      overflow: hidden;
-      box-sizing: border-box;
+      overflow: visible;
     }
     .sgi-org-sheet-header {
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.35rem;
     }
     .sgi-org-sheet-header .sgi-proc-header-logo-cell .sgi-proc-logo-img {
-      max-height: 36px;
-      max-width: 110px;
+      max-height: 40px;
+      max-width: 120px;
     }
     .sgi-org-chart-wrap {
       display: block;
       width: 100%;
       max-width: 100%;
       min-width: 0;
-      overflow: hidden;
+      overflow: visible;
       padding: 0;
     }
     .sgi-org-print-fit {
+      /* Contiene el canvas ya dimensionado al fit; sin transform. */
       overflow: hidden;
       margin: 0 auto;
       max-width: 100%;
@@ -60,43 +59,56 @@
       overflow: hidden !important;
       position: relative;
     }
-    .sgi-org-canvas--print .sgi-org-node {
-      font-size: 9px;
-      padding: 2px 4px;
-      min-height: 0 !important;
-      height: 100%;
+    /* Anula el tamaño fijo 132×64 del editor: las cajas siguen al modelo escalado. */
+    .sgi-org-canvas--print .sgi-org-canvas-node {
+      width: auto;
+      cursor: default;
       box-sizing: border-box;
     }
-    .sgi-org-canvas--print .sgi-org-canvas-node {
+    .sgi-org-canvas--print .sgi-org-canvas-node .sgi-org-node {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      height: 100% !important;
+      min-height: 0 !important;
       box-sizing: border-box;
+      padding: 2px 3px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
     }
     .sgi-org-canvas--print .sgi-org-node-title {
-      font-size: 9px;
-      line-height: 1.15;
+      font-size: var(--org-print-fs, 10px);
+      line-height: 1.1;
     }
-    .sgi-org-canvas--print .sgi-org-node-user {
-      font-size: 8px;
+    .sgi-org-canvas--print .sgi-org-node-user,
+    .sgi-org-canvas--print .sgi-org-node-users {
+      font-size: calc(var(--org-print-fs, 10px) * 0.85);
+      line-height: 1.1;
     }
     .sgi-org-print-meta {
-      margin-top: 0.2rem !important;
-      font-size: 8pt;
+      margin-top: 0.35rem !important;
+      font-size: 9pt;
     }
     .sgi-anexo-firmas-vista {
-      margin-top: 0.25rem !important;
+      margin-top: 0.4rem !important;
+      overflow: visible;
     }
     .sgi-anexo-firmas-vista .sgi-proc-table {
-      font-size: 8pt;
+      font-size: 9pt;
+      width: 100%;
+      table-layout: fixed;
+    }
+    .sgi-anexo-firmas-vista .sgi-proc-firma-gerente {
+      position: static !important;
+      margin-top: 0.35rem;
     }
     .sgi-anexo-firmas-vista .sgi-proc-firma-gerente-img {
-      max-height: 16mm;
-      max-width: 36mm;
+      max-height: 18mm;
+      max-width: 40mm;
     }
     @media print {
-      .sgi-org-sheet {
-        max-height: 198mm;
-        overflow: hidden !important;
-      }
-      .sgi-org-chart-wrap,
       .sgi-org-print-fit,
       .sgi-org-canvas--print {
         overflow: hidden !important;
@@ -149,7 +161,7 @@
     {% include "sgi/_anexo_firmas_vista.html" %}
   </div>
   {% if org_layout|default('auto') != 'free' %}
-  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='14') }}"></script>
+  <script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='15') }}"></script>
   {% endif %}
   {% endif %}
   {% if para_export %}

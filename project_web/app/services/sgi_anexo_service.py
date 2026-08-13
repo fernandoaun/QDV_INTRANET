@@ -397,11 +397,10 @@ _ORG_NODE_H = 64
 _ORG_NODE_GAP_X = 24
 _ORG_NODE_GAP_Y = 88
 _ORG_CANVAS_PAD = 48
-# Área útil aprox. de A4 apaisado con márgenes, dejando espacio a
-# encabezado + fecha/firmas (px CSS @ 96dpi). Más bajo que el alto
-# imprimible para que el bloque completo entre en una sola hoja.
-_ORG_PRINT_FIT_W = 1000.0
-_ORG_PRINT_FIT_H = 400.0
+# Área útil aprox. de A4 apaisado (px @ 96dpi), dejando margen a
+# encabezado + firmas compactas.
+_ORG_PRINT_FIT_W = 1040.0
+_ORG_PRINT_FIT_H = 480.0
 
 
 def organigrama_seed_free_positions(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:

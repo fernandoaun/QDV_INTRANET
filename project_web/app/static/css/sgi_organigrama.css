@@ -503,7 +503,16 @@
     overflow: visible !important;
   }
 
-  .sgi-org-canvas--print,
+  .sgi-org-canvas--print {
+    overflow: hidden !important;
+  }
+
+  .sgi-org-canvas--print .sgi-org-canvas-node .sgi-org-node {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+
   .sgi-org-print-fit {
     overflow: hidden !important;
   }
