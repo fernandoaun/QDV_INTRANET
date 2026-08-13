@@ -830,6 +830,7 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
         doc = docs[0]
         assert doc.archivo_path
         doc_id = doc.id
+        rev_id = (proc_svc.revision_actual(doc) or proc_svc.revision_en_trabajo(doc)).id
 
     r = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista")
     assert r.status_code == 200
@@ -841,6 +842,15 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
     assert b"sgi-anexo-view-pdf" in r_editor.data
     assert b"sgi-proc-workspace" not in r_editor.data
     assert b"Documento adjunto" in r_editor.data
+
+    r_pdf = auth_client.get(
+        f"/sgi/msgc/procedimientos/{doc_id}/revision/{rev_id}/export/pdf"
+    )
+    assert r_pdf.status_code == 200
+    assert r_pdf.headers.get("Content-Type", "").startswith("application/pdf")
+    assert r_pdf.data.startswith(b"%PDF")
+    assert b"CONTROL DE REGISTROS" not in r_pdf.data
+    assert b"sgi-proc-caratula" not in r_pdf.data
 
     with app.app_context():
         import shutil

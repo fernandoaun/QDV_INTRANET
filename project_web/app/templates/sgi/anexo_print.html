@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{{ anexo.codigo }} · {{ anexo.revision }}</title>
+  <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+  {% if mode == 'organigrama' %}
+  <link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='10') }}" rel="stylesheet">
+  {% endif %}
+  <style>
+    body { margin: 0; background: #fff; }
+    @page { size: A4; margin: 12mm; }
+    .sgi-anexo-print-img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  {% if mode == 'image' %}
+  <img class="sgi-anexo-print-img"
+       src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+       alt="{{ anexo.nombre }}">
+  {% include "sgi/_anexo_firmas_vista.html" %}
+  {% elif mode == 'documento' %}
+  {% include "sgi/_procedure_anexo_document_static.html" %}
+  {% elif mode == 'organigrama' %}
+  <div class="sgi-org-sheet">
+    <div class="sgi-org-sheet-header">
+      {% set header_titulo = 'ORGANIGRAMA' %}
+      {% set doc_cover = doc %}
+      {% include "sgi/_procedure_page_header.html" %}
+    </div>
+    <div class="sgi-org-chart-wrap" data-mode="view" data-layout="{{ org_layout|default('auto') }}">
+      {% if org_layout|default('auto') != 'free' %}
+      {% include "sgi/_organigrama_tree_chart.html" %}
+      {% else %}
+      <p class="text-muted">Abrí la vista del organigrama para imprimir el layout libre.</p>
+      {% endif %}
+    </div>
+    <p class="text-end text-muted small mt-3 mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
+    {% include "sgi/_anexo_firmas_vista.html" %}
+  </div>
+  {% endif %}
+  {% if para_export %}
+  <script>window.onload = function () { window.print(); };</script>
+  {% endif %}
+</body>
+</html>

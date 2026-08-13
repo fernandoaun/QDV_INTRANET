@@ -728,6 +728,113 @@ def procedimiento_historial(slug: str, doc_id: int):
     )
 
 
+def _send_documento_archivo(doc: SgiDocumento, *, as_attachment: bool):
+    """Sirve el adjunto del documento MSGC especial (misma vista que «Ver»)."""
+    if not doc.archivo_path:
+        abort(404)
+    path = doc_svc.attachment_absolute_path(doc.archivo_path)
+    if path is None:
+        abort(404)
+    vista = proc_svc.anexo_vista_tipo(doc.archivo_path)
+    inline_ok = (not as_attachment) and vista in ("image", "pdf")
+    return send_file(
+        path,
+        as_attachment=not inline_ok,
+        download_name=path.name,
+        mimetype=proc_svc.anexo_send_mimetype(path),
+        max_age=0,
+    )
+
+
+def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimientoRevision, fmt: str):
+    """PDF/Word de anexos MSGC: igual que «Ver», sin plantilla de procedimiento PG/PO."""
+    tc = anexo_svc.normalize_tipo_contenido(doc.tipo_contenido)
+    item = anexo_svc.documento_view_item(doc, rev)
+    safe_name = f"{doc.codigo}_{rev.revision_label}".replace(" ", "_").replace(".", "")
+    path = doc_svc.attachment_absolute_path(doc.archivo_path) if doc.archivo_path else None
+    vista = proc_svc.anexo_vista_tipo(doc.archivo_path) if path is not None else None
+
+    # Misma regla que procedimiento_vista: documento/archivo con adjunto → el archivo.
+    if tc != ANEXO_TIPO_ORGANIGRAMA and path is not None:
+        if fmt == "pdf" and vista == "pdf":
+            return _send_documento_archivo(doc, as_attachment=False)
+        if fmt == "pdf" and vista == "image":
+            html = render_template(
+                "sgi/anexo_print.html",
+                **_procedure_render_kwargs(
+                    mode="image",
+                    slug=slug,
+                    doc=doc,
+                    rev=rev,
+                    anexo=item,
+                    standalone=True,
+                    para_export=True,
+                ),
+            )
+            return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+        if fmt in ("pdf", "word"):
+            return _send_documento_archivo(doc, as_attachment=True)
+        abort(404)
+
+    if tc == ANEXO_TIPO_DOCUMENTO:
+        html = render_template(
+            "sgi/anexo_print.html",
+            **_procedure_render_kwargs(
+                mode="documento",
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                anexo=item,
+                standalone=True,
+                payload=anexo_svc.documento_payload_for_view(doc, rev),
+                secciones=PROCEDIMIENTO_SECCIONES,
+                para_export=True,
+            ),
+        )
+        if fmt == "pdf":
+            return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+        if fmt == "word":
+            return (
+                html,
+                200,
+                {
+                    "Content-Type": "application/msword",
+                    "Content-Disposition": f'attachment; filename="{safe_name}.doc"',
+                },
+            )
+        abort(404)
+
+    if tc == ANEXO_TIPO_ORGANIGRAMA:
+        org_ctx = anexo_svc.organigrama_view_context(doc=doc, rev=rev)
+        html = render_template(
+            "sgi/anexo_print.html",
+            **_procedure_render_kwargs(
+                mode="organigrama",
+                slug=slug,
+                doc=doc,
+                rev=rev,
+                anexo=item,
+                standalone=True,
+                para_export=True,
+            ),
+            **org_ctx,
+        )
+        if fmt == "pdf":
+            return html, 200, {"Content-Type": "text/html; charset=utf-8"}
+        if fmt == "word":
+            return (
+                html,
+                200,
+                {
+                    "Content-Type": "application/msword",
+                    "Content-Disposition": f'attachment; filename="{safe_name}.doc"',
+                },
+            )
+        abort(404)
+
+    abort(404)
+
+
 @bp.get("/<slug>/procedimientos/<int:doc_id>/revision/<int:rev_id>/export/<fmt>")
 @login_required
 def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
@@ -745,6 +852,9 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
         abort(403)
     if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
         abort(403)
+
+    if anexo_svc.documento_es_especial(doc):
+        return _export_documento_especial(slug, doc, rev, fmt)
 
     html = render_template(
         "sgi/procedure_print.html",
