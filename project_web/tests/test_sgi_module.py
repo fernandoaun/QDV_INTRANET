@@ -1038,12 +1038,47 @@ def test_msgi_organigrama_guardar_contenido_y_caratula(auth_client, app):
     assert body.get("ok") is True
     assert "guardado" in (body.get("message") or "").lower()
 
+    r_pdf = auth_client.get(
+        f"/sgi/msgc/procedimientos/{doc_id}/revision/{rev_id}/export/pdf"
+    )
+    assert r_pdf.status_code == 200
+    assert r_pdf.headers.get("Content-Type", "").startswith("text/html")
+    pdf_html = r_pdf.data.decode("utf-8", "ignore")
+    assert "Abrí la vista del organigrama" not in pdf_html
+    assert "sgi-org-canvas--print" in pdf_html
+    assert "sgi-org-print-fit" in pdf_html
+    assert "sgi-org-canvas-node" in pdf_html
+    assert "landscape" in pdf_html
+    assert "SGI_ORG_VIEW" not in pdf_html
+
     with app.app_context():
         doc = db.session.get(SgiDocumento, doc_id)
         for rev in list(doc.revisiones_proc):
             db.session.delete(rev)
         db.session.delete(doc)
         db.session.commit()
+
+
+def test_organigrama_free_print_model():
+    from app.services.sgi_anexo_service import organigrama_free_print_model
+
+    nodes = [
+        {"id": "a", "titulo": "Dir", "parent_id": None, "orden": 0, "x": 100, "y": 40, "kind": "internal"},
+        {"id": "b", "titulo": "Op", "parent_id": "a", "orden": 1, "x": 100, "y": 180, "kind": "internal"},
+        {"id": "c", "titulo": "Ext", "parent_id": "a", "orden": 2, "x": 280, "y": 180, "kind": "external"},
+    ]
+    links = [
+        {"from": "a", "to": "b", "style": "solid"},
+        {"from": "a", "to": "c", "style": "dashed"},
+    ]
+    model = organigrama_free_print_model(nodes, links)
+    assert model["width"] > 280
+    assert model["height"] > 180
+    assert 0 < model["scale"] <= 1
+    assert len(model["polylines"]) == 2
+    assert model["polylines"][0]["style"] == "solid"
+    assert model["polylines"][1]["style"] == "dashed"
+    assert model["fit_width"] <= model["width"] + 0.1
 
 
 def test_anexo_vista_tipo():

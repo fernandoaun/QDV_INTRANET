@@ -497,4 +497,9 @@
   .sgi-org-chart-stage {
     transform: none !important;
   }
+
+  .sgi-org-canvas {
+    background: none !important;
+    overflow: visible !important;
+  }
 }

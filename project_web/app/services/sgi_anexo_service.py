@@ -391,6 +391,125 @@ def organigrama_prepare_editor_data(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# Dimensiones alineadas con sgi_organigrama.js (canvas libre / impresión).
+_ORG_NODE_W = 132
+_ORG_NODE_H = 64
+_ORG_NODE_GAP_X = 24
+_ORG_NODE_GAP_Y = 88
+_ORG_CANVAS_PAD = 48
+# Ancho útil aprox. de A4 apaisado con márgenes (px CSS @ 96dpi).
+_ORG_PRINT_FIT_W = 1040.0
+
+
+def organigrama_seed_free_positions(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Completa x/y faltantes como en el canvas JS (por nivel jerárquico)."""
+    by_id = {str(n.get("id") or ""): n for n in nodes if isinstance(n, dict) and n.get("id")}
+    depth_cache: dict[str, int] = {}
+    by_level: dict[int, list[dict[str, Any]]] = {}
+    for n in nodes:
+        if not isinstance(n, dict) or not n.get("id"):
+            continue
+        lvl = int(n.get("nivel") if n.get("nivel") is not None else _organigrama_node_nivel(str(n["id"]), by_id, depth_cache))
+        by_level.setdefault(lvl, []).append(n)
+    for lvl in sorted(by_level):
+        row = sorted(
+            by_level[lvl],
+            key=lambda n: (int(n.get("orden") or 0), str(n.get("titulo") or "")),
+        )
+        row_w = len(row) * _ORG_NODE_W + max(0, len(row) - 1) * _ORG_NODE_GAP_X
+        x = _ORG_CANVAS_PAD + max(0, (900 - row_w) / 2)
+        y = _ORG_CANVAS_PAD + lvl * (_ORG_NODE_GAP_Y + 56)
+        for n in row:
+            if _organigrama_coord(n.get("x")) is None or _organigrama_coord(n.get("y")) is None:
+                n["x"] = float(x)
+                n["y"] = float(y)
+            x += _ORG_NODE_W + _ORG_NODE_GAP_X
+    return nodes
+
+
+def organigrama_free_canvas_size(nodes: list[dict[str, Any]]) -> tuple[float, float]:
+    max_x = 640.0
+    max_y = 420.0
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        x = _organigrama_coord(n.get("x")) or 0.0
+        y = _organigrama_coord(n.get("y")) or 0.0
+        max_x = max(max_x, x + _ORG_NODE_W + _ORG_CANVAS_PAD)
+        max_y = max(max_y, y + _ORG_NODE_H + 16 + _ORG_CANVAS_PAD)
+    return max_x, max_y
+
+
+def _organigrama_elbow_points(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+    mid_x: float | None,
+    mid_y: float | None,
+) -> list[tuple[float, float]]:
+    if abs(x1 - x2) < 1:
+        return [(x1, y1), (x1, y2)]
+    my = mid_y if mid_y is not None else y1 + (y2 - y1) / 2
+    mx = mid_x
+    if mx is None or abs(mx - x1) < 1 or abs(mx - x2) < 1:
+        return [(x1, y1), (x1, my), (x2, my), (x2, y2)]
+    return [(x1, y1), (x1, my), (mx, my), (x2, my), (x2, y2)]
+
+
+def organigrama_free_print_model(
+    nodes: list[dict[str, Any]],
+    links: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """HTML estático del canvas libre para PDF/impresión (sin depender del JS)."""
+    placed = organigrama_seed_free_positions([dict(n) for n in nodes if isinstance(n, dict)])
+    width, height = organigrama_free_canvas_size(placed)
+    by_id = {str(n.get("id") or ""): n for n in placed if n.get("id")}
+    polylines: list[dict[str, Any]] = []
+    for link in links or []:
+        if not isinstance(link, dict):
+            continue
+        frm = by_id.get(str(link.get("from") or ""))
+        to = by_id.get(str(link.get("to") or ""))
+        if frm is None or to is None:
+            continue
+        fx = float(_organigrama_coord(frm.get("x")) or 0.0)
+        fy = float(_organigrama_coord(frm.get("y")) or 0.0)
+        tx = float(_organigrama_coord(to.get("x")) or 0.0)
+        ty = float(_organigrama_coord(to.get("y")) or 0.0)
+        style = str(link.get("style") or "").strip().lower()
+        if style not in ("solid", "dashed"):
+            style = "dashed" if _organigrama_node_kind(to) == "external" else "solid"
+        mid_y = _organigrama_coord(link.get("mid_y"))
+        mid_x = _organigrama_coord(link.get("mid_x"))
+        pts = _organigrama_elbow_points(
+            fx + _ORG_NODE_W / 2,
+            fy + _ORG_NODE_H,
+            tx + _ORG_NODE_W / 2,
+            ty,
+            mid_x,
+            mid_y,
+        )
+        polylines.append(
+            {
+                "style": style,
+                "points": " ".join(f"{px:.1f},{py:.1f}" for px, py in pts),
+            }
+        )
+    scale = min(1.0, _ORG_PRINT_FIT_W / width) if width > 0 else 1.0
+    return {
+        "nodes": placed,
+        "width": width,
+        "height": height,
+        "polylines": polylines,
+        "scale": round(scale, 4),
+        "fit_width": round(width * scale, 1),
+        "fit_height": round(height * scale, 1),
+        "node_w": _ORG_NODE_W,
+        "node_h": _ORG_NODE_H,
+    }
+
+
 def organigrama_save_payload(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     nodes_raw = payload.get("nodes")
     if not isinstance(nodes_raw, list):
@@ -607,6 +726,7 @@ def organigrama_view_context(
     editor_data = organigrama_prepare_editor_data(data)
     layout = editor_data["layout"]
     nodes = editor_data["nodes"]
+    org_print: dict[str, Any] | None = None
     if layout == "free":
         chart_levels = []
         flat = organigrama_flat_nodes(organigrama_tree(nodes))
@@ -617,6 +737,7 @@ def organigrama_view_context(
             row["usuarios"] = enriched.get("usuarios") or []
             row["usuario"] = enriched.get("usuario")
             org_nodes.append(row)
+        org_print = organigrama_free_print_model(org_nodes, editor_data["links"])
     else:
         nodes = organigrama_ensure_complete_nodes(data.get("nodes") or [])
         chart_levels = organigrama_chart_levels(nodes)
@@ -629,6 +750,7 @@ def organigrama_view_context(
         "org_nodes": org_nodes,
         "org_links": editor_data["links"],
         "org_usuarios": organigrama_usuarios_opciones(),
+        "org_print": org_print,
     }
 
 
