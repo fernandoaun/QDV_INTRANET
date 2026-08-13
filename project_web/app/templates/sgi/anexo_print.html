@@ -40,7 +40,37 @@
       page-break-inside: avoid;
       break-inside: avoid;
     }
-    .sgi-anexo-doc-print-header { flex: 0 0 auto; margin: 0 0 10mm; }
+    .sgi-anexo-doc-print-header {
+      flex: 0 0 auto;
+      margin: 0 0 10mm;
+      /* Evita que Chrome/Edge corten el borde inferior del encabezado
+         (bug típico de border-collapse + rowspan al imprimir). */
+      border: 1.25pt solid #000;
+      box-sizing: border-box;
+      overflow: visible;
+    }
+    .sgi-anexo-doc-print-header .sgi-proc-header-table {
+      border-collapse: separate;
+      border-spacing: 0;
+      border: none;
+      width: 100%;
+    }
+    .sgi-anexo-doc-print-header .sgi-proc-header-table td {
+      border: none;
+      border-right: 1pt solid #000;
+      border-bottom: 1pt solid #000;
+    }
+    .sgi-anexo-doc-print-header .sgi-proc-header-table tr:last-child td {
+      border-bottom: none;
+    }
+    .sgi-anexo-doc-print-header .sgi-proc-header-table td:last-child {
+      border-right: none;
+    }
+    /* Logo/título con rowspan: sin borde inferior interno (cierra el wrapper). */
+    .sgi-anexo-doc-print-header .sgi-proc-header-logo-cell,
+    .sgi-anexo-doc-print-header .sgi-proc-header-titulo-cell {
+      border-bottom: none;
+    }
     .sgi-anexo-doc-print-body { flex: 0 0 auto; }
     .sgi-anexo-doc-print-cuerpo {
       text-align: justify;
@@ -90,6 +120,11 @@
         height: 273mm;
         max-height: 273mm;
         overflow: hidden !important;
+      }
+      .sgi-anexo-doc-print-header {
+        overflow: visible !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       .sgi-anexo-doc-print .sgi-proc-firma-gerente {
         position: static !important;
