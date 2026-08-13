@@ -1,17 +1,27 @@
-{# Encabezado páginas interiores — QDV-PG-01: logo y título en celdas fusionadas (rowspan 3) #}
+{# Encabezado páginas interiores — logo | título | meta (código, vigencia opcional, rev, página) #}
+{% set _fv = header_fecha_vigencia|default(none) %}
+{% set _show_fv = header_fecha_vigencia_always|default(false) or (_fv is not none) %}
+{% set _rows = 4 if _show_fv else 3 %}
 <table class="sgi-proc-header-table" role="presentation">
   <tbody>
     <tr>
-      <td class="sgi-proc-header-logo-cell" rowspan="3">
+      <td class="sgi-proc-header-logo-cell" rowspan="{{ _rows }}">
         {% include "sgi/_procedure_logo.html" %}
       </td>
-      <td class="sgi-proc-header-titulo-cell" rowspan="3">
+      <td class="sgi-proc-header-titulo-cell{% if header_titulo_center|default(false) %} sgi-proc-header-titulo-cell--center{% endif %}" rowspan="{{ _rows }}">
         <strong id="procHeaderTitulo">{{ header_titulo|default(doc.titulo) }}</strong>
       </td>
       <td class="sgi-proc-header-codigo-cell">
         <strong>{{ doc.codigo }}</strong>
       </td>
     </tr>
+    {% if _show_fv %}
+    <tr>
+      <td class="sgi-proc-header-rev-cell">
+        Fecha de Vigencia: {% if _fv %}{{ _fv.strftime('%d/%m/%Y') }}{% else %}—{% endif %}
+      </td>
+    </tr>
+    {% endif %}
     <tr>
       <td class="sgi-proc-header-rev-cell">
         <strong id="procHeaderRev">{{ rev.revision_label }}</strong>

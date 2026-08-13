@@ -325,7 +325,12 @@
   font-size: 11pt;
   font-weight: 700;
   text-align: left;
-  vertical-align: bottom;
+  vertical-align: middle;
+}
+
+.sgi-proc-header-titulo-cell--center {
+  text-align: center;
+  vertical-align: middle;
 }
 
 .sgi-proc-header-codigo-cell {

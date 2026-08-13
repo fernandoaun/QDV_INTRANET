@@ -749,7 +749,7 @@ def _send_documento_archivo(doc: SgiDocumento, *, as_attachment: bool):
 def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimientoRevision, fmt: str):
     """PDF/Word de anexos MSGC especiales.
 
-    - documento (política, FODA): contenido visual + firma debajo del texto.
+    - documento (política, FODA): hoja oficial (encabezado + texto + firma en blanco + fecha).
       El Word/PDF original se obtiene con «Descargar», no con «PDF».
     - archivo (mapa, etc.): el adjunto, con firma en impresión si aplica.
     - organigrama: canvas de una hoja.
@@ -761,6 +761,7 @@ def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimien
     vista = proc_svc.anexo_vista_tipo(doc.archivo_path) if path is not None else None
 
     if tc == ANEXO_TIPO_DOCUMENTO:
+        payload = anexo_svc.documento_payload_for_print(doc, rev)
         html = render_template(
             "sgi/anexo_print.html",
             **_procedure_render_kwargs(
@@ -770,9 +771,10 @@ def _export_documento_especial(slug: str, doc: SgiDocumento, rev: SgiProcedimien
                 rev=rev,
                 anexo=item,
                 standalone=True,
-                payload=anexo_svc.documento_payload_for_view(doc, rev),
+                payload=payload,
                 secciones=PROCEDIMIENTO_SECCIONES,
                 para_export=True,
+                header_titulo=anexo_svc.documento_print_titulo(doc, payload),
             ),
         )
         if fmt == "pdf":

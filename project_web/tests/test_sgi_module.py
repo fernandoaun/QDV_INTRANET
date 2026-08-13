@@ -849,8 +849,11 @@ def test_msgi_vista_documento_especial_muestra_adjunto(auth_client, app, tmp_pat
     assert r_pdf.status_code == 200
     assert r_pdf.headers.get("Content-Type", "").startswith("text/html")
     pdf_html = r_pdf.data.decode("utf-8", "ignore")
-    assert "sgi-proc-sheet" in pdf_html
-    assert "sgi-proc-caratula" in pdf_html
+    assert "sgi-anexo-doc-print" in pdf_html
+    assert "sgi-anexo-doc-print-firma-zone" in pdf_html
+    assert "Fecha de Actualización" in pdf_html
+    assert "POLITICA DE CALIDAD" in pdf_html
+    assert "sgi-proc-caratula" not in pdf_html
     assert "sgi-anexo-view-pdf" not in pdf_html
     assert "%PDF" not in pdf_html[:20]
 
@@ -935,14 +938,18 @@ def test_msgi_politica_aprobada_muestra_firma_gerente(auth_client, app, tmp_path
     assert r_pdf.status_code == 200
     assert r_pdf.headers.get("Content-Type", "").startswith("text/html")
     pdf_html = r_pdf.get_data(as_text=True)
-    assert "sgi-proc-sheet" in pdf_html
-    assert "sgi-proc-cuerpo" in pdf_html
+    assert "sgi-anexo-doc-print" in pdf_html
+    assert "sgi-anexo-doc-print-firma-zone" in pdf_html
+    assert "sgi-anexo-doc-print-footer" in pdf_html
+    assert "Fecha de Actualización" in pdf_html
+    assert "POLITICA DE CALIDAD" in pdf_html
     assert 'class="sgi-proc-firma-gerente"' in pdf_html
     assert f"/sgi/msgc/{doc_id}/firma-gerente" in pdf_html
     assert "sgi-anexo-firma-adjunto-bar" not in pdf_html
     assert "sgi-anexo-view-pdf" not in pdf_html
     assert 'class="sgi-anexo-print-pdf-frame"' not in pdf_html
     assert 'mode="pdf_adjunto"' not in pdf_html
+    assert "sgi-proc-caratula" not in pdf_html
 
     with app.app_context():
         import shutil

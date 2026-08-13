@@ -1,0 +1,36 @@
+{# PDF/impresión de anexos MSGC tipo documento (p. ej. Política CSSA).
+   Una hoja: encabezado QDV + texto + zona en blanco para firma + fecha de actualización. #}
+{% set print_titulo = header_titulo|default(payload.titulo or anexo.nombre or doc.titulo) %}
+{% set fv = rev.fecha_vigencia or anexo.fecha_vigencia %}
+{% set fa = rev.fecha_aprobacion or rev.fecha_vigencia or anexo.fecha_vigencia %}
+<div class="sgi-proc-sheet sgi-anexo-doc-print">
+  <div class="sgi-anexo-doc-print-header">
+    {% set header_titulo = print_titulo %}
+    {% set header_fecha_vigencia = fv %}
+    {% set header_fecha_vigencia_always = true %}
+    {% set header_titulo_center = true %}
+    {% set doc_cover = doc %}
+    {% include "sgi/_procedure_page_header.html" %}
+  </div>
+
+  <div class="sgi-anexo-doc-print-body">
+    <div class="sgi-anexo-doc-print-cuerpo">
+      {% for key, label in secciones %}
+        {% if key not in ('control_registros', 'anexos') %}
+          {% set parte = (payload.secciones or {}).get(key, '') %}
+          {% if parte %}{{ parte|safe }}{% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="sgi-anexo-doc-print-firma-zone">
+    {% if doc_aprobado|default(false) %}
+    {% include "sgi/_procedure_firma_gerente.html" %}
+    {% endif %}
+  </div>
+
+  <p class="sgi-anexo-doc-print-footer">
+    Fecha de Actualización: {% if fa %}{{ fa.strftime('%d/%m/%Y') }}{% else %}—{% endif %}
+  </p>
+</div>

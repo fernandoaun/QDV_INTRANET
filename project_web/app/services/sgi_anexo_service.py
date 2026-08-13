@@ -9,6 +9,7 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 from sqlalchemy import select
+from flask import current_app
 
 from app.extensions import db
 from app.models.personal import EmpleadoPersonal
@@ -1529,6 +1530,45 @@ def documento_payload_for_view(doc: SgiDocumento, rev: SgiProcedimientoRevision)
         "registros": [],
         "anexos": [],
     }
+
+
+def documento_payload_for_print(doc: SgiDocumento, rev: SgiProcedimientoRevision) -> dict[str, Any]:
+    """Payload para PDF: si el cuerpo está vacío, intenta el docx fuente del catálogo."""
+    payload = documento_payload_for_view(doc, rev)
+    secs = payload.get("secciones") or {}
+    has_body = any(
+        str(secs.get(k) or "").strip()
+        for k, _ in PROCEDIMIENTO_SECCIONES
+        if k not in ("control_registros", "anexos")
+    )
+    if has_body:
+        return payload
+    try:
+        for row in proc_svc.default_msgi_anexo_catalog():
+            if str(row.get("codigo") or "").strip().upper() != str(doc.codigo or "").strip().upper():
+                continue
+            src = row.get("archivo")
+            if src is None:
+                break
+            path = Path(src)
+            if path.is_file() and path.suffix.lower() == ".docx":
+                imported = contenido_from_docx(path, doc.titulo or payload.get("titulo") or "")
+                payload["secciones"] = imported.get("secciones") or secs
+                if imported.get("titulo"):
+                    payload["titulo"] = imported["titulo"]
+            break
+    except Exception:
+        current_app.logger.exception("SGI: no se pudo hidratar contenido de impresión para %s", doc.codigo)
+    return payload
+
+
+def documento_print_titulo(doc: SgiDocumento, payload: dict[str, Any] | None = None) -> str:
+    """Título centrado del encabezado en PDF (formato hoja oficial)."""
+    codigo = str(doc.codigo or "").strip().upper()
+    raw = str((payload or {}).get("titulo") or doc.titulo or "").strip()
+    if "ANEXO I" in codigo:
+        return "POLITICA DE CALIDAD"
+    return raw.upper() if raw else codigo
 
 
 def ensure_documento_tipo_contenido(

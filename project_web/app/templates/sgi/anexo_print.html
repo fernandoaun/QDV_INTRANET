@@ -22,16 +22,76 @@
     }
     .sgi-anexo-print-media { position: relative; }
     {% if mode == 'documento' %}
-    /* Firma debajo del texto del documento, no flotando sobre la hoja. */
-    .sgi-proc-sheet .sgi-proc-firma-gerente {
-      position: static;
+    /* Una hoja A4: texto arriba, firma en el blanco, fecha al pie. */
+    @page { size: A4; margin: 12mm; }
+    html, body { width: 100%; height: 100%; }
+    .sgi-anexo-doc-print {
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      width: 100%;
+      min-height: 273mm;
+      height: 273mm;
+      max-height: 273mm;
+      margin: 0;
+      padding: 0;
+      box-shadow: none;
+      overflow: hidden;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .sgi-anexo-doc-print-header { flex: 0 0 auto; margin: 0 0 10mm; }
+    .sgi-anexo-doc-print-body { flex: 0 0 auto; }
+    .sgi-anexo-doc-print-cuerpo {
+      text-align: justify;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+    }
+    .sgi-anexo-doc-print-cuerpo p { margin: 0 0 0.75rem; text-align: justify; }
+    .sgi-anexo-doc-print-cuerpo ul {
+      margin: 0.35rem 0 0.85rem;
+      padding-left: 1.35rem;
+    }
+    .sgi-anexo-doc-print-cuerpo li { margin: 0.35rem 0; text-align: justify; }
+    /* Zona en blanco entre el texto y la fecha: aquí va la firma. */
+    .sgi-anexo-doc-print-firma-zone {
+      flex: 1 1 auto;
+      min-height: 35mm;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 8mm 4mm;
+    }
+    .sgi-anexo-doc-print .sgi-proc-firma-gerente {
+      position: static !important;
+      right: auto;
+      bottom: auto;
       display: block;
       text-align: right;
-      margin: 1.25rem 0 0;
+      margin: 0;
       max-width: none;
     }
+    .sgi-anexo-doc-print .sgi-proc-firma-gerente-img {
+      max-height: 28mm;
+      max-width: 55mm;
+    }
+    .sgi-anexo-doc-print-footer {
+      flex: 0 0 auto;
+      margin: 0;
+      padding-top: 2mm;
+      text-align: center;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10pt;
+    }
     @media print {
-      .sgi-proc-sheet .sgi-proc-firma-gerente {
+      html, body { width: auto; height: auto; }
+      .sgi-anexo-doc-print {
+        height: 273mm;
+        max-height: 273mm;
+        overflow: hidden !important;
+      }
+      .sgi-anexo-doc-print .sgi-proc-firma-gerente {
         position: static !important;
         right: auto;
         bottom: auto;
@@ -152,7 +212,7 @@
   </div>
   {% include "sgi/_anexo_firmas_vista.html" %}
   {% elif mode == 'documento' %}
-  {% include "sgi/_procedure_anexo_document_static.html" %}
+  {% include "sgi/_anexo_documento_print.html" %}
   {% elif mode == 'organigrama' %}
   <div class="sgi-org-sheet sgi-org-sheet--print-onepage">
     <div class="sgi-org-sheet-header">
