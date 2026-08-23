@@ -201,6 +201,12 @@ def create_app() -> Flask:
     with app.app_context():
         if app.config.get("TESTING"):
             db.create_all()
+        try:
+            from app.services.archivo_service import ensure_schema as _ensure_archivo_schema
+
+            _ensure_archivo_schema()
+        except Exception:
+            app.logger.exception("ensure_schema archivo falló al iniciar")
         from app.bootstrap import ensure_seed_data
 
         if (os.environ.get("SKIP_SEED_DATA") or "").strip().lower() not in ("1", "true", "yes"):
@@ -221,6 +227,7 @@ def create_app() -> Flask:
     from app.web.modules.planificacion import bp as planificacion_bp
     from app.web.modules.vencimientos import bp as vencimientos_bp
     from app.web.modules.sgi import bp as sgi_bp
+    from app.web.modules.archivo import bp as archivo_bp
     from app.web.modules.personal import bp as personal_bp
     from app.web.modules.chat import bp as chat_bp
 
@@ -235,6 +242,7 @@ def create_app() -> Flask:
     app.register_blueprint(mantenimiento_bp)
     app.register_blueprint(vencimientos_bp)
     app.register_blueprint(sgi_bp)
+    app.register_blueprint(archivo_bp)
     app.register_blueprint(personal_bp)
     app.register_blueprint(chat_bp)
 
@@ -330,6 +338,7 @@ def create_app() -> Flask:
         from app.auth_utils import user_can_access_production_hub
         from app.auth_utils import user_can_access_vencimientos as _user_can_access_vencimientos
         from app.auth_utils import user_can_access_sgi as _user_can_access_sgi
+        from app.auth_utils import user_can_access_archivo as _user_can_access_archivo
         from app.auth_utils import user_can_access_personal as _user_can_access_personal
         from app.auth_utils import (
             user_can_entregas_cargar_effective,
@@ -409,6 +418,7 @@ def create_app() -> Flask:
             "user_can_stock_catalogo_alta": user_can_edit_stock_catalogo_alta(u),
             "user_can_access_vencimientos": lambda: _user_can_access_vencimientos(u),
             "user_can_access_sgi": lambda: _user_can_access_sgi(u),
+            "user_can_access_archivo": lambda: _user_can_access_archivo(u),
             "user_can_access_personal": lambda: _user_can_access_personal(u),
             "module_labels": MODULE_LABELS,
             "user_roles_ordered": USER_ROLES_ORDERED,

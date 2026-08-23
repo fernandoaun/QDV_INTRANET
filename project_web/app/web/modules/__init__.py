@@ -12,6 +12,7 @@ Además (acoplado al turno operativo):
 - shift — entrega/recepción de turno, bloqueo de escritura sin turno
 
 7. personal — legajos RRHH, EPP/ropa, cursos, vacaciones, ART, apercibimientos (admin / permiso personal)
+8. archivo — procedimientos y registros externos (submódulos configurables + subida de archivos)
 
 Carpetas temáticas sin URL prefix propio (documentación / extracción futura):
 - hipoclorito, documentos, trazabilidad — ver ``app.domain`` y docstrings en cada paquete

@@ -33,6 +33,8 @@ PERMISSION_KEYS: list[str] = [
     "mantenimiento_predictivo",
     "sgi_hub",
     "sgi_documentos_edit",
+    "archivo_hub",
+    "archivo_edit",
     "personal",
 ]
 
@@ -117,6 +119,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "personal.hub",
         "filled_endpoint": "personal.hub",
     },
+    "archivo": {
+        "label": "Procedimientos y registros",
+        "blank_endpoint": "archivo.hub",
+        "filled_endpoint": "archivo.hub",
+    },
 }
 
 PERMISSION_LABELS: dict[str, str] = {
@@ -152,6 +159,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "mantenimiento_predictivo": "Mantenimiento · Predictivo",
     "sgi_hub": "SGC – Sistema de Gestión de la Calidad (acceso)",
     "sgi_documentos_edit": "SGC · Crear y editar documentos",
+    "archivo_hub": "Procedimientos y registros (acceso)",
+    "archivo_edit": "Procedimientos y registros · Crear submódulos y subir archivos",
     "personal": "Personal / RRHH (legajos, EPP, vacaciones)",
 }
 
@@ -211,6 +220,13 @@ PERMISSION_TREE: list[dict[str, object]] = [
         "label": "SGC – Sistema de Gestión de la Calidad",
         "children": [
             {"key": "sgi_documentos_edit", "label": "Crear y editar documentos"},
+        ],
+    },
+    {
+        "key": "archivo_hub",
+        "label": "Procedimientos y registros",
+        "children": [
+            {"key": "archivo_edit", "label": "Crear submódulos y subir archivos"},
         ],
     },
     {"key": "personal", "label": "Personal / RRHH", "children": []},

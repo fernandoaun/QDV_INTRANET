@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{% if row %}Editar submódulo{% else %}Nuevo submódulo{% endif %} · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">{% if row %}Editar submódulo{% else %}Nuevo {{ kind_labels.get(kind, kind)|lower }}{% endif %}</h1>
+    <div class="text-muted">Los submódulos agrupan procedimientos o tipos de registro. Se pueden agregar más cuando haga falta.</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('archivo.hub') }}">Volver</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body">
+    <form method="post">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="kind" value="{{ row.kind if row else kind }}">
+      <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <input class="form-control" name="nombre" required maxlength="256" value="{{ row.nombre if row else '' }}" placeholder="Ej. Control de higiene de tanques">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Código <span class="text-muted">(opcional)</span></label>
+        <input class="form-control" name="codigo" maxlength="64" value="{{ row.codigo if row else '' }}" placeholder="Ej. RG-05">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Descripción <span class="text-muted">(opcional)</span></label>
+        <textarea class="form-control" name="descripcion" rows="3" maxlength="2000">{{ row.descripcion if row else '' }}</textarea>
+      </div>
+      {% if row %}
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="activo" id="activo" value="1" {% if row.activo %}checked{% endif %}>
+        <label class="form-check-label" for="activo">Activo (visible en el listado)</label>
+      </div>
+      {% endif %}
+      <button type="submit" class="btn btn-primary">{% if row %}Guardar{% else %}Crear{% endif %}</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

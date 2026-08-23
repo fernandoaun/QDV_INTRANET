@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Procedimientos y registros · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  .archivo-proc { border-bottom: 1px solid var(--bs-border-color, #e9ecef); }
+  .archivo-proc:last-child { border-bottom: 0; }
+  .archivo-reg { list-style: none; margin: 0; padding: 0 0 0.75rem 1.1rem; }
+  .archivo-reg > li { margin-top: 0.35rem; }
+  .archivo-cargas { list-style: none; margin: 0.25rem 0 0; padding: 0 0 0 1.15rem; }
+  .archivo-cargas li { font-size: 0.875rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Procedimientos y registros</h1>
+    <div class="text-muted">Listado del SGC: procedimientos de gestión (PG) y operativos (PO). Debajo de cada uno, los registros y los archivos que se van cargando.</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Panel</a>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Procedimientos (SGC)</div>
+      <div class="fs-3 fw-semibold">{{ counts.procedimientos }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Registros asociados</div>
+      <div class="fs-3 fw-semibold">{{ counts.registros }}</div>
+    </div></div>
+  </div>
+  <div class="col-md-4">
+    <div class="app-card h-100"><div class="app-card-body">
+      <div class="text-muted small">Archivos cargados</div>
+      <div class="fs-3 fw-semibold">{{ counts.cargas }}</div>
+    </div></div>
+  </div>
+</div>
+
+{% for section in tree %}
+<div class="app-card mb-3">
+  <div class="app-card-header">{{ section.title }}</div>
+  <div class="app-card-body p-0">
+    {% if section.procedimientos %}
+      {% for it in section.procedimientos %}
+      <div class="archivo-proc px-3 pt-3">
+        <a class="fw-semibold text-decoration-none" href="{{ url_for('archivo.procedimiento', doc_id=it.doc.id) }}">
+          {% if it.doc.codigo %}<span class="text-muted me-1">{{ it.doc.codigo }}</span>{% endif %}{{ it.doc.titulo }}
+        </a>
+        {% if it.registros %}
+        <ul class="archivo-reg">
+          {% for rg in it.registros %}
+          <li>
+            <a class="text-decoration-none" href="{{ url_for('archivo.registro', doc_id=it.doc.id, registro_id=rg.row.id) }}">{{ rg.row.nombre }}</a>
+            {% if rg.n_cargas %}
+            <span class="badge text-bg-secondary">{{ rg.n_cargas }}</span>
+            {% endif %}
+            {% if rg.cargas %}
+            <ul class="archivo-cargas">
+              {% for c in rg.cargas %}
+              <li>
+                <a href="{{ url_for('archivo.carga_descargar', carga_id=c.id) }}">{{ c.titulo or c.original_filename }}</a>
+                <span class="text-muted">
+                  {% if c.fecha_documento %} · {{ c.fecha_documento.strftime('%d/%m/%Y') }}{% endif %}
+                  {% if c.original_filename %} · {{ c.original_filename }}{% endif %}
+                </span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% else %}
+            <div class="text-muted small">Todavía no hay archivos cargados.</div>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted small mt-1 mb-3">Este procedimiento todavía no tiene registros en el SGC (punto 7).</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+    <p class="text-muted p-3 mb-0">No hay {{ section.title | lower }} en el SGC para mostrar.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

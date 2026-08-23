@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}{{ registro.nombre }} · {{ doc.titulo }}{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <div class="text-muted small">{{ doc.titulo }}</div>
+    <h1 class="app-page-title">{{ registro.nombre }}</h1>
+    <div class="text-muted">Cargas de este registro hechas fuera del sistema (papel, planilla, foto o PDF).</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('archivo.procedimiento', doc_id=doc.id) }}">Volver</a>
+  </div>
+</div>
+
+{% if puede_gestionar %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Subir archivo</div>
+  <div class="app-card-body">
+    <form method="post" action="{{ url_for('archivo.registro_cargar', doc_id=doc.id, registro_id=registro.id) }}" enctype="multipart/form-data">
+      {% include "_csrf.html" %}
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">Archivo</label>
+          <input class="form-control" type="file" name="archivo" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Título <span class="text-muted">(opcional)</span></label>
+          <input class="form-control" name="titulo" maxlength="256">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label">Fecha del documento</label>
+          <input class="form-control" type="date" name="fecha_documento">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Notas</label>
+          <input class="form-control" name="notas" maxlength="2000">
+        </div>
+      </div>
+      <div class="form-text mt-2 mb-3">PDF, Word, Excel o imagen. Máximo 20 MB.</div>
+      <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-upload me-1"></i>Subir</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card">
+  <div class="app-card-header">Archivos cargados</div>
+  <div class="app-card-body p-0">
+    {% if cargas %}
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>Título</th>
+            <th>Fecha doc.</th>
+            <th>Archivo</th>
+            <th>Subido</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in cargas %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ c.titulo or c.original_filename }}</div>
+              {% if c.notas %}<div class="small text-muted">{{ c.notas }}</div>{% endif %}
+            </td>
+            <td>{{ c.fecha_documento.strftime('%d/%m/%Y') if c.fecha_documento else '—' }}</td>
+            <td class="small">{{ c.original_filename }}</td>
+            <td class="small text-muted">{{ c.uploaded_at.strftime('%d/%m/%Y %H:%M') if c.uploaded_at else '' }}</td>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-outline-primary" href="{{ url_for('archivo.carga_descargar', carga_id=c.id) }}">Descargar</a>
+              {% if puede_gestionar %}
+              <form method="post" action="{{ url_for('archivo.carga_eliminar', carga_id=c.id) }}" class="d-inline" onsubmit="return confirm('¿Quitar este archivo del listado?');">
+                {% include "_csrf.html" %}
+                <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted p-3 mb-0">Todavía no hay archivos de este registro.{% if puede_gestionar %} Subí el primero con el formulario.{% endif %}</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

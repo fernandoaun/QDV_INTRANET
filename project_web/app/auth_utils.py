@@ -157,6 +157,26 @@ def user_can_solicitar_vacaciones(user: User | None) -> bool:
     return emp is not None and (emp.estado or "").strip() == "activo"
 
 
+def user_can_access_archivo(user: User | None) -> bool:
+    """Procedimientos y registros: administrador, vista global o permiso archivo_hub."""
+    if user is None:
+        return False
+    if user.is_admin:
+        return True
+    if normalized_role_has_global_view(normalize_stored_rol(getattr(user, "rol", None))):
+        return True
+    return user_can(user, "archivo_hub")
+
+
+def user_can_manage_archivo(user: User | None) -> bool:
+    """Alta de submódulos y subida de archivos: administrador o permiso archivo_edit."""
+    if user is None or user_is_global_read_only(user):
+        return False
+    if user.is_admin:
+        return True
+    return user_can_edit(user, "archivo_edit")
+
+
 def user_can_access_sgi(user: User | None) -> bool:
     """Administrador, perfiles Angel/SGI o usuarios con permiso sgi_hub."""
     if user is None:
@@ -586,6 +606,8 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_manage_personal(user)
     if ep.startswith("sgi."):
         return user_can_edit_sgi_documentos(user)
+    if ep.startswith("archivo."):
+        return user_can_manage_archivo(user)
     if ep.startswith("planificacion."):
         return user_can_edit(user, "planificacion")
     if ep.startswith("mantenimiento.equipos") or ep.startswith("mantenimiento.equipo") or ep.startswith(

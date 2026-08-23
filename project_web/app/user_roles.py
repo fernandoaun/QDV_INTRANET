@@ -242,7 +242,7 @@ def _base_view_edit_for_effective_role(effective: str) -> tuple[set[str], set[st
         v = (set(_BASE_OPERACIONES) | set(_BASE_MANTENIMIENTO)) & keys
         return v, set(v)
     if effective == ROLE_SGI:
-        return set(_ALL_PERM_KEYS), {"sgi_documentos_edit"}
+        return set(_ALL_PERM_KEYS), {"sgi_documentos_edit", "archivo_edit"}
     if normalized_role_is_global_read_only(effective):
         return set(_ALL_PERM_KEYS), set()
     if effective == ROLE_LABORATORISTA:
@@ -298,7 +298,7 @@ def compute_session_perm_lists(stored_rol: str | None, rows: list[PermisoUsuario
     eff = effective_role_for_permissions(stored_rol)
     if eff == ROLE_SGI:
         # Rol SGI: capacidad fija de edición en SGI aunque existan overrides legacy en BD.
-        return sorted(_ALL_PERM_KEYS), ["sgi_documentos_edit"]
+        return sorted(_ALL_PERM_KEYS), ["archivo_edit", "sgi_documentos_edit"]
     if normalized_role_is_global_read_only(eff):
         # Vista total fija; sin edición aunque existan filas en permisos_usuario.
         return sorted(_ALL_PERM_KEYS), []

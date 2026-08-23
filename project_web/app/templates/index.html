@@ -10,6 +10,9 @@
     {% if user_can_production_hub %}
     <a class="btn btn-outline-primary ms-2 fw-semibold text-uppercase" href="{{ url_for('produccion.hub') }}">Producción</a>
     {% endif %}
+    {% if user_can_access_archivo() %}
+    <a class="btn btn-outline-primary ms-2 fw-semibold text-uppercase" href="{{ url_for('archivo.hub') }}">Proc. y registros</a>
+    {% endif %}
     {% else %}
     <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">Ingresar</a>
     <a class="btn btn-outline-secondary ms-2" href="{{ url_for('main.instalar') }}">

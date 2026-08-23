@@ -86,6 +86,14 @@
              title="SGC – Sistema de Gestión de la Calidad"><i class="bi bi-journal-bookmark" aria-hidden="true"></i></a>
         </li>
         {% endif %}
+        {% if user_can_access_archivo() %}
+        <li>
+          <a href="{{ url_for('archivo.hub') }}"
+             class="app-sidenav-link {% if ep and ep.startswith('archivo.') %}is-active{% endif %}"
+             data-filter-text="procedimientos registros archivo papeles planillas checklists submódulos"
+             title="PROC. Y REGISTROS — procedimientos y archivos"><i class="bi bi-folder2-open" aria-hidden="true"></i></a>
+        </li>
+        {% endif %}
         {% if user_can_access_personal() %}
         <li>
           <a href="{{ url_for('personal.hub') }}"
@@ -331,6 +339,9 @@
             {% endif %}
             {% if user_can_access_sgi() %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('sgi.hub') }}"><i class="bi bi-journal-bookmark me-2 opacity-50" aria-hidden="true"></i>SGC</a></li>
+            {% endif %}
+            {% if user_can_access_archivo() %}
+            <li><a class="dropdown-item fw-semibold" href="{{ url_for('archivo.hub') }}"><i class="bi bi-folder2-open me-2 opacity-50" aria-hidden="true"></i>PROC. Y REGISTROS</a></li>
             {% endif %}
             {% if user_can_access_personal() %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('personal.hub') }}"><i class="bi bi-people me-2 opacity-50" aria-hidden="true"></i>PERSONAL</a></li>

@@ -52,6 +52,7 @@ from app.models.internal_chat import (
     InternalChatParticipant,
     InternalChatThread,
 )
+from app.models.archivo import ArchivoCarga, ArchivoSubmodulo
 from app.models.sgi import (
     SgiDocumento,
     SgiDocumentoHistorial,
@@ -132,6 +133,8 @@ __all__ = [
     "SgiRecordDefinitionVersion",
     "SgiRecordEntry",
     "SgiRecordAuditLog",
+    "ArchivoSubmodulo",
+    "ArchivoCarga",
     "InternalChatThread",
     "InternalChatParticipant",
     "InternalChatMessage",
