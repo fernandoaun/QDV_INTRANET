@@ -14,9 +14,12 @@ from werkzeug.utils import secure_filename
 from app.extensions import db
 from app.models.archivo import KIND_REGISTRO, ArchivoCarga, ArchivoSubmodulo
 from app.models.sgi import (
+    ESTADO_APROBADO,
     ESTADO_OBSOLETO,
+    ESTADO_VIGENTE,
     TIPO_PG,
     TIPO_PO,
+    TIPO_SLUGS,
     SgiDocumento,
     SgiProcedimientoRegistro,
     SgiProcedimientoRevision,
@@ -93,7 +96,7 @@ def _sgi_bucket() -> ArchivoSubmodulo:
     return row
 
 
-def list_procedimientos() -> list[SgiDocumento]:
+def list_procedimientos(*, solo_aprobados: bool = False) -> list[SgiDocumento]:
     q = (
         select(SgiDocumento)
         .where(
@@ -104,6 +107,8 @@ def list_procedimientos() -> list[SgiDocumento]:
         )
         .order_by(SgiDocumento.tipo.asc(), SgiDocumento.codigo.asc(), SgiDocumento.titulo.asc())
     )
+    if solo_aprobados:
+        q = q.where(SgiDocumento.estado.in_((ESTADO_APROBADO, ESTADO_VIGENTE)))
     return list(db.session.scalars(q).all())
 
 
@@ -126,8 +131,11 @@ def revision_archivo(doc: SgiDocumento) -> SgiProcedimientoRevision | None:
     )
 
 
-def list_registros(doc: SgiDocumento) -> list[SgiProcedimientoRegistro]:
-    rev = revision_archivo(doc)
+def list_registros(
+    doc: SgiDocumento, rev: SgiProcedimientoRevision | None = None
+) -> list[SgiProcedimientoRegistro]:
+    if rev is None:
+        rev = revision_archivo(doc)
     if rev is None:
         return []
     rows = list(
@@ -173,9 +181,15 @@ def counts_hub() -> dict[str, int]:
     return {"procedimientos": n_proc, "registros": n_reg, "cargas": n_cargas}
 
 
-def hub_tree() -> list[dict]:
+def hub_tree(*, for_user: User | None = None, solo_aprobados: bool = False) -> list[dict]:
     """PG y PO con sus registros del SGC y las cargas hechas en este módulo."""
-    procs = list_procedimientos()
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
+    procs = list_procedimientos(solo_aprobados=solo_aprobados)
+    if for_user is not None:
+        procs = [d for d in procs if perfil_svc.user_alcanzado_por_documento(for_user, d.id)]
+    if solo_aprobados:
+        procs = [d for d in procs if proc_svc.revision_vigente_aprobada(d) is not None]
     doc_ids = [int(d.id) for d in procs]
     cargas_all: list[ArchivoCarga] = []
     if doc_ids:
@@ -212,11 +226,23 @@ def hub_tree() -> list[dict]:
 
     grouped: dict[str, list[dict]] = {TIPO_PG: [], TIPO_PO: []}
     for doc in procs:
+        rev = (
+            proc_svc.revision_vigente_aprobada(doc)
+            if solo_aprobados
+            else revision_archivo(doc)
+        )
         regs = []
-        for r in list_registros(doc):
+        for r in list_registros(doc, rev=rev if solo_aprobados else None):
             cs = _cargas_of(doc, r)
             regs.append({"row": r, "n_cargas": len(cs), "cargas": cs})
-        grouped.setdefault(doc.tipo, []).append({"doc": doc, "registros": regs})
+        grouped.setdefault(doc.tipo, []).append(
+            {
+                "doc": doc,
+                "registros": regs,
+                "rev_id": int(rev.id) if rev is not None else None,
+                "slug": TIPO_SLUGS.get(doc.tipo or "", "pg"),
+            }
+        )
 
     titles = {
         TIPO_PG: "Procedimientos de gestión",

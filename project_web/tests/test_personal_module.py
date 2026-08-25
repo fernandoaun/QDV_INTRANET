@@ -1256,3 +1256,116 @@ def test_legajo_puesto_syncs_with_organigrama(app):
         anexo_svc.organigrama_sync_user_puestos(int(u.id), ["operarios_planta"])
         db.session.refresh(emp)
         assert "OPERARIOS" in (emp.puesto or "").upper() or "planta" in (emp.puesto or "").lower()
+
+
+def test_legajo_tab_procedimientos_aprobados_asignados(auth_client, app):
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, User
+    from app.services import archivo_service as avs
+    from app.services import personal_service as ps
+    from app.services import sgi_documento_perfil_service as perfil_svc
+    from app.services import sgi_procedimiento_service as proc_svc
+    from app.user_roles import ROLE_MANTENIMIENTO, ROLE_OPERACIONES
+
+    with app.app_context():
+        editor = db.session.query(User).filter(User.username == "pytest_admin").one()
+        op = User(
+            username="pytest_legajo_op",
+            password_hash=generate_password_hash("x"),
+            rol=ROLE_OPERACIONES,
+            activo=True,
+            is_admin=False,
+        )
+        db.session.add(op)
+        db.session.commit()
+        ps.sync_empleados_from_users()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == op.id).one()
+        emp_id = emp.id
+
+        doc_ok, rev_ok, err = proc_svc.create_procedimiento_visual(
+            "PG", editor.id, "tester", titulo="HIGIENE PLANTA LEGAJO"
+        )
+        assert err is None
+        perfil_svc.sync_perfiles_documento(doc_ok.id, [ROLE_OPERACIONES])
+        ok, msg, _ = proc_svc.save_revision_content(
+            rev_ok.id,
+            {
+                "titulo": "HIGIENE PLANTA LEGAJO",
+                "secciones": {},
+                "registros": [
+                    {
+                        "nombre": "Planilla higiene",
+                        "quien_archiva": "Planta",
+                        "como": "Papel",
+                        "donde": "Oficina",
+                        "tiempo_guarda": "1 año",
+                        "usuarios": "Operadores",
+                        "disposicion_final": "Archivo",
+                    }
+                ],
+                "anexos": [],
+            },
+            editor.id,
+            "tester",
+        )
+        assert ok, msg
+        rev_ok.reviso = "R"
+        rev_ok.revisor_correo = "r@example.com"
+        rev_ok.aprobo = "A"
+        rev_ok.aprobador_correo = "a@example.com"
+        db.session.commit()
+        ok, msg = proc_svc.enviar_a_revision(rev_ok.id, editor.id, "tester")
+        assert ok, msg
+        ok, msg = proc_svc.marcar_como_revisado(rev_ok.id, editor.id, "tester")
+        assert ok, msg
+        ok, msg = proc_svc.aprobar_revision(rev_ok.id, editor.id, "tester")
+        assert ok, msg
+        doc_ok_id, rev_ok_id = doc_ok.id, rev_ok.id
+        payload = proc_svc.revision_to_payload(proc_svc.get_revision(rev_ok_id))
+        registro_id = payload["registros"][0]["id"]
+
+        doc_other, rev_other, err2 = proc_svc.create_procedimiento_visual(
+            "PO", editor.id, "tester", titulo="MANTENIMIENTO SOLO"
+        )
+        assert err2 is None
+        perfil_svc.sync_perfiles_documento(doc_other.id, [ROLE_MANTENIMIENTO])
+        rev_other.reviso = "R"
+        rev_other.revisor_correo = "r@example.com"
+        rev_other.aprobo = "A"
+        rev_other.aprobador_correo = "a@example.com"
+        db.session.commit()
+        ok, msg = proc_svc.enviar_a_revision(rev_other.id, editor.id, "tester")
+        assert ok, msg
+        ok, msg = proc_svc.marcar_como_revisado(rev_other.id, editor.id, "tester")
+        assert ok, msg
+        ok, msg = proc_svc.aprobar_revision(rev_other.id, editor.id, "tester")
+        assert ok, msg
+
+        doc_draft, _rev_d, err3 = proc_svc.create_procedimiento_visual(
+            "PG", editor.id, "tester", titulo="BORRADOR NO DEBE SALIR"
+        )
+        assert err3 is None
+        perfil_svc.sync_perfiles_documento(doc_draft.id, [ROLE_OPERACIONES])
+        db.session.commit()
+
+        tree = avs.hub_tree(for_user=op, solo_aprobados=True)
+        n = sum(len(s["procedimientos"]) for s in tree)
+        titles = [it["doc"].titulo for s in tree for it in s["procedimientos"]]
+        assert n == 1
+        assert "HIGIENE PLANTA LEGAJO" in titles
+        assert "MANTENIMIENTO SOLO" not in titles
+        assert "BORRADOR NO DEBE SALIR" not in titles
+
+    r = auth_client.get(f"/personal/legajos/{emp_id}?tab=procedimientos")
+    assert r.status_code == 200
+    html = r.get_data(as_text=True)
+    assert "Procedimientos" in html
+    assert "HIGIENE PLANTA LEGAJO" in html
+    assert "Planilla higiene" in html or "PLANILLA HIGIENE" in html
+    assert "MANTENIMIENTO SOLO" not in html
+    assert "BORRADOR NO DEBE SALIR" not in html
+    assert f"/sgi/pg/procedimientos/{doc_ok_id}/revision/{rev_ok_id}/export/pdf" in html
+    assert f"/archivo/procedimientos/{doc_ok_id}/registros/{registro_id}" in html
+

@@ -28,7 +28,7 @@
 </div>
 
 <ul class="nav nav-tabs mb-3">
-  {% set tabs = [('datos','Datos'),('epp','EPP / Ropa'),('cursos','Cursos'),('apercibimientos','Apercibimientos'),('art','ART'),('vacaciones','Vacaciones')] %}
+  {% set tabs = [('datos','Datos'),('epp','EPP / Ropa'),('cursos','Cursos'),('apercibimientos','Apercibimientos'),('art','ART'),('vacaciones','Vacaciones'),('procedimientos','Procedimientos')] %}
   {% for key, lbl in tabs %}
   <li class="nav-item">
     {% if es_mi_legajo %}
@@ -344,6 +344,57 @@
     </table>
   </div>
 </div>
+
+{% elif tab == 'procedimientos' %}
+<style>
+  .archivo-proc { border-bottom: 1px solid var(--bs-border-color, #e9ecef); }
+  .archivo-proc:last-child { border-bottom: 0; }
+  .archivo-reg { list-style: none; margin: 0; padding: 0 0 0.75rem 1.1rem; }
+  .archivo-reg > li { margin-top: 0.35rem; }
+  .archivo-cargas { list-style: none; margin: 0.25rem 0 0; padding: 0 0 0 1.15rem; }
+  .archivo-cargas li { font-size: 0.875rem; }
+</style>
+<p class="text-muted">Procedimientos aprobados del SGC que aplican a esta persona según su puesto o perfil. El nombre abre el PDF; cada registro lleva a la ficha de cargas.</p>
+{% if not empleado.user %}
+<p class="text-muted mb-0">Este legajo no está vinculado a un usuario del sistema, así que no se pueden determinar los procedimientos que le corresponden.</p>
+{% elif procedimientos_n == 0 %}
+<p class="text-muted mb-0">No hay procedimientos aprobados asignados a esta persona.</p>
+{% else %}
+{% for section in procedimientos_tree %}
+{% if section.procedimientos %}
+<div class="app-card mb-3">
+  <div class="app-card-header">{{ section.title }}</div>
+  <div class="app-card-body p-0">
+    {% for it in section.procedimientos %}
+    <div class="archivo-proc px-3 pt-3">
+      {% if it.rev_id %}
+      <a class="fw-semibold text-decoration-none" href="{{ url_for('sgi.procedimiento_export', slug=it.slug, doc_id=it.doc.id, rev_id=it.rev_id, fmt='pdf') }}" target="_blank" rel="noopener">
+        {% if it.doc.codigo %}<span class="text-muted me-1">{{ it.doc.codigo }}</span>{% endif %}{{ it.doc.titulo }}
+      </a>
+      {% else %}
+      <span class="fw-semibold">{% if it.doc.codigo %}<span class="text-muted me-1">{{ it.doc.codigo }}</span>{% endif %}{{ it.doc.titulo }}</span>
+      {% endif %}
+      {% if it.registros %}
+      <ul class="archivo-reg">
+        {% for rg in it.registros %}
+        <li>
+          <a class="text-decoration-none" href="{{ url_for('archivo.registro', doc_id=it.doc.id, registro_id=rg.row.id) }}">{{ rg.row.nombre }}</a>
+          {% if rg.n_cargas %}
+          <span class="badge text-bg-secondary">{{ rg.n_cargas }}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-muted small mt-1 mb-3">Este procedimiento todavía no tiene registros en el SGC (punto 7).</p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endif %}
 {% endif %}
 
 {% if tab == 'cursos' and puede_gestionar %}

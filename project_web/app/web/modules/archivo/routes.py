@@ -6,6 +6,7 @@ from app.auth_utils import (
     current_user,
     login_required,
     user_can_access_archivo,
+    user_can_access_personal,
     user_can_manage_archivo,
 )
 from app.services import archivo_service as avs
@@ -23,11 +24,18 @@ def _no_manage():
     return redirect(request.referrer or url_for("archivo.hub"))
 
 
-def _require_view():
+def _require_view(doc=None):
     u = current_user()
-    if not user_can_access_archivo(u):
-        return None, _no_access()
-    return u, None
+    if user_can_access_archivo(u):
+        return u, None
+    if doc is not None and user_can_access_personal(u):
+        return u, None
+    if doc is not None:
+        from app.services import sgi_procedimiento_service as proc_svc
+
+        if proc_svc.documento_accesible_por_perfil(u, doc):
+            return u, None
+    return None, _no_access()
 
 
 def _require_manage(u):
@@ -55,13 +63,13 @@ def hub():
 @bp.get("/procedimientos/<int:doc_id>")
 @login_required
 def procedimiento(doc_id: int):
-    u, redir = _require_view()
-    if redir is not None:
-        return redir
     avs.ensure_schema()
     doc = avs.get_procedimiento(doc_id)
     if doc is None:
         abort(404)
+    u, redir = _require_view(doc)
+    if redir is not None:
+        return redir
     registros = avs.list_registros(doc)
     items = [
         {
@@ -81,13 +89,13 @@ def procedimiento(doc_id: int):
 @bp.get("/procedimientos/<int:doc_id>/registros/<int:registro_id>")
 @login_required
 def registro(doc_id: int, registro_id: int):
-    u, redir = _require_view()
-    if redir is not None:
-        return redir
     avs.ensure_schema()
     doc = avs.get_procedimiento(doc_id)
     if doc is None:
         abort(404)
+    u, redir = _require_view(doc)
+    if redir is not None:
+        return redir
     row = avs.get_registro(doc, registro_id)
     if row is None:
         abort(404)
@@ -136,12 +144,13 @@ def registro_cargar(doc_id: int, registro_id: int):
 @bp.get("/cargas/<int:carga_id>/descargar")
 @login_required
 def carga_descargar(carga_id: int):
-    u, redir = _require_view()
-    if redir is not None:
-        return redir
     carga = avs.get_carga(carga_id)
     if carga is None:
         abort(404)
+    doc = avs.get_procedimiento(int(carga.sgi_documento_id)) if carga.sgi_documento_id else None
+    u, redir = _require_view(doc)
+    if redir is not None:
+        return redir
     path = avs.resolve_carga_path(carga)
     if path is None:
         flash("No se encontró el archivo en disco.", "danger")

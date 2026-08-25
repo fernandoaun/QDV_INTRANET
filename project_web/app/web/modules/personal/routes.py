@@ -17,9 +17,20 @@ from app.auth_utils import (
 )
 from app.extensions import db
 from app.models import Operador, PersonalApercibimiento, PersonalCurso, User
+from app.services import archivo_service as avs
 from app.services import personal_service as ps
 
 bp = Blueprint("personal", __name__, url_prefix="/personal")
+
+
+def _procedimientos_legajo(emp):
+    user = emp.user if emp is not None else None
+    if user is None:
+        return [], 0
+    avs.ensure_schema()
+    tree = avs.hub_tree(for_user=user, solo_aprobados=True)
+    n = sum(len(sec.get("procedimientos") or []) for sec in tree)
+    return tree, n
 
 
 def _no_access():
@@ -211,6 +222,7 @@ def legajo_detalle(empleado_id: int):
     if tab == "epp":
         if ps.ensure_default_epp_catalog() > 0:
             flash("Se cargó el catálogo inicial de ropa y EPP. Podés ajustarlo en Catálogo EPP.", "info")
+    proc_tree, proc_n = _procedimientos_legajo(emp)
     return render_template(
         "personal/legajo_detalle.html",
         empleado=emp,
@@ -230,6 +242,8 @@ def legajo_detalle(empleado_id: int):
         puede_gestionar=user_can_manage_personal(u),
         puede_registrar_entregas=user_can_register_entregas_personal(u),
         es_mi_legajo=False,
+        procedimientos_tree=proc_tree,
+        procedimientos_n=proc_n,
     )
 
 
@@ -390,6 +404,7 @@ def mi_legajo():
         return redirect(url_for("main.dashboard"))
 
     tab = (request.args.get("tab") or "datos").strip()
+    proc_tree, proc_n = _procedimientos_legajo(emp)
     return render_template(
         "personal/legajo_detalle.html",
         empleado=emp,
@@ -409,6 +424,8 @@ def mi_legajo():
         puede_gestionar=False,
         puede_registrar_entregas=False,
         es_mi_legajo=True,
+        procedimientos_tree=proc_tree,
+        procedimientos_n=proc_n,
     )
 
 
