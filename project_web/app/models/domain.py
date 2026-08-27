@@ -82,6 +82,12 @@ class ReactorRegistro(db.Model):
     exceso_naoh = db.Column(db.Float, nullable=False)
     exceso_na2co3 = db.Column(db.Float, nullable=False)
     orp = db.Column(db.Float)
+    e2_temperatura = db.Column(db.Float)
+    e2_densidad = db.Column(db.Float)
+    e2_concentracion = db.Column(db.Float)
+    e3_temperatura = db.Column(db.Float)
+    e3_densidad = db.Column(db.Float)
+    e3_concentracion = db.Column(db.Float)
     observaciones = db.Column(db.Text)
     created_at_iso = db.Column(db.String(32), nullable=False)
 

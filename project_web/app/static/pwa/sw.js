@@ -1,5 +1,5 @@
 /* Service worker QDV PWA — caché básica de recursos estáticos y fallback offline ligero. */
-var CACHE = "qdv-pwa-v3";
+var CACHE = "qdv-pwa-v4";
 var PRECACHE = [
   "/",
   "/static/favicon.png",
@@ -70,15 +70,23 @@ self.addEventListener("fetch", function (event) {
             "No se pudo abrir el inicio de sesión porque la app local no está corriendo."
           );
         }
-        return caches.match("/").then(function (cached) {
-          return (
-            cached ||
-            offlineShell(
-              "Sin conexión con QDV local",
-              "El navegador no pudo contactar a <code>127.0.0.1:5000</code>."
-            )
-          );
-        });
+        // Solo reutilizar caché de inicio en la raíz; en otras rutas evita
+        // mostrar "Inicio" con URL distinta (parece que los botones no hacen nada).
+        if (path === "/" || path === "") {
+          return caches.match("/").then(function (cached) {
+            return (
+              cached ||
+              offlineShell(
+                "Sin conexión con QDV local",
+                "El navegador no pudo contactar a <code>127.0.0.1:5000</code>."
+              )
+            );
+          });
+        }
+        return offlineShell(
+          "Servidor local apagado",
+          "No se pudo abrir <code>" + path + "</code> porque la app local no está corriendo. Arrancá <code>python run.py</code> y recargá (Ctrl+F5)."
+        );
       })
     );
     return;

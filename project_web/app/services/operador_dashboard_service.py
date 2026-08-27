@@ -653,11 +653,20 @@ def _produccion_lookup(mes_prod: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {o["operador"]: o for o in mes_prod.get("operadores", [])}
 
 
+def _month_historial_dates(year: int, month: int) -> tuple[str, str]:
+    """Fechas inclusivas (YYYY-MM-DD) para filtros de historial del mes."""
+    from calendar import monthrange
+
+    last = monthrange(year, month)[1]
+    return f"{year:04d}-{month:02d}-01", f"{year:04d}-{month:02d}-{last:02d}"
+
+
 def reporte_operador_mes(year: int, month: int) -> dict[str, Any]:
     """Reporte mensual por operador: producción + promedios de análisis con desvíos."""
     produccion = produccion_por_operador_en_mes(year, month)
     analisis = analisis_promedios_por_operador_en_mes(year, month)
     prod_by_op = _produccion_lookup(produccion)
+    desde, hasta = _month_historial_dates(year, month)
 
     all_ops: set[str] = set(prod_by_op) | set(analisis)
     operadores: list[dict[str, Any]] = []
@@ -680,6 +689,8 @@ def reporte_operador_mes(year: int, month: int) -> dict[str, Any]:
     return {
         "year": year,
         "month": month,
+        "desde": desde,
+        "hasta": hasta,
         "label": _month_label(year, month),
         "produccion": produccion,
         "operadores": operadores,

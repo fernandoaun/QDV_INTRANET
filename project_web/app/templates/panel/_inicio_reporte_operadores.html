@@ -1,4 +1,18 @@
 {# Reporte mensual por operador: producción y promedios de análisis con desvíos #}
+{% macro historial_url_bloque(bloque, reporte) -%}
+  {%- if bloque.tipo.startswith('hipoclorito') -%}
+    {{- url_for('produccion.salmuera_historial', desde=reporte.desde, hasta=reporte.hasta) -}}
+  {%- elif bloque.tipo == 'reactor' -%}
+    {{- url_for('produccion.reactor_historial', desde=reporte.desde, hasta=reporte.hasta) -}}
+  {%- elif bloque.tipo == 'agua' -%}
+    {{- url_for('produccion.agua_historial', desde=reporte.desde, hasta=reporte.hasta) -}}
+  {%- elif bloque.tipo == 'analisis_8hs' -%}
+    {{- url_for('produccion.salmuera_analisis_8hs_historial', desde=reporte.desde, hasta=reporte.hasta) -}}
+  {%- else -%}
+    {{- url_for('produccion.hub') -}}
+  {%- endif -%}
+{%- endmacro %}
+
 {% macro render_mes_reporte(reporte, es_actual) %}
 <div class="app-card h-100 mb-0">
   <div class="app-card-header app-card-header--split">
@@ -45,12 +59,16 @@
           </p>
           {% if op.analisis %}
           {% for bloque in op.analisis %}
+          {% set hist_url = historial_url_bloque(bloque, reporte) %}
           <div class="mb-3">
             <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-              <span class="fw-semibold small">{{ bloque.label }}</span>
+              <a class="fw-semibold small text-decoration-none" href="{{ hist_url }}" title="Ver historial de este mes">
+                {{ bloque.label }}
+                <i class="bi bi-box-arrow-up-right ms-1 small opacity-75" aria-hidden="true"></i>
+              </a>
               <span class="badge text-bg-secondary app-badge-soft">{{ bloque.registros }} reg.</span>
               {% if bloque.total_desvios > 0 %}
-              <span class="badge text-bg-danger">{{ bloque.total_desvios }} desvío(s)</span>
+              <a class="badge text-bg-danger text-decoration-none" href="{{ hist_url }}" title="Ver registros del mes">{{ bloque.total_desvios }} desvío(s)</a>
               {% endif %}
             </div>
             <div class="table-responsive">
@@ -76,7 +94,7 @@
                     <td class="text-end text-muted">{{ c.registros }}</td>
                     <td class="text-end">
                       {% if c.desvios > 0 %}
-                      <span class="badge text-bg-danger">{{ c.desvios }}</span>
+                      <a class="badge text-bg-danger text-decoration-none" href="{{ hist_url }}" title="Ver historial del mes">{{ c.desvios }}</a>
                       {% else %}
                       <span class="text-muted">0</span>
                       {% endif %}
@@ -107,10 +125,14 @@
 <div class="app-card mt-3">
   <div class="app-card-body">
     <h2 class="h5 mb-2">Reporte por operador</h2>
-    <p class="app-text-secondary small mb-0">
+    <p class="app-text-secondary small mb-2">
       Promedios mensuales de producción (L) y de todos los análisis operativos.
       Los <strong>desvíos</strong> marcan registros fuera del umbral operativo (excesos de soda, concentraciones, pH, dureza, etc.).
       No incluye voltajes por celda individual.
+    </p>
+    <p class="app-text-secondary small mb-0">
+      Para <strong>cargar</strong> datos usá el botón <strong>Producción</strong> (arriba) o el ícono de fábrica del menú.
+      En el detalle, tocá el nombre del circuito o un desvío para abrir el <strong>historial del mes</strong>.
     </p>
   </div>
 </div>

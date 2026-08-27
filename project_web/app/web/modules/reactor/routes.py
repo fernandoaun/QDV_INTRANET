@@ -83,6 +83,12 @@ def register_reactor_routes(bp: Blueprint) -> None:
                 exceso_naoh = float((request.form.get("exceso_naoh") or "0").replace(",", "."))
                 exceso_na2co3 = float((request.form.get("exceso_na2co3") or "0").replace(",", "."))
                 orp = parse_required_float(request.form.get("orp"), "ORP (mV)")
+                e2_temperatura = parse_required_float(request.form.get("e2_temperatura"), "E2 Temp")
+                e2_densidad = parse_required_float(request.form.get("e2_densidad"), "E2 Densidad")
+                e2_concentracion = parse_required_float(request.form.get("e2_concentracion"), "E2 Concentración")
+                e3_temperatura = parse_required_float(request.form.get("e3_temperatura"), "E3 Temp")
+                e3_densidad = parse_required_float(request.form.get("e3_densidad"), "E3 Densidad")
+                e3_concentracion = parse_required_float(request.form.get("e3_concentracion"), "E3 Concentración")
                 operador_auto = default_operador_for_salmuera()
                 db.session.add(
                     ReactorRegistro(
@@ -97,6 +103,12 @@ def register_reactor_routes(bp: Blueprint) -> None:
                         exceso_naoh=exceso_naoh,
                         exceso_na2co3=exceso_na2co3,
                         orp=orp,
+                        e2_temperatura=e2_temperatura,
+                        e2_densidad=e2_densidad,
+                        e2_concentracion=e2_concentracion,
+                        e3_temperatura=e3_temperatura,
+                        e3_densidad=e3_densidad,
+                        e3_concentracion=e3_concentracion,
                         observaciones=(request.form.get("observaciones") or "").strip(),
                         created_at_iso=now.isoformat(timespec="seconds"),
                     )

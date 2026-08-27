@@ -995,6 +995,24 @@ body.app-body {
   margin-top: 0.25rem;
 }
 
+.app-form-fieldset {
+  border: 1px dotted rgba(30, 45, 61, 0.38);
+  border-radius: var(--app-radius-sm, 0.5rem);
+  padding: 0.65rem 0.85rem 0.85rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.app-form-fieldset > legend {
+  float: none;
+  width: auto;
+  padding: 0 0.4rem;
+  margin-bottom: 0.15rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
 /* ——— Campos analíticos: erlenmeyer PDF de referencia (.hipo-conc-* = alias histórico) ——— */
 .analysis-ref-flask-btn,
 .hipo-conc-flask-btn {

@@ -131,29 +131,51 @@
         <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
         <input type="hidden" name="operador" value="{{ operador_sugerido or username }}">
       </div>
-      <div class="col-md-2"><label class="form-label">pH</label><input class="form-control" name="ph" required></div>
-      <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="temperatura" required></div>
-      <div class="col-md-2"><label class="form-label">Densidad</label><input class="form-control" name="densidad" required></div>
-      <div class="col-md-2"><label class="form-label">Conc. tabla</label><input class="form-control" name="concentracion_tabla" required></div>
-      <div class="col-md-2">
-        {% set ar_naoh = analysis_ref_map_reactor['reactor_exceso_naoh_pdf'] %}
-        <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
-          <span>Exceso NaOH</span>
-          {{ analysis_ref_flask_button(ar_naoh.doc_key, ar_naoh.pdf_present, ar_naoh.modal_id, ar_naoh.label) }}
-        </label>
-        <input class="form-control" name="exceso_naoh" required>
+      <div class="col-12">
+        <fieldset class="app-form-fieldset">
+          <legend>Disolvedor</legend>
+          <div class="row g-2">
+            <div class="col-md-2"><label class="form-label">pH</label><input class="form-control" name="ph" required></div>
+            <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="temperatura" required></div>
+            <div class="col-md-2"><label class="form-label">Densidad</label><input class="form-control" name="densidad" required></div>
+            <div class="col-md-2"><label class="form-label">Conc. tabla</label><input class="form-control" name="concentracion_tabla" required></div>
+            <div class="col-md-2">
+              {% set ar_naoh = analysis_ref_map_reactor['reactor_exceso_naoh_pdf'] %}
+              <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+                <span>Exceso NaOH</span>
+                {{ analysis_ref_flask_button(ar_naoh.doc_key, ar_naoh.pdf_present, ar_naoh.modal_id, ar_naoh.label) }}
+              </label>
+              <input class="form-control" name="exceso_naoh" required>
+            </div>
+            <div class="col-md-2">
+              {% set ar_na2 = analysis_ref_map_reactor['reactor_exceso_na2co3_pdf'] %}
+              <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
+                <span>Exceso Na2CO3</span>
+                {{ analysis_ref_flask_button(ar_na2.doc_key, ar_na2.pdf_present, ar_na2.modal_id, ar_na2.label) }}
+              </label>
+              <input class="form-control" name="exceso_na2co3" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">ORP (mV)</label>
+              <input class="form-control" name="orp" inputmode="decimal" required>
+            </div>
+          </div>
+        </fieldset>
       </div>
-      <div class="col-md-2">
-        {% set ar_na2 = analysis_ref_map_reactor['reactor_exceso_na2co3_pdf'] %}
-        <label class="form-label d-flex align-items-center gap-2 flex-wrap mb-1">
-          <span>Exceso Na2CO3</span>
-          {{ analysis_ref_flask_button(ar_na2.doc_key, ar_na2.pdf_present, ar_na2.modal_id, ar_na2.label) }}
-        </label>
-        <input class="form-control" name="exceso_na2co3" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">ORP (mV)</label>
-        <input class="form-control" name="orp" inputmode="decimal" required>
+      <div class="col-12">
+        <fieldset class="app-form-fieldset">
+          <legend>Entrada electrolizador 2 y 3</legend>
+          <div class="row g-2">
+            <div class="col-12"><div class="small fw-semibold app-text-secondary">Electrolizador 2</div></div>
+            <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="e2_temperatura" required></div>
+            <div class="col-md-2"><label class="form-label">Densidad</label><input class="form-control" name="e2_densidad" required></div>
+            <div class="col-md-2"><label class="form-label">Concentración</label><input class="form-control" name="e2_concentracion" required></div>
+            <div class="col-12"><div class="small fw-semibold app-text-secondary">Electrolizador 3</div></div>
+            <div class="col-md-2"><label class="form-label">Temp</label><input class="form-control" name="e3_temperatura" required></div>
+            <div class="col-md-2"><label class="form-label">Densidad</label><input class="form-control" name="e3_densidad" required></div>
+            <div class="col-md-2"><label class="form-label">Concentración</label><input class="form-control" name="e3_concentracion" required></div>
+          </div>
+        </fieldset>
       </div>
       <div class="col-12"><label class="form-label">Obs.</label><input class="form-control" name="observaciones"></div>
       <div class="col-12">
@@ -183,6 +205,12 @@
           <th>Exceso soda</th>
           <th>Exceso carbonato</th>
           <th>ORP (mV)</th>
+          <th>E2 Temp</th>
+          <th>E2 Densidad</th>
+          <th>E2 Conc.</th>
+          <th>E3 Temp</th>
+          <th>E3 Densidad</th>
+          <th>E3 Conc.</th>
           <th>Avisos</th>
           <th>Obs.</th>
           <th>Creado</th>
@@ -203,6 +231,12 @@
           <td>{{ r.exceso_naoh }}</td>
           <td>{{ r.exceso_na2co3 }}</td>
           <td>{{ r.orp if r.orp is not none else "" }}</td>
+          <td>{{ r.e2_temperatura if r.e2_temperatura is not none else "" }}</td>
+          <td>{{ r.e2_densidad if r.e2_densidad is not none else "" }}</td>
+          <td>{{ r.e2_concentracion if r.e2_concentracion is not none else "" }}</td>
+          <td>{{ r.e3_temperatura if r.e3_temperatura is not none else "" }}</td>
+          <td>{{ r.e3_densidad if r.e3_densidad is not none else "" }}</td>
+          <td>{{ r.e3_concentracion if r.e3_concentracion is not none else "" }}</td>
           <td>
             {% if r.warnings %}
               {% for w in r.warnings %}
@@ -216,7 +250,7 @@
           <td>{{ r.created_at_iso }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="15" class="text-muted text-center py-3">Sin registros este día.</td></tr>
+        <tr><td colspan="21" class="text-muted text-center py-3">Sin registros este día.</td></tr>
         {% endfor %}
       </tbody>
     </table>

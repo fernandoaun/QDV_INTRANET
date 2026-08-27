@@ -229,3 +229,6 @@ def test_inicio_reporte_visible_auth(auth_client):
     assert r.status_code == 200
     assert b"Reporte por operador" in r.data
     assert b"desv" in r.data.lower()
+    html = r.get_data(as_text=True)
+    assert "/produccion/salmuera/historial" in html or "Sin datos de operadores" in html
+    assert "historial del mes" in html.lower()

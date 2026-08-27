@@ -168,6 +168,12 @@ def _fetch_reactor(d0: date, d1: date) -> list[list[Any]]:
             r.exceso_naoh,
             r.exceso_na2co3,
             r.orp,
+            r.e2_temperatura,
+            r.e2_densidad,
+            r.e2_concentracion,
+            r.e3_temperatura,
+            r.e3_densidad,
+            r.e3_concentracion,
             r.observaciones,
         ]
         for r in rows
@@ -508,6 +514,12 @@ HEADERS: dict[str, list[str]] = {
         "Exceso NaOH",
         "Exceso Na2CO3",
         "ORP (mV)",
+        "E2 Temp",
+        "E2 Densidad",
+        "E2 Concentración",
+        "E3 Temp",
+        "E3 Densidad",
+        "E3 Concentración",
         "Observaciones",
     ],
     "agua": [
