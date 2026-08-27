@@ -23,8 +23,8 @@ def warnings_for_reactor_registro(r: ReactorRegistro) -> list[str]:
         msgs.append("Soda > 0.16")
     if float(r.exceso_na2co3) > 0.45:
         msgs.append("Carbonato > 0.45")
-    if float(r.concentracion_tabla) < 200:
-        msgs.append("Salmuera < 200")
+    if float(r.concentracion_tabla) < 300:
+        msgs.append("Salmuera < 300")
     return msgs
 
 

@@ -515,7 +515,7 @@ _REACTOR_CAMPOS: tuple[_CampoAnalisisSpec, ...] = (
     _CampoAnalisisSpec("ph", "pH"),
     _CampoAnalisisSpec("temperatura", "Temperatura"),
     _CampoAnalisisSpec("densidad", "Densidad"),
-    _CampoAnalisisSpec("concentracion_tabla", "Conc. salmuera", "lt", 200.0, "< 200"),
+    _CampoAnalisisSpec("concentracion_tabla", "Conc. salmuera", "lt", 300.0, "< 300"),
     _CampoAnalisisSpec("exceso_naoh", "Exceso soda", "gt", 0.16, "> 0.16"),
     _CampoAnalisisSpec("exceso_na2co3", "Exceso carbonato", "gt", 0.45, "> 0.45"),
     _CampoAnalisisSpec("orp", "ORP"),
