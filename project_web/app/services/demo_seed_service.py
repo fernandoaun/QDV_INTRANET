@@ -455,9 +455,9 @@ def _seed_produccion() -> list[str]:
             e2_temperatura=31.0,
             e2_densidad=1.17,
             e2_concentracion=310.0,
-            e3_temperatura=30.5,
-            e3_densidad=1.16,
-            e3_concentracion=305.0,
+            e3_temperatura=31.0,
+            e3_densidad=1.17,
+            e3_concentracion=310.0,
             observaciones=f"{_DEMO_TAG} reactor",
             created_at_iso=now,
         )

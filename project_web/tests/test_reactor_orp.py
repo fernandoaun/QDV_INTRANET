@@ -24,9 +24,6 @@ def _valid_reactor_payload(csrf_token: str, *, orp: str) -> dict[str, str]:
         "e2_temperatura": "25.0",
         "e2_densidad": "1.18",
         "e2_concentracion": "300",
-        "e3_temperatura": "24.8",
-        "e3_densidad": "1.17",
-        "e3_concentracion": "295",
         "observaciones": "Control ORP pytest",
     }
 
