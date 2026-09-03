@@ -65,15 +65,17 @@ def last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso: str, ele
 
 
 def salmuera_timer_rows_for_date(fecha_iso: str) -> list[dict[str, Any]]:
-    """Filas para cronómetros por electrolizador: último registro de ese equipo en `fecha_iso`.
+    """Filas para cronómetros por electrolizador.
 
-    Una fila por cada electrolizador configurado en `SALMUERA_PANEL_ELECTROLIZADORES`
-    (independientemente de si ya hay historial), para mantener la UI dual estable.
+    El ancla del cronómetro es el último análisis del equipo (cualquier fecha),
+    igual que la alerta global de vencimiento. `fecha_iso` se conserva por
+    compatibilidad con callers / plant_stop de la planilla del día.
     """
+    del fecha_iso  # ancla operativa global; la fecha de planilla no corta el cronómetro
     return [
         {
             "electrolizador": int(eid),
-            "last_created_at_iso": last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso, int(eid)),
+            "last_created_at_iso": last_salmuera_created_at_iso_for_electrolizador(int(eid)),
         }
         for eid in SALMUERA_PANEL_ELECTROLIZADORES
     ]

@@ -82,7 +82,7 @@
     const due = new Date(last.getTime() + intervalSec * 1000 + pauseExtra * 1000);
     const now = new Date(Date.now() + (clockOffsetMs || 0));
     const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec > 0) {
+    if (diffSec >= 0) {
       timerText.textContent = fmtHhmmss(diffSec);
       timerSub.textContent = `Último registro: ${lastCreatedIso}`;
       timerState.className = "badge text-bg-success app-badge-soft";

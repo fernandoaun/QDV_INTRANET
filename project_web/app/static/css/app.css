@@ -1845,6 +1845,24 @@ body.qdv-overdue-active .app-topbar {
 #qdvOverdueOverlay[hidden] {
   display: none !important;
 }
+.qdv-overdue-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10002;
+  pointer-events: none;
+  margin-top: 0.75rem;
+  max-width: min(92vw, 40rem);
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: #b02a37;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
 .qdv-overdue-modal {
   position: fixed;
   inset: 0;

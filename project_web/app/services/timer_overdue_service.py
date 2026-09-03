@@ -27,7 +27,7 @@ def _status(
     paused: bool,
 ) -> dict[str, Any]:
     rem = ps.compute_remaining_seconds(last_iso, int(interval_sec), key, fecha_iso=fecha)
-    overdue = (not paused) and rem <= 0 and bool((last_iso or "").strip())
+    overdue = (not paused) and rem < 0 and bool((last_iso or "").strip())
     return {
         "key": key,
         "label": label,
@@ -102,7 +102,7 @@ def list_timer_statuses() -> dict[str, Any]:
             "label": "Análisis 8 hs",
             "remaining": rem_8,
             "paused": paused_r,
-            "overdue": (not paused_r) and bool((anchor_8 or "").strip()) and rem_8 <= 0,
+            "overdue": (not paused_r) and bool((anchor_8 or "").strip()) and rem_8 < 0,
             "last_created_at_iso": anchor_8,
         }
     )

@@ -780,7 +780,9 @@
 })();
 </script>
 {% if page_can_edit_current %}
-<div id="qdvOverdueOverlay" hidden aria-hidden="true"></div>
+<div id="qdvOverdueOverlay" hidden aria-hidden="true">
+  <div id="qdvOverdueBanner" class="qdv-overdue-banner" role="status"></div>
+</div>
 <div id="qdvOverdueModal" class="qdv-overdue-modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="qdvOverdueModalTitle">
   <div class="qdv-overdue-modal__box">
     <h2 class="qdv-overdue-modal__title" id="qdvOverdueModalTitle">Análisis vencido</h2>
