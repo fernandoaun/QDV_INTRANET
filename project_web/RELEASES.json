@@ -1,6 +1,11 @@
 {
-  "version": "2.1.3",
+  "version": "2.1.4",
   "changelog": [
+    {
+      "version": "2.1.4",
+      "date": "2026-09-03",
+      "description": "El aviso de Reactor vencido aclara que hay que guardar Nuevo registro (no el Análisis 8 hs) y al tocar Entendido lleva al formulario."
+    },
     {
       "version": "2.1.3",
       "date": "2026-09-03",
