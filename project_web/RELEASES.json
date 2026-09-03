@@ -4,6 +4,11 @@
     {
       "version": "2.1",
       "date": "2026-09-03",
+      "description": "Al guardar un análisis vencido, se apaga el titileo rojo; la alerta global solo aplica si hay un análisis real atrasado."
+    },
+    {
+      "version": "2.1",
+      "date": "2026-09-03",
       "description": "Alerta global al vencer un cronómetro: la pantalla titila en rojo y aparece un aviso inmediato para el operador en turno."
     },
     {

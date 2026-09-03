@@ -758,9 +758,20 @@
     } else {
       ctx.lastCreatedIso = row.last_created_at_iso;
       ctx.plantStop = ps;
+      if (row.last_created_at_iso) ctx._emptyAnchorMs = null;
     }
     if (window.QdvPlantStop) {
       QdvPlantStop.applyTimerState(ctx, ctx.plantStop);
+    }
+    if (row.last_created_at_iso && window.QdvOverdueAlert) {
+      const remKey = ck;
+      // Al guardar, forzar limpieza inmediata de la alerta de este circuito.
+      const last = new Date(row.last_created_at_iso);
+      const due = new Date(last.getTime() + intervalSec * 1000 + ((ps.pause_extra_seconds || 0) * 1000));
+      const now = new Date(Date.now() + clockOffsetMs);
+      if (due.getTime() > now.getTime()) {
+        QdvOverdueAlert.resolve(remKey);
+      }
     }
   }
 
@@ -831,7 +842,9 @@
             `<tr><td>${esc(r.id)}</td><td>${esc(r.hora_hm)}</td><td>${esc(r.operador)}</td><td title="${esc(r.observaciones)}"><div class="cell-ellipsis">${esc(r.observaciones)}</div></td><td>${esc(r.created_at_iso)}</td></tr>`);
         }
         filtroCtx.lastCreatedIso = (payload.registro && payload.registro.created_at_iso) || filtroCtx.lastCreatedIso;
+        filtroCtx._emptyAnchorMs = null;
         tickFiltro();
+        if (window.QdvOverdueAlert) QdvOverdueAlert.resolve("filtro");
         filtroForm.querySelector("input[name='observaciones_filtro']").value = "";
       } catch (err) {
         if (filtroMsg) {

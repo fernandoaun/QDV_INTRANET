@@ -312,7 +312,7 @@
   function notifyAnalisis8(overdue) {
     if (!window.QdvOverdueAlert) return;
     if (overdue) QdvOverdueAlert.report("analisis_8hs", "Análisis 8 hs", true);
-    else QdvOverdueAlert.resolve("analisis_8hs", true);
+    else QdvOverdueAlert.resolve("analisis_8hs");
   }
 
   function tickAnalisis8() {
@@ -340,15 +340,14 @@
         state.className = "badge app-badge-soft text-bg-danger";
         state.textContent = "Pendiente";
         msg.textContent = "No hay análisis registrados. Realizar primer análisis.";
-        notifyAnalisis8(false);
       } else {
         timerText.textContent = fmt(-diffSec);
         state.className = "badge app-badge-soft text-bg-danger";
-        state.textContent = "Vencido";
-        msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
-        notifyAnalisis8(true);
+        state.textContent = "Pendiente";
+        msg.textContent = "Análisis de salmuera pendiente. Registrar dureza y cloro libre.";
       }
       updateLast(null);
+      notifyAnalisis8(false);
       return;
     }
     const due = parseIsoLocal(status.next_due_iso);
