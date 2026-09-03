@@ -312,7 +312,7 @@
   function notifyAnalisis8(overdue) {
     if (!window.QdvOverdueAlert) return;
     if (overdue) QdvOverdueAlert.report("analisis_8hs", "Análisis 8 hs", true);
-    else QdvOverdueAlert.resolve("analisis_8hs");
+    else QdvOverdueAlert.resolve("analisis_8hs", { fromLocal: true });
   }
 
   function tickAnalisis8() {

@@ -1,6 +1,11 @@
 {
-  "version": "2.1.4",
+  "version": "2.1.5",
   "changelog": [
+    {
+      "version": "2.1.5",
+      "date": "2026-09-03",
+      "description": "Si el cronómetro de la pantalla está En tiempo, no se reabre el aviso rojo por el poll del servidor; Reactor y Análisis 8 hs ya no se mezclan en el mensaje."
+    },
     {
       "version": "2.1.4",
       "date": "2026-09-03",
