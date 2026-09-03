@@ -3,9 +3,9 @@
  * Se activa solo si window.QDV_OVERDUE_ALERT_ENABLED es true (operador en turno).
  *
  * Reglas:
- * - El poll del servidor enciende avisos de circuitos que no están en esta pantalla.
- * - Si el cronómetro visible de la página dice «En tiempo» / no vencido, ese circuito
- *   no se alerta (evita falso positivo por desfase servidor vs UI).
+ * - El poll del servidor es la fuente de verdad (lista overdue + remaining).
+ * - «Entendido» se recuerda en sessionStorage para no reabrir el modal al cambiar de página
+ *   (el banner/titileo siguen hasta registrar el análisis).
  * - Al guardar un análisis se limpia ese circuito de inmediato.
  */
 (function () {
@@ -15,11 +15,11 @@
 
   var POLL_MS = 4000;
   var CHECK_URL = "/produccion/cronometros/estado";
+  var DISMISS_STORE = "qdvOverdueDismissedV2";
   var overdueKeys = {};
+  var overdueMeta = {};
   var localOverdue = {};
-  /** Circuitos cuyo cronómetro en pantalla está en tiempo / no vencido. */
-  var localOkKeys = {};
-  var dismissedKeys = {};
+  var dismissedMap = {};
   var modalOpen = false;
   var pendingLabels = [];
 
@@ -37,6 +37,46 @@
 
   function modalText() {
     return document.getElementById("qdvOverdueModalText");
+  }
+
+  function loadDismissed() {
+    try {
+      var raw = sessionStorage.getItem(DISMISS_STORE);
+      var parsed = raw ? JSON.parse(raw) : {};
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveDismissed() {
+    try {
+      sessionStorage.setItem(DISMISS_STORE, JSON.stringify(dismissedMap));
+    } catch (e) {}
+  }
+
+  function dismissToken(key) {
+    var meta = overdueMeta[key] || {};
+    // Solo el ancla: el atraso cambia cada segundo y no debe reabrir el modal.
+    return String(meta.last_created_at_iso || key);
+  }
+
+  function isDismissed(key) {
+    if (!dismissedMap[key]) return false;
+    return dismissedMap[key] === dismissToken(key);
+  }
+
+  function fmtAtraso(remaining) {
+    var s = Math.abs(Math.floor(Number(remaining) || 0));
+    var h = String(Math.floor(s / 3600)).padStart(2, "0");
+    var m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+    var ss = String(s % 60).padStart(2, "0");
+    return h + ":" + m + ":" + ss;
+  }
+
+  function fmtLast(iso) {
+    if (!iso) return "sin registro";
+    return String(iso).replace("T", " ").slice(0, 19);
   }
 
   function overdueLabels() {
@@ -75,21 +115,28 @@
   }
 
   function messageForKeys(keys) {
-    var labels = [];
+    var parts = [];
     (keys || []).forEach(function (k) {
-      if (!k) return;
-      var lab = overdueKeys[k] || k;
-      if (labels.indexOf(lab) < 0) labels.push(lab);
+      if (!k || !overdueKeys[k]) return;
+      var meta = overdueMeta[k] || {};
+      var line =
+        overdueKeys[k] +
+        " (último " +
+        fmtLast(meta.last_created_at_iso) +
+        ", atraso " +
+        fmtAtraso(meta.remaining) +
+        ")";
+      if (parts.indexOf(line) < 0) parts.push(line);
     });
-    if (!labels.length) return "";
-    if (labels.length === 1) {
+    if (!parts.length) return "";
+    if (parts.length === 1) {
       return (
         "El cronómetro de " +
-        labels[0] +
+        parts[0] +
         " está vencido. Registrá ese análisis para apagar el aviso."
       );
     }
-    return "Cronómetros vencidos: " + labels.join(", ") + ". Registrá cada análisis pendiente.";
+    return "Cronómetros vencidos: " + parts.join("; ") + ". Registrá cada análisis pendiente.";
   }
 
   function showModal(keysOrLabels) {
@@ -107,9 +154,7 @@
       if (found && keys.indexOf(found) < 0) keys.push(found);
       else if (!found && keys.indexOf(item) < 0) keys.push(item);
     });
-    if (!keys.length) {
-      keys = Object.keys(overdueKeys);
-    }
+    if (!keys.length) keys = Object.keys(overdueKeys);
     if (!keys.length) return;
     var el = modalEl();
     var txt = modalText();
@@ -123,21 +168,38 @@
     modalOpen = true;
   }
 
-  function scrollToOverdueTarget() {
+  function moduleUrlForKey(key) {
+    if (key === "reactor" || key === "analisis_8hs") return "/produccion/reactor";
+    if (key === "agua") return "/produccion/agua";
+    if (key === "filtro" || key.indexOf("salmuera_") === 0) return "/produccion/salmuera";
+    return null;
+  }
+
+  function goToOverdueModule() {
     var keys = Object.keys(overdueKeys);
-    var target = null;
-    if (keys.indexOf("reactor") >= 0) {
-      target = document.getElementById("reactorMainForm");
-    } else if (keys.indexOf("analisis_8hs") >= 0) {
-      target = document.getElementById("analisis8hsSalmuera") || document.getElementById("analisis8Form");
-    }
-    if (target && typeof target.scrollIntoView === "function") {
-      try {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-      } catch (_) {
-        target.scrollIntoView(true);
+    var preferred = null;
+    if (keys.indexOf("reactor") >= 0) preferred = "reactor";
+    else if (keys.length) preferred = keys[0];
+    if (!preferred) return false;
+    var url = moduleUrlForKey(preferred);
+    if (!url) return false;
+    if (window.location.pathname.indexOf(url) === 0) {
+      var target = null;
+      if (preferred === "reactor") target = document.getElementById("reactorMainForm");
+      if (preferred === "analisis_8hs") {
+        target = document.getElementById("analisis8hsSalmuera") || document.getElementById("analisis8Form");
       }
+      if (target && typeof target.scrollIntoView === "function") {
+        try {
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+        } catch (e) {
+          target.scrollIntoView(true);
+        }
+      }
+      return false;
     }
+    window.location.href = url;
+    return true;
   }
 
   function closeModalOnly() {
@@ -149,39 +211,40 @@
 
   function hideModal() {
     Object.keys(overdueKeys).forEach(function (k) {
-      dismissedKeys[k] = true;
+      dismissedMap[k] = dismissToken(k);
     });
+    saveDismissed();
     closeModalOnly();
   }
 
   function dropKey(key) {
     delete overdueKeys[key];
+    delete overdueMeta[key];
     delete localOverdue[key];
     refreshFlash();
     if (!Object.keys(overdueKeys).length) closeModalOnly();
   }
 
-  function report(key, label, fromLocal) {
+  function report(key, label, fromLocal, meta) {
     if (!key) return;
-    if (fromLocal) {
-      delete localOkKeys[key];
-      localOverdue[key] = true;
-    } else if (localOkKeys[key]) {
-      // Cronómetro de esta página: en tiempo → no alertar aunque el poll diga vencido.
-      dropKey(key);
-      return;
-    }
+    if (fromLocal) localOverdue[key] = true;
     var wasNew = !overdueKeys[key];
     overdueKeys[key] = label || key;
+    if (meta && typeof meta === "object") {
+      overdueMeta[key] = {
+        last_created_at_iso: meta.last_created_at_iso || null,
+        remaining: meta.remaining,
+      };
+    } else if (!overdueMeta[key]) {
+      overdueMeta[key] = { last_created_at_iso: null, remaining: null };
+    }
     refreshFlash();
     if (!wasNew) return;
-    if (dismissedKeys[key]) return;
+    if (isDismissed(key)) return;
     if (modalOpen) {
       pendingLabels.push(key);
       var txt = modalText();
-      if (txt) {
-        txt.textContent = messageForKeys(Object.keys(overdueKeys));
-      }
+      if (txt) txt.textContent = messageForKeys(Object.keys(overdueKeys));
     } else {
       showModal([key]);
     }
@@ -189,46 +252,89 @@
 
   /**
    * @param {string} key
-   * @param {boolean|{fromLocal?: boolean}} [opts] true o {fromLocal:true} = tick de cronómetro en pantalla
+   * @param {boolean|{fromLocal?: boolean}} [opts]
    */
   function resolve(key, opts) {
     if (!key) return;
     var fromLocal = opts === true || (opts && opts.fromLocal);
     delete localOverdue[key];
-    if (fromLocal) {
-      localOkKeys[key] = true;
-    } else {
-      delete localOkKeys[key];
-      delete dismissedKeys[key];
+    if (!fromLocal) {
+      delete dismissedMap[key];
+      saveDismissed();
     }
-    if (!overdueKeys[key]) {
+    // fromLocal En tiempo ya no bloquea al servidor: solo limpia si este tab lo había marcado.
+    if (fromLocal && !overdueKeys[key]) {
       refreshFlash();
       return;
     }
-    delete overdueKeys[key];
-    refreshFlash();
-    if (!Object.keys(overdueKeys).length) closeModalOnly();
+    if (fromLocal) {
+      // No pelear con el poll: si el servidor lo sigue mandando, se repondrá.
+      refreshFlash();
+      return;
+    }
+    dropKey(key);
   }
 
   function clearAll() {
     overdueKeys = {};
+    overdueMeta = {};
     localOverdue = {};
-    localOkKeys = {};
-    dismissedKeys = {};
     closeModalOnly();
     setFlashing(false);
   }
 
-  function applyServerOverdue(items) {
+  function syncDomTimerFromServer(t) {
+    if (!t || !t.key) return;
+    // Solo sincronizar el cronómetro principal de Reactor en su página.
+    if (t.key !== "reactor") return;
+    var state = document.getElementById("timerState");
+    var text = document.getElementById("timerText");
+    var sub = document.getElementById("timerSub");
+    if (!state || !text) return;
+    if (t.paused) return;
+    var rem = Number(t.remaining);
+    if (!Number.isFinite(rem)) return;
+    function fmt(sec) {
+      var s = Math.max(0, Math.floor(Math.abs(sec)));
+      var h = String(Math.floor(s / 3600)).padStart(2, "0");
+      var m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
+      var ss = String(s % 60).padStart(2, "0");
+      return h + ":" + m + ":" + ss;
+    }
+    if (rem >= 0) {
+      text.textContent = fmt(rem);
+      state.className = "badge text-bg-success app-badge-soft";
+      state.textContent = "En tiempo";
+      if (sub && t.last_created_at_iso) {
+        sub.textContent = "Último registro: " + t.last_created_at_iso;
+      }
+    } else {
+      text.textContent = fmt(rem);
+      state.className = "badge text-bg-danger app-badge-soft";
+      state.textContent = "Atrasado";
+      if (sub) {
+        sub.textContent =
+          "Vencido (servidor). Último: " + fmtLast(t.last_created_at_iso) + " · atraso " + fmt(rem);
+      }
+    }
+  }
+
+  function applyServerOverdue(items, timers) {
     var list = items || [];
+    (timers || []).forEach(function (t) {
+      syncDomTimerFromServer(t);
+    });
     if (!list.length) {
-      // Sin vencidos en servidor: apagar todo salvo lo que el tick local marcó vencido hace un instante.
       var keepLocal = {};
+      var keepMeta = {};
       Object.keys(localOverdue).forEach(function (k) {
-        if (overdueKeys[k]) keepLocal[k] = overdueKeys[k];
+        if (overdueKeys[k]) {
+          keepLocal[k] = overdueKeys[k];
+          keepMeta[k] = overdueMeta[k];
+        }
       });
       overdueKeys = keepLocal;
-      dismissedKeys = {};
+      overdueMeta = keepMeta;
       if (!Object.keys(overdueKeys).length) {
         closeModalOnly();
         setFlashing(false);
@@ -239,22 +345,18 @@
     }
     var incoming = {};
     list.forEach(function (t) {
-      var k = t.key;
-      if (!k) return;
-      if (localOkKeys[k]) {
-        dropKey(k);
-        return;
-      }
-      incoming[k] = t.label || k;
+      if (!t || !t.key) return;
+      incoming[t.key] = t;
     });
     Object.keys(overdueKeys).forEach(function (k) {
       if (!incoming[k] && !localOverdue[k]) {
-        delete dismissedKeys[k];
         delete overdueKeys[k];
+        delete overdueMeta[k];
       }
     });
     Object.keys(incoming).forEach(function (k) {
-      report(k, incoming[k], false);
+      var t = incoming[k];
+      report(k, t.label || k, false, t);
     });
     refreshFlash();
   }
@@ -267,7 +369,7 @@
       })
       .then(function (data) {
         if (!data || !data.ok) return;
-        applyServerOverdue(data.overdue || []);
+        applyServerOverdue(data.overdue || [], data.timers || []);
       })
       .catch(function () {});
   }
@@ -276,8 +378,8 @@
     var ack = document.getElementById("qdvOverdueModalAck");
     if (ack) {
       ack.addEventListener("click", function () {
-        scrollToOverdueTarget();
         hideModal();
+        goToOverdueModule();
       });
     }
   }
@@ -289,6 +391,7 @@
   };
 
   function init() {
+    dismissedMap = loadDismissed();
     bindModal();
     clearAll();
     poll();

@@ -1,6 +1,11 @@
 {
-  "version": "2.1.5",
+  "version": "2.1.6",
   "changelog": [
+    {
+      "version": "2.1.6",
+      "date": "2026-09-03",
+      "description": "Entendido ya no reabre el modal al cambiar de módulo; el aviso muestra último registro y atraso de Reactor, y lleva a ese módulo."
+    },
     {
       "version": "2.1.5",
       "date": "2026-09-03",
