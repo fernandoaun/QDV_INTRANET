@@ -85,14 +85,23 @@
     }
   }
 
-  function resolve(key, fromLocal) {
+  function resolve(key) {
     if (!key) return;
-    if (fromLocal) delete localOverdue[key];
-    if (localOverdue[key] && !fromLocal) return;
-    if (!overdueKeys[key]) return;
+    delete localOverdue[key];
+    if (!overdueKeys[key]) {
+      refreshFlash();
+      return;
+    }
     delete overdueKeys[key];
     refreshFlash();
     if (!Object.keys(overdueKeys).length) hideModal();
+  }
+
+  function clearAll() {
+    overdueKeys = {};
+    localOverdue = {};
+    refreshFlash();
+    hideModal();
   }
 
   function applyServerOverdue(items) {
@@ -101,7 +110,7 @@
       incoming[t.key] = t.label || t.key;
     });
     Object.keys(overdueKeys).forEach(function (k) {
-      if (!incoming[k]) resolve(k, false);
+      if (!incoming[k]) resolve(k);
     });
     Object.keys(incoming).forEach(function (k) {
       report(k, incoming[k], false);
@@ -133,6 +142,7 @@
   window.QdvOverdueAlert = {
     report: report,
     resolve: resolve,
+    clearAll: clearAll,
   };
 
   function init() {

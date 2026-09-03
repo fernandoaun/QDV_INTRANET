@@ -33,7 +33,7 @@
     if (overdue) {
       QdvOverdueAlert.report(key, label, true);
     } else {
-      QdvOverdueAlert.resolve(key, true);
+      QdvOverdueAlert.resolve(key);
     }
   }
 
@@ -53,6 +53,8 @@
 
     const pauseExtra = plantStop && plantStop.pause_extra_seconds ? Number(plantStop.pause_extra_seconds) : 0;
     if (!lastCreatedIso) {
+      // Sin ancla real: countdown local de UI, pero NO dispara alerta global
+      // (si no, al guardar otro análisis la pantalla puede quedar titilando).
       if (ctx._emptyAnchorMs == null) {
         ctx._emptyAnchorMs = Date.now() + (clockOffsetMs || 0);
       }
@@ -64,15 +66,14 @@
         timerSub.textContent = ctx.emptySub || "Sin registros en la fecha seleccionada.";
         timerState.className = "badge text-bg-secondary app-badge-soft";
         timerState.textContent = "En tiempo";
-        notifyOverdueFromTimer(ctx, plantStop, false);
       } else {
         const due = new Date(dueMs);
         timerText.textContent = fmtHhmmss(-diffSec);
-        timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+        timerSub.textContent = `Pendiente desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
         timerState.className = "badge text-bg-danger app-badge-soft";
-        timerState.textContent = "Atrasado";
-        notifyOverdueFromTimer(ctx, plantStop, true);
+        timerState.textContent = "Pendiente";
       }
+      notifyOverdueFromTimer(ctx, plantStop, false);
       return;
     }
     const last = parseIsoLocal(lastCreatedIso);
