@@ -3,19 +3,20 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def test_overdue_alert_js_respects_local_timer_ok():
+def test_overdue_alert_js_persists_dismiss_and_shows_meta():
     js = (Path(__file__).resolve().parents[1] / "app" / "static" / "js" / "overdue_alert.js").read_text(
         encoding="utf-8"
     )
-    assert "localOkKeys" in js
-    assert "fromLocal" in js
-    assert "Registrá ese análisis para apagar el aviso." in js
-    # No mezclar Análisis 8 hs dentro del mensaje de Reactor.
-    assert "si está «En tiempo», no apaga este aviso" not in js
-    assert "Análisis 8 hs es otro cronómetro" not in js
+    assert "qdvOverdueDismissedV2" in js
+    assert "sessionStorage" in js
+    assert "last_created_at_iso" in js
+    assert "atraso" in js
+    assert "syncDomTimerFromServer" in js
+    # No bloquear el poll con localOk (eso hacía que al salir de salmuera/reactor volviera el modal).
+    assert "localOkKeys" not in js
 
 
-def test_plant_stop_js_resolve_marks_local_ok():
+def test_plant_stop_js_resolve_marks_from_local():
     js = (Path(__file__).resolve().parents[1] / "app" / "static" / "js" / "plant_stop.js").read_text(
         encoding="utf-8"
     )
