@@ -253,4 +253,5 @@ ANALYSIS_INTERVAL_SECONDS = 2 * 60 * 60
 # Electrolizadores con formulario y cronómetro propio en pantalla (carga simultánea). Ampliar la tupla para sumar equipos.
 SALMUERA_PANEL_ELECTROLIZADORES: tuple[int, ...] = (2, 3)
 AGUA_ANALYSIS_INTERVAL_SECONDS = 8 * 60 * 60
+FILTRO_LAVADO_INTERVAL_SECONDS = 24 * 60 * 60
 SECURITY_DELETE_CODE = "8956"

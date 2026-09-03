@@ -278,6 +278,71 @@
   {% endfor %}
 </div>
 
+<div class="row g-3 mt-2">
+  <div class="col-12 col-lg-6">
+    <div class="app-card mb-0">
+      <div class="app-card-header app-card-header--split">
+        <div>
+          <strong>Filtro — Lavado y enjuague</strong>
+          <div class="small app-text-secondary mt-1">Intervalo: 24 h</div>
+        </div>
+        <div>
+          <span class="badge text-bg-secondary app-badge-soft" id="filtroTimerState">—</span>
+        </div>
+      </div>
+      <div class="app-card-body">
+        <div class="border rounded-3 p-3 mb-3">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <span class="fw-semibold">Cronómetro · Filtro</span>
+          </div>
+          <div class="app-timer-display mb-1" id="filtroTimerText">--:--:--</div>
+          <div class="small app-text-secondary" id="filtroTimerSub">Calculando…</div>
+          {% with plant_stop=filtro_plant_stop, circuit_key='filtro', fecha_iso=fecha %}
+          {% include "produccion/_plant_stop_controls.html" %}
+          {% endwith %}
+        </div>
+        <form method="post" id="filtroLavadoForm" autocomplete="off">
+          {% include "_csrf.html" %}
+          <input type="hidden" name="action" value="guardar_filtro">
+          <div class="row g-2 align-items-end">
+            <div class="col-md-6">
+              <label class="form-label">Observaciones (opcional)</label>
+              <input class="form-control" name="observaciones_filtro">
+            </div>
+            <div class="col-auto">
+              <button type="submit" class="btn btn-primary">Registrar lavado de filtro</button>
+            </div>
+          </div>
+          <div id="filtroMessage" class="alert py-2 px-3 d-none mt-2" role="status"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="app-card mb-0 h-100 d-flex flex-column" style="min-height:0;">
+      <div class="app-card-header">Registros de filtro — {{ fecha }}</div>
+      <div class="app-card-body--flush table-responsive app-table-scroll flex-grow-1" style="max-height:min(40vh,360px);">
+        <table class="table table-app table-compact mb-0">
+          <thead>
+            <tr><th>ID</th><th>Hora</th><th>Operador</th><th>Obs.</th><th>Creado</th></tr>
+          </thead>
+          <tbody id="filtroRows">
+            {% for r in filtro_registros %}
+            <tr>
+              <td>{{ r.id }}</td><td>{{ r.hora_hm }}</td><td>{{ r.operador }}</td>
+              <td title="{{ r.observaciones }}"><div class="cell-ellipsis">{{ r.observaciones }}</div></td>
+              <td>{{ r.created_at_iso }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-center text-muted py-3">Sin registros de filtro.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% for ar in analysis_ref_rows_salmuera %}
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
@@ -704,6 +769,78 @@
 
   tickAllTimers();
   setInterval(tickAllTimers, 1000);
+
+  // --- Filtro timer ---
+  const filtroIntervalSec = {{ filtro_interval_seconds | int }};
+  const filtroPlantStop = {{ filtro_plant_stop | tojson }};
+  const filtroLastCreatedIso = {{ (filtro_last_created_at_iso or '') | tojson }};
+  const filtroCtx = {
+    timerText: document.getElementById("filtroTimerText"),
+    timerSub: document.getElementById("filtroTimerSub"),
+    timerState: document.getElementById("filtroTimerState"),
+    intervalSec: filtroIntervalSec,
+    lastCreatedIso: filtroLastCreatedIso || null,
+    clockOffsetMs,
+    plantStop: filtroPlantStop,
+    emptySub: "Sin registros de lavado de filtro.",
+  };
+  timerContextsByCircuit["filtro"] = filtroCtx;
+
+  function tickFiltro() {
+    if (window.QdvPlantStop) {
+      QdvPlantStop.applyTimerState(filtroCtx, filtroCtx.plantStop);
+    }
+  }
+  tickFiltro();
+  setInterval(tickFiltro, 1000);
+
+  // Filtro AJAX form
+  const filtroForm = document.getElementById("filtroLavadoForm");
+  const filtroMsg = document.getElementById("filtroMessage");
+  const filtroRows = document.getElementById("filtroRows");
+  if (filtroForm) {
+    filtroForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if (filtroMsg) { filtroMsg.classList.add("d-none"); filtroMsg.textContent = ""; }
+      const btn = filtroForm.querySelector("button[type='submit']");
+      if (btn) btn.disabled = true;
+      try {
+        const resp = await fetch(filtroForm.getAttribute("action") || window.location.href, {
+          method: "POST",
+          headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" },
+          body: new FormData(filtroForm),
+          credentials: "same-origin",
+        });
+        const payload = await resp.json();
+        if (!resp.ok || !payload.ok) throw new Error(payload.error || payload.message || "Error al guardar.");
+        if (filtroMsg) {
+          filtroMsg.classList.remove("d-none", "alert-danger");
+          filtroMsg.classList.add("alert-success");
+          filtroMsg.textContent = payload.message || "Lavado registrado.";
+        }
+        if (payload.registro && filtroRows) {
+          const empty = filtroRows.querySelector("td.text-center.text-muted");
+          if (empty) { const tr = empty.closest("tr"); if (tr) tr.remove(); }
+          const r = payload.registro;
+          const esc = (t) => String(t == null ? "" : t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+          filtroRows.insertAdjacentHTML("afterbegin",
+            `<tr><td>${esc(r.id)}</td><td>${esc(r.hora_hm)}</td><td>${esc(r.operador)}</td><td title="${esc(r.observaciones)}"><div class="cell-ellipsis">${esc(r.observaciones)}</div></td><td>${esc(r.created_at_iso)}</td></tr>`);
+        }
+        filtroCtx.lastCreatedIso = (payload.registro && payload.registro.created_at_iso) || filtroCtx.lastCreatedIso;
+        tickFiltro();
+        filtroForm.querySelector("input[name='observaciones_filtro']").value = "";
+      } catch (err) {
+        if (filtroMsg) {
+          filtroMsg.classList.remove("d-none", "alert-success");
+          filtroMsg.classList.add("alert-danger");
+          filtroMsg.textContent = err.message || "Error.";
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    });
+  }
+
   if (window.QdvPlantStop) {
     QdvPlantStop.bindToggleButtons(timerContextsByCircuit);
   }

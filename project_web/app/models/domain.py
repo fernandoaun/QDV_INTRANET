@@ -108,6 +108,19 @@ class AguaRegistro(db.Model):
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 
+class FiltroLavadoRegistro(db.Model):
+    """Registro de lavado y enjuague de filtro (circuito salmuera, cada 24 h)."""
+
+    __tablename__ = "filtro_lavado_registros"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    fecha_iso = db.Column(db.String(16), nullable=False, index=True)
+    hora_hm = db.Column(db.String(8), nullable=False)
+    operador = db.Column(db.String(256), nullable=False)
+    observaciones = db.Column(db.Text)
+    created_at_iso = db.Column(db.String(32), nullable=False)
+
+
 class ColumnaIntercambio(db.Model):
     __tablename__ = "columnas_intercambio_ionico"
 

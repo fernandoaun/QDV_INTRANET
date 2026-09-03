@@ -775,6 +775,53 @@
   }, true);
 })();
 </script>
+{% if page_can_edit_current %}
+<div id="qdvOverdueOverlay"></div>
+<script>
+(function () {
+  var POLL_MS = 30000;
+  var CHECK_URL = "/produccion/cronometros/estado";
+  var alertShown = false;
+  var overdueKeys = new Set();
+
+  function showOverduePopup(items) {
+    if (alertShown) return;
+    alertShown = true;
+    var names = items.map(function (t) { return t.label; }).join(", ");
+    var msg = "⚠ ATENCIÓN: Análisis vencido en: " + names + ".\nRegistrá el análisis lo antes posible.";
+    setTimeout(function () {
+      alert(msg);
+      alertShown = false;
+    }, 200);
+  }
+
+  function checkOverdue() {
+    fetch(CHECK_URL, { credentials: "same-origin", headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        var od = data.overdue || [];
+        if (od.length > 0) {
+          document.body.classList.add("qdv-overdue-active");
+          var newKeys = od.map(function (t) { return t.key; });
+          var brandNew = newKeys.filter(function (k) { return !overdueKeys.has(k); });
+          newKeys.forEach(function (k) { overdueKeys.add(k); });
+          if (brandNew.length > 0) {
+            showOverduePopup(od.filter(function (t) { return brandNew.indexOf(t.key) >= 0; }));
+          }
+        } else {
+          document.body.classList.remove("qdv-overdue-active");
+          overdueKeys.clear();
+        }
+      })
+      .catch(function () {});
+  }
+
+  checkOverdue();
+  setInterval(checkOverdue, POLL_MS);
+})();
+</script>
+{% endif %}
 {% endif %}
 {% block scripts %}{% endblock %}
 </body>
