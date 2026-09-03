@@ -67,28 +67,92 @@
     setFlashing(Object.keys(overdueKeys).length > 0);
   }
 
-  function showModal(labels) {
-    var unique = [];
-    labels.forEach(function (l) {
-      if (l && unique.indexOf(l) < 0) unique.push(l);
+  function messageForKeys(keys) {
+    var labels = [];
+    var hasReactor = false;
+    var hasAnalisis8 = false;
+    (keys || []).forEach(function (k) {
+      if (!k) return;
+      if (k === "reactor") hasReactor = true;
+      if (k === "analisis_8hs") hasAnalisis8 = true;
+      var lab = overdueKeys[k] || k;
+      if (labels.indexOf(lab) < 0) labels.push(lab);
     });
-    if (!unique.length) return;
+    if (!labels.length) return "";
+    if (labels.length === 1) {
+      if (hasReactor) {
+        return (
+          "El cronómetro principal del Reactor está vencido. " +
+          "Completá Nuevo registro (Disolvedor: densidad, conc. tabla, etc.) y guardá. " +
+          "El Análisis 8 hs es otro cronómetro; si está «En tiempo», no apaga este aviso."
+        );
+      }
+      if (hasAnalisis8) {
+        return (
+          "El Análisis 8 hs está vencido. Registrá dureza y cloro libre en la tarjeta de arriba para apagar el aviso."
+        );
+      }
+      return (
+        "El cronómetro de " +
+        labels[0] +
+        " está vencido. Registrá ese análisis para apagar el aviso."
+      );
+    }
+    var tip = "";
+    if (hasReactor || hasAnalisis8) {
+      tip =
+        " En Reactor hay dos independientes: Nuevo registro (principal) y Análisis 8 hs (dureza/cloro).";
+    }
+    return "Cronómetros vencidos: " + labels.join(", ") + ". Registrá cada uno." + tip;
+  }
+
+  function showModal(keysOrLabels) {
+    var keys = [];
+    (keysOrLabels || []).forEach(function (item) {
+      if (!item) return;
+      // Acepta key ("reactor") o label ("Reactor") para no romper report() existente.
+      if (overdueKeys[item]) {
+        if (keys.indexOf(item) < 0) keys.push(item);
+        return;
+      }
+      var found = null;
+      Object.keys(overdueKeys).forEach(function (k) {
+        if (overdueKeys[k] === item) found = k;
+      });
+      if (found && keys.indexOf(found) < 0) keys.push(found);
+      else if (!found && keys.indexOf(item) < 0) keys.push(item);
+    });
+    if (!keys.length) {
+      keys = Object.keys(overdueKeys);
+    }
+    if (!keys.length) return;
     var el = modalEl();
     var txt = modalText();
+    var msg = messageForKeys(keys);
     if (!el || !txt) {
-      pendingLabels = unique.slice();
+      pendingLabels = keys.slice();
       return;
     }
-    txt.textContent =
-      unique.length === 1
-        ? "El cronómetro de " +
-          unique[0] +
-          " está vencido. Registrá ese análisis para apagar el aviso."
-        : "Cronómetros vencidos: " +
-          unique.join(", ") +
-          ". Registrá cada uno. En Reactor hay dos independientes: registro principal y Análisis 8 hs.";
+    txt.textContent = msg;
     el.hidden = false;
     modalOpen = true;
+  }
+
+  function scrollToOverdueTarget() {
+    var keys = Object.keys(overdueKeys);
+    var target = null;
+    if (keys.indexOf("reactor") >= 0) {
+      target = document.getElementById("reactorMainForm");
+    } else if (keys.indexOf("analisis_8hs") >= 0) {
+      target = document.getElementById("analisis8hsSalmuera") || document.getElementById("analisis8Form");
+    }
+    if (target && typeof target.scrollIntoView === "function") {
+      try {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (_) {
+        target.scrollIntoView(true);
+      }
+    }
   }
 
   function closeModalOnly() {
@@ -114,13 +178,13 @@
     if (!wasNew) return;
     if (dismissedKeys[key]) return;
     if (modalOpen) {
-      pendingLabels.push(label || key);
+      pendingLabels.push(key);
       var txt = modalText();
       if (txt) {
-        txt.textContent = "Cronómetros vencidos: " + overdueLabels().join(", ") + ".";
+        txt.textContent = messageForKeys(Object.keys(overdueKeys));
       }
     } else {
-      showModal([label || key]);
+      showModal([key]);
     }
   }
 
@@ -186,6 +250,7 @@
     var ack = document.getElementById("qdvOverdueModalAck");
     if (ack) {
       ack.addEventListener("click", function () {
+        scrollToOverdueTarget();
         hideModal();
       });
     }
