@@ -46,7 +46,7 @@ def last_salmuera_created_at_iso_for_electrolizador(electrolizador: int) -> str 
     return db.session.scalar(
         select(SalmueraRegistro.created_at_iso)
         .where(SalmueraRegistro.electrolizador == int(electrolizador))
-        .order_by(SalmueraRegistro.id.desc())
+        .order_by(SalmueraRegistro.created_at_iso.desc(), SalmueraRegistro.id.desc())
         .limit(1)
     )
 

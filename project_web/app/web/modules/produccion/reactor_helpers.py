@@ -24,7 +24,9 @@ def next_reactor_lote(fecha_iso: str) -> str:
 def last_reactor_created_at_iso() -> str | None:
     """Último análisis de reactor (cualquier fecha; ancla del vencimiento operativo)."""
     return db.session.scalar(
-        select(ReactorRegistro.created_at_iso).order_by(ReactorRegistro.id.desc()).limit(1)
+        select(ReactorRegistro.created_at_iso)
+        .order_by(ReactorRegistro.created_at_iso.desc(), ReactorRegistro.id.desc())
+        .limit(1)
     )
 
 

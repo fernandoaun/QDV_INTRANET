@@ -207,8 +207,25 @@
     return payload;
   }
 
+  function registerTimerContexts(timerContextsByCircuit) {
+    window.QdvPageTimers = Object.assign(window.QdvPageTimers || {}, timerContextsByCircuit || {});
+  }
+
+  function applyServerSnapshot(t) {
+    if (!t || !t.key) return;
+    const ctx = (window.QdvPageTimers || {})[t.key];
+    if (!ctx) return;
+    if (t.paused) return;
+    const last = String(t.last_created_at_iso || "").trim();
+    // Nunca borrar un ancla conocida: el poll sin registro pisaba En tiempo con Atrasado.
+    if (!last) return;
+    ctx.lastCreatedIso = last;
+    ctx._emptyAnchorMs = null;
+  }
+
   function bindToggleButtons(timerContextsByCircuit, options) {
     const opts = options || {};
+    registerTimerContexts(timerContextsByCircuit);
     document.querySelectorAll(".js-plant-stop-toggle").forEach((btn) => {
       if (btn.dataset.plantStopBound === "1") return;
       btn.dataset.plantStopBound = "1";
@@ -267,6 +284,8 @@
     parseIsoLocal,
     fmtHhmmss,
     applyTimerState,
+    applyServerSnapshot,
+    registerTimerContexts,
     bindToggleButtons,
   };
 })();

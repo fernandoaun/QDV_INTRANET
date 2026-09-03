@@ -1,6 +1,11 @@
 {
-  "version": "2.1.6",
+  "version": "2.1.7",
   "changelog": [
+    {
+      "version": "2.1.7",
+      "date": "2026-09-03",
+      "description": "El cronómetro de Reactor ya no alterna entre Atrasado y En tiempo: el poll del servidor no pisa el reloj de la pantalla."
+    },
     {
       "version": "2.1.6",
       "date": "2026-09-03",

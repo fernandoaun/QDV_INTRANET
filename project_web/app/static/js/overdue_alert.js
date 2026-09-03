@@ -3,7 +3,8 @@
  * Se activa solo si window.QDV_OVERDUE_ALERT_ENABLED es true (operador en turno).
  *
  * Reglas:
- * - El poll del servidor es la fuente de verdad (lista overdue + remaining).
+ * - El poll del servidor alimenta el modal/titileo (lista overdue).
+ * - El cronómetro de la pantalla lo pinta solo plant_stop.js (1 s); el poll no pisa el DOM.
  * - «Entendido» se recuerda en sessionStorage para no reabrir el modal al cambiar de página
  *   (el banner/titileo siguen hasta registrar el análisis).
  * - Al guardar un análisis se limpia ese circuito de inmediato.
@@ -283,46 +284,22 @@
     setFlashing(false);
   }
 
-  function syncDomTimerFromServer(t) {
+  function hasLastAnchor(t) {
+    return !!(t && String(t.last_created_at_iso || "").trim());
+  }
+
+  function syncPageTimerFromServer(t) {
     if (!t || !t.key) return;
-    // Solo sincronizar el cronómetro principal de Reactor en su página.
-    if (t.key !== "reactor") return;
-    var state = document.getElementById("timerState");
-    var text = document.getElementById("timerText");
-    var sub = document.getElementById("timerSub");
-    if (!state || !text) return;
-    if (t.paused) return;
-    var rem = Number(t.remaining);
-    if (!Number.isFinite(rem)) return;
-    function fmt(sec) {
-      var s = Math.max(0, Math.floor(Math.abs(sec)));
-      var h = String(Math.floor(s / 3600)).padStart(2, "0");
-      var m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
-      var ss = String(s % 60).padStart(2, "0");
-      return h + ":" + m + ":" + ss;
+    if (!window.QdvPlantStop || typeof window.QdvPlantStop.applyServerSnapshot !== "function") {
+      return;
     }
-    if (rem >= 0) {
-      text.textContent = fmt(rem);
-      state.className = "badge text-bg-success app-badge-soft";
-      state.textContent = "En tiempo";
-      if (sub && t.last_created_at_iso) {
-        sub.textContent = "Último registro: " + t.last_created_at_iso;
-      }
-    } else {
-      text.textContent = fmt(rem);
-      state.className = "badge text-bg-danger app-badge-soft";
-      state.textContent = "Atrasado";
-      if (sub) {
-        sub.textContent =
-          "Vencido (servidor). Último: " + fmtLast(t.last_created_at_iso) + " · atraso " + fmt(rem);
-      }
-    }
+    window.QdvPlantStop.applyServerSnapshot(t);
   }
 
   function applyServerOverdue(items, timers) {
     var list = items || [];
     (timers || []).forEach(function (t) {
-      syncDomTimerFromServer(t);
+      syncPageTimerFromServer(t);
     });
     if (!list.length) {
       var keepLocal = {};
@@ -346,6 +323,7 @@
     var incoming = {};
     list.forEach(function (t) {
       if (!t || !t.key) return;
+      if (!hasLastAnchor(t)) return;
       incoming[t.key] = t;
     });
     Object.keys(overdueKeys).forEach(function (k) {
@@ -358,6 +336,7 @@
       var t = incoming[k];
       report(k, t.label || k, false, t);
     });
+    if (!Object.keys(overdueKeys).length) closeModalOnly();
     refreshFlash();
   }
 

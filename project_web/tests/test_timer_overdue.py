@@ -87,6 +87,27 @@ def test_list_timer_statuses_includes_overdue(app, monkeypatch):
     assert "salmuera_e2" not in keys
 
 
+def test_remaining_without_last_is_full_interval(app):
+    with app.app_context():
+        rem = ps.compute_remaining_seconds(
+            None, 7200, "reactor", now_iso="2026-09-03T15:11:00"
+        )
+    assert rem == 7200
+    assert rem >= 0
+
+
+def test_remaining_matches_last_plus_interval(app):
+    with app.app_context():
+        rem = ps.compute_remaining_seconds(
+            "2026-09-03T13:46:20",
+            7200,
+            "reactor",
+            now_iso="2026-09-03T15:11:00",
+        )
+    # 13:46:20 + 2 h = 15:46:20 → 35 min 20 s
+    assert rem == 35 * 60 + 20
+
+
 def test_cronometros_estado_endpoint(auth_client):
     r = auth_client.get("/produccion/cronometros/estado")
     assert r.status_code == 200
