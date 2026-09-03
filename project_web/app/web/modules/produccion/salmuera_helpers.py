@@ -41,6 +41,16 @@ def distinct_salmuera_electrolizador_ids() -> list[int]:
     return [int(x) for x in rows]
 
 
+def last_salmuera_created_at_iso_for_electrolizador(electrolizador: int) -> str | None:
+    """Último análisis del electrolizador (cualquier fecha; ancla del vencimiento operativo)."""
+    return db.session.scalar(
+        select(SalmueraRegistro.created_at_iso)
+        .where(SalmueraRegistro.electrolizador == int(electrolizador))
+        .order_by(SalmueraRegistro.id.desc())
+        .limit(1)
+    )
+
+
 def last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso: str, electrolizador: int) -> str | None:
     """Último análisis del electrolizador en la fecha de planilla (mismo criterio temporal que el cronómetro por día)."""
     return db.session.scalar(

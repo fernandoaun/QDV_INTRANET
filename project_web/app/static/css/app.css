@@ -1823,28 +1823,56 @@ body.app-body {
 
 /* Global overdue alert flash */
 @keyframes qdv-overdue-flash {
-  0%, 100% { box-shadow: inset 0 0 0 0 rgba(220, 53, 69, 0); }
-  50% { box-shadow: inset 0 0 0 4000px rgba(220, 53, 69, 0.12); }
+  0%, 100% { background-color: var(--app-bg, #f4f1ea); }
+  50% { background-color: rgba(220, 53, 69, 0.35); }
 }
 body.qdv-overdue-active {
-  animation: qdv-overdue-flash 1.5s ease-in-out infinite;
+  animation: qdv-overdue-flash 0.9s ease-in-out infinite;
 }
+body.qdv-overdue-active .app-wrap,
+body.qdv-overdue-active .app-main,
 body.qdv-overdue-active .app-topbar {
-  animation: qdv-overdue-flash 1.5s ease-in-out infinite;
+  animation: qdv-overdue-flash 0.9s ease-in-out infinite;
 }
 #qdvOverdueOverlay {
-  display: none;
   position: fixed;
   inset: 0;
   z-index: 10000;
   pointer-events: none;
-  border: 6px solid transparent;
+  border: 8px solid #dc3545;
+  box-shadow: inset 0 0 80px rgba(220, 53, 69, 0.45);
 }
-body.qdv-overdue-active #qdvOverdueOverlay {
-  display: block;
-  animation: qdv-overdue-border 1.5s ease-in-out infinite;
+#qdvOverdueOverlay[hidden] {
+  display: none !important;
 }
-@keyframes qdv-overdue-border {
-  0%, 100% { border-color: transparent; }
-  50% { border-color: rgba(220, 53, 69, 0.6); }
+.qdv-overdue-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+.qdv-overdue-modal[hidden] {
+  display: none !important;
+}
+.qdv-overdue-modal__box {
+  background: #fff;
+  color: #1a1a2e;
+  border: 3px solid #dc3545;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  max-width: 28rem;
+  width: calc(100% - 2rem);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+.qdv-overdue-modal__title {
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+  color: #b02a37;
+}
+.qdv-overdue-modal__text {
+  margin: 0 0 1rem;
+  font-size: 1rem;
 }

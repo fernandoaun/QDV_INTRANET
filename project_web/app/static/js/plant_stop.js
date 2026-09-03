@@ -25,6 +25,18 @@
     return `${h}:${m}:${ss}`;
   }
 
+  function notifyOverdueFromTimer(ctx, plantStop, overdue) {
+    if (!window.QdvOverdueAlert) return;
+    const key = (plantStop && plantStop.circuit_key) || ctx.circuitKey || "";
+    const label = (plantStop && plantStop.circuit_label) || ctx.overdueLabel || "análisis";
+    if (!key) return;
+    if (overdue) {
+      QdvOverdueAlert.report(key, label, true);
+    } else {
+      QdvOverdueAlert.resolve(key, true);
+    }
+  }
+
   function applyTimerState(ctx, plantStop) {
     const { timerText, timerSub, timerState, intervalSec, lastCreatedIso, clockOffsetMs } = ctx;
     if (!timerText || !timerSub || !timerState) return;
@@ -35,6 +47,7 @@
       timerSub.textContent = `Parada de planta desde ${plantStop.started_at_iso || "—"}`;
       timerState.className = "badge text-bg-warning app-badge-soft";
       timerState.textContent = "Parada";
+      notifyOverdueFromTimer(ctx, plantStop, false);
       return;
     }
 
@@ -46,17 +59,19 @@
       const now = Date.now() + (clockOffsetMs || 0);
       const dueMs = ctx._emptyAnchorMs + intervalSec * 1000;
       const diffSec = (dueMs - now) / 1000;
-      if (diffSec >= 0) {
+      if (diffSec > 0) {
         timerText.textContent = fmtHhmmss(diffSec);
         timerSub.textContent = ctx.emptySub || "Sin registros en la fecha seleccionada.";
         timerState.className = "badge text-bg-secondary app-badge-soft";
         timerState.textContent = "En tiempo";
+        notifyOverdueFromTimer(ctx, plantStop, false);
       } else {
         const due = new Date(dueMs);
         timerText.textContent = fmtHhmmss(-diffSec);
         timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
         timerState.className = "badge text-bg-danger app-badge-soft";
         timerState.textContent = "Atrasado";
+        notifyOverdueFromTimer(ctx, plantStop, true);
       }
       return;
     }
@@ -64,16 +79,18 @@
     const due = new Date(last.getTime() + intervalSec * 1000 + pauseExtra * 1000);
     const now = new Date(Date.now() + (clockOffsetMs || 0));
     const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec >= 0) {
+    if (diffSec > 0) {
       timerText.textContent = fmtHhmmss(diffSec);
       timerSub.textContent = `Último registro: ${lastCreatedIso}`;
       timerState.className = "badge text-bg-success app-badge-soft";
       timerState.textContent = "En tiempo";
+      notifyOverdueFromTimer(ctx, plantStop, false);
     } else {
       timerText.textContent = fmtHhmmss(-diffSec);
       timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
+      notifyOverdueFromTimer(ctx, plantStop, true);
     }
   }
 
