@@ -7,10 +7,11 @@ Create Date: 2026-09-03
 from alembic import op
 import sqlalchemy as sa
 
-revision = "20260903_filtro"
-down_revision = None
-branch_labels = None
-depends_on = None
+revision: str = "20260903_filtro"
+# Importante: mantener la cadena lineal de migraciones para evitar "multiple heads".
+down_revision: str | None = "20260827_reactor_entrada_el"
+branch_labels: str | None = None
+depends_on: str | None = None
 
 
 def upgrade():
