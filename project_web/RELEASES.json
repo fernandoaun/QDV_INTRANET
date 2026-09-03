@@ -1,8 +1,8 @@
 {
-  "version": "2.1",
+  "version": "2.1.1",
   "changelog": [
     {
-      "version": "2.1",
+      "version": "2.1.1",
       "date": "2026-09-03",
       "description": "Al guardar un análisis vencido, se apaga el titileo rojo; la alerta global solo aplica si hay un análisis real atrasado."
     },
