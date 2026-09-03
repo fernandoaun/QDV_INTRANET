@@ -19,12 +19,14 @@ CIRCUIT_SALMUERA_E2 = "salmuera_e2"
 CIRCUIT_SALMUERA_E3 = "salmuera_e3"
 CIRCUIT_REACTOR = "reactor"
 CIRCUIT_AGUA = "agua"
+CIRCUIT_FILTRO = "filtro"
 
 CIRCUIT_LABELS: dict[str, str] = {
     CIRCUIT_SALMUERA_E2: "Electrolizador 2",
     CIRCUIT_SALMUERA_E3: "Electrolizador 3",
     CIRCUIT_REACTOR: "Circuito de salmuera",
     CIRCUIT_AGUA: "Circuito de agua",
+    CIRCUIT_FILTRO: "Filtro (lavado y enjuague)",
 }
 
 VALID_CIRCUIT_KEYS = frozenset(CIRCUIT_LABELS.keys())

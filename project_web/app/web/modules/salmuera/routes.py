@@ -9,9 +9,10 @@ from flask import Blueprint, flash, jsonify, redirect, render_template, request,
 from sqlalchemy import select
 
 from app.auth_utils import current_user, login_required, permission_required
-from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS, SALMUERA_PANEL_ELECTROLIZADORES, SECURITY_DELETE_CODE
+from app.constants import ANALYSIS_INTERVAL_SECONDS, FILTRO_LAVADO_INTERVAL_SECONDS, MODULE_LABELS, SALMUERA_PANEL_ELECTROLIZADORES, SECURITY_DELETE_CODE
 from app.extensions import db
-from app.models import SalmueraRegistro
+from app.models import FiltroLavadoRegistro, SalmueraRegistro
+from app.services import filtro_lavado_service as filtro_svc
 from app.services.analysis_ref_pdf import HIPO_CONC_PDF_DOC_KEY, SALMUERA_ANALYSIS_REF_SPECS, analysis_ref_ui_rows
 from app.services.hipoclorito_warnings import (
     append_hipoclorito_warnings_to_observaciones,
@@ -192,6 +193,34 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                     return jsonify({"ok": False, "error": str(e)}), 400
                 flash(str(e), "danger")
 
+        if request.method == "POST" and request.form.get("action") == "guardar_filtro":
+            try:
+                now = now_local()
+                obs = (request.form.get("observaciones_filtro") or "").strip()
+                operador_auto = default_operador_for_salmuera()
+                row = FiltroLavadoRegistro(
+                    fecha_iso=fecha,
+                    hora_hm=now.strftime("%H:%M"),
+                    operador=operador_auto,
+                    observaciones=obs or None,
+                    created_at_iso=now.isoformat(timespec="seconds"),
+                )
+                db.session.add(row)
+                db.session.commit()
+                if _is_ajax_request():
+                    return jsonify({
+                        "ok": True,
+                        "message": "Lavado de filtro registrado.",
+                        "registro": filtro_svc.filtro_row_to_dict(row),
+                    }), 200
+                flash("Lavado de filtro registrado.", "success")
+                return redirect(url_for("produccion.salmuera", fecha=fecha))
+            except Exception as e:
+                db.session.rollback()
+                if _is_ajax_request():
+                    return jsonify({"ok": False, "error": str(e)}), 400
+                flash(str(e), "danger")
+
         if request.method == "POST" and request.form.get("action") == "borrar":
             fecha_del = (request.form.get("fecha") or fecha).strip()
             rid = int((request.form.get("reg_id") or 0))
@@ -244,6 +273,15 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             analysis_ref_rows_salmuera=analysis_ref_rows_salmuera,
             analysis_ref_map_salmuera=analysis_ref_map_salmuera,
             hipoclorito_warning_rules=hipoclorito_operational_warning_rules_for_js(),
+            filtro_registros=filtro_svc.filtro_rows_for_date(fecha),
+            filtro_interval_seconds=int(FILTRO_LAVADO_INTERVAL_SECONDS),
+            filtro_last_created_at_iso=filtro_svc.last_filtro_created_at_iso(),
+            filtro_plant_stop=plant_stop_svc.timer_ui_state(
+                plant_stop_svc.CIRCUIT_FILTRO,
+                filtro_svc.last_filtro_created_at_iso(),
+                int(FILTRO_LAVADO_INTERVAL_SECONDS),
+                fecha_iso=fecha,
+            ),
         )
 
     @bp.get("/salmuera/historial")
