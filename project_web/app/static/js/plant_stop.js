@@ -35,7 +35,8 @@
     if (overdue) {
       QdvOverdueAlert.report(key, label, true);
     } else {
-      QdvOverdueAlert.resolve(key);
+      // fromLocal: el cronómetro de esta pantalla manda; el poll no debe reabrir el aviso.
+      QdvOverdueAlert.resolve(key, { fromLocal: true });
     }
   }
 

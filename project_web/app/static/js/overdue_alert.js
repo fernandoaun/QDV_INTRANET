@@ -1,7 +1,12 @@
 /**
  * Alerta global de cronómetro vencido: titileo de pantalla + modal.
  * Se activa solo si window.QDV_OVERDUE_ALERT_ENABLED es true (operador en turno).
- * El poll del servidor es la fuente de verdad para apagar el rojo.
+ *
+ * Reglas:
+ * - El poll del servidor enciende avisos de circuitos que no están en esta pantalla.
+ * - Si el cronómetro visible de la página dice «En tiempo» / no vencido, ese circuito
+ *   no se alerta (evita falso positivo por desfase servidor vs UI).
+ * - Al guardar un análisis se limpia ese circuito de inmediato.
  */
 (function () {
   "use strict";
@@ -12,6 +17,8 @@
   var CHECK_URL = "/produccion/cronometros/estado";
   var overdueKeys = {};
   var localOverdue = {};
+  /** Circuitos cuyo cronómetro en pantalla está en tiempo / no vencido. */
+  var localOkKeys = {};
   var dismissedKeys = {};
   var modalOpen = false;
   var pendingLabels = [];
@@ -69,49 +76,27 @@
 
   function messageForKeys(keys) {
     var labels = [];
-    var hasReactor = false;
-    var hasAnalisis8 = false;
     (keys || []).forEach(function (k) {
       if (!k) return;
-      if (k === "reactor") hasReactor = true;
-      if (k === "analisis_8hs") hasAnalisis8 = true;
       var lab = overdueKeys[k] || k;
       if (labels.indexOf(lab) < 0) labels.push(lab);
     });
     if (!labels.length) return "";
     if (labels.length === 1) {
-      if (hasReactor) {
-        return (
-          "El cronómetro principal del Reactor está vencido. " +
-          "Completá Nuevo registro (Disolvedor: densidad, conc. tabla, etc.) y guardá. " +
-          "El Análisis 8 hs es otro cronómetro; si está «En tiempo», no apaga este aviso."
-        );
-      }
-      if (hasAnalisis8) {
-        return (
-          "El Análisis 8 hs está vencido. Registrá dureza y cloro libre en la tarjeta de arriba para apagar el aviso."
-        );
-      }
       return (
         "El cronómetro de " +
         labels[0] +
         " está vencido. Registrá ese análisis para apagar el aviso."
       );
     }
-    var tip = "";
-    if (hasReactor || hasAnalisis8) {
-      tip =
-        " En Reactor hay dos independientes: Nuevo registro (principal) y Análisis 8 hs (dureza/cloro).";
-    }
-    return "Cronómetros vencidos: " + labels.join(", ") + ". Registrá cada uno." + tip;
+    return "Cronómetros vencidos: " + labels.join(", ") + ". Registrá cada análisis pendiente.";
   }
 
   function showModal(keysOrLabels) {
     var keys = [];
     (keysOrLabels || []).forEach(function (item) {
       if (!item) return;
-      // Acepta key ("reactor") o label ("Reactor") para no romper report() existente.
-      if (overdueKeys[item]) {
+      if (Object.prototype.hasOwnProperty.call(overdueKeys, item)) {
         if (keys.indexOf(item) < 0) keys.push(item);
         return;
       }
@@ -169,9 +154,23 @@
     closeModalOnly();
   }
 
+  function dropKey(key) {
+    delete overdueKeys[key];
+    delete localOverdue[key];
+    refreshFlash();
+    if (!Object.keys(overdueKeys).length) closeModalOnly();
+  }
+
   function report(key, label, fromLocal) {
     if (!key) return;
-    if (fromLocal) localOverdue[key] = true;
+    if (fromLocal) {
+      delete localOkKeys[key];
+      localOverdue[key] = true;
+    } else if (localOkKeys[key]) {
+      // Cronómetro de esta página: en tiempo → no alertar aunque el poll diga vencido.
+      dropKey(key);
+      return;
+    }
     var wasNew = !overdueKeys[key];
     overdueKeys[key] = label || key;
     refreshFlash();
@@ -188,10 +187,20 @@
     }
   }
 
-  function resolve(key) {
+  /**
+   * @param {string} key
+   * @param {boolean|{fromLocal?: boolean}} [opts] true o {fromLocal:true} = tick de cronómetro en pantalla
+   */
+  function resolve(key, opts) {
     if (!key) return;
+    var fromLocal = opts === true || (opts && opts.fromLocal);
     delete localOverdue[key];
-    delete dismissedKeys[key];
+    if (fromLocal) {
+      localOkKeys[key] = true;
+    } else {
+      delete localOkKeys[key];
+      delete dismissedKeys[key];
+    }
     if (!overdueKeys[key]) {
       refreshFlash();
       return;
@@ -204,6 +213,7 @@
   function clearAll() {
     overdueKeys = {};
     localOverdue = {};
+    localOkKeys = {};
     dismissedKeys = {};
     closeModalOnly();
     setFlashing(false);
@@ -212,17 +222,33 @@
   function applyServerOverdue(items) {
     var list = items || [];
     if (!list.length) {
-      // Fuente de verdad: si el servidor no reporta vencidos, apagar sí o sí.
-      clearAll();
+      // Sin vencidos en servidor: apagar todo salvo lo que el tick local marcó vencido hace un instante.
+      var keepLocal = {};
+      Object.keys(localOverdue).forEach(function (k) {
+        if (overdueKeys[k]) keepLocal[k] = overdueKeys[k];
+      });
+      overdueKeys = keepLocal;
+      dismissedKeys = {};
+      if (!Object.keys(overdueKeys).length) {
+        closeModalOnly();
+        setFlashing(false);
+      } else {
+        refreshFlash();
+      }
       return;
     }
     var incoming = {};
     list.forEach(function (t) {
-      incoming[t.key] = t.label || t.key;
+      var k = t.key;
+      if (!k) return;
+      if (localOkKeys[k]) {
+        dropKey(k);
+        return;
+      }
+      incoming[k] = t.label || k;
     });
     Object.keys(overdueKeys).forEach(function (k) {
-      if (!incoming[k]) {
-        delete localOverdue[k];
+      if (!incoming[k] && !localOverdue[k]) {
         delete dismissedKeys[k];
         delete overdueKeys[k];
       }
@@ -264,7 +290,6 @@
 
   function init() {
     bindModal();
-    // Arrancar apagado; el poll enciende solo si hay vencidos reales.
     clearAll();
     poll();
     setInterval(poll, POLL_MS);
