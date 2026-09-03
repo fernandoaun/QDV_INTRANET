@@ -27,8 +27,10 @@
 
   function notifyOverdueFromTimer(ctx, plantStop, overdue) {
     if (!window.QdvOverdueAlert) return;
-    const key = (plantStop && plantStop.circuit_key) || ctx.circuitKey || "";
-    const label = (plantStop && plantStop.circuit_label) || ctx.overdueLabel || "análisis";
+    const key = (ctx && ctx.circuitKey) || (plantStop && plantStop.circuit_key) || "";
+    // Preferir etiqueta de la pantalla (ej. "Reactor") sobre circuit_label genérico.
+    const label =
+      (ctx && ctx.overdueLabel) || (plantStop && plantStop.circuit_label) || "análisis";
     if (!key) return;
     if (overdue) {
       QdvOverdueAlert.report(key, label, true);

@@ -1,6 +1,11 @@
 {
-  "version": "2.1.1",
+  "version": "2.1.2",
   "changelog": [
+    {
+      "version": "2.1.2",
+      "date": "2026-09-03",
+      "description": "Al guardar el registro principal del reactor se limpia su alerta; el Análisis 8 hs es un cronómetro aparte y hay que registrarlo por separado."
+    },
     {
       "version": "2.1.1",
       "date": "2026-09-03",

@@ -388,6 +388,9 @@
         status = payload.status || status;
         showFormMessage(payload.message || "Análisis guardado.", "alert-success");
         form.reset();
+        if (window.QdvOverdueAlert) {
+          QdvOverdueAlert.resolve("analisis_8hs");
+        }
         tickAnalisis8();
       } catch (err) {
         showFormMessage((err && err.message) ? err.message : "No se pudo guardar el análisis.", "alert-danger");
@@ -411,6 +414,38 @@
 (() => {
   const mainForm = document.getElementById("reactorMainForm");
   const mainFormMsg = document.getElementById("reactorMainFormMessage");
+  const timerText = document.getElementById("timerText");
+  const timerSub = document.getElementById("timerSub");
+  const timerState = document.getElementById("timerState");
+
+  const serverNowIso = {{ (server_now_iso | tojson) }};
+  const lastCreatedIso = {{ (last_created_at_iso | tojson) }};
+  const intervalSec = {{ analysis_interval_seconds | int }};
+  const plantStopState = {{ (plant_stop | tojson) }};
+
+  function parseIsoLocal(iso) {
+    const d = new Date(iso);
+    if (!isNaN(d.getTime())) return d;
+    return new Date((iso || "").replace(" ", "T"));
+  }
+
+  const clientNow = new Date();
+  const serverNow = parseIsoLocal(serverNowIso);
+  const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
+
+  const timerCtx = {
+    timerText,
+    timerSub,
+    timerState,
+    intervalSec,
+    lastCreatedIso,
+    clockOffsetMs,
+    emptySub: "Sin registros hoy: contando desde ahora.",
+    overdueLabel: "Reactor",
+    circuitKey: "reactor",
+    plantStop: plantStopState,
+  };
+  const timerContextsByCircuit = { reactor: timerCtx };
 
   function showMainFormMessage(text, kind) {
     if (!mainFormMsg) return;
@@ -443,6 +478,16 @@
           throw new Error((payload && (payload.error || payload.message)) || "No se pudo guardar el registro.");
         }
         showMainFormMessage(payload.message || "Registro guardado.", "alert-success");
+        if (payload.last_created_at_iso) {
+          timerCtx.lastCreatedIso = payload.last_created_at_iso;
+          timerCtx._emptyAnchorMs = null;
+        }
+        if (window.QdvOverdueAlert) {
+          QdvOverdueAlert.resolve("reactor");
+        }
+        if (window.QdvPlantStop) {
+          QdvPlantStop.applyTimerState(timerCtx, timerCtx.plantStop);
+        }
         window.location.reload();
       } catch (err) {
         showMainFormMessage((err && err.message) ? err.message : "No se pudo guardar el registro.", "alert-danger");
@@ -451,38 +496,6 @@
       }
     });
   }
-
-  const timerText = document.getElementById("timerText");
-  const timerSub = document.getElementById("timerSub");
-  const timerState = document.getElementById("timerState");
-
-  const serverNowIso = {{ (server_now_iso | tojson) }};
-  const lastCreatedIso = {{ (last_created_at_iso | tojson) }};
-  const intervalSec = {{ analysis_interval_seconds | int }};
-  const plantStopState = {{ (plant_stop | tojson) }};
-
-  function parseIsoLocal(iso) {
-    const d = new Date(iso);
-    if (!isNaN(d.getTime())) return d;
-    return new Date((iso || "").replace(" ", "T"));
-  }
-
-  const clientNow = new Date();
-  const serverNow = parseIsoLocal(serverNowIso);
-  const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
-
-  const timerCtx = {
-    timerText,
-    timerSub,
-    timerState,
-    intervalSec,
-    lastCreatedIso,
-    clockOffsetMs,
-    emptySub: "Sin registros hoy: contando desde ahora.",
-    overdueLabel: "Reactor",
-    plantStop: plantStopState,
-  };
-  const timerContextsByCircuit = { [plantStopState.circuit_key]: timerCtx };
 
   function tick() {
     if (window.QdvPlantStop) {

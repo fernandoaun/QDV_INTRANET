@@ -11,6 +11,7 @@
   var CHECK_URL = "/produccion/cronometros/estado";
   var overdueKeys = {};
   var localOverdue = {};
+  var dismissedKeys = {};
   var modalOpen = false;
   var pendingLabels = [];
 
@@ -50,8 +51,12 @@
     }
     txt.textContent =
       unique.length === 1
-        ? "El cronómetro de " + unique[0] + " llegó a cero. Registrá el análisis lo antes posible."
-        : "Hay cronómetros vencidos: " + unique.join(", ") + ". Registrá el análisis lo antes posible.";
+        ? "El cronómetro de " +
+          unique[0] +
+          " llegó a cero. Registrá ese análisis (si es Reactor, el registro principal; si es Análisis 8 hs, dureza/cloro)."
+        : "Hay cronómetros vencidos: " +
+          unique.join(", ") +
+          ". Registrá cada análisis pendiente. En Reactor hay dos: registro principal y Análisis 8 hs.";
     el.hidden = false;
     modalOpen = true;
   }
@@ -61,6 +66,9 @@
     if (el) el.hidden = true;
     modalOpen = false;
     pendingLabels = [];
+    Object.keys(overdueKeys).forEach(function (k) {
+      dismissedKeys[k] = true;
+    });
   }
 
   function report(key, label, fromLocal) {
@@ -69,25 +77,26 @@
     var wasNew = !overdueKeys[key];
     overdueKeys[key] = label || key;
     refreshFlash();
-    if (wasNew) {
-      if (modalOpen) {
-        pendingLabels.push(label || key);
-        var txt = modalText();
-        if (txt) {
-          var names = Object.keys(overdueKeys).map(function (k) {
-            return overdueKeys[k];
-          });
-          txt.textContent = "Hay cronómetros vencidos: " + names.join(", ") + ". Registrá el análisis lo antes posible.";
-        }
-      } else {
-        showModal([label || key]);
+    if (!wasNew) return;
+    if (dismissedKeys[key]) return;
+    if (modalOpen) {
+      pendingLabels.push(label || key);
+      var txt = modalText();
+      if (txt) {
+        var names = Object.keys(overdueKeys).map(function (k) {
+          return overdueKeys[k];
+        });
+        txt.textContent = "Hay cronómetros vencidos: " + names.join(", ") + ". Registrá el análisis lo antes posible.";
       }
+    } else {
+      showModal([label || key]);
     }
   }
 
   function resolve(key) {
     if (!key) return;
     delete localOverdue[key];
+    delete dismissedKeys[key];
     if (!overdueKeys[key]) {
       refreshFlash();
       return;
@@ -100,6 +109,7 @@
   function clearAll() {
     overdueKeys = {};
     localOverdue = {};
+    dismissedKeys = {};
     refreshFlash();
     hideModal();
   }
