@@ -309,6 +309,12 @@
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
   let emptyAnchorMs = null;
 
+  function notifyAnalisis8(overdue) {
+    if (!window.QdvOverdueAlert) return;
+    if (overdue) QdvOverdueAlert.report("analisis_8hs", "Análisis 8 hs", true);
+    else QdvOverdueAlert.resolve("analisis_8hs", true);
+  }
+
   function tickAnalisis8() {
     if (!timerText || !state || !msg) return;
     const ps = (status && status.plant_stop) || { active: false };
@@ -319,6 +325,7 @@
       state.textContent = "Parada";
       msg.textContent = status.message || `Parada de planta desde ${ps.started_at_iso || "—"}.`;
       updateLast(status.last);
+      notifyAnalisis8(false);
       return;
     }
     if (!status || !status.has_records || !status.next_due_iso) {
@@ -328,16 +335,18 @@
       const now = Date.now() + clockOffsetMs;
       const dueMs = emptyAnchorMs + intervalSec * 1000;
       const diffSec = (dueMs - now) / 1000;
-      if (diffSec >= 0) {
+      if (diffSec > 0) {
         timerText.textContent = fmt(diffSec);
         state.className = "badge app-badge-soft text-bg-danger";
         state.textContent = "Pendiente";
         msg.textContent = "No hay análisis registrados. Realizar primer análisis.";
+        notifyAnalisis8(false);
       } else {
         timerText.textContent = fmt(-diffSec);
         state.className = "badge app-badge-soft text-bg-danger";
         state.textContent = "Vencido";
         msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
+        notifyAnalisis8(true);
       }
       updateLast(null);
       return;
@@ -345,16 +354,18 @@
     const due = parseIsoLocal(status.next_due_iso);
     const now = new Date(Date.now() + clockOffsetMs);
     const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec >= 0) {
+    if (diffSec > 0) {
       timerText.textContent = fmt(diffSec);
       state.className = "badge app-badge-soft text-bg-success";
       state.textContent = "En tiempo";
       msg.textContent = "Tiempo restante para el próximo análisis.";
+      notifyAnalisis8(false);
     } else {
       timerText.textContent = fmt(-diffSec);
       state.className = "badge app-badge-soft text-bg-danger";
       state.textContent = "Vencido";
       msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
+      notifyAnalisis8(true);
     }
     updateLast(status.last);
   }
@@ -469,6 +480,7 @@
     lastCreatedIso,
     clockOffsetMs,
     emptySub: "Sin registros hoy: contando desde ahora.",
+    overdueLabel: "Reactor",
     plantStop: plantStopState,
   };
   const timerContextsByCircuit = { [plantStopState.circuit_key]: timerCtx };

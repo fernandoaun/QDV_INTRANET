@@ -750,6 +750,8 @@
         clockOffsetMs,
         plantStop: ps,
         emptySub: "Sin análisis registrados para este electrolizador en esta fecha.",
+        overdueLabel: `Electrolizador ${e}`,
+        circuitKey: ck,
         timerRow: row,
       };
       timerContextsByCircuit[ck] = ctx;
@@ -783,6 +785,8 @@
     clockOffsetMs,
     plantStop: filtroPlantStop,
     emptySub: "Sin registros de lavado de filtro.",
+    overdueLabel: "Filtro (lavado y enjuague)",
+    circuitKey: "filtro",
   };
   timerContextsByCircuit["filtro"] = filtroCtx;
 

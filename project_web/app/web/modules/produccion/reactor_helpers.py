@@ -21,6 +21,13 @@ def next_reactor_lote(fecha_iso: str) -> str:
     return f"{dt.strftime('%y%m%d')}{correlative:02d}"
 
 
+def last_reactor_created_at_iso() -> str | None:
+    """Último análisis de reactor (cualquier fecha; ancla del vencimiento operativo)."""
+    return db.session.scalar(
+        select(ReactorRegistro.created_at_iso).order_by(ReactorRegistro.id.desc()).limit(1)
+    )
+
+
 def last_reactor_created_at_iso_for_date(fecha_iso: str) -> str | None:
     return db.session.scalar(
         select(ReactorRegistro.created_at_iso)
