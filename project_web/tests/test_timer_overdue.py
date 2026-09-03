@@ -16,6 +16,19 @@ def test_status_overdue_at_zero_remaining():
             fecha="2026-09-03",
             paused=False,
         )
+    assert s["overdue"] is False
+
+
+def test_status_overdue_when_negative_remaining():
+    with patch.object(ps, "compute_remaining_seconds", return_value=-1):
+        s = _status(
+            key="salmuera_e3",
+            label="Electrolizador 3",
+            last_iso="2026-09-03T10:00:00",
+            interval_sec=7200,
+            fecha="2026-09-03",
+            paused=False,
+        )
     assert s["overdue"] is True
 
 

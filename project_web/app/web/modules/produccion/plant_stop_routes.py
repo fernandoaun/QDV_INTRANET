@@ -6,36 +6,43 @@ from typing import Any
 from flask import Blueprint, current_app, jsonify, request
 
 from app.auth_utils import current_user, login_required, user_can
-from app.constants import AGUA_ANALYSIS_INTERVAL_SECONDS, ANALYSIS_INTERVAL_SECONDS
+from app.constants import AGUA_ANALYSIS_INTERVAL_SECONDS, ANALYSIS_INTERVAL_SECONDS, FILTRO_LAVADO_INTERVAL_SECONDS
+from app.services import filtro_lavado_service as filtro_svc
 from app.services import plant_stop_service as ps
 from app.web.modules.produccion.agua_helpers import last_agua_created_at_iso
 from app.web.modules.produccion.operativa_context import default_operador_for_salmuera, operador_display_line
-from app.web.modules.produccion.reactor_helpers import last_reactor_created_at_iso_for_date
-from app.web.modules.produccion.salmuera_helpers import last_salmuera_created_at_iso_for_electrolizador_and_date
+from app.web.modules.produccion.reactor_helpers import last_reactor_created_at_iso
+from app.web.modules.produccion.salmuera_helpers import last_salmuera_created_at_iso_for_electrolizador
+
 _CIRCUIT_PERM = {
     ps.CIRCUIT_SALMUERA_E2: "salmuera",
     ps.CIRCUIT_SALMUERA_E3: "salmuera",
     ps.CIRCUIT_REACTOR: "reactor",
     ps.CIRCUIT_AGUA: "agua",
+    ps.CIRCUIT_FILTRO: "salmuera",
 }
 
 
 def _last_created_for_circuit(circuit_key: str, fecha_iso: str) -> str | None:
+    del fecha_iso  # ancla operativa = último análisis global del circuito
     if circuit_key == ps.CIRCUIT_SALMUERA_E2:
-        return last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso, 2)
+        return last_salmuera_created_at_iso_for_electrolizador(2)
     if circuit_key == ps.CIRCUIT_SALMUERA_E3:
-        return last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso, 3)
+        return last_salmuera_created_at_iso_for_electrolizador(3)
     if circuit_key == ps.CIRCUIT_REACTOR:
-        return last_reactor_created_at_iso_for_date(fecha_iso)
+        return last_reactor_created_at_iso()
     if circuit_key == ps.CIRCUIT_AGUA:
-        # Cronómetro de 8 h: ancla en el último análisis global (no solo el del día).
         return last_agua_created_at_iso()
+    if circuit_key == ps.CIRCUIT_FILTRO:
+        return filtro_svc.last_filtro_created_at_iso()
     return None
 
 
 def _interval_for_circuit(circuit_key: str) -> int:
     if circuit_key == ps.CIRCUIT_AGUA:
         return int(AGUA_ANALYSIS_INTERVAL_SECONDS)
+    if circuit_key == ps.CIRCUIT_FILTRO:
+        return int(FILTRO_LAVADO_INTERVAL_SECONDS)
     return int(ANALYSIS_INTERVAL_SECONDS)
 
 

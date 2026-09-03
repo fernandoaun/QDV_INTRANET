@@ -20,6 +20,7 @@ from app.web.modules.produccion.operativa_context import (
     operador_display_line,
 )
 from app.web.modules.produccion.reactor_helpers import (
+    last_reactor_created_at_iso,
     last_reactor_created_at_iso_for_date,
     next_reactor_lote,
     parse_required_float,
@@ -150,7 +151,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
             operador_display_line=operador_display_line(),
             turno_sugerido=turno_sugerido,
             server_now_iso=now_for_defaults.isoformat(timespec="seconds"),
-            last_created_at_iso=last_reactor_created_at_iso_for_date(fecha),
+            last_created_at_iso=last_reactor_created_at_iso(),
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),
             analysis_ref_rows_reactor=analysis_ref_rows_reactor,
             analysis_ref_map_reactor=analysis_ref_map_reactor,
@@ -158,7 +159,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
             analisis8_interval_seconds=analisis8_svc.ANALISIS_8HS_INTERVAL_SECONDS,
             plant_stop=plant_stop_svc.timer_ui_state(
                 plant_stop_svc.CIRCUIT_REACTOR,
-                last_reactor_created_at_iso_for_date(fecha),
+                last_reactor_created_at_iso(),
                 int(ANALYSIS_INTERVAL_SECONDS),
                 fecha_iso=fecha,
             ),
