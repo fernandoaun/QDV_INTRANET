@@ -25,7 +25,7 @@
     return `${h}:${m}:${ss}`;
   }
 
-  function notifyOverdueFromTimer(ctx, plantStop, overdue) {
+  function notifyOverdueFromTimer(ctx, plantStop, overdue, meta) {
     if (!window.QdvOverdueAlert) return;
     const key = (ctx && ctx.circuitKey) || (plantStop && plantStop.circuit_key) || "";
     // Preferir etiqueta de la pantalla (ej. "Reactor") sobre circuit_label genérico.
@@ -33,7 +33,7 @@
       (ctx && ctx.overdueLabel) || (plantStop && plantStop.circuit_label) || "análisis";
     if (!key) return;
     if (overdue) {
-      QdvOverdueAlert.report(key, label, true);
+      QdvOverdueAlert.report(key, label, true, meta || null);
     } else {
       // fromLocal: el cronómetro de esta pantalla manda; el poll no debe reabrir el aviso.
       QdvOverdueAlert.resolve(key, { fromLocal: true });
@@ -94,7 +94,10 @@
       timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
-      notifyOverdueFromTimer(ctx, plantStop, true);
+      notifyOverdueFromTimer(ctx, plantStop, true, {
+        last_created_at_iso: lastCreatedIso,
+        remaining: diffSec,
+      });
     }
   }
 

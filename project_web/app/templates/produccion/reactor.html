@@ -309,10 +309,22 @@
   const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
   let emptyAnchorMs = null;
 
-  function notifyAnalisis8(overdue) {
+  function analisis8AnchorIso() {
+    const last = status && status.last;
+    if (!last) return null;
+    return last.fecha_hora_iso || last.created_at_iso || null;
+  }
+
+  function notifyAnalisis8(overdue, remainingSec) {
     if (!window.QdvOverdueAlert) return;
-    if (overdue) QdvOverdueAlert.report("analisis_8hs", "Análisis 8 hs", true);
-    else QdvOverdueAlert.resolve("analisis_8hs", { fromLocal: true });
+    if (overdue) {
+      QdvOverdueAlert.report("analisis_8hs", "Análisis 8 hs", true, {
+        last_created_at_iso: analisis8AnchorIso(),
+        remaining: remainingSec,
+      });
+    } else {
+      QdvOverdueAlert.resolve("analisis_8hs", { fromLocal: true });
+    }
   }
 
   function tickAnalisis8() {
@@ -364,7 +376,7 @@
       state.className = "badge app-badge-soft text-bg-danger";
       state.textContent = "Vencido";
       msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
-      notifyAnalisis8(true);
+      notifyAnalisis8(true, diffSec);
     }
     updateLast(status.last);
   }
