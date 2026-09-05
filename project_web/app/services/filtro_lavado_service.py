@@ -10,10 +10,10 @@ from app.models import FiltroLavadoRegistro
 
 
 def last_filtro_created_at_iso() -> str | None:
-    """Último created_at_iso global (para cronómetro)."""
+    """Último created_at_iso global (para cronómetro). Misma regla que electrolizadores/reactor."""
     return db.session.scalar(
         select(FiltroLavadoRegistro.created_at_iso)
-        .order_by(FiltroLavadoRegistro.id.desc())
+        .order_by(FiltroLavadoRegistro.created_at_iso.desc(), FiltroLavadoRegistro.id.desc())
         .limit(1)
     )
 
@@ -22,7 +22,7 @@ def last_filtro_created_at_iso_for_date(fecha_iso: str) -> str | None:
     return db.session.scalar(
         select(FiltroLavadoRegistro.created_at_iso)
         .where(FiltroLavadoRegistro.fecha_iso == fecha_iso)
-        .order_by(FiltroLavadoRegistro.id.desc())
+        .order_by(FiltroLavadoRegistro.created_at_iso.desc(), FiltroLavadoRegistro.id.desc())
         .limit(1)
     )
 

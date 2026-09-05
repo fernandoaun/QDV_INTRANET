@@ -1,6 +1,11 @@
 {
-  "version": "2.1.8",
+  "version": "2.1.9",
   "changelog": [
+    {
+      "version": "2.1.9",
+      "date": "2026-09-05",
+      "description": "Reactor, Análisis 8 hs y Filtro usan la misma lógica de cronómetro que los electrolizadores: ancla por último created_at, badges En tiempo/Atrasado/Pendiente, alerta con meta real y sync por poll."
+    },
     {
       "version": "2.1.8",
       "date": "2026-09-05",

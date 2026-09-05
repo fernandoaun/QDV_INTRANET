@@ -33,7 +33,7 @@
         <div class="border rounded-3 p-3 h-100" data-analisis8-status>
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <span class="fw-semibold">Próximo análisis</span>
-            <span class="badge app-badge-soft {% if analisis8_status.is_due %}text-bg-danger{% else %}text-bg-success{% endif %}" id="analisis8State">{% if analisis8_status.is_due %}Vencido{% else %}En tiempo{% endif %}</span>
+            <span class="badge app-badge-soft {% if analisis8_status.plant_stop and analisis8_status.plant_stop.active %}text-bg-warning{% elif analisis8_status.is_due %}text-bg-danger{% elif analisis8_status.has_records %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="analisis8State">{% if analisis8_status.plant_stop and analisis8_status.plant_stop.active %}Parada{% elif analisis8_status.is_due %}Atrasado{% elif analisis8_status.has_records %}En tiempo{% else %}En tiempo{% endif %}</span>
           </div>
           <div class="app-timer-display mb-1" id="analisis8Timer">--:--:--</div>
           <div class="small app-text-secondary" id="analisis8Message">{{ analisis8_status.message }}</div>
@@ -248,12 +248,14 @@
 {% for ar in analysis_ref_rows_reactor %}
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
+<script src="{{ url_for('static', filename='js/plant_stop.js') }}"></script>
 <script>
 (() => {
+  // Análisis 8 hs: misma lógica de cronómetro que electrolizadores (QdvPlantStop.applyTimerState).
   const form = document.getElementById("analisis8Form");
   const timerText = document.getElementById("analisis8Timer");
-  const state = document.getElementById("analisis8State");
-  const msg = document.getElementById("analisis8Message");
+  const timerSub = document.getElementById("analisis8Message");
+  const timerState = document.getElementById("analisis8State");
   const formMsg = document.getElementById("analisis8FormMessage");
   const lastBox = document.getElementById("analisis8LastBox");
   const intervalSec = {{ analisis8_interval_seconds | int }};
@@ -264,14 +266,6 @@
     const d = new Date(iso);
     if (!isNaN(d.getTime())) return d;
     return new Date((iso || "").replace(" ", "T"));
-  }
-
-  function fmt(totalSeconds) {
-    const s = Math.max(0, Math.floor(totalSeconds));
-    const h = String(Math.floor(s / 3600)).padStart(2, "0");
-    const m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
-    const ss = String(s % 60).padStart(2, "0");
-    return `${h}:${m}:${ss}`;
   }
 
   function esc(text) {
@@ -304,81 +298,42 @@
     `;
   }
 
-  const clientNow = new Date();
-  const serverNow = parseIsoLocal(serverNowIso);
-  const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
-  let emptyAnchorMs = null;
-
   function analisis8AnchorIso() {
     const last = status && status.last;
     if (!last) return null;
     return last.fecha_hora_iso || last.created_at_iso || null;
   }
 
-  function notifyAnalisis8(overdue, remainingSec) {
-    if (!window.QdvOverdueAlert) return;
-    if (overdue) {
-      QdvOverdueAlert.report("analisis_8hs", "Análisis 8 hs", true, {
-        last_created_at_iso: analisis8AnchorIso(),
-        remaining: remainingSec,
-      });
-    } else {
-      QdvOverdueAlert.resolve("analisis_8hs", { fromLocal: true });
-    }
+  const clientNow = new Date();
+  const serverNow = parseIsoLocal(serverNowIso);
+  const clockOffsetMs = serverNow.getTime() - clientNow.getTime();
+
+  const analisis8Ctx = {
+    timerText,
+    timerSub,
+    timerState,
+    intervalSec,
+    lastCreatedIso: analisis8AnchorIso(),
+    clockOffsetMs,
+    emptySub: "Sin análisis 8 hs registrados.",
+    overdueLabel: "Análisis 8 hs",
+    circuitKey: "analisis_8hs",
+    plantStop: (status && status.plant_stop) || { active: false, pause_extra_seconds: 0 },
+  };
+  window._qdvAnalisis8TimerCtx = analisis8Ctx;
+
+  function syncAnalisis8CtxFromStatus() {
+    analisis8Ctx.lastCreatedIso = analisis8AnchorIso();
+    analisis8Ctx.plantStop = (status && status.plant_stop) || { active: false, pause_extra_seconds: 0 };
+    if (analisis8Ctx.lastCreatedIso) analisis8Ctx._emptyAnchorMs = null;
+    updateLast(status && status.last ? status.last : null);
   }
 
   function tickAnalisis8() {
-    if (!timerText || !state || !msg) return;
-    const ps = (status && status.plant_stop) || { active: false };
-    if (ps.active) {
-      const frozen = Number(ps.frozen_remaining_sec);
-      timerText.textContent = fmt(Number.isFinite(frozen) ? frozen : 0);
-      state.className = "badge app-badge-soft text-bg-warning";
-      state.textContent = "Parada";
-      msg.textContent = status.message || `Parada de planta desde ${ps.started_at_iso || "—"}.`;
-      updateLast(status.last);
-      notifyAnalisis8(false);
-      return;
+    syncAnalisis8CtxFromStatus();
+    if (window.QdvPlantStop) {
+      QdvPlantStop.applyTimerState(analisis8Ctx, analisis8Ctx.plantStop);
     }
-    if (!status || !status.has_records || !status.next_due_iso) {
-      if (emptyAnchorMs == null) {
-        emptyAnchorMs = Date.now() + clockOffsetMs;
-      }
-      const now = Date.now() + clockOffsetMs;
-      const dueMs = emptyAnchorMs + intervalSec * 1000;
-      const diffSec = (dueMs - now) / 1000;
-      if (diffSec > 0) {
-        timerText.textContent = fmt(diffSec);
-        state.className = "badge app-badge-soft text-bg-danger";
-        state.textContent = "Pendiente";
-        msg.textContent = "No hay análisis registrados. Realizar primer análisis.";
-      } else {
-        timerText.textContent = fmt(-diffSec);
-        state.className = "badge app-badge-soft text-bg-danger";
-        state.textContent = "Pendiente";
-        msg.textContent = "Análisis de salmuera pendiente. Registrar dureza y cloro libre.";
-      }
-      updateLast(null);
-      notifyAnalisis8(false);
-      return;
-    }
-    const due = parseIsoLocal(status.next_due_iso);
-    const now = new Date(Date.now() + clockOffsetMs);
-    const diffSec = (due.getTime() - now.getTime()) / 1000;
-    if (diffSec >= 0) {
-      timerText.textContent = fmt(diffSec);
-      state.className = "badge app-badge-soft text-bg-success";
-      state.textContent = "En tiempo";
-      msg.textContent = "Tiempo restante para el próximo análisis.";
-      notifyAnalisis8(false);
-    } else {
-      timerText.textContent = fmt(-diffSec);
-      state.className = "badge app-badge-soft text-bg-danger";
-      state.textContent = "Vencido";
-      msg.textContent = "Análisis de salmuera vencido. Registrar dureza y cloro libre.";
-      notifyAnalisis8(true, diffSec);
-    }
-    updateLast(status.last);
   }
 
   if (form) {
@@ -414,6 +369,9 @@
 
   tickAnalisis8();
   setInterval(tickAnalisis8, 1000);
+  if (window.QdvPlantStop) {
+    QdvPlantStop.registerTimerContexts({ analisis_8hs: analisis8Ctx });
+  }
   window._qdvAnalisis8StatusRef = () => status;
   window._qdvAnalisis8StatusSet = (s) => {
     status = s || status;
@@ -421,7 +379,6 @@
   };
 })();
 </script>
-<script src="{{ url_for('static', filename='js/plant_stop.js') }}"></script>
 <script>
 (() => {
   const mainForm = document.getElementById("reactorMainForm");
@@ -452,7 +409,7 @@
     intervalSec,
     lastCreatedIso,
     clockOffsetMs,
-    emptySub: "Sin registros hoy: contando desde ahora.",
+    emptySub: "Sin análisis de reactor registrados.",
     overdueLabel: "Reactor",
     circuitKey: "reactor",
     plantStop: plantStopState,

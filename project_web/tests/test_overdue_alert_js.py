@@ -32,12 +32,28 @@ def test_plant_stop_js_resolve_marks_from_local():
     # El tick local debe mandar último + remaining para el modal.
     assert "last_created_at_iso: lastCreatedIso" in js
     assert "remaining: diffSec" in js
+    assert "registerTimerContexts" in js
 
 
-def test_reactor_analisis8_notify_includes_meta():
+def test_reactor_analisis8_uses_shared_timer_engine():
+    """Análisis 8 hs debe usar la misma lógica que electrolizadores (applyTimerState)."""
     html = (
         Path(__file__).resolve().parents[1] / "app" / "templates" / "produccion" / "reactor.html"
     ).read_text(encoding="utf-8")
     assert "analisis8AnchorIso" in html
-    assert "notifyAnalisis8(true, diffSec)" in html
-    assert 'QdvOverdueAlert.report("analisis_8hs"' in html
+    assert "QdvPlantStop.applyTimerState(analisis8Ctx" in html
+    assert 'circuitKey: "analisis_8hs"' in html
+    assert 'registerTimerContexts({ analisis_8hs: analisis8Ctx })' in html
+    assert 'QdvOverdueAlert.resolve("analisis_8hs")' in html
+    # Ya no usa tick custom con badge "Vencido" distinto al de electrolizadores.
+    assert "notifyAnalisis8" not in html
+
+
+def test_salmuera_electros_do_not_bare_resolve_every_tick():
+    """Electrolizadores ya no hacen resolve bare cada segundo; misma regla que Reactor/Filtro."""
+    html = (
+        Path(__file__).resolve().parents[1] / "app" / "templates" / "produccion" / "salmuera.html"
+    ).read_text(encoding="utf-8")
+    assert "QdvPlantStop.applyTimerState(ctx, ctx.plantStop)" in html
+    # El resolve bare queda solo al guardar, no en el tick continuo.
+    assert "Al guardar: limpiar alerta de este circuito" in html
