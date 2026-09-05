@@ -61,7 +61,7 @@ def list_timer_statuses() -> dict[str, Any]:
     timers.append(
         _status(
             key=ps.CIRCUIT_REACTOR,
-            label="Reactor",
+            label="Reactor (2 h)",
             last_iso=last_reactor_created_at_iso(),
             interval_sec=int(ANALYSIS_INTERVAL_SECONDS),
             fecha=fecha,
