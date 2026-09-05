@@ -1,6 +1,11 @@
 {
-  "version": "2.1.10",
+  "version": "2.1.11",
   "changelog": [
+    {
+      "version": "2.1.11",
+      "date": "2026-09-05",
+      "description": "La APP del celular ya no guarda en caché el estado de los cronómetros: el aviso rojo sigue al servidor (igual que en la PC)."
+    },
     {
       "version": "2.1.10",
       "date": "2026-09-05",

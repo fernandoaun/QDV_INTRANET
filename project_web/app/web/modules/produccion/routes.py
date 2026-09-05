@@ -44,7 +44,9 @@ def cronometros_estado():
     """Devuelve el estado de todos los cronómetros de producción (para alerta global de vencimiento)."""
     from app.services.timer_overdue_service import list_timer_statuses
 
-    return jsonify(list_timer_statuses())
+    response = jsonify(list_timer_statuses())
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    return response
 
 
 register_produccion_hub_routes(bp)

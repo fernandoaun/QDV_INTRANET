@@ -115,3 +115,5 @@ def test_cronometros_estado_endpoint(auth_client):
     assert payload["ok"] is True
     assert "timers" in payload
     assert "overdue" in payload
+    cache_control = (r.headers.get("Cache-Control") or "").lower()
+    assert "no-store" in cache_control

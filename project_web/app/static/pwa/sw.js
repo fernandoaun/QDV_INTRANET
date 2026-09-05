@@ -1,7 +1,6 @@
-/* Service worker QDV PWA — caché básica de recursos estáticos y fallback offline ligero. */
-var CACHE = "qdv-pwa-v4";
+/* Service worker QDV PWA — estáticos con red primero; datos operativos nunca se cachean. */
+var CACHE = "qdv-pwa-v5";
 var PRECACHE = [
-  "/",
   "/static/favicon.png",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
@@ -49,6 +48,34 @@ function offlineShell(title, detail) {
   });
 }
 
+function isLiveDataRequest(url, request) {
+  var path = url.pathname || "";
+  // Cronómetros / JSON de planta: si se cachean, el celular queda en rojo aunque la PC ya esté bien.
+  if (path.indexOf("/produccion/cronometros/estado") === 0) return true;
+  if (path.indexOf("/api/") === 0) return true;
+  var accept = (request.headers.get("Accept") || "").toLowerCase();
+  if (accept.indexOf("application/json") !== -1) return true;
+  return false;
+}
+
+function networkOnly(request) {
+  return fetch(request);
+}
+
+function networkFirstThenCache(request) {
+  return fetch(request).then(function (response) {
+    if (response && response.status === 200 && response.type === "basic") {
+      var copy = response.clone();
+      caches.open(CACHE).then(function (cache) {
+        cache.put(request, copy);
+      });
+    }
+    return response;
+  }).catch(function () {
+    return caches.match(request);
+  });
+}
+
 self.addEventListener("fetch", function (event) {
   if (event.request.method !== "GET") return;
 
@@ -60,6 +87,11 @@ self.addEventListener("fetch", function (event) {
   }
   if (url.origin !== self.location.origin) return;
 
+  if (isLiveDataRequest(url, event.request)) {
+    event.respondWith(networkOnly(event.request));
+    return;
+  }
+
   if (event.request.mode === "navigate") {
     event.respondWith(
       fetch(event.request).catch(function () {
@@ -70,19 +102,6 @@ self.addEventListener("fetch", function (event) {
             "No se pudo abrir el inicio de sesión porque la app local no está corriendo."
           );
         }
-        // Solo reutilizar caché de inicio en la raíz; en otras rutas evita
-        // mostrar "Inicio" con URL distinta (parece que los botones no hacen nada).
-        if (path === "/" || path === "") {
-          return caches.match("/").then(function (cached) {
-            return (
-              cached ||
-              offlineShell(
-                "Sin conexión con QDV local",
-                "El navegador no pudo contactar a <code>127.0.0.1:5000</code>."
-              )
-            );
-          });
-        }
         return offlineShell(
           "Servidor local apagado",
           "No se pudo abrir <code>" + path + "</code> porque la app local no está corriendo. Arrancá <code>python run.py</code> y recargá (Ctrl+F5)."
@@ -92,38 +111,30 @@ self.addEventListener("fetch", function (event) {
     return;
   }
 
-  // CSS/JS: red primero para no quedar con estilos/scripts viejos tras un deploy.
   var path = url.pathname || "";
   if (path.indexOf("/static/css/") === 0 || path.indexOf("/static/js/") === 0) {
+    event.respondWith(networkFirstThenCache(event.request));
+    return;
+  }
+
+  if (path.indexOf("/static/") === 0) {
     event.respondWith(
-      fetch(event.request).then(function (response) {
-        if (response && response.status === 200 && response.type === "basic") {
+      caches.match(event.request).then(function (cached) {
+        if (cached) return cached;
+        return fetch(event.request).then(function (response) {
+          if (!response || response.status !== 200 || response.type !== "basic") {
+            return response;
+          }
           var copy = response.clone();
           caches.open(CACHE).then(function (cache) {
             cache.put(event.request, copy);
           });
-        }
-        return response;
-      }).catch(function () {
-        return caches.match(event.request);
+          return response;
+        });
       })
     );
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then(function (cached) {
-      if (cached) return cached;
-      return fetch(event.request).then(function (response) {
-        if (!response || response.status !== 200 || response.type !== "basic") {
-          return response;
-        }
-        var copy = response.clone();
-        caches.open(CACHE).then(function (cache) {
-          cache.put(event.request, copy);
-        });
-        return response;
-      });
-    })
-  );
+  event.respondWith(networkOnly(event.request));
 });

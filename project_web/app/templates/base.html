@@ -481,7 +481,10 @@
 (function () {
   if (!("serviceWorker" in navigator)) return;
   window.addEventListener("load", function () {
-    navigator.serviceWorker.register("{{ url_for('main.service_worker') }}", { scope: "/" }).catch(function () {});
+    navigator.serviceWorker.register("{{ url_for('main.service_worker') }}", {
+      scope: "/",
+      updateViaCache: "none",
+    }).catch(function () {});
   });
 })();
 </script>
