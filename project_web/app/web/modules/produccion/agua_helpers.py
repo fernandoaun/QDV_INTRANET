@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from app.extensions import db
 from app.models import AguaRegistro, ColumnaIntercambio
 from app.services.operational_warnings import warnings_for_agua_registro
+from app.services.timer_anchor import last_anchor_iso_for_model, last_anchor_iso_for_model_on_date
 from app.web.modules.produccion.operativa_context import now_local
 
 COLUMNA_INTERCAMBIO_ESTADOS = frozenset({"En operación", "Regenerada", "Por Regenerar"})
@@ -26,21 +27,12 @@ def next_agua_lote(fecha_iso: str) -> str:
 
 
 def last_agua_created_at_iso_for_date(fecha_iso: str) -> str | None:
-    return db.session.scalar(
-        select(AguaRegistro.created_at_iso)
-        .where(AguaRegistro.fecha_iso == fecha_iso)
-        .order_by(AguaRegistro.id.desc())
-        .limit(1)
-    )
+    return last_anchor_iso_for_model_on_date(AguaRegistro, fecha_iso)
 
 
 def last_agua_created_at_iso() -> str | None:
     """Último análisis de agua global (ancla del cronómetro de 8 h, cruzando días)."""
-    return db.session.scalar(
-        select(AguaRegistro.created_at_iso)
-        .order_by(AguaRegistro.created_at_iso.desc(), AguaRegistro.id.desc())
-        .limit(1)
-    )
+    return last_anchor_iso_for_model(AguaRegistro)
 
 
 def agua_row_to_dict(r: AguaRegistro) -> dict[str, Any]:

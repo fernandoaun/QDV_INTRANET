@@ -83,7 +83,7 @@ def list_timer_statuses() -> dict[str, Any]:
     timers.append(
         _status(
             key=ps.CIRCUIT_FILTRO,
-            label="Filtro (lavado y enjuague)",
+            label="Filtro (lavado 24 h)",
             last_iso=filtro_svc.last_filtro_created_at_iso(),
             interval_sec=int(FILTRO_LAVADO_INTERVAL_SECONDS),
             fecha=fecha,

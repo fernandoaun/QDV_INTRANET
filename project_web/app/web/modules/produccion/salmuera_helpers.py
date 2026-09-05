@@ -12,6 +12,7 @@ from app.constants import SALMUERA_PANEL_ELECTROLIZADORES
 from app.extensions import db
 from app.models import SalmueraRegistro
 from app.services.operational_warnings import warnings_for_salmuera_registro
+from app.services.timer_anchor import last_anchor_iso_for_model, last_anchor_iso_for_model_on_date
 
 
 def parse_voltajes(text: str, n: int) -> list[float]:
@@ -43,24 +44,18 @@ def distinct_salmuera_electrolizador_ids() -> list[int]:
 
 def last_salmuera_created_at_iso_for_electrolizador(electrolizador: int) -> str | None:
     """Último análisis del electrolizador (cualquier fecha; ancla del vencimiento operativo)."""
-    return db.session.scalar(
-        select(SalmueraRegistro.created_at_iso)
-        .where(SalmueraRegistro.electrolizador == int(electrolizador))
-        .order_by(SalmueraRegistro.created_at_iso.desc(), SalmueraRegistro.id.desc())
-        .limit(1)
+    return last_anchor_iso_for_model(
+        SalmueraRegistro,
+        extra_where=[SalmueraRegistro.electrolizador == int(electrolizador)],
     )
 
 
 def last_salmuera_created_at_iso_for_electrolizador_and_date(fecha_iso: str, electrolizador: int) -> str | None:
     """Último análisis del electrolizador en la fecha de planilla (mismo criterio temporal que el cronómetro por día)."""
-    return db.session.scalar(
-        select(SalmueraRegistro.created_at_iso)
-        .where(
-            SalmueraRegistro.fecha_iso == fecha_iso,
-            SalmueraRegistro.electrolizador == int(electrolizador),
-        )
-        .order_by(SalmueraRegistro.id.desc())
-        .limit(1)
+    return last_anchor_iso_for_model_on_date(
+        SalmueraRegistro,
+        fecha_iso,
+        extra_where=[SalmueraRegistro.electrolizador == int(electrolizador)],
     )
 
 
