@@ -3,8 +3,10 @@
  * Se activa solo si window.QDV_OVERDUE_ALERT_ENABLED es true (operador en turno).
  *
  * Reglas:
- * - El poll del servidor alimenta el modal/titileo (lista overdue).
+ * - El poll del servidor alimenta el modal/titileo (lista overdue) con último/atraso.
  * - El cronómetro de la pantalla lo pinta solo plant_stop.js (1 s); el poll no pisa el DOM.
+ * - Si el tick local de esta página dice «En tiempo», ese circuito no se alerta (localOkKeys).
+ * - El reporte local debe incluir meta (último + remaining) para no mostrar «sin registro / 00:00:00».
  * - «Entendido» se recuerda en sessionStorage para no reabrir el modal al cambiar de página
  *   (el banner/titileo siguen hasta registrar el análisis).
  * - Al guardar un análisis se limpia ese circuito de inmediato.
@@ -20,6 +22,8 @@
   var overdueKeys = {};
   var overdueMeta = {};
   var localOverdue = {};
+  /** Circuitos cuyo cronómetro en pantalla está en tiempo / no vencido. */
+  var localOkKeys = {};
   var dismissedMap = {};
   var modalOpen = false;
   var pendingLabels = [];
@@ -68,6 +72,7 @@
   }
 
   function fmtAtraso(remaining) {
+    if (remaining == null || remaining === "") return "—";
     var s = Math.abs(Math.floor(Number(remaining) || 0));
     var h = String(Math.floor(s / 3600)).padStart(2, "0");
     var m = String(Math.floor((s % 3600) / 60)).padStart(2, "0");
@@ -76,7 +81,7 @@
   }
 
   function fmtLast(iso) {
-    if (!iso) return "sin registro";
+    if (!iso) return "—";
     return String(iso).replace("T", " ").slice(0, 19);
   }
 
@@ -113,6 +118,14 @@
 
   function refreshFlash() {
     setFlashing(Object.keys(overdueKeys).length > 0);
+  }
+
+  function refreshModalText() {
+    if (!modalOpen) return;
+    var txt = modalText();
+    if (!txt) return;
+    var msg = messageForKeys(Object.keys(overdueKeys));
+    if (msg) txt.textContent = msg;
   }
 
   function messageForKeys(keys) {
@@ -224,28 +237,41 @@
     delete localOverdue[key];
     refreshFlash();
     if (!Object.keys(overdueKeys).length) closeModalOnly();
+    else refreshModalText();
   }
 
   function report(key, label, fromLocal, meta) {
     if (!key) return;
-    if (fromLocal) localOverdue[key] = true;
+    if (fromLocal) {
+      delete localOkKeys[key];
+      localOverdue[key] = true;
+    } else if (localOkKeys[key]) {
+      // Cronómetro de esta página: en tiempo → no alertar aunque el poll diga vencido.
+      dropKey(key);
+      return;
+    }
     var wasNew = !overdueKeys[key];
     overdueKeys[key] = label || key;
+    var metaUpdated = false;
     if (meta && typeof meta === "object") {
       overdueMeta[key] = {
         last_created_at_iso: meta.last_created_at_iso || null,
         remaining: meta.remaining,
       };
+      metaUpdated = true;
     } else if (!overdueMeta[key]) {
       overdueMeta[key] = { last_created_at_iso: null, remaining: null };
     }
     refreshFlash();
-    if (!wasNew) return;
+    if (!wasNew) {
+      // Poll o tick local con meta real: actualizar «último / atraso» del modal abierto.
+      if (metaUpdated) refreshModalText();
+      return;
+    }
     if (isDismissed(key)) return;
     if (modalOpen) {
       pendingLabels.push(key);
-      var txt = modalText();
-      if (txt) txt.textContent = messageForKeys(Object.keys(overdueKeys));
+      refreshModalText();
     } else {
       showModal([key]);
     }
@@ -259,20 +285,15 @@
     if (!key) return;
     var fromLocal = opts === true || (opts && opts.fromLocal);
     delete localOverdue[key];
-    if (!fromLocal) {
-      delete dismissedMap[key];
-      saveDismissed();
-    }
-    // fromLocal En tiempo ya no bloquea al servidor: solo limpia si este tab lo había marcado.
-    if (fromLocal && !overdueKeys[key]) {
-      refreshFlash();
-      return;
-    }
     if (fromLocal) {
-      // No pelear con el poll: si el servidor lo sigue mandando, se repondrá.
-      refreshFlash();
+      localOkKeys[key] = true;
+      if (overdueKeys[key]) dropKey(key);
+      else refreshFlash();
       return;
     }
+    delete localOkKeys[key];
+    delete dismissedMap[key];
+    saveDismissed();
     dropKey(key);
   }
 
@@ -280,6 +301,7 @@
     overdueKeys = {};
     overdueMeta = {};
     localOverdue = {};
+    localOkKeys = {};
     closeModalOnly();
     setFlashing(false);
   }
@@ -298,13 +320,27 @@
 
   function applyServerOverdue(items, timers) {
     var list = items || [];
+    var serverClear = {};
     (timers || []).forEach(function (t) {
       syncPageTimerFromServer(t);
+      if (!t || !t.key) return;
+      // Servidor claramente en tiempo (>5s): no conservar sticky local del tick.
+      // Cerca de 0 no limpiamos para evitar parpadeo local vs poll.
+      var rem = Number(t.remaining);
+      if (!t.overdue && Number.isFinite(rem) && rem > 5) {
+        serverClear[t.key] = true;
+        delete localOverdue[t.key];
+        if (overdueKeys[t.key]) {
+          delete overdueKeys[t.key];
+          delete overdueMeta[t.key];
+        }
+      }
     });
     if (!list.length) {
       var keepLocal = {};
       var keepMeta = {};
       Object.keys(localOverdue).forEach(function (k) {
+        if (serverClear[k]) return;
         if (overdueKeys[k]) {
           keepLocal[k] = overdueKeys[k];
           keepMeta[k] = overdueMeta[k];
@@ -317,6 +353,7 @@
         setFlashing(false);
       } else {
         refreshFlash();
+        refreshModalText();
       }
       return;
     }
@@ -324,6 +361,10 @@
     list.forEach(function (t) {
       if (!t || !t.key) return;
       if (!hasLastAnchor(t)) return;
+      if (localOkKeys[t.key]) {
+        dropKey(t.key);
+        return;
+      }
       incoming[t.key] = t;
     });
     Object.keys(overdueKeys).forEach(function (k) {
@@ -338,6 +379,7 @@
     });
     if (!Object.keys(overdueKeys).length) closeModalOnly();
     refreshFlash();
+    refreshModalText();
   }
 
   function poll() {

@@ -1,6 +1,11 @@
 {
-  "version": "2.1.7",
+  "version": "2.1.8",
   "changelog": [
+    {
+      "version": "2.1.8",
+      "date": "2026-09-05",
+      "description": "El aviso de cronómetro vencido ya no muestra «sin registro / atraso 00:00:00»: el tick local manda último y atraso, el modal se actualiza con la meta real y el En tiempo de pantalla vuelve a silenciar falsos positivos del poll."
+    },
     {
       "version": "2.1.7",
       "date": "2026-09-03",
