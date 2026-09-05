@@ -220,12 +220,14 @@ def build_status(now: datetime, *, fecha_iso: str | None = None) -> dict[str, An
                 "message": f"Parada de planta desde {plant_stop.get('started_at_iso') or '—'}.",
                 "plant_stop": plant_stop,
             }
+        # Sin registros: no es "vencido" global (misma regla que electrolizadores).
+        # La UI muestra Pendiente con countdown local; la alerta global no dispara.
         return {
             "has_records": False,
             "last": None,
             "next_due_iso": None,
             "remaining_seconds": None,
-            "is_due": True,
+            "is_due": False,
             "message": "No hay análisis registrados. Realizar primer análisis.",
             "plant_stop": plant_stop,
         }
@@ -258,10 +260,11 @@ def build_status(now: datetime, *, fecha_iso: str | None = None) -> dict[str, An
         "last": row_to_dict(row),
         "next_due_iso": next_due.isoformat(timespec="seconds"),
         "remaining_seconds": remaining,
-        "is_due": remaining <= 0,
+        # Misma regla que electrolizadores / alerta global: vencido solo si rem < 0.
+        "is_due": remaining < 0,
         "message": (
             "Análisis de salmuera vencido. Registrar dureza y cloro libre."
-            if remaining <= 0
+            if remaining < 0
             else "Próximo análisis programado."
         ),
         "plant_stop": plant_stop,
