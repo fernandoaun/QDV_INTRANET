@@ -17,6 +17,18 @@
     return new Date((iso || "").replace(" ", "T"));
   }
 
+  /** Formato pared local YYYY-MM-DD HH:MM:SS (evita toISOString que muestra UTC). */
+  function fmtWallLocal(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return "—";
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    return `${y}-${mo}-${da} ${h}:${m}:${s}`;
+  }
+
   function fmtHhmmss(totalSeconds) {
     const s = Math.max(0, Math.floor(totalSeconds));
     const h = String(Math.floor(s / 3600)).padStart(2, "0");
@@ -72,7 +84,7 @@
       } else {
         const due = new Date(dueMs);
         timerText.textContent = fmtHhmmss(-diffSec);
-        timerSub.textContent = `Pendiente desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+        timerSub.textContent = `Pendiente desde: ${fmtWallLocal(due)}`;
         timerState.className = "badge text-bg-danger app-badge-soft";
         timerState.textContent = "Pendiente";
       }
@@ -91,7 +103,7 @@
       notifyOverdueFromTimer(ctx, plantStop, false);
     } else {
       timerText.textContent = fmtHhmmss(-diffSec);
-      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+      timerSub.textContent = `Vencido desde: ${fmtWallLocal(due)}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
       notifyOverdueFromTimer(ctx, plantStop, true);
@@ -219,6 +231,15 @@
     const last = String(t.last_created_at_iso || "").trim();
     // Nunca borrar un ancla conocida: el poll sin registro pisaba En tiempo con Atrasado.
     if (!last) return;
+    const prev = String(ctx.lastCreatedIso || "").trim();
+    if (prev) {
+      const prevDt = parseIsoLocal(prev);
+      const nextDt = parseIsoLocal(last);
+      // No retroceder el ancla si el poll trae un created_at más viejo que el de pantalla.
+      if (!isNaN(prevDt.getTime()) && !isNaN(nextDt.getTime()) && nextDt.getTime() < prevDt.getTime()) {
+        return;
+      }
+    }
     ctx.lastCreatedIso = last;
     ctx._emptyAnchorMs = null;
   }

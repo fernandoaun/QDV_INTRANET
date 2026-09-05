@@ -21,22 +21,118 @@ def next_reactor_lote(fecha_iso: str) -> str:
     return f"{dt.strftime('%y%m%d')}{correlative:02d}"
 
 
+def _compose_fecha_hora_iso(fecha_iso: str | None, hora_hm: str | None) -> str | None:
+    """Arma un ISO naive `YYYY-MM-DDTHH:MM:SS` a partir de las columnas visibles del registro."""
+    f = (fecha_iso or "").strip()
+    h = (hora_hm or "").strip()
+    if not f or not h:
+        return None
+    hm = h[:5] if len(h) >= 5 else h
+    if len(hm) == 4 and ":" in hm:
+        # p.ej. "9:30" → no normalizamos; exige HH:MM
+        pass
+    if len(hm) < 4:
+        return None
+    if len(hm) == 5:
+        return f"{f}T{hm}:00"
+    if len(hm) >= 8:
+        return f"{f}T{hm[:8]}"
+    return f"{f}T{hm}"
+
+
+def _parse_anchor_dt(iso: str | None) -> datetime | None:
+    s = (iso or "").strip()
+    if not s:
+        return None
+    s = s.replace("Z", "+00:00")
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if dt.tzinfo is not None:
+        return dt.replace(tzinfo=None)
+    return dt
+
+
+def effective_reactor_anchor_iso(
+    fecha_iso: str | None,
+    hora_hm: str | None,
+    created_at_iso: str | None,
+) -> str | None:
+    """
+    Ancla operativa del cronómetro: el más reciente entre `created_at_iso` y fecha+hora
+    del registro (lo que el operador ve en la tabla). Así un created_at viejo/desfasado
+    no deja el cronómetro en Atrasado cuando ya hay análisis del día.
+    """
+    created = (created_at_iso or "").strip() or None
+    composed = _compose_fecha_hora_iso(fecha_iso, hora_hm)
+    candidates = [c for c in (created, composed) if c]
+    if not candidates:
+        return None
+    best = candidates[0]
+    best_dt = _parse_anchor_dt(best)
+    for c in candidates[1:]:
+        dt = _parse_anchor_dt(c)
+        if dt is None:
+            continue
+        if best_dt is None or dt > best_dt:
+            best = c
+            best_dt = dt
+    return best
+
+
 def last_reactor_created_at_iso() -> str | None:
     """Último análisis de reactor (cualquier fecha; ancla del vencimiento operativo)."""
-    return db.session.scalar(
-        select(ReactorRegistro.created_at_iso)
+    # Candidato por created_at (índice natural) y por fecha+hora visibles en pantalla.
+    by_created = db.session.execute(
+        select(
+            ReactorRegistro.fecha_iso,
+            ReactorRegistro.hora_hm,
+            ReactorRegistro.created_at_iso,
+        )
         .order_by(ReactorRegistro.created_at_iso.desc(), ReactorRegistro.id.desc())
         .limit(1)
-    )
+    ).first()
+    by_fecha_hora = db.session.execute(
+        select(
+            ReactorRegistro.fecha_iso,
+            ReactorRegistro.hora_hm,
+            ReactorRegistro.created_at_iso,
+        )
+        .order_by(
+            ReactorRegistro.fecha_iso.desc(),
+            ReactorRegistro.hora_hm.desc(),
+            ReactorRegistro.id.desc(),
+        )
+        .limit(1)
+    ).first()
+    best: str | None = None
+    best_dt: datetime | None = None
+    for row in (by_created, by_fecha_hora):
+        if not row:
+            continue
+        anchor = effective_reactor_anchor_iso(row.fecha_iso, row.hora_hm, row.created_at_iso)
+        dt = _parse_anchor_dt(anchor)
+        if anchor and (best_dt is None or (dt is not None and dt > best_dt)):
+            best = anchor
+            best_dt = dt
+    return best
 
 
 def last_reactor_created_at_iso_for_date(fecha_iso: str) -> str | None:
-    return db.session.scalar(
-        select(ReactorRegistro.created_at_iso)
+    row = db.session.execute(
+        select(
+            ReactorRegistro.fecha_iso,
+            ReactorRegistro.hora_hm,
+            ReactorRegistro.created_at_iso,
+        )
         .where(ReactorRegistro.fecha_iso == fecha_iso)
         .order_by(ReactorRegistro.id.desc())
         .limit(1)
-    )
+    ).first()
+    if not row:
+        return None
+    return effective_reactor_anchor_iso(row.fecha_iso, row.hora_hm, row.created_at_iso)
 
 
 def _parse_float_text(value: str, label: str) -> float:
