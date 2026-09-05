@@ -1,6 +1,11 @@
 {
-  "version": "2.1.7",
+  "version": "2.1.8",
   "changelog": [
+    {
+      "version": "2.1.8",
+      "date": "2026-09-05",
+      "description": "Al guardar en Reactor el cronómetro de 2 h toma la fecha/hora del registro (no un created_at desfasado) y «Vencido desde» se muestra en hora local."
+    },
     {
       "version": "2.1.7",
       "date": "2026-09-03",
