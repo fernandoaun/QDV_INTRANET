@@ -102,7 +102,8 @@
 <div class="app-card mb-4">
   <div class="app-card-header app-card-header--split">
     <div>
-      <strong>Cronómetro</strong> <span class="app-text-secondary">· próximo análisis</span>
+      <strong>Cronómetro registro principal</strong>
+      <div class="small app-text-secondary mt-1">Se reinicia al guardar <em>Nuevo registro</em> (Disolvedor + entrada E2/E3). No es el Análisis 8 hs.</div>
     </div>
     <div class="small app-text-secondary">
       Intervalo: {{ (analysis_interval_seconds // 3600) }}h
@@ -122,7 +123,9 @@
   </div>
 </div>
 <div class="app-card mb-4">
-  <div class="app-card-header">Nuevo registro (lote automático)</div>
+  <div class="app-card-header">Nuevo registro (lote automático)
+    <div class="small app-text-secondary fw-normal mt-1">Al guardar se reinicia el cronómetro de 2 h del Reactor.</div>
+  </div>
   <div class="app-card-body">
     <form method="post" class="row g-2" id="reactorMainForm" novalidate>
     {% include "_csrf.html" %}
@@ -441,7 +444,7 @@
     lastCreatedIso,
     clockOffsetMs,
     emptySub: "Sin registros hoy: contando desde ahora.",
-    overdueLabel: "Reactor",
+    overdueLabel: "Reactor (2 h)",
     circuitKey: "reactor",
     plantStop: plantStopState,
   };

@@ -7,24 +7,16 @@ from sqlalchemy import select
 
 from app.extensions import db
 from app.models import FiltroLavadoRegistro
+from app.services.timer_anchor import last_anchor_iso_for_model, last_anchor_iso_for_model_on_date
 
 
 def last_filtro_created_at_iso() -> str | None:
-    """Último created_at_iso global (para cronómetro)."""
-    return db.session.scalar(
-        select(FiltroLavadoRegistro.created_at_iso)
-        .order_by(FiltroLavadoRegistro.id.desc())
-        .limit(1)
-    )
+    """Última ancla operativa global (para cronómetro de 24 h)."""
+    return last_anchor_iso_for_model(FiltroLavadoRegistro)
 
 
 def last_filtro_created_at_iso_for_date(fecha_iso: str) -> str | None:
-    return db.session.scalar(
-        select(FiltroLavadoRegistro.created_at_iso)
-        .where(FiltroLavadoRegistro.fecha_iso == fecha_iso)
-        .order_by(FiltroLavadoRegistro.id.desc())
-        .limit(1)
-    )
+    return last_anchor_iso_for_model_on_date(FiltroLavadoRegistro, fecha_iso)
 
 
 def filtro_rows_for_date(fecha_iso: str) -> list[dict[str, Any]]:

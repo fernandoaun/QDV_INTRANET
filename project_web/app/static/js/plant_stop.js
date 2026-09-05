@@ -17,6 +17,18 @@
     return new Date((iso || "").replace(" ", "T"));
   }
 
+  /** Formato pared local YYYY-MM-DD HH:MM:SS (evita toISOString que muestra UTC). */
+  function fmtWallLocal(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return "—";
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    const h = String(d.getHours()).padStart(2, "0");
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const s = String(d.getSeconds()).padStart(2, "0");
+    return `${y}-${mo}-${da} ${h}:${m}:${s}`;
+  }
+
   function fmtHhmmss(totalSeconds) {
     const s = Math.max(0, Math.floor(totalSeconds));
     const h = String(Math.floor(s / 3600)).padStart(2, "0");
@@ -25,7 +37,7 @@
     return `${h}:${m}:${ss}`;
   }
 
-  function notifyOverdueFromTimer(ctx, plantStop, overdue) {
+  function notifyOverdueFromTimer(ctx, plantStop, overdue, remainingSec) {
     if (!window.QdvOverdueAlert) return;
     const key = (ctx && ctx.circuitKey) || (plantStop && plantStop.circuit_key) || "";
     // Preferir etiqueta de la pantalla (ej. "Reactor") sobre circuit_label genérico.
@@ -33,9 +45,17 @@
       (ctx && ctx.overdueLabel) || (plantStop && plantStop.circuit_label) || "análisis";
     if (!key) return;
     if (overdue) {
-      QdvOverdueAlert.report(key, label, true);
+      const last = String((ctx && ctx.lastCreatedIso) || "").trim();
+      const rem = Number(remainingSec);
+      // Nunca avisar vencido sin ancla real ni con remaining >= 0 (evita «sin registro, atraso 00:00:00»).
+      if (!last) return;
+      if (!Number.isFinite(rem) || rem >= 0) return;
+      QdvOverdueAlert.report(key, label, true, {
+        last_created_at_iso: last,
+        remaining: rem,
+      });
     } else {
-      // fromLocal: el cronómetro de esta pantalla manda; el poll no debe reabrir el aviso.
+      // fromLocal: el cronómetro de esta pantalla manda; apaga el aviso de este circuito.
       QdvOverdueAlert.resolve(key, { fromLocal: true });
     }
   }
@@ -50,7 +70,7 @@
       timerSub.textContent = `Parada de planta desde ${plantStop.started_at_iso || "—"}`;
       timerState.className = "badge text-bg-warning app-badge-soft";
       timerState.textContent = "Parada";
-      notifyOverdueFromTimer(ctx, plantStop, false);
+      notifyOverdueFromTimer(ctx, plantStop, false, 0);
       return;
     }
 
@@ -72,11 +92,11 @@
       } else {
         const due = new Date(dueMs);
         timerText.textContent = fmtHhmmss(-diffSec);
-        timerSub.textContent = `Pendiente desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+        timerSub.textContent = `Pendiente desde: ${fmtWallLocal(due)}`;
         timerState.className = "badge text-bg-danger app-badge-soft";
         timerState.textContent = "Pendiente";
       }
-      notifyOverdueFromTimer(ctx, plantStop, false);
+      notifyOverdueFromTimer(ctx, plantStop, false, diffSec);
       return;
     }
     const last = parseIsoLocal(lastCreatedIso);
@@ -88,13 +108,13 @@
       timerSub.textContent = `Último registro: ${lastCreatedIso}`;
       timerState.className = "badge text-bg-success app-badge-soft";
       timerState.textContent = "En tiempo";
-      notifyOverdueFromTimer(ctx, plantStop, false);
+      notifyOverdueFromTimer(ctx, plantStop, false, diffSec);
     } else {
       timerText.textContent = fmtHhmmss(-diffSec);
-      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+      timerSub.textContent = `Vencido desde: ${fmtWallLocal(due)}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
-      notifyOverdueFromTimer(ctx, plantStop, true);
+      notifyOverdueFromTimer(ctx, plantStop, true, diffSec);
     }
   }
 
@@ -219,6 +239,15 @@
     const last = String(t.last_created_at_iso || "").trim();
     // Nunca borrar un ancla conocida: el poll sin registro pisaba En tiempo con Atrasado.
     if (!last) return;
+    const prev = String(ctx.lastCreatedIso || "").trim();
+    if (prev) {
+      const prevDt = parseIsoLocal(prev);
+      const nextDt = parseIsoLocal(last);
+      // No retroceder el ancla si el poll trae un created_at más viejo que el de pantalla.
+      if (!isNaN(prevDt.getTime()) && !isNaN(nextDt.getTime()) && nextDt.getTime() < prevDt.getTime()) {
+        return;
+      }
+    }
     ctx.lastCreatedIso = last;
     ctx._emptyAnchorMs = null;
   }

@@ -228,6 +228,30 @@
 
   function report(key, label, fromLocal, meta) {
     if (!key) return;
+    var rem = meta && typeof meta === "object" ? Number(meta.remaining) : NaN;
+    var last = meta && typeof meta === "object" ? String(meta.last_created_at_iso || "").trim() : "";
+    // Ignorar avisos falsos: sin ancla o still En tiempo (remaining >= 0).
+    // Evita el modal «último sin registro, atraso 00:00:00».
+    if (fromLocal) {
+      if (!last) return;
+      if (!Number.isFinite(rem) || rem >= 0) return;
+    } else if (meta && typeof meta === "object") {
+      if (!last) return;
+      if (Number.isFinite(rem) && rem >= 0) return;
+    }
+    // Si el cronómetro de esta página ya está En tiempo con ancla más nueva, no reabrir.
+    var pageCtx = (window.QdvPageTimers || {})[key];
+    if (pageCtx && pageCtx.lastCreatedIso && Number(pageCtx.intervalSec) > 0) {
+      var pageLast = String(pageCtx.lastCreatedIso || "").trim();
+      if (pageLast && (!last || pageLast > last)) {
+        var pageLastDt = Date.parse(pageLast);
+        var pageDue = pageLastDt + Number(pageCtx.intervalSec) * 1000;
+        var pageNow = Date.now() + Number(pageCtx.clockOffsetMs || 0);
+        if (Number.isFinite(pageLastDt) && pageDue - pageNow >= 0) {
+          return;
+        }
+      }
+    }
     if (fromLocal) localOverdue[key] = true;
     var wasNew = !overdueKeys[key];
     overdueKeys[key] = label || key;
@@ -263,16 +287,7 @@
       delete dismissedMap[key];
       saveDismissed();
     }
-    // fromLocal En tiempo ya no bloquea al servidor: solo limpia si este tab lo había marcado.
-    if (fromLocal && !overdueKeys[key]) {
-      refreshFlash();
-      return;
-    }
-    if (fromLocal) {
-      // No pelear con el poll: si el servidor lo sigue mandando, se repondrá.
-      refreshFlash();
-      return;
-    }
+    // En tiempo (local o guardado): apagar este circuito. El poll solo lo reabre si sigue vencido de verdad.
     dropKey(key);
   }
 
@@ -324,6 +339,8 @@
     list.forEach(function (t) {
       if (!t || !t.key) return;
       if (!hasLastAnchor(t)) return;
+      // Solo vencidos reales (remaining < 0). remaining == 0 no es atraso.
+      if (!(Number(t.remaining) < 0)) return;
       incoming[t.key] = t;
     });
     Object.keys(overdueKeys).forEach(function (k) {

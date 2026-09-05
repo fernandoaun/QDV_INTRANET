@@ -10,6 +10,14 @@ from sqlalchemy import func, select
 from app.extensions import db
 from app.models import ReactorRegistro
 from app.services.operational_warnings import warnings_for_reactor_registro
+from app.services.timer_anchor import (
+    effective_anchor_iso,
+    last_anchor_iso_for_model,
+    last_anchor_iso_for_model_on_date,
+)
+
+# Compatibilidad con imports/tests previos.
+effective_reactor_anchor_iso = effective_anchor_iso
 
 
 def next_reactor_lote(fecha_iso: str) -> str:
@@ -23,20 +31,11 @@ def next_reactor_lote(fecha_iso: str) -> str:
 
 def last_reactor_created_at_iso() -> str | None:
     """Último análisis de reactor (cualquier fecha; ancla del vencimiento operativo)."""
-    return db.session.scalar(
-        select(ReactorRegistro.created_at_iso)
-        .order_by(ReactorRegistro.created_at_iso.desc(), ReactorRegistro.id.desc())
-        .limit(1)
-    )
+    return last_anchor_iso_for_model(ReactorRegistro)
 
 
 def last_reactor_created_at_iso_for_date(fecha_iso: str) -> str | None:
-    return db.session.scalar(
-        select(ReactorRegistro.created_at_iso)
-        .where(ReactorRegistro.fecha_iso == fecha_iso)
-        .order_by(ReactorRegistro.id.desc())
-        .limit(1)
-    )
+    return last_anchor_iso_for_model_on_date(ReactorRegistro, fecha_iso)
 
 
 def _parse_float_text(value: str, label: str) -> float:
