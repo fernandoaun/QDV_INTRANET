@@ -1,6 +1,11 @@
 {
-  "version": "2.1.9",
+  "version": "2.1.10",
   "changelog": [
+    {
+      "version": "2.1.10",
+      "date": "2026-09-05",
+      "description": "En tiempo y atraso se miden siempre respecto del último registro; sin último registro no hay countdown inventado ni alerta de vencido."
+    },
     {
       "version": "2.1.9",
       "date": "2026-09-05",

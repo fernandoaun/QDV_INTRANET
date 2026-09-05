@@ -220,8 +220,8 @@ def build_status(now: datetime, *, fecha_iso: str | None = None) -> dict[str, An
                 "message": f"Parada de planta desde {plant_stop.get('started_at_iso') or '—'}.",
                 "plant_stop": plant_stop,
             }
-        # Sin registros: no es "vencido" global (misma regla que electrolizadores).
-        # La UI muestra Pendiente con countdown local; la alerta global no dispara.
+        # Sin registros: no es "vencido" (misma regla que electrolizadores).
+        # En tiempo/atraso solo existen respecto del último registro.
         return {
             "has_records": False,
             "last": None,

@@ -33,7 +33,7 @@
         <div class="border rounded-3 p-3 h-100" data-analisis8-status>
           <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <span class="fw-semibold">Próximo análisis</span>
-            <span class="badge app-badge-soft {% if analisis8_status.plant_stop and analisis8_status.plant_stop.active %}text-bg-warning{% elif analisis8_status.is_due %}text-bg-danger{% elif analisis8_status.has_records %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="analisis8State">{% if analisis8_status.plant_stop and analisis8_status.plant_stop.active %}Parada{% elif analisis8_status.is_due %}Atrasado{% elif analisis8_status.has_records %}En tiempo{% else %}En tiempo{% endif %}</span>
+            <span class="badge app-badge-soft {% if analisis8_status.plant_stop and analisis8_status.plant_stop.active %}text-bg-warning{% elif analisis8_status.is_due %}text-bg-danger{% elif analisis8_status.has_records %}text-bg-success{% else %}text-bg-secondary{% endif %}" id="analisis8State">{% if analisis8_status.plant_stop and analisis8_status.plant_stop.active %}Parada{% elif analisis8_status.is_due %}Atrasado{% elif analisis8_status.has_records %}En tiempo{% else %}Pendiente{% endif %}</span>
           </div>
           <div class="app-timer-display mb-1" id="analisis8Timer">--:--:--</div>
           <div class="small app-text-secondary" id="analisis8Message">{{ analisis8_status.message }}</div>

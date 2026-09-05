@@ -56,29 +56,18 @@
 
     const pauseExtra = plantStop && plantStop.pause_extra_seconds ? Number(plantStop.pause_extra_seconds) : 0;
     if (!lastCreatedIso) {
-      // Sin ancla real: countdown local de UI, pero NO dispara alerta global
-      // (si no, al guardar otro análisis la pantalla puede quedar titilando).
-      if (ctx._emptyAnchorMs == null) {
-        ctx._emptyAnchorMs = Date.now() + (clockOffsetMs || 0);
-      }
-      const now = Date.now() + (clockOffsetMs || 0);
-      const dueMs = ctx._emptyAnchorMs + intervalSec * 1000;
-      const diffSec = (dueMs - now) / 1000;
-      if (diffSec > 0) {
-        timerText.textContent = fmtHhmmss(diffSec);
-        timerSub.textContent = ctx.emptySub || "Sin registros en la fecha seleccionada.";
-        timerState.className = "badge text-bg-secondary app-badge-soft";
-        timerState.textContent = "En tiempo";
-      } else {
-        const due = new Date(dueMs);
-        timerText.textContent = fmtHhmmss(-diffSec);
-        timerSub.textContent = `Pendiente desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
-        timerState.className = "badge text-bg-danger app-badge-soft";
-        timerState.textContent = "Pendiente";
-      }
+      // Sin último registro no hay atraso ni "en tiempo": el cronómetro solo
+      // se mide respecto del último análisis. No inventar countdown desde la carga.
+      ctx._emptyAnchorMs = null;
+      timerText.textContent = "--:--:--";
+      timerSub.textContent =
+        ctx.emptySub || "Sin último registro: registrá el primero para iniciar el cronómetro.";
+      timerState.className = "badge text-bg-secondary app-badge-soft";
+      timerState.textContent = "Pendiente";
       notifyOverdueFromTimer(ctx, plantStop, false);
       return;
     }
+    // Regla única: vencimiento / atraso = último registro + intervalo + paradas.
     const last = parseIsoLocal(lastCreatedIso);
     const due = new Date(last.getTime() + intervalSec * 1000 + pauseExtra * 1000);
     const now = new Date(Date.now() + (clockOffsetMs || 0));
@@ -90,8 +79,9 @@
       timerState.textContent = "En tiempo";
       notifyOverdueFromTimer(ctx, plantStop, false);
     } else {
-      timerText.textContent = fmtHhmmss(-diffSec);
-      timerSub.textContent = `Vencido desde: ${due.toISOString().slice(0, 19).replace("T", " ")}`;
+      const atrasoTxt = fmtHhmmss(-diffSec);
+      timerText.textContent = atrasoTxt;
+      timerSub.textContent = `Último: ${lastCreatedIso} · Atraso: ${atrasoTxt}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
       notifyOverdueFromTimer(ctx, plantStop, true, {
