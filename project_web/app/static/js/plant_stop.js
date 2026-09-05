@@ -37,7 +37,7 @@
     return `${h}:${m}:${ss}`;
   }
 
-  function notifyOverdueFromTimer(ctx, plantStop, overdue) {
+  function notifyOverdueFromTimer(ctx, plantStop, overdue, remainingSec) {
     if (!window.QdvOverdueAlert) return;
     const key = (ctx && ctx.circuitKey) || (plantStop && plantStop.circuit_key) || "";
     // Preferir etiqueta de la pantalla (ej. "Reactor") sobre circuit_label genérico.
@@ -45,9 +45,17 @@
       (ctx && ctx.overdueLabel) || (plantStop && plantStop.circuit_label) || "análisis";
     if (!key) return;
     if (overdue) {
-      QdvOverdueAlert.report(key, label, true);
+      const last = String((ctx && ctx.lastCreatedIso) || "").trim();
+      const rem = Number(remainingSec);
+      // Nunca avisar vencido sin ancla real ni con remaining >= 0 (evita «sin registro, atraso 00:00:00»).
+      if (!last) return;
+      if (!Number.isFinite(rem) || rem >= 0) return;
+      QdvOverdueAlert.report(key, label, true, {
+        last_created_at_iso: last,
+        remaining: rem,
+      });
     } else {
-      // fromLocal: el cronómetro de esta pantalla manda; el poll no debe reabrir el aviso.
+      // fromLocal: el cronómetro de esta pantalla manda; apaga el aviso de este circuito.
       QdvOverdueAlert.resolve(key, { fromLocal: true });
     }
   }
@@ -62,7 +70,7 @@
       timerSub.textContent = `Parada de planta desde ${plantStop.started_at_iso || "—"}`;
       timerState.className = "badge text-bg-warning app-badge-soft";
       timerState.textContent = "Parada";
-      notifyOverdueFromTimer(ctx, plantStop, false);
+      notifyOverdueFromTimer(ctx, plantStop, false, 0);
       return;
     }
 
@@ -88,7 +96,7 @@
         timerState.className = "badge text-bg-danger app-badge-soft";
         timerState.textContent = "Pendiente";
       }
-      notifyOverdueFromTimer(ctx, plantStop, false);
+      notifyOverdueFromTimer(ctx, plantStop, false, diffSec);
       return;
     }
     const last = parseIsoLocal(lastCreatedIso);
@@ -100,13 +108,13 @@
       timerSub.textContent = `Último registro: ${lastCreatedIso}`;
       timerState.className = "badge text-bg-success app-badge-soft";
       timerState.textContent = "En tiempo";
-      notifyOverdueFromTimer(ctx, plantStop, false);
+      notifyOverdueFromTimer(ctx, plantStop, false, diffSec);
     } else {
       timerText.textContent = fmtHhmmss(-diffSec);
       timerSub.textContent = `Vencido desde: ${fmtWallLocal(due)}`;
       timerState.className = "badge text-bg-danger app-badge-soft";
       timerState.textContent = "Atrasado";
-      notifyOverdueFromTimer(ctx, plantStop, true);
+      notifyOverdueFromTimer(ctx, plantStop, true, diffSec);
     }
   }
 

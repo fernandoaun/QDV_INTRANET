@@ -19,12 +19,27 @@ from app.web.modules.produccion.operativa_context import (
     now_local,
     operador_display_line,
 )
+from app.services.timer_anchor import effective_anchor_iso, parse_anchor_dt
 from app.web.modules.produccion.reactor_helpers import (
     last_reactor_created_at_iso,
     next_reactor_lote,
     parse_required_float,
     reactor_row_to_dict,
 )
+
+
+def _best_anchor_iso(*candidates: str | None) -> str | None:
+    best: str | None = None
+    best_dt = None
+    for raw in candidates:
+        iso = (raw or "").strip() or None
+        if not iso:
+            continue
+        dt = parse_anchor_dt(iso)
+        if best_dt is None or (dt is not None and dt > best_dt):
+            best = iso
+            best_dt = dt
+    return best
 
 
 def register_reactor_routes(bp: Blueprint) -> None:
@@ -139,6 +154,13 @@ def register_reactor_routes(bp: Blueprint) -> None:
         analysis_ref_rows_reactor = analysis_ref_ui_rows(REACTOR_ANALYSIS_REF_SPECS)
         analysis_ref_map_reactor = {r["doc_key"]: r for r in analysis_ref_rows_reactor}
         active_parada = plant_stop_svc.get_active_stop(plant_stop_svc.CIRCUIT_REACTOR)
+        last_iso = last_reactor_created_at_iso()
+        if rows:
+            top = rows[0]
+            last_iso = _best_anchor_iso(
+                last_iso,
+                effective_anchor_iso(top.fecha_iso, top.hora_hm, top.created_at_iso),
+            )
         return render_template(
             "produccion/reactor.html",
             fecha=fecha,
@@ -150,7 +172,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
             operador_display_line=operador_display_line(),
             turno_sugerido=turno_sugerido,
             server_now_iso=now_for_defaults.isoformat(timespec="seconds"),
-            last_created_at_iso=last_reactor_created_at_iso(),
+            last_created_at_iso=last_iso,
             analysis_interval_seconds=int(ANALYSIS_INTERVAL_SECONDS),
             analysis_ref_rows_reactor=analysis_ref_rows_reactor,
             analysis_ref_map_reactor=analysis_ref_map_reactor,
@@ -158,7 +180,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
             analisis8_interval_seconds=analisis8_svc.ANALISIS_8HS_INTERVAL_SECONDS,
             plant_stop=plant_stop_svc.timer_ui_state(
                 plant_stop_svc.CIRCUIT_REACTOR,
-                last_reactor_created_at_iso(),
+                last_iso,
                 int(ANALYSIS_INTERVAL_SECONDS),
                 fecha_iso=fecha,
             ),

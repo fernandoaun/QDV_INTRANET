@@ -18,6 +18,9 @@ def test_overdue_alert_js_persists_dismiss_and_shows_meta():
     assert "Vencido (servidor)" not in js
     # No bloquear el poll con localOk (eso hacía que al salir de salmuera/reactor volviera el modal).
     assert "localOkKeys" not in js
+    # No abrir modal con remaining >= 0 ni sin ancla (bug «sin registro, atraso 00:00:00»).
+    assert "rem >= 0" in js
+    assert "Number(t.remaining) < 0" in js
 
 
 def test_plant_stop_js_resolve_marks_from_local():
@@ -27,3 +30,6 @@ def test_plant_stop_js_resolve_marks_from_local():
     assert "resolve(key, { fromLocal: true })" in js
     assert "applyServerSnapshot" in js
     assert "Nunca borrar un ancla conocida" in js
+    assert "last_created_at_iso: last" in js
+    assert "remaining: rem" in js
+    assert "rem >= 0" in js

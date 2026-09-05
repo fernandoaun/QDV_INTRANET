@@ -1,6 +1,11 @@
 {
-  "version": "2.1.9",
+  "version": "2.1.10",
   "changelog": [
+    {
+      "version": "2.1.10",
+      "date": "2026-09-05",
+      "description": "Ya no aparece el modal de vencido con «sin registro / atraso 00:00:00»; el aviso solo sale si hay ancla real y remaining < 0, y se apaga al estar En tiempo."
+    },
     {
       "version": "2.1.9",
       "date": "2026-09-05",
