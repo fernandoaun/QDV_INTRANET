@@ -26,8 +26,11 @@ def _status(
     fecha: str,
     paused: bool,
 ) -> dict[str, Any]:
+    # Regla operativa: en tiempo / atraso siempre respecto del último registro.
+    # Sin último registro no hay vencimiento global.
+    has_last = bool((last_iso or "").strip())
     rem = ps.compute_remaining_seconds(last_iso, int(interval_sec), key, fecha_iso=fecha)
-    overdue = (not paused) and rem < 0 and bool((last_iso or "").strip())
+    overdue = (not paused) and has_last and rem < 0
     return {
         "key": key,
         "label": label,
