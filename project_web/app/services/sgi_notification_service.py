@@ -32,11 +32,12 @@ def users_to_notify_document_approved(doc: SgiDocumento, rev: SgiProcedimientoRe
     return users_with_perfiles(perfiles)
 
 
-def create_approval_notifications(
+def create_document_notifications(
     doc: SgiDocumento,
     rev: SgiProcedimientoRevision,
     *,
-    actor_label: str,
+    mensaje: str,
+    log_label: str = "difusión",
 ) -> int:
     slug = TIPO_SLUGS.get(doc.tipo or "", "pg")
     try:
@@ -51,9 +52,6 @@ def create_approval_notifications(
         else:
             enlace = f"/sgi/{slug}/{doc.id}/ver/{rev.id}"
     perfiles = perfiles_aplica_documento(doc.id)
-    mensaje = f"Nuevo procedimiento aprobado: {doc.codigo} — {doc.titulo[:120]}"
-    if actor_label:
-        mensaje = f"{mensaje} ({rev.revision_label})"
     users = users_to_notify_document_approved(doc, rev)
     count = 0
     for u in users:
@@ -71,11 +69,37 @@ def create_approval_notifications(
         from flask import current_app
 
         current_app.logger.warning(
-            "SGI aprobación %s: perfiles %s sin usuarios activos para notificar",
+            "SGI %s %s: perfiles %s sin usuarios activos para notificar",
+            log_label,
             doc.codigo,
             ",".join(perfiles),
         )
     return count
+
+
+def create_approval_notifications(
+    doc: SgiDocumento,
+    rev: SgiProcedimientoRevision,
+    *,
+    actor_label: str,
+) -> int:
+    mensaje = f"Nuevo procedimiento aprobado: {doc.codigo} — {doc.titulo[:120]}"
+    if actor_label:
+        mensaje = f"{mensaje} ({rev.revision_label})"
+    return create_document_notifications(doc, rev, mensaje=mensaje, log_label="aprobación")
+
+
+def create_update_notifications(
+    doc: SgiDocumento,
+    rev: SgiProcedimientoRevision,
+    *,
+    actor_label: str = "",
+) -> int:
+    mensaje = f"Organigrama actualizado: {doc.codigo} — {doc.titulo[:120]}"
+    if rev.revision_label:
+        mensaje = f"{mensaje} ({rev.revision_label})"
+    del actor_label
+    return create_document_notifications(doc, rev, mensaje=mensaje, log_label="actualización")
 
 
 def list_notifications_for_user(user_id: int, *, limit: int = 25) -> list[dict[str, Any]]:

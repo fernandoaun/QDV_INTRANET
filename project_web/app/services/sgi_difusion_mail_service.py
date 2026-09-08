@@ -303,6 +303,73 @@ def notify_approval_emails(
     return sent
 
 
+def notify_document_update_emails(
+    app: Any | None,
+    doc: SgiDocumento,
+    rev: SgiProcedimientoRevision,
+) -> int:
+    """Re-difunde un documento vigente (p. ej. organigrama editado sin nueva revisión)."""
+    if app is None:
+        if not has_app_context():
+            return 0
+        from flask import current_app
+
+        app = current_app._get_current_object()
+    from app.services.sgi_notification_service import users_to_notify_document_approved
+
+    users = users_to_notify_document_approved(doc, rev)
+    link = _vista_url(app, doc, rev)
+    tipo = _doc_tipo_label(doc)
+    sent = 0
+    es_org = (doc.tipo_contenido or "").strip().lower() == "organigrama"
+    for u in users:
+        dest = _user_emails(u)
+        if not dest:
+            continue
+        nombre = html_lib.escape((u.nombre_completo or u.username or "").strip() or "usuario")
+        codigo = html_lib.escape(doc.codigo or "")
+        titulo = html_lib.escape(doc.titulo or "")
+        tipo_e = html_lib.escape(tipo)
+        rev_l = html_lib.escape(rev.revision_label or "")
+        if es_org:
+            asunto = f"QDV SGI — Organigrama actualizado · {doc.codigo}"
+            cuerpo_html = (
+                f"<p>Hola {nombre}, se actualizó el organigrama vigente. "
+                f"Entrá al enlace para ver los puestos y la fecha de actualización:</p>"
+                f"<p><strong>{codigo}</strong> — {titulo}<br>"
+                f"{tipo_e} · {rev_l}</p>"
+                f'<p><a href="{html_lib.escape(link)}">Abrir organigrama</a></p>'
+            )
+            cuerpo_texto = (
+                f"Organigrama actualizado: {doc.codigo} — {doc.titulo}\n"
+                f"{tipo} · {rev.revision_label}\n"
+                f"Abrir: {link}"
+            )
+        else:
+            asunto = f"QDV SGI — Documento actualizado · {doc.codigo}"
+            cuerpo_html = (
+                f"<p>Hola {nombre}, se actualizó un documento vigente que aplica a tu puesto/perfil:</p>"
+                f"<p><strong>{codigo}</strong> — {titulo}<br>"
+                f"{tipo_e} · {rev_l}</p>"
+                f'<p><a href="{html_lib.escape(link)}">Abrir documento</a></p>'
+            )
+            cuerpo_texto = (
+                f"Documento actualizado que te aplica: {doc.codigo} — {doc.titulo}\n"
+                f"{tipo} · {rev.revision_label}\n"
+                f"Abrir: {link}"
+            )
+        if _send_mail(
+            app,
+            destinatarios=dest,
+            asunto=asunto,
+            cuerpo_html=cuerpo_html,
+            cuerpo_texto=cuerpo_texto,
+            context=f"actualizacion_doc_{doc.id}_u{u.id}",
+        ):
+            sent += 1
+    return sent
+
+
 def notify_usuarios_cobertura_batch(
     app: Any | None,
     snapshots: dict[int, frozenset[int]],

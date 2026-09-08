@@ -18,6 +18,8 @@ from app.models.sgi import (
     ANEXO_TIPO_ARCHIVO,
     ANEXO_TIPO_DOCUMENTO,
     ANEXO_TIPO_ORGANIGRAMA,
+    ESTADO_APROBADO,
+    ESTADO_VIGENTE,
     PROCEDIMIENTO_SECCIONES,
     SgiDocumento,
     SgiProcedimientoAnexo,
@@ -1308,6 +1310,7 @@ def organigrama_sync_user_puestos(
     node_ids: list[str] | set[str],
     *,
     commit: bool = True,
+    difundir_pendiente: list[tuple[SgiDocumento, SgiProcedimientoRevision]] | None = None,
 ) -> tuple[bool, str]:
     """Asigna al usuario solo a los puestos indicados en todos los organigramas vivos."""
     selected = {str(x).strip() for x in node_ids if str(x).strip()}
@@ -1344,13 +1347,25 @@ def organigrama_sync_user_puestos(
         if commit:
             db.session.commit()
         return True, "Sin organigrama cargado; se actualizó el puesto del legajo. Creá QDV-ANEXO II para reflejarlo en el gráfico."
-    for _kind, obj in targets:
+    pending: list[tuple[SgiDocumento, SgiProcedimientoRevision]] = []
+    seen_rev: set[int] = set()
+    for kind, obj in targets:
         data = _organigrama_parse_raw_json(getattr(obj, "contenido_json", None))
+        before_fp = _organigrama_chart_fingerprint(data)
         data = _organigrama_apply_user_puestos(data, user_id, selected)
         obj.contenido_json = json.dumps(data, ensure_ascii=False)
+        if before_fp != _organigrama_chart_fingerprint(data):
+            doc, rev = _doc_rev_desde_target(kind, obj)
+            if _organigrama_esta_vigente(doc, rev) and int(rev.id) not in seen_rev:
+                seen_rev.add(int(rev.id))
+                pending.append((doc, rev))
+                _queue_organigrama_update_notifications(doc, rev, "Sistema")
     sync_empleado_puesto_from_organigrama(int(user_id))
+    if difundir_pendiente is not None:
+        difundir_pendiente.extend(pending)
     if commit:
         db.session.commit()
+        enviar_mails_organigrama_actualizado(pending)
     return True, "Puestos del organigrama actualizados."
 
 
@@ -1447,6 +1462,62 @@ def _stamp_organigrama_actualizacion(prev: dict[str, Any] | None, data: dict[str
     return data
 
 
+def _organigrama_esta_vigente(doc: SgiDocumento | None, rev: SgiProcedimientoRevision | None) -> bool:
+    if doc is None or rev is None:
+        return False
+    return (doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE)) and (
+        rev.estado in (ESTADO_APROBADO, ESTADO_VIGENTE)
+    )
+
+
+def _queue_organigrama_update_notifications(
+    doc: SgiDocumento | None,
+    rev: SgiProcedimientoRevision | None,
+    actor_label: str = "",
+) -> int:
+    if not _organigrama_esta_vigente(doc, rev):
+        return 0
+    try:
+        from app.services import sgi_notification_service as notif_svc
+
+        return notif_svc.create_update_notifications(doc, rev, actor_label=actor_label)
+    except Exception:
+        current_app.logger.exception("SGI: fallo campana al actualizar organigrama doc_id=%s", getattr(doc, "id", None))
+        return 0
+
+
+def enviar_mails_organigrama_actualizado(
+    pendientes: list[tuple[SgiDocumento, SgiProcedimientoRevision]] | None,
+) -> int:
+    """Envía el correo de re-difusión (llamar después del commit)."""
+    if not pendientes:
+        return 0
+    sent = 0
+    seen: set[int] = set()
+    try:
+        from app.services import sgi_difusion_mail_service as difusion_svc
+
+        app = current_app._get_current_object()
+        for doc, rev in pendientes:
+            if doc is None or rev is None or int(rev.id) in seen:
+                continue
+            seen.add(int(rev.id))
+            sent += int(difusion_svc.notify_document_update_emails(app, doc, rev) or 0)
+    except Exception:
+        current_app.logger.exception("SGI: fallo mail al re-difundir organigrama")
+    return sent
+
+
+def _doc_rev_desde_target(kind: str, obj: Any) -> tuple[SgiDocumento | None, SgiProcedimientoRevision | None]:
+    if kind == "rev" and isinstance(obj, SgiProcedimientoRevision):
+        return obj.documento, obj
+    if kind == "anexo" and isinstance(obj, SgiProcedimientoAnexo):
+        rev = getattr(obj, "proc_revision", None)
+        doc = rev.documento if rev is not None else None
+        return doc, rev
+    return None, None
+
+
 def _preserve_puestos_workflow(prev: dict[str, Any] | None, data: dict[str, Any]) -> dict[str, Any]:
     """Conserva elaboró/revisó/aprobó al reescribir el JSON del organigrama."""
     if not isinstance(prev, dict):
@@ -1462,7 +1533,20 @@ def _preserve_puestos_workflow(prev: dict[str, Any] | None, data: dict[str, Any]
     return data
 
 
-def _commit_organigrama_save(before_snap: dict[int, frozenset[int]], *, log_label: str) -> tuple[bool, str]:
+def _commit_organigrama_save(
+    before_snap: dict[int, frozenset[int]],
+    *,
+    log_label: str,
+    doc: SgiDocumento | None = None,
+    rev: SgiProcedimientoRevision | None = None,
+    chart_changed: bool = False,
+    actor_label: str = "",
+) -> tuple[bool, str]:
+    n_bell = 0
+    pending_mail: list[tuple[SgiDocumento, SgiProcedimientoRevision]] = []
+    if chart_changed and _organigrama_esta_vigente(doc, rev):
+        n_bell = _queue_organigrama_update_notifications(doc, rev, actor_label)
+        pending_mail.append((doc, rev))
     try:
         db.session.commit()
     except Exception:
@@ -1486,6 +1570,16 @@ def _commit_organigrama_save(before_snap: dict[int, frozenset[int]], *, log_labe
             from flask import current_app
 
             current_app.logger.exception("SGI: fallo mail difusión tras guardar %s", log_label)
+    mailed = enviar_mails_organigrama_actualizado(pending_mail)
+    if chart_changed and _organigrama_esta_vigente(doc, rev):
+        if n_bell > 0 or mailed > 0:
+            parts: list[str] = []
+            if n_bell > 0:
+                parts.append(f"campana a {n_bell} usuario(s)")
+            if mailed > 0:
+                parts.append(f"correo a {mailed} usuario(s)")
+            return True, f"Contenido guardado. Se difundió el organigrama actualizado ({', '.join(parts)})."
+        return True, "Contenido guardado. No hay usuarios en los puestos de difusión para notificar."
     return True, "Contenido guardado."
 
 
@@ -1495,6 +1589,7 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
         return False, "Anexo no encontrado."
     tipo = anexo.tipo_contenido
     before_snap: dict[int, frozenset[int]] = {}
+    chart_changed = False
     try:
         if tipo == ANEXO_TIPO_DOCUMENTO:
             titulo = (payload.get("titulo") or anexo.nombre or "").strip().upper()
@@ -1511,6 +1606,7 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
                 return False, "Estructura de organigrama inválida."
             data = _preserve_puestos_workflow(prev, data)
             data = _stamp_organigrama_actualizacion(prev, data)
+            chart_changed = _organigrama_chart_fingerprint(prev) != _organigrama_chart_fingerprint(data)
             anexo.contenido_json = json.dumps(data, ensure_ascii=False)
             affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
             from app.services import sgi_difusion_mail_service as difusion_svc
@@ -1525,7 +1621,15 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
                 current_app.logger.exception("SGI: sync puestos tras guardar organigrama anexo")
         else:
             return False, "Este anexo no admite edición de contenido."
-        return _commit_organigrama_save(before_snap, log_label="organigrama anexo")
+        rev = getattr(anexo, "proc_revision", None)
+        doc = rev.documento if rev is not None else None
+        return _commit_organigrama_save(
+            before_snap,
+            log_label="organigrama anexo",
+            doc=doc,
+            rev=rev,
+            chart_changed=chart_changed,
+        )
     except Exception:
         db.session.rollback()
         from flask import current_app
@@ -1712,6 +1816,7 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
         return False, "Este documento no admite edición de contenido especial."
     tipo = normalize_tipo_contenido(doc.tipo_contenido)
     before_snap: dict[int, frozenset[int]] = {}
+    chart_changed = False
     try:
         if tipo == ANEXO_TIPO_DOCUMENTO:
             titulo = (payload.get("titulo") or doc.titulo or "").strip().upper()
@@ -1727,6 +1832,7 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
                 return False, "Estructura de organigrama inválida."
             data = _preserve_puestos_workflow(prev, data)
             data = _stamp_organigrama_actualizacion(prev, data)
+            chart_changed = _organigrama_chart_fingerprint(prev) != _organigrama_chart_fingerprint(data)
             rev.contenido_json = json.dumps(data, ensure_ascii=False)
             affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
             from app.services import sgi_difusion_mail_service as difusion_svc
@@ -1741,7 +1847,13 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
                 current_app.logger.exception("SGI: sync puestos tras guardar organigrama documento")
         else:
             return False, "Este documento no admite edición de contenido."
-        return _commit_organigrama_save(before_snap, log_label="organigrama documento")
+        return _commit_organigrama_save(
+            before_snap,
+            log_label="organigrama documento",
+            doc=doc,
+            rev=rev,
+            chart_changed=chart_changed,
+        )
     except Exception:
         db.session.rollback()
         from flask import current_app

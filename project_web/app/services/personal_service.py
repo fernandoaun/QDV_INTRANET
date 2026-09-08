@@ -766,13 +766,16 @@ def save_empleado(
 
     # Puesto = organigrama (bidireccional). No usa el perfil/rol del sistema.
     before_sgi_docs: frozenset[int] = frozenset()
+    org_difundir: list = []
     if emp.user_id:
         from app.services import sgi_anexo_service as anexo_svc
         from app.services import sgi_difusion_mail_service as difusion_svc
 
         before_sgi_docs = difusion_svc.coverage_doc_ids(int(emp.user_id))
         selected = anexo_svc.organigrama_puestos_from_form(data)
-        anexo_svc.organigrama_sync_user_puestos(int(emp.user_id), selected, commit=False)
+        anexo_svc.organigrama_sync_user_puestos(
+            int(emp.user_id), selected, commit=False, difundir_pendiente=org_difundir
+        )
         emp.puesto = anexo_svc.organigrama_puestos_label(selected)
     # Sin usuario vinculado no se edita puesto desde acá (requiere cuenta del sistema).
 
@@ -790,12 +793,14 @@ def save_empleado(
         try:
             from flask import current_app, has_app_context
 
+            from app.services import sgi_anexo_service as anexo_svc
             from app.services import sgi_difusion_mail_service as difusion_svc
 
             if has_app_context():
                 difusion_svc.notify_usuario_si_cobertura_aumenta(
                     current_app._get_current_object(), int(emp.user_id), before_sgi_docs
                 )
+                anexo_svc.enviar_mails_organigrama_actualizado(org_difundir)
         except Exception:
             from flask import current_app, has_app_context
 

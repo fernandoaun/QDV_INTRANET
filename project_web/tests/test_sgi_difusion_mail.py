@@ -187,3 +187,101 @@ def test_cobertura_sin_aumento_no_reenvia(app, sgi_editor, monkeypatch):
         assert before
         assert difusion_svc.notify_usuario_si_cobertura_aumenta(app, op.id, before) is False
         assert sent == []
+
+
+def test_organigrama_modificado_se_vuelve_a_difundir(app, sgi_editor, monkeypatch):
+    """Un cambio de puestos en el organigrama vigente reenvía campana y correo."""
+    import json
+    from datetime import date
+
+    from sqlalchemy import func, select
+
+    from app.models.sgi import ESTADO_APROBADO, SgiNotificacion
+    from app.services import sgi_anexo_service as anexo_svc
+
+    with app.app_context():
+        monkeypatch.setattr(
+            "app.services.sgi_difusion_mail_service.is_mail_fully_configured",
+            lambda _app: True,
+        )
+        sent: list[dict] = []
+        monkeypatch.setattr(
+            "app.services.sgi_difusion_mail_service.enviar_mail",
+            lambda _app, **kwargs: sent.append(kwargs),
+        )
+
+        op = User(
+            username="pytest_dif_org_op",
+            password_hash=generate_password_hash("x"),
+            rol=ROLE_OPERACIONES,
+            activo=True,
+            nombre_completo="Operario Org",
+        )
+        db.session.add(op)
+        db.session.flush()
+        db.session.add(
+            EmpleadoPersonal(
+                user_id=op.id,
+                legajo="DIF-ORG-01",
+                apellido="Org",
+                nombre="Op",
+                email="orgop@example.com",
+                fecha_ingreso=__import__("datetime").date(2024, 4, 1),
+                estado="activo",
+            )
+        )
+        db.session.commit()
+
+        catalog = (
+            {
+                "codigo": "QDV-ANEXO II",
+                "nombre": "ORGANIGRAMA",
+                "revision": "Rev. 00",
+                "fecha_vigencia": None,
+                "tipo_contenido": "organigrama",
+            },
+        )
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
+        perfil_svc.sync_perfiles_documento(doc.id, [ROLE_OPERACIONES])
+        n1 = {"id": "a", "titulo": "DIR", "parent_id": None, "orden": 0, "kind": "internal", "x": 40, "y": 40}
+        n2 = {"id": "b", "titulo": "OP", "parent_id": "a", "orden": 1, "kind": "internal", "x": 40, "y": 160}
+        links = [{"from": "a", "to": "b", "style": "solid"}]
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id, rev.id, {"layout": "free", "nodes": [n1, n2], "links": links}
+        )
+        assert ok, msg
+        rev.estado = ESTADO_APROBADO
+        doc.estado = ESTADO_APROBADO
+        rev.fecha_vigencia = date.today()
+        db.session.commit()
+        sent.clear()
+
+        nodes = [dict(n1), dict(n2), {"id": "c", "titulo": "NUEVO", "parent_id": "a", "orden": 2, "kind": "internal", "x": 200, "y": 160}]
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id, rev.id, {"layout": "free", "nodes": nodes, "links": links + [{"from": "a", "to": "c", "style": "solid"}]}
+        )
+        assert ok, msg
+        assert "difundió" in (msg or "").lower()
+        assert any("Organigrama actualizado" in (m.get("asunto") or "") for m in sent)
+        assert any("orgop@example.com" in (m.get("destinatarios") or []) for m in sent)
+        n_bell = db.session.scalar(
+            select(func.count())
+            .select_from(SgiNotificacion)
+            .where(SgiNotificacion.documento_id == doc.id, SgiNotificacion.mensaje.like("Organigrama actualizado%"))
+        )
+        assert int(n_bell or 0) >= 1
+
+        sent.clear()
+        from app.models.sgi import SgiProcedimientoRevision
+
+        rev = db.session.get(SgiProcedimientoRevision, rev.id)
+        data = json.loads(rev.contenido_json or "{}")
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id,
+            rev.id,
+            {"layout": "free", "nodes": data.get("nodes") or [], "links": data.get("links") or []},
+        )
+        assert ok, msg
+        assert not any("Organigrama actualizado" in (m.get("asunto") or "") for m in sent)
