@@ -153,7 +153,7 @@
   {% if rev.estado == 'revisado' and puede_aprobar %}
   <button type="button" class="btn btn-success btn-sm" id="btnAnexoAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
   {% endif %}
-  {% if rev.estado in ('aprobado', 'vigente') and puede_editar %}
+  {% if rev.estado in ('aprobado', 'vigente') and puede_editar and (doc.tipo_contenido or '') != 'organigrama' %}
   <button type="button" class="btn btn-outline-primary btn-sm" id="btnAnexoNuevaRevision"><i class="bi bi-files me-1"></i>Crear nueva revisión</button>
   {% endif %}
 </div>
@@ -179,6 +179,10 @@
     <button type="button" class="btn btn-success btn-sm" id="btnAnexoAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
     {% endif %}
   </div>
+</div>
+{% elif puede_editar_organigrama|default(false) %}
+<div class="alert alert-info sgi-proc-no-print py-2 mb-3">
+  El organigrama está aprobado. Los cambios de puestos se guardan <strong>sin cambiar la revisión</strong>; solo se actualiza la fecha de actualización.
 </div>
 {% elif solo_lectura|default(false) %}
 <div class="alert alert-info sgi-proc-no-print py-2 mb-3">Modo solo lectura.</div>

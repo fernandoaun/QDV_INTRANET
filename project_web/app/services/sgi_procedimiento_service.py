@@ -752,6 +752,20 @@ def user_can_edit_revision_content(user: User | None, rev: SgiProcedimientoRevis
     return _user_has_sgi_documentos_edit_perm(user)
 
 
+def user_can_edit_organigrama_chart(user: User | None, rev: SgiProcedimientoRevision | None) -> bool:
+    """Editores SGC pueden actualizar puestos del organigrama aprobado sin nueva revisión."""
+    if user is None or rev is None or user_is_global_read_only(user):
+        return False
+    doc = rev.documento
+    if doc is None or (doc.tipo_contenido or "").strip().lower() != ANEXO_TIPO_ORGANIGRAMA:
+        return False
+    if rev.estado in (ESTADO_BORRADOR, ESTADO_EN_REVISION, ESTADO_REVISADO):
+        return user_can_edit_revision_content(user, rev)
+    if rev.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+        return _user_has_sgi_documentos_edit_perm(user)
+    return False
+
+
 def user_participates_workflow(user: User | None, rev: SgiProcedimientoRevision) -> bool:
     if user is None:
         return False
@@ -1572,6 +1586,8 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
 
     rev.estado = ESTADO_APROBADO
     rev.fecha_aprobacion = rev.fecha_aprobacion or hoy
+    if (doc.tipo_contenido or "").strip().lower() == ANEXO_TIPO_ORGANIGRAMA:
+        rev.fecha_vigencia = rev.fecha_vigencia or hoy
     rev.aprobo = doc_svc.normalize_persona_campo(rev.aprobo or actor_label)
     rev.updated_by_id = user_id
 
@@ -1631,12 +1647,17 @@ def crear_nueva_revision(doc_id: int, user_id: int, actor_label: str) -> tuple[S
 
     base_payload = revision_to_payload(ultima) if ultima else default_contenido(doc.titulo)
 
+    fecha_vig = None
+    if (doc.tipo_contenido or "").strip().lower() == ANEXO_TIPO_ORGANIGRAMA:
+        fecha_vig = date.today()
+
     rev = SgiProcedimientoRevision(
         documento_id=doc.id,
         numero_revision=num,
         revision_label=label,
         estado=ESTADO_BORRADOR,
         contenido_json=json.dumps(base_payload, ensure_ascii=False),
+        fecha_vigencia=fecha_vig,
         elaboro=ultima.elaboro if ultima else "",
         reviso=ultima.reviso if ultima else "",
         revisor_correo=ultima.revisor_correo if ultima else "",

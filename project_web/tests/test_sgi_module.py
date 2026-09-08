@@ -1152,11 +1152,228 @@ def test_msgi_organigrama_guardar_contenido_y_caratula(auth_client, app):
     assert "sgi-org-canvas-node" in pdf_html
     assert "landscape" in pdf_html
     assert "SGI_ORG_VIEW" not in pdf_html
+    assert "Fecha de Vigencia" in pdf_html
+    assert "Fecha de actualización" in pdf_html
+
+    r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista/{rev_id}")
+    assert r_vista.status_code == 200
+    vista_html = r_vista.data.decode("utf-8", "ignore")
+    assert "Fecha de Vigencia" in vista_html
+    assert "QDV-ANEXO II" in vista_html
 
     with app.app_context():
+        import json
+        from datetime import date as date_cls
+
+        from app.models.sgi import SgiDocumento, SgiProcedimientoRevision
+
         doc = db.session.get(SgiDocumento, doc_id)
+        rev_db = db.session.get(SgiProcedimientoRevision, rev_id)
+        data = json.loads(rev_db.contenido_json or "{}")
+        assert data.get("fecha_actualizacion") == date_cls.today().isoformat()
+        assert rev_db.fecha_vigencia is None
         for rev in list(doc.revisiones_proc):
             db.session.delete(rev)
+        db.session.delete(doc)
+        db.session.commit()
+
+
+def test_organigrama_fecha_vigencia_vs_actualizacion(app, admin_user):
+    """Vigencia solo con encabezado (nueva rev / aprobación); actualización al cambiar puestos."""
+    import json
+    from datetime import date, timedelta
+
+    from app.extensions import db
+    from app.models.sgi import ESTADO_REVISADO, SgiDocumento, SgiProcedimientoRevision
+    from app.models.user import User
+    from app.services import sgi_anexo_service as anexo_svc
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    n1 = {"id": "a", "titulo": "DIR", "parent_id": None, "orden": 0, "kind": "internal"}
+    n2 = {"id": "b", "titulo": "OP", "parent_id": "a", "orden": 1, "kind": "internal"}
+    prev = {"version": 2, "layout": "free", "nodes": [n1, n2], "links": [{"from": "a", "to": "b", "style": "solid"}]}
+    prev["fecha_actualizacion"] = "2020-01-15"
+    _, same = anexo_svc.organigrama_save_payload(
+        {"layout": "free", "nodes": [dict(n1, x=10, y=10), dict(n2, x=10, y=80)], "links": prev["links"]}
+    )
+    stamped_same = anexo_svc._stamp_organigrama_actualizacion(prev, same)
+    assert stamped_same["fecha_actualizacion"] == "2020-01-15"
+
+    n3 = {"id": "c", "titulo": "NUEVO", "parent_id": "a", "orden": 2, "kind": "internal"}
+    _, added = anexo_svc.organigrama_save_payload(
+        {"layout": "free", "nodes": [n1, n2, n3], "links": prev["links"] + [{"from": "a", "to": "c", "style": "solid"}]}
+    )
+    stamped_add = anexo_svc._stamp_organigrama_actualizacion(prev, added)
+    assert stamped_add["fecha_actualizacion"] == date.today().isoformat()
+
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO II",
+            "nombre": "ORGANIGRAMA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "organigrama",
+        },
+    )
+    with app.app_context():
+        admin = db.session.scalar(db.select(User).where(User.username == admin_user))
+        assert admin is not None
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id,
+            rev.id,
+            {"layout": "free", "nodes": [dict(n1, x=40, y=40), dict(n2, x=40, y=160)], "links": prev["links"]},
+        )
+        assert ok, msg
+        rev = db.session.get(SgiProcedimientoRevision, rev.id)
+        data = json.loads(rev.contenido_json or "{}")
+        assert data.get("fecha_actualizacion") == date.today().isoformat()
+        assert rev.fecha_vigencia is None
+
+        data["fecha_actualizacion"] = (date.today() - timedelta(days=3)).isoformat()
+        rev.contenido_json = json.dumps(data, ensure_ascii=False)
+        db.session.commit()
+        old_act = data["fecha_actualizacion"]
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id,
+            rev.id,
+            {"layout": "free", "nodes": json.loads(rev.contenido_json)["nodes"], "links": json.loads(rev.contenido_json)["links"]},
+        )
+        assert ok, msg
+        rev = db.session.get(SgiProcedimientoRevision, rev.id)
+        data = json.loads(rev.contenido_json or "{}")
+        assert data.get("fecha_actualizacion") == old_act
+        assert rev.fecha_vigencia is None
+
+        rev.estado = ESTADO_REVISADO
+        doc.estado = ESTADO_REVISADO
+        db.session.commit()
+        ok, msg = proc_svc.aprobar_revision(rev.id, admin.id, "Tester")
+        assert ok, msg
+        rev = db.session.get(SgiProcedimientoRevision, rev.id)
+        assert rev.fecha_vigencia == date.today()
+        data = json.loads(rev.contenido_json or "{}")
+        assert data.get("fecha_actualizacion") == old_act
+        assert rev.revision_label == "Rev. 00"
+
+        nodes = list(data.get("nodes") or [])
+        links = list(data.get("links") or [])
+        nodes.append(
+            {
+                "id": "nuevo_puesto",
+                "titulo": "NUEVO PUESTO",
+                "parent_id": "a",
+                "orden": 9,
+                "kind": "internal",
+                "x": 40,
+                "y": 300,
+            }
+        )
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id, rev.id, {"layout": "free", "nodes": nodes, "links": links}
+        )
+        assert ok, msg
+        rev = db.session.get(SgiProcedimientoRevision, rev.id)
+        data = json.loads(rev.contenido_json or "{}")
+        assert rev.estado == "aprobado"
+        assert rev.revision_label == "Rev. 00"
+        assert rev.fecha_vigencia == date.today()
+        assert data.get("fecha_actualizacion") == date.today().isoformat()
+        assert any(n.get("id") == "nuevo_puesto" for n in data.get("nodes") or [])
+
+        new_rev, err = proc_svc.crear_nueva_revision(doc.id, admin.id, "Tester")
+        assert err is None and new_rev is not None
+        assert new_rev.fecha_vigencia == date.today()
+        new_data = json.loads(new_rev.contenido_json or "{}")
+        assert new_data.get("fecha_actualizacion") == date.today().isoformat()
+
+        doc = db.session.get(SgiDocumento, doc.id)
+        for r in list(doc.revisiones_proc):
+            db.session.delete(r)
+        db.session.delete(doc)
+        db.session.commit()
+
+
+def test_organigrama_aprobado_guardar_http_no_cambia_revision(auth_client, app, admin_user):
+    """Tras aprobar, POST de contenido debe 200 y dejar Rev. 00."""
+    import json
+    from datetime import date
+
+    from app.extensions import db
+    from app.models.sgi import ESTADO_APROBADO, SgiDocumento, SgiProcedimientoRevision
+    from app.services import sgi_anexo_service as anexo_svc
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    catalog = (
+        {
+            "codigo": "QDV-ANEXO II",
+            "nombre": "ORGANIGRAMA",
+            "revision": "Rev. 00",
+            "fecha_vigencia": None,
+            "tipo_contenido": "organigrama",
+        },
+    )
+    with app.app_context():
+        docs, _ = proc_svc.ensure_msgi_documentos(actor_label="test", catalog=catalog)
+        doc = docs[0]
+        rev = proc_svc.revision_en_trabajo(doc) or proc_svc.revision_actual(doc)
+        prepared = anexo_svc.organigrama_prepare_editor_data(anexo_svc.parse_documento_contenido(doc, rev))
+        nodes = prepared["nodes"]
+        links = prepared["links"] or anexo_svc.organigrama_links_from_parents(nodes)
+        for i, n in enumerate(nodes):
+            n.setdefault("x", 40 + (i % 4) * 180)
+            n.setdefault("y", 40 + (i // 4) * 120)
+        ok, msg = anexo_svc.save_documento_contenido(
+            doc.id, rev.id, {"layout": "free", "nodes": nodes, "links": links}
+        )
+        assert ok, msg
+        rev.estado = ESTADO_APROBADO
+        rev.fecha_vigencia = date.today()
+        doc.estado = ESTADO_APROBADO
+        db.session.commit()
+        doc_id, rev_id = doc.id, rev.id
+
+    csrf = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/editor/{rev_id}").data.decode("utf-8", "ignore")
+    import re
+
+    m = re.search(r'name="csrf-token" content="([^"]+)"', csrf)
+    token = m.group(1) if m else ""
+    assert "sin cambiar la revisión" in csrf
+    assert "btnGuardarOrganigrama" in csrf
+    assert 'id="btnGuardarOrganigrama" hidden' not in csrf
+
+    nodes.append(
+        {
+            "id": "puesto_extra",
+            "titulo": "PUESTO EXTRA",
+            "parent_id": nodes[0]["id"] if nodes else None,
+            "orden": 99,
+            "kind": "internal",
+            "x": 40,
+            "y": 400,
+        }
+    )
+    r = auth_client.post(
+        f"/sgi/msgc/procedimientos/{doc_id}/revision/{rev_id}/contenido",
+        json={"layout": "free", "nodes": nodes, "links": links},
+        headers={"X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest"},
+    )
+    assert r.status_code == 200
+    assert r.get_json().get("ok") is True
+
+    with app.app_context():
+        rev = db.session.get(SgiProcedimientoRevision, rev_id)
+        doc = db.session.get(SgiDocumento, doc_id)
+        data = json.loads(rev.contenido_json or "{}")
+        assert rev.revision_label == "Rev. 00"
+        assert rev.estado == ESTADO_APROBADO
+        assert rev.fecha_vigencia == date.today()
+        assert data.get("fecha_actualizacion") == date.today().isoformat()
+        assert any(n.get("id") == "puesto_extra" for n in data.get("nodes") or [])
+        for rrow in list(doc.revisiones_proc):
+            db.session.delete(rrow)
         db.session.delete(doc)
         db.session.commit()
 

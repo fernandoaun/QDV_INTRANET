@@ -4,6 +4,7 @@ from __future__ import annotations
 import html
 import json
 import zipfile
+from datetime import date
 from pathlib import Path
 from typing import Any
 from xml.etree import ElementTree as ET
@@ -59,7 +60,16 @@ def parse_anexo_contenido(anexo: SgiProcedimientoAnexo) -> dict[str, Any]:
         nodes = data.get("nodes")
         if not isinstance(nodes, list):
             nodes = []
-        return {"version": int(data.get("version") or 1), "nodes": nodes}
+        out: dict[str, Any] = {"version": int(data.get("version") or 1), "nodes": nodes}
+        layout = str(data.get("layout") or "").strip().lower()
+        if layout:
+            out["layout"] = layout
+        if isinstance(data.get("links"), list):
+            out["links"] = data["links"]
+        fa = str(data.get("fecha_actualizacion") or "").strip()[:10]
+        if fa:
+            out["fecha_actualizacion"] = fa
+        return out
     return data
 
 
@@ -751,6 +761,9 @@ def organigrama_view_context(
         nodes = organigrama_ensure_complete_nodes(data.get("nodes") or [])
         chart_levels = organigrama_chart_levels(nodes)
         org_nodes = editor_data["nodes"]
+    raw_obj = anexo if anexo is not None else rev
+    raw_data = _organigrama_parse_raw_json(getattr(raw_obj, "contenido_json", None)) if raw_obj else {}
+    fechas = organigrama_fechas_encabezado(data=raw_data, rev=rev, anexo=anexo)
     return {
         "arbol": arbol,
         "chart_levels": chart_levels,
@@ -760,6 +773,7 @@ def organigrama_view_context(
         "org_links": editor_data["links"],
         "org_usuarios": organigrama_usuarios_opciones(),
         "org_print": org_print,
+        **fechas,
     }
 
 
@@ -1193,6 +1207,7 @@ def organigrama_node_ids_for_user(user_id: int) -> list[str]:
 
 def _organigrama_apply_user_puestos(data: dict[str, Any], user_id: int, selected: set[str]) -> dict[str, Any]:
     uid = int(user_id)
+    before_fp = _organigrama_chart_fingerprint(data)
     nodes = data.get("nodes")
     if not isinstance(nodes, list) or not nodes:
         nodes = build_default_organigrama_nodes(pptx_path=None)
@@ -1212,6 +1227,8 @@ def _organigrama_apply_user_puestos(data: dict[str, Any], user_id: int, selected
         n["user_ids"] = ids
         n["user_id"] = ids[0] if ids else None
     data["nodes"] = nodes
+    if before_fp != _organigrama_chart_fingerprint(data):
+        data["fecha_actualizacion"] = date.today().isoformat()
     return data
 
 
@@ -1350,6 +1367,86 @@ def organigrama_puestos_from_form(form) -> list[str]:
     return [str(x).strip() for x in raw if str(x).strip()]
 
 
+def _parse_organigrama_json_date(raw: Any) -> date | None:
+    s = str(raw or "").strip()[:10]
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def organigrama_fechas_encabezado(
+    *,
+    data: dict[str, Any] | None = None,
+    rev: SgiProcedimientoRevision | None = None,
+    anexo: SgiProcedimientoAnexo | None = None,
+) -> dict[str, Any]:
+    """Vigencia (encabezado) vs actualización (puestos / altas)."""
+    fv: date | None = None
+    if rev is not None:
+        fv = rev.fecha_vigencia or rev.fecha_aprobacion
+    if fv is None and anexo is not None:
+        fv = anexo.fecha_vigencia
+    fa = _parse_organigrama_json_date((data or {}).get("fecha_actualizacion"))
+    if fa is None and rev is not None:
+        fa = rev.fecha_aprobacion
+    if fa is None and anexo is not None:
+        fa = anexo.fecha_vigencia
+    return {
+        "header_fecha_vigencia": fv,
+        "header_fecha_vigencia_always": True,
+        "header_titulo_center": True,
+        "fecha_actualizacion": fa,
+    }
+
+
+def _organigrama_chart_fingerprint(data: dict[str, Any] | None) -> str:
+    """Estructura de puestos (sin layout x/y): cambia si se edita o agrega un recuadro."""
+    if not isinstance(data, dict):
+        return ""
+    nodes_fp: list[tuple[Any, ...]] = []
+    for n in data.get("nodes") or []:
+        if not isinstance(n, dict) or not n.get("id"):
+            continue
+        nodes_fp.append(
+            (
+                str(n.get("id") or ""),
+                str(n.get("titulo") or "").strip().upper(),
+                str(n.get("subtitulo") or "").strip().upper(),
+                str(n.get("parent_id") or ""),
+                str(n.get("kind") or ""),
+                tuple(sorted(_organigrama_node_user_ids(n))),
+            )
+        )
+    nodes_fp.sort()
+    links_fp: list[tuple[str, str, str]] = []
+    for ln in data.get("links") or []:
+        if not isinstance(ln, dict):
+            continue
+        src = str(ln.get("from") or ln.get("from_id") or "").strip()
+        dst = str(ln.get("to") or ln.get("to_id") or "").strip()
+        if not src or not dst:
+            continue
+        style = str(ln.get("style") or "solid").strip().lower() or "solid"
+        links_fp.append((src, dst, style))
+    links_fp.sort()
+    return json.dumps({"n": nodes_fp, "l": links_fp}, ensure_ascii=False)
+
+
+def _stamp_organigrama_actualizacion(prev: dict[str, Any] | None, data: dict[str, Any]) -> dict[str, Any]:
+    """Actualiza fecha_actualizacion solo si cambió un puesto o se agregó un elemento."""
+    data = dict(data)
+    prev = prev if isinstance(prev, dict) else {}
+    old = str(prev.get("fecha_actualizacion") or "").strip()[:10]
+    if old:
+        data["fecha_actualizacion"] = old
+    if _organigrama_chart_fingerprint(prev) != _organigrama_chart_fingerprint(data):
+        data["fecha_actualizacion"] = date.today().isoformat()
+    return data
+
+
 def _preserve_puestos_workflow(prev: dict[str, Any] | None, data: dict[str, Any]) -> dict[str, Any]:
     """Conserva elaboró/revisó/aprobó al reescribir el JSON del organigrama."""
     if not isinstance(prev, dict):
@@ -1413,6 +1510,7 @@ def save_anexo_contenido(anexo_id: int, payload: dict[str, Any]) -> tuple[bool, 
             except ValueError:
                 return False, "Estructura de organigrama inválida."
             data = _preserve_puestos_workflow(prev, data)
+            data = _stamp_organigrama_actualizacion(prev, data)
             anexo.contenido_json = json.dumps(data, ensure_ascii=False)
             affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
             from app.services import sgi_difusion_mail_service as difusion_svc
@@ -1517,6 +1615,9 @@ def parse_documento_contenido(doc: SgiDocumento, rev: SgiProcedimientoRevision) 
             out["layout"] = layout
         if isinstance(data.get("links"), list):
             out["links"] = data["links"]
+        fa = str(data.get("fecha_actualizacion") or "").strip()[:10]
+        if fa:
+            out["fecha_actualizacion"] = fa
         return out
     return data
 
@@ -1625,6 +1726,7 @@ def save_documento_contenido(doc_id: int, rev_id: int, payload: dict[str, Any]) 
             except ValueError:
                 return False, "Estructura de organigrama inválida."
             data = _preserve_puestos_workflow(prev, data)
+            data = _stamp_organigrama_actualizacion(prev, data)
             rev.contenido_json = json.dumps(data, ensure_ascii=False)
             affected = _organigrama_user_ids_in_data(prev) | _organigrama_user_ids_in_data(data)
             from app.services import sgi_difusion_mail_service as difusion_svc

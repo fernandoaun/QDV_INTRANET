@@ -118,6 +118,16 @@ def _require_procedure_content_edit(rev: SgiProcedimientoRevision | None):
     return u, None
 
 
+def _require_organigrama_chart_edit(rev: SgiProcedimientoRevision | None):
+    """Guardar el gráfico: igual que el contenido, o edición in-place si el organigrama ya está aprobado."""
+    u = current_user()
+    if u is None or rev is None:
+        return None, _no_mutate()
+    if proc_svc.user_can_edit_revision_content(u, rev) or proc_svc.user_can_edit_organigrama_chart(u, rev):
+        return u, None
+    return None, _no_mutate()
+
+
 def _editor_solo_lectura(u, rev: SgiProcedimientoRevision, _puede_editar: bool = False) -> bool:
     """False si el usuario puede modificar el procedimiento en este estado."""
     return not proc_svc.user_can_edit_revision_content(u, rev)
@@ -141,6 +151,7 @@ def _special_doc_editor_context(
         "estados_labels": ESTADO_LABELS,
         "solo_lectura": solo_lectura,
         "puede_editar": puede_editar,
+        "puede_editar_organigrama": proc_svc.user_can_edit_organigrama_chart(u, rev),
         "puede_marcar_revisado": puede_marcar_revisado,
         "puede_aprobar": puede_aprobar,
         "puede_reenviar_aviso": puede_reenviar_aviso,
@@ -583,7 +594,7 @@ def procedimiento_guardar_contenido(slug: str, doc_id: int, rev_id: int):
     rev = proc_svc.get_revision(rev_id)
     if rev is None or rev.documento_id != doc_id:
         return jsonify({"ok": False, "error": "no_encontrado"}), 404
-    u, redir = _require_procedure_content_edit(rev)
+    u, redir = _require_organigrama_chart_edit(rev)
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
     tipo, _ = _resolve_tipo(slug)
@@ -1007,7 +1018,7 @@ def procedimiento_anexo_ver(slug: str, anexo_id: int):
             ),
         )
     if tipo == ANEXO_TIPO_ORGANIGRAMA:
-        org_ctx = anexo_svc.organigrama_view_context(anexo=anexo)
+        org_ctx = anexo_svc.organigrama_view_context(anexo=anexo, rev=rev)
         return render_template(
             "sgi/anexo_organigrama.html",
             anexo=anexo,
@@ -1092,7 +1103,7 @@ def procedimiento_anexo_guardar_contenido(slug: str, anexo_id: int):
     anexo, doc, rev, redir = _anexo_access(anexo_id, slug)
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
-    u, redir = _require_procedure_content_edit(rev)
+    u, redir = _require_organigrama_chart_edit(rev)
     if redir is not None:
         return jsonify({"ok": False, "error": "sin_permiso"}), 403
     data = request.get_json(silent=True) or {}

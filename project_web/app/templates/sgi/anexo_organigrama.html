@@ -27,6 +27,8 @@
       <div class="sgi-org-sheet">
         <div class="sgi-org-sheet-header">
           {% set header_titulo = 'ORGANIGRAMA' %}
+          {% set header_titulo_center = true %}
+          {% set header_fecha_vigencia_always = true %}
           {% set doc_cover = doc %}
           {% include "sgi/_procedure_page_header.html" %}
         </div>
@@ -51,7 +53,7 @@
           </div>
         </div>
 
-        <p class="text-end text-muted small mt-3 mb-0">Fecha de actualización: {{ rev.fecha_aprobacion.strftime('%d/%m/%Y') if rev.fecha_aprobacion else '—' }}</p>
+        <p class="text-end text-muted small mt-3 mb-0">Fecha de actualización: {{ fecha_actualizacion.strftime('%d/%m/%Y') if fecha_actualizacion else '—' }}</p>
         {% include "sgi/_anexo_firmas_vista.html" %}
       </div>
     </div>

@@ -5,7 +5,7 @@
   <h1 class="app-page-title h5">Historial de revisiones — {{ doc.codigo }}</h1>
   <div class="app-page-actions d-flex gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Listado</a>
-    {% if puede_editar and revisiones %}
+    {% if puede_editar and revisiones and (doc.tipo_contenido or '') != 'organigrama' %}
     <button type="button" class="btn btn-primary btn-sm" id="btnCrearRev">Crear nueva revisión</button>
     {% endif %}
   </div>
@@ -47,7 +47,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-{% if puede_editar and revisiones %}
+{% if puede_editar and revisiones and (doc.tipo_contenido or '') != 'organigrama' %}
 <script>
 (function () {
   const btn = document.getElementById('btnCrearRev');
