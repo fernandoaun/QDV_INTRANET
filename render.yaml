@@ -65,6 +65,53 @@ services:
         value: "587"
       - key: SMTP_USE_TLS
         value: "true"
+      # Token de servicio para OpenClaw / API. Las cargas y consultas de WhatsApp
+      # identifican al usuario con X-QDV-WhatsApp (Admin → Usuarios). No copies DATABASE_URL a OpenClaw.
+      - key: API_BEARER_TOKEN
+        sync: false
+
+  # OpenClaw + WhatsApp nativo (otro proceso, mismo repo). Plan Starter: el Free se duerme y se pierde el QR.
+  # NUNCA fromDatabase ni DATABASE_URL acá. Disco /data guarda la sesión de Dispositivos vinculados.
+  - type: web
+    name: qdv-openclaw
+    runtime: docker
+    plan: starter
+    region: oregon
+    rootDir: openclaw
+    healthCheckPath: /startupz
+    disk:
+      name: qdv-openclaw-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: OPENCLAW_STATE_DIR
+        value: /data/.openclaw
+      - key: OPENCLAW_WORKSPACE_DIR
+        value: /data/workspace
+      - key: OPENCLAW_CONFIG_DIR
+        value: /data/.openclaw
+      - key: TZ
+        value: America/Argentina/Buenos_Aires
+      - key: OPENCLAW_TZ
+        value: America/Argentina/Buenos_Aires
+      - key: OPENCLAW_GATEWAY_TOKEN
+        generateValue: true
+      - key: QDV_API_BASE_URL
+        sync: false
+      - key: QDV_API_BEARER_TOKEN
+        sync: false
+      - key: QDV_WHATSAPP_ALLOW_FROM
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENCLAW_MODEL
+        sync: false
+      - key: OPENCLAW_PUBLIC_URL
+        sync: false
 
   # Avisos diarios por mail. Sin fromService (Render rechaza refs si marca variables como no definidas).
   # Igual secreto SMTP en web y Cron: cargá ENV en ambos servicios en el Dashboard.

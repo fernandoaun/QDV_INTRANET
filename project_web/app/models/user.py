@@ -20,6 +20,7 @@ class User(db.Model):
     # Perfil operativo (ver app.user_roles). Sincronizado con is_admin si rol == administrador.
     rol = db.Column(db.String(32), nullable=False, default="operaciones", server_default="operaciones")
     activo = db.Column(db.Boolean, nullable=False, default=True)
+    whatsapp_e164 = db.Column(db.String(20), nullable=True, unique=True, index=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
 
     permisos = db.relationship(

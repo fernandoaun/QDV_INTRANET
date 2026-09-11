@@ -13,7 +13,7 @@ from app.services.personal_birthday_reminder_service import run_birthday_reminde
 from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
 from app.services import sgi_procedimiento_service as proc_svc
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
-from app.user_roles import ROLE_ADMINISTRADOR
+from app.user_roles import ROLE_ADMINISTRADOR, ROLE_SOLO_LECTURA_TOTAL
 
 
 def register_cli(app: Flask) -> None:
@@ -50,6 +50,72 @@ def register_cli(app: Flask) -> None:
         db.session.add(u)
         db.session.commit()
         click.echo(f"Administrador creado: {name} (id={u.id})")
+
+    @app.cli.command("create-openclaw-bot")
+    @click.option(
+        "--username",
+        default="openclaw",
+        show_default=True,
+        help="Usuario de servicio para OpenClaw (solo lectura, perfil Angel).",
+    )
+    @click.option(
+        "--password",
+        default=None,
+        help="Contraseña web opcional. Si se omite, se genera una aleatoria (el bot usa Bearer, no login).",
+    )
+    def create_openclaw_bot(username: str, password: str | None) -> None:
+        """Crea (o reutiliza) el usuario de API para OpenClaw + WhatsApp.
+
+        Usuario Angel de fallback (sin X-QDV-WhatsApp). WhatsApp identifica
+        a cada operador por número en Admin → Usuarios.
+        Idempotente: si el usuario ya existe, solo imprime API_BEARER_USER_ID.
+        """
+        import secrets as _secrets
+
+        name = username.strip().lower()
+        if not name:
+            raise click.ClickException("El nombre de usuario no puede estar vacío.")
+
+        exists = db.session.execute(
+            select(User).where(sa_func.lower(User.username) == name)
+        ).scalar_one_or_none()
+        if exists is not None:
+            if not exists.activo:
+                raise click.ClickException(
+                    f"El usuario {name!r} existe pero está inactivo. Activalo en Administración."
+                )
+            click.echo(f"Usuario OpenClaw ya existe: {exists.username} (id={exists.id})")
+            click.echo(f"API_BEARER_USER_ID={exists.id}")
+            click.echo("WhatsApp usa X-QDV-WhatsApp (número del usuario de planta).")
+            click.echo("API_BEARER_USER_ID es opcional: solo aplica si no hay esa cabecera.")
+            click.echo("Definí API_BEARER_TOKEN en QDV. En OpenClaw: QDV_API_BEARER_TOKEN (mismo valor).")
+            return
+
+        generated = False
+        pw = (password or "").strip()
+        if not pw:
+            pw = _secrets.token_urlsafe(24)
+            generated = True
+
+        u = User(
+            username=name,
+            nombre_completo="OpenClaw WhatsApp (solo lectura)",
+            password_hash=generate_password_hash(pw),
+            is_admin=False,
+            rol=ROLE_SOLO_LECTURA_TOTAL,
+            activo=True,
+        )
+        db.session.add(u)
+        db.session.commit()
+        click.echo(f"Usuario OpenClaw creado: {name} (id={u.id}, rol=solo_lectura_total)")
+        click.echo(f"API_BEARER_USER_ID={u.id}")
+        if generated:
+            click.echo(f"Contraseña web (guardar; el bot no la usa): {pw}")
+        click.echo("En QDV (Render Environment):")
+        click.echo("  API_BEARER_TOKEN=<generá uno largo>")
+        click.echo("  (API_BEARER_USER_ID es opcional; WhatsApp identifica al usuario por número)")
+        click.echo("En OpenClaw: el mismo token como QDV_API_BEARER_TOKEN. No copies DATABASE_URL.")
+        click.echo("Vinculá el WhatsApp de cada operador en Admin → Usuarios.")
 
     @app.cli.command("list-users")
     def list_users() -> None:

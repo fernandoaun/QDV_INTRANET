@@ -181,7 +181,7 @@ def create_app() -> Flask:
             app,
             resources={r"/api/v1/*": {"origins": cors_origins}},
             supports_credentials=True,
-            allow_headers=["Content-Type", "Authorization"],
+            allow_headers=["Content-Type", "Authorization", "X-QDV-WhatsApp"],
             expose_headers=[
                 "X-RateLimit-Limit",
                 "X-RateLimit-Remaining",
@@ -193,7 +193,8 @@ def create_app() -> Flask:
 
     if (app.config.get("API_BEARER_TOKEN") or "").strip() and app.config.get("API_BEARER_USER_ID") is None:
         app.logger.warning(
-            "API_BEARER_TOKEN está definido pero falta API_BEARER_USER_ID válido: autenticación Bearer desactivada."
+            "API_BEARER_TOKEN está definido sin API_BEARER_USER_ID: las peticiones Bearer "
+            "requieren cabecera X-QDV-WhatsApp (número vinculado a un usuario)."
         )
 
     from app import models  # noqa: F401  — registra metadata para Alembic

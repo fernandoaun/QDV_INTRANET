@@ -113,6 +113,20 @@ def create_user():
         rol=rol,
         activo=bool(activo),
     )
+    from app.services.whatsapp_identity import normalize_whatsapp_e164
+
+    wa_norm = normalize_whatsapp_e164(request.form.get("whatsapp_e164") or "") or None
+    if (request.form.get("whatsapp_e164") or "").strip() and not wa_norm:
+        flash("WhatsApp inválido. Usá formato internacional, ej. +54911…", "danger")
+        return redirect(url_for("admin_users.list_users"))
+    if wa_norm:
+        dup_wa = db.session.scalar(
+            select(func.count()).select_from(User).where(User.whatsapp_e164 == wa_norm)
+        )
+        if int(dup_wa or 0) > 0:
+            flash("Ese número de WhatsApp ya está vinculado a otro usuario.", "danger")
+            return redirect(url_for("admin_users.list_users"))
+    u.whatsapp_e164 = wa_norm
     db.session.add(u)
     db.session.commit()
     personal_svc.sync_empleado_for_user_role(u)
@@ -207,6 +221,24 @@ def edit_user(uid: int):
             u.rol = rol
             u.is_admin = will_admin
             u.activo = will_activo
+            from app.services.whatsapp_identity import normalize_whatsapp_e164
+
+            wa_raw = (request.form.get("whatsapp_e164") or "").strip()
+            wa_norm = normalize_whatsapp_e164(wa_raw) or None
+            if wa_raw and not wa_norm:
+                flash("WhatsApp inválido. Usá formato internacional, ej. +54911…", "danger")
+                return redirect(url_for("admin_users.edit_user", uid=uid))
+            if wa_norm:
+                dup_wa = db.session.scalar(
+                    select(func.count()).select_from(User).where(
+                        User.id != u.id,
+                        User.whatsapp_e164 == wa_norm,
+                    )
+                )
+                if int(dup_wa or 0) > 0:
+                    flash("Ese número de WhatsApp ya está vinculado a otro usuario.", "danger")
+                    return redirect(url_for("admin_users.edit_user", uid=uid))
+            u.whatsapp_e164 = wa_norm
             personal_svc.sync_empleado_for_user_role(u)
             db.session.execute(delete(PermisoUsuario).where(PermisoUsuario.user_id == u.id))
             if not u.is_admin and normalize_stored_rol(u.rol) not in (

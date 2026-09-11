@@ -157,3 +157,13 @@ Variables **opcionales** en **Environment** del servicio web (no hace falta toca
 
 Tras cambiar código de `config.py`, **redeploy** del web service. Si el error sigue muy seguido, revisá en Render el estado y el plan de **PostgreSQL** (conexiones máximas, logs de la base).
 
+## 11) OpenClaw + WhatsApp (servicio aparte, mismo Blueprint)
+
+El Blueprint de la raíz declara **dos** web services: `qdv-salmuera-web` (Python/Gunicorn) y `qdv-openclaw` (Docker). No mezcles OpenClaw en el start command de Flask. El bot necesita plan Starter (o más) y disco `/data`: el Free se duerme y se pierde el QR de WhatsApp.
+
+En QDV: `API_BEARER_TOKEN` y, en cada usuario, el WhatsApp (`+54911…`). El bot manda ese número en `X-QDV-WhatsApp`.
+
+Guía completa (colegas, env, QR): [`openclaw/README.md`](openclaw/README.md).
+
+**No** copies `DATABASE_URL` al servicio OpenClaw. El bot llama `https://TU-QDV.onrender.com/api/v1` con Bearer + identidad WhatsApp.
+

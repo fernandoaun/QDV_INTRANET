@@ -23,10 +23,11 @@ def register_api_bearer(bp: Blueprint) -> None:
         from app.auth_utils import perm_sets_for_user
         from app.extensions import db
         from app.models import User
+        from app.services.whatsapp_identity import find_user_by_whatsapp, whatsapp_user_blocked_reason
 
         token_cfg = (current_app.config.get("API_BEARER_TOKEN") or "").strip()
         uid = current_app.config.get("API_BEARER_USER_ID")
-        if not token_cfg or uid is None:
+        if not token_cfg:
             return None
 
         auth = (request.headers.get("Authorization") or "").strip()
@@ -41,9 +42,27 @@ def register_api_bearer(bp: Blueprint) -> None:
         if not secrets.compare_digest(raw, token_cfg):
             return jsonify({"error": "unauthorized", "message": "Token inválido."}), 401
 
-        user = db.session.get(User, int(uid))
-        if user is None or not user.activo:
-            return jsonify({"error": "unauthorized", "message": "Usuario API inactivo o inexistente."}), 401
+        whatsapp_raw = (request.headers.get("X-QDV-WhatsApp") or "").strip()
+        if whatsapp_raw:
+            user = find_user_by_whatsapp(whatsapp_raw)
+            blocked = whatsapp_user_blocked_reason(user)
+            if blocked:
+                return jsonify({"error": "forbidden", "message": blocked}), 403
+            g._qdv_api_channel = "whatsapp"
+            g._qdv_api_whatsapp = (user.whatsapp_e164 or whatsapp_raw)
+        else:
+            if uid is None:
+                return jsonify(
+                    {
+                        "error": "unauthorized",
+                        "message": "Falta X-QDV-WhatsApp (usuario de planta) o API_BEARER_USER_ID en el servidor.",
+                    }
+                ), 401
+            user = db.session.get(User, int(uid))
+            if user is None or not user.activo:
+                return jsonify({"error": "unauthorized", "message": "Usuario API inactivo o inexistente."}), 401
+            g._qdv_api_channel = "bearer"
+            g._qdv_api_whatsapp = None
 
         p_view, p_edit = perm_sets_for_user(user)
         g._qdv_api_user = user

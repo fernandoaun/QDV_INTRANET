@@ -12,8 +12,13 @@ def build_openapi_document() -> dict[str, Any]:
             "version": "1.0.0",
             "description": (
                 "API REST v1. Autenticación: sesión web (cookie) y/o "
-                "`Authorization: Bearer <token>` si el servidor define `API_BEARER_TOKEN` "
-                "y `API_BEARER_USER_ID`. Los permisos siguen al usuario resuelto.\n\n"
+                "`Authorization: Bearer <token>` si el servidor define `API_BEARER_TOKEN`.\n\n"
+                "WhatsApp (OpenClaw): mismo token de servicio + cabecera `X-QDV-WhatsApp` con el número "
+                "E.164. Los permisos son los del usuario QDV vinculado a ese número "
+                "(consulta = `user_can`, carga = `user_can_edit` + turno de planta).\n"
+                "`API_BEARER_USER_ID` es opcional: solo se usa si no hay `X-QDV-WhatsApp`.\n\n"
+                "Cargas por WhatsApp: `POST /api/v1/intents/preview` y después "
+                "`POST /api/v1/intents/confirm` (no se guarda sin confirmación).\n\n"
                 "Documentación interactiva: `GET /api/v1/docs` (en producción suele exigir sesión o Bearer; "
                 "ver `API_DOCS_REQUIRE_AUTH`). "
                 "CORS: variable `CORS_ORIGINS` (lista separada por comas) habilita cabeceras solo bajo `/api/v1/*`. "
@@ -29,6 +34,9 @@ def build_openapi_document() -> dict[str, Any]:
             {"name": "entregas", "description": "Entregas PT"},
             {"name": "stock", "description": "Stock y consumos"},
             {"name": "panel", "description": "Resumen tipo dashboard"},
+            {"name": "identidad", "description": "Usuario resuelto (web o WhatsApp)"},
+            {"name": "produccion", "description": "Últimos registros de planta"},
+            {"name": "intents", "description": "Cargas con confirmación (WhatsApp / API)"},
         ],
         "components": {
             "securitySchemes": {
@@ -36,7 +44,16 @@ def build_openapi_document() -> dict[str, Any]:
                     "type": "http",
                     "scheme": "bearer",
                     "description": "Token de servicio (env `API_BEARER_TOKEN`).",
-                }
+                },
+                "WhatsAppIdentity": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-QDV-WhatsApp",
+                    "description": (
+                        "Número E.164 del usuario de planta (ej. +54911…). "
+                        "Si está presente, los permisos son los de ese usuario, no de API_BEARER_USER_ID."
+                    ),
+                },
             },
             "schemas": {
                 "Error": {
@@ -262,10 +279,127 @@ def build_openapi_document() -> dict[str, Any]:
                 "get": {
                     "tags": ["panel"],
                     "summary": "Resumen tipo dashboard (claves según permisos)",
-                    "security": [{"BearerAuth": []}],
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
                     "responses": {
                         "200": {"description": "OK — objeto parcial"},
                         "401": {"description": "No autorizado"},
+                    },
+                }
+            },
+            "/api/v1/me": {
+                "get": {
+                    "tags": ["identidad"],
+                    "summary": "Usuario actual, permisos y capacidades de consulta/carga",
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
+                    "responses": {
+                        "200": {"description": "OK — id, username, rol, consultas, cargas"},
+                        "401": {"description": "No autorizado"},
+                        "403": {"description": "Número WhatsApp desconocido, inactivo o laboratorista"},
+                    },
+                }
+            },
+            "/api/v1/produccion/reactor/ultimo": {
+                "get": {
+                    "tags": ["produccion"],
+                    "summary": "Último registro de reactor",
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
+                    "responses": {
+                        "200": {"description": "OK — { item }"},
+                        "401": {"description": "No autorizado"},
+                        "403": {"description": "Sin permiso reactor"},
+                    },
+                }
+            },
+            "/api/v1/produccion/agua/ultimo": {
+                "get": {
+                    "tags": ["produccion"],
+                    "summary": "Último registro de agua",
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
+                    "responses": {
+                        "200": {"description": "OK — { item }"},
+                        "401": {"description": "No autorizado"},
+                        "403": {"description": "Sin permiso agua"},
+                    },
+                }
+            },
+            "/api/v1/produccion/salmuera/ultimos": {
+                "get": {
+                    "tags": ["produccion"],
+                    "summary": "Últimos hipoclorito por rectificador",
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
+                    "responses": {
+                        "200": {"description": "OK — { items }"},
+                        "401": {"description": "No autorizado"},
+                        "403": {"description": "Sin permiso salmuera"},
+                    },
+                }
+            },
+            "/api/v1/intents/preview": {
+                "post": {
+                    "tags": ["intents"],
+                    "summary": "Validar una carga y devolver confirm_token (no guarda)",
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["module", "payload"],
+                                    "properties": {
+                                        "module": {
+                                            "type": "string",
+                                            "enum": [
+                                                "reactor",
+                                                "agua",
+                                                "salmuera",
+                                                "stock_ingreso",
+                                                "stock_consumo",
+                                            ],
+                                        },
+                                        "payload": {"type": "object"},
+                                        "source": {
+                                            "type": "string",
+                                            "description": "texto | audio | foto",
+                                            "default": "texto",
+                                        },
+                                    },
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {"description": "OK — confirm_token, resumen, expires_in_seconds"},
+                        "400": {"description": "Payload inválido"},
+                        "401": {"description": "No autorizado"},
+                        "403": {"description": "Sin permiso, sin turno, o perfil de solo lectura"},
+                    },
+                }
+            },
+            "/api/v1/intents/confirm": {
+                "post": {
+                    "tags": ["intents"],
+                    "summary": "Confirmar y guardar una carga previa",
+                    "security": [{"BearerAuth": []}, {"BearerAuth": [], "WhatsAppIdentity": []}],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["confirm_token"],
+                                    "properties": {
+                                        "confirm_token": {"type": "string"},
+                                    },
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {"description": "OK — registro guardado"},
+                        "400": {"description": "Token inválido o vencido"},
+                        "401": {"description": "No autorizado"},
+                        "403": {"description": "Token de otro usuario, sin permiso o sin turno"},
                     },
                 }
             },

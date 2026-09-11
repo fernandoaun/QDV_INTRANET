@@ -32,3 +32,9 @@ project_web/**/*.db-shm
 project_web/**/*.db-wal
 project_web/**/*.sqlite
 project_web/**/*.sqlite3
+
+# OpenClaw (secretos y estado local; NUNCA subir)
+openclaw/.env
+openclaw/.env.*
+!openclaw/.env.example
+openclaw/data/

@@ -1,0 +1,3 @@
+openclaw/docker-entrypoint.sh text eol=lf
+openclaw/scripts/*.sh text eol=lf
+openclaw/workspace/skills/**/*.sh text eol=lf

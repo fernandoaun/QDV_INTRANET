@@ -1,0 +1,54 @@
+# Spec de referencia (mismo servicio que el Blueprint de la RAÍZ).
+# Render solo auto-detecta el render.yaml de la raíz. Este archivo documenta
+# el servicio Docker; al aplicar el Blueprint raíz se crea `qdv-openclaw`.
+#
+# Si lo creás a mano: Dashboard → New → Web Service → mismo repo
+#   Runtime: Docker
+#   Root Directory: openclaw
+#   Plan: Starter o Standard (nunca Free: WhatsApp pierde el socket)
+#   Disk: nombre qdv-openclaw-data, mount /data, 1 GB
+#   Health Check Path: /startupz
+# Completá las env de abajo en Environment. sync:false = no van a Git.
+# NUNCA DATABASE_URL ni fromDatabase.
+
+services:
+  - type: web
+    name: qdv-openclaw
+    runtime: docker
+    plan: starter
+    region: oregon
+    rootDir: openclaw
+    healthCheckPath: /startupz
+    disk:
+      name: qdv-openclaw-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: OPENCLAW_STATE_DIR
+        value: /data/.openclaw
+      - key: OPENCLAW_WORKSPACE_DIR
+        value: /data/workspace
+      - key: OPENCLAW_CONFIG_DIR
+        value: /data/.openclaw
+      - key: TZ
+        value: America/Argentina/Buenos_Aires
+      - key: OPENCLAW_TZ
+        value: America/Argentina/Buenos_Aires
+      - key: OPENCLAW_GATEWAY_TOKEN
+        generateValue: true
+      - key: QDV_API_BASE_URL
+        sync: false
+      - key: QDV_API_BEARER_TOKEN
+        sync: false
+      - key: QDV_WHATSAPP_ALLOW_FROM
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENCLAW_MODEL
+        sync: false
+      - key: OPENCLAW_PUBLIC_URL
+        sync: false

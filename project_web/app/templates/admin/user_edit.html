@@ -24,7 +24,7 @@
   <div class="app-card-body">
     <dl class="row mb-0">
       <dt class="col-sm-3">Usuario</dt><dd class="col-sm-9">{{ edit_user.username }}</dd>
-      <dt class="col-sm-3">Nombre completo</dt><dd class="col-sm-9">{{ edit_user.nombre_completo or '—' }}</dd>
+      <dt class="col-sm-3">WhatsApp</dt><dd class="col-sm-9">{{ edit_user.whatsapp_e164 or '—' }}</dd>
       <dt class="col-sm-3">Perfil</dt><dd class="col-sm-9">{{ user_role_label(edit_user) }}</dd>
       <dt class="col-sm-3">Administrador</dt><dd class="col-sm-9">{% if edit_user.is_admin %}Sí{% else %}No{% endif %}</dd>
       <dt class="col-sm-3">Activo</dt><dd class="col-sm-9">{% if edit_user.activo %}Sí{% else %}No{% endif %}</dd>
@@ -53,6 +53,11 @@
         <input class="form-control" name="username" value="{{ edit_user.username }}" required></div>
       <div class="mb-2"><label class="form-label">Nombre completo</label>
         <input class="form-control" name="nombre_completo" value="{{ edit_user.nombre_completo or '' }}" placeholder="Opcional"></div>
+      <div class="mb-2">
+        <label class="form-label" for="whatsappE164">WhatsApp (planta)</label>
+        <input class="form-control" name="whatsapp_e164" id="whatsappE164" value="{{ edit_user.whatsapp_e164 or '' }}" placeholder="+54911…" inputmode="tel" autocomplete="tel">
+        <p class="form-text small mb-0">Número con el que va a consultar o cargar desde el bot. Formato internacional. Vacío = no usa WhatsApp.</p>
+      </div>
       <div class="mb-3">
         <label class="form-label" for="userRol">Perfil</label>
         <select class="form-select" name="rol" id="userRol" required>

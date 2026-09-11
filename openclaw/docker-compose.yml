@@ -1,0 +1,47 @@
+# OpenClaw local. No levanta QDV ni Postgres.
+# Desde esta carpeta:  docker compose up --build
+#
+# QDV en la PC: QDV_API_BASE_URL=http://host.docker.internal:5000
+# WhatsApp QR:  docker compose exec -it openclaw openclaw channels login --channel whatsapp
+
+name: qdv-openclaw
+
+services:
+  openclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: qdv-openclaw:local
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${OPENCLAW_GATEWAY_PORT:-18789}:18789"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "18789"
+      OPENCLAW_GATEWAY_PORT: "18789"
+      OPENCLAW_STATE_DIR: /data/.openclaw
+      OPENCLAW_WORKSPACE_DIR: /data/workspace
+      OPENCLAW_CONFIG_DIR: /data/.openclaw
+      TZ: ${OPENCLAW_TZ:-America/Argentina/Buenos_Aires}
+      OPENCLAW_TZ: ${OPENCLAW_TZ:-America/Argentina/Buenos_Aires}
+    volumes:
+      - openclaw-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:18789/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 60s
+
+volumes:
+  openclaw-data:
