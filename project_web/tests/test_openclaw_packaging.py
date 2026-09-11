@@ -56,3 +56,9 @@ def test_qdv_skill_files_exist():
     assert "/api/v1/stock/alertas" in text
     assert "X-QDV-WhatsApp" in text
     assert "DATABASE_URL" not in text or "no" in text.lower()
+    yaml_text = (REPO / "render.yaml").read_text(encoding="utf-8")
+    assert "healthCheckPath: /healthz" in yaml_text
+    entry = (REPO / "openclaw" / "docker-entrypoint.sh").read_text(encoding="utf-8")
+    assert "--port" in entry
+    cfg = (REPO / "openclaw" / "scripts" / "ensure_config.mjs").read_text(encoding="utf-8")
+    assert "plugins.entries.whatsapp" in cfg or "enableWhatsappPlugin" in cfg

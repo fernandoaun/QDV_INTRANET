@@ -112,6 +112,7 @@ Skill `qdv-planta`: consulta y carga con los permisos de **quien escribe**.
 | El bot no responde WhatsApp | Número no está en `allowFrom`, o el plan Free apagó el servicio. |
 | Hay que escanear QR otra vez | Falta disco persistente, o se borró el volume. |
 | Dashboard pide token | `OPENCLAW_GATEWAY_TOKEN` del Environment / `.env`. |
+| Deploy cancelado / “No open ports” | Health Check Path = `/healthz`. El gateway tiene que escuchar `$PORT` (en Render suele ser 10000). |
 
 ## Política de datos
 

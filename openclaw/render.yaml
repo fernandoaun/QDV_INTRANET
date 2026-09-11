@@ -7,7 +7,7 @@
 #   Root Directory: openclaw
 #   Plan: Starter o Standard (nunca Free: WhatsApp pierde el socket)
 #   Disk: nombre qdv-openclaw-data, mount /data, 1 GB
-#   Health Check Path: /startupz
+#   Health Check Path: /healthz
 # Completá las env de abajo en Environment. sync:false = no van a Git.
 # NUNCA DATABASE_URL ni fromDatabase.
 
@@ -18,7 +18,7 @@ services:
     plan: starter
     region: oregon
     rootDir: openclaw
-    healthCheckPath: /startupz
+    healthCheckPath: /healthz
     disk:
       name: qdv-openclaw-data
       mountPath: /data
@@ -34,6 +34,8 @@ services:
         value: America/Argentina/Buenos_Aires
       - key: OPENCLAW_TZ
         value: America/Argentina/Buenos_Aires
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=384"
       - key: OPENCLAW_GATEWAY_TOKEN
         generateValue: true
       - key: QDV_API_BASE_URL

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Primera vez: escribe openclaw.json.
- * Arranques siguientes: actualiza WhatsApp allowFrom, skill QDV y extraDirs
+ * Arranques siguientes: actualiza WhatsApp allowFrom y skill QDV
  * sin borrar la sesión QR ni otras claves del operador.
  */
 import fs from "node:fs";
@@ -19,13 +19,17 @@ function parseAllowFrom(raw) {
     .filter(Boolean);
 }
 
+function gatewayPort() {
+  return Number(process.env.PORT || process.env.OPENCLAW_GATEWAY_PORT || 18789);
+}
+
 function publicOrigins() {
   const extras = [];
   for (const key of ["OPENCLAW_PUBLIC_URL", "RENDER_EXTERNAL_URL"]) {
     const v = (process.env[key] || "").trim().replace(/\/$/, "");
     if (v) extras.push(v);
   }
-  const port = process.env.OPENCLAW_GATEWAY_PORT || process.env.PORT || "18789";
+  const port = String(gatewayPort());
   return Array.from(
     new Set([
       ...extras,
@@ -33,6 +37,15 @@ function publicOrigins() {
       `http://localhost:${port}`,
     ]),
   );
+}
+
+function enableWhatsappPlugin(cfg) {
+  cfg.plugins = cfg.plugins || {};
+  cfg.plugins.entries = cfg.plugins.entries || {};
+  cfg.plugins.entries.whatsapp = {
+    ...(cfg.plugins.entries.whatsapp || {}),
+    enabled: true,
+  };
 }
 
 function copySeedFile(rel) {
@@ -70,7 +83,8 @@ function defaultConfig(allowFrom) {
     gateway: {
       mode: "local",
       bind: "lan",
-      port: Number(process.env.OPENCLAW_GATEWAY_PORT || process.env.PORT || 18789),
+      port: gatewayPort(),
+      trustedProxies: ["10.0.0.0/8"],
       auth: { mode: "token" },
       controlUi: { allowedOrigins: publicOrigins() },
     },
@@ -91,7 +105,6 @@ function defaultConfig(allowFrom) {
       },
     },
     skills: {
-      load: { extraDirs: ["/opt/qdv/workspace-seed/skills"] },
       entries: {
         "qdv-planta": {
           enabled: true,
@@ -106,16 +119,16 @@ function defaultConfig(allowFrom) {
   };
   if (token) cfg.gateway.auth.token = token;
   if (model) cfg.agents.defaults.model = { primary: model };
+  enableWhatsappPlugin(cfg);
   return cfg;
 }
 
 function mergeConfig(existing, allowFrom) {
   existing.gateway = existing.gateway || {};
   existing.gateway.mode = existing.gateway.mode || "local";
-  existing.gateway.bind = existing.gateway.bind || "lan";
-  existing.gateway.port = Number(
-    process.env.OPENCLAW_GATEWAY_PORT || process.env.PORT || existing.gateway.port || 18789,
-  );
+  existing.gateway.bind = "lan";
+  existing.gateway.port = gatewayPort();
+  existing.gateway.trustedProxies = existing.gateway.trustedProxies || ["10.0.0.0/8"];
   existing.gateway.auth = existing.gateway.auth || { mode: "token" };
   existing.gateway.auth.mode = "token";
   const token = (process.env.OPENCLAW_GATEWAY_TOKEN || "").trim();
@@ -143,10 +156,6 @@ function mergeConfig(existing, allowFrom) {
   if (model) existing.agents.defaults.model = { primary: model };
 
   existing.skills = existing.skills || {};
-  existing.skills.load = existing.skills.load || {};
-  const extras = new Set(existing.skills.load.extraDirs || []);
-  extras.add("/opt/qdv/workspace-seed/skills");
-  existing.skills.load.extraDirs = Array.from(extras);
   existing.skills.entries = existing.skills.entries || {};
   existing.skills.entries["qdv-planta"] = {
     enabled: true,
@@ -155,6 +164,12 @@ function mergeConfig(existing, allowFrom) {
       QDV_API_BEARER_TOKEN: process.env.QDV_API_BEARER_TOKEN || "",
     },
   };
+  if (existing.skills.load && Array.isArray(existing.skills.load.extraDirs)) {
+    existing.skills.load.extraDirs = existing.skills.load.extraDirs.filter(
+      (d) => d !== "/opt/qdv/workspace-seed/skills",
+    );
+  }
+  enableWhatsappPlugin(existing);
   return existing;
 }
 

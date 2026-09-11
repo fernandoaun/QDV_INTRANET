@@ -4,8 +4,9 @@ set -eu
 export OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
 export OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-/data/workspace}"
 export OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$OPENCLAW_STATE_DIR}"
-# Render inyecta PORT; en Docker Compose local PORT=18789.
+# Render inyecta PORT (suele ser 10000). En Docker Compose local PORT=18789.
 export OPENCLAW_GATEWAY_PORT="${PORT:-${OPENCLAW_GATEWAY_PORT:-18789}}"
+export PORT="${PORT:-$OPENCLAW_GATEWAY_PORT}"
 
 mkdir -p "$OPENCLAW_STATE_DIR" "$OPENCLAW_WORKSPACE_DIR" \
   "$OPENCLAW_WORKSPACE_DIR/skills"
@@ -23,14 +24,16 @@ fi
 node /opt/qdv/ensure_config.mjs
 
 run_gateway() {
+  # --port $PORT: Render detecta el puerto del proceso, no el EXPOSE del Dockerfile.
+  set -- gateway --allow-unconfigured --bind lan --port "$OPENCLAW_GATEWAY_PORT"
   if [ -f /app/openclaw.mjs ]; then
-    exec node /app/openclaw.mjs gateway --allow-unconfigured
+    exec node /app/openclaw.mjs "$@"
   fi
   if [ -f /app/dist/index.js ]; then
-    exec node /app/dist/index.js gateway --allow-unconfigured
+    exec node /app/dist/index.js "$@"
   fi
   if command -v openclaw >/dev/null 2>&1; then
-    exec openclaw gateway --allow-unconfigured
+    exec openclaw "$@"
   fi
   echo "ERROR: no se encontró el binario de OpenClaw en la imagen." >&2
   exit 1

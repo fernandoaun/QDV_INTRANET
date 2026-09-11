@@ -78,7 +78,9 @@ services:
     plan: starter
     region: oregon
     rootDir: openclaw
-    healthCheckPath: /startupz
+    # /healthz es liveness sin token. /startupz en algunas imágenes OpenClaw responde 403
+    # al health-check de Render (sin Authorization) y cancela el deploy.
+    healthCheckPath: /healthz
     disk:
       name: qdv-openclaw-data
       mountPath: /data
@@ -94,6 +96,8 @@ services:
         value: America/Argentina/Buenos_Aires
       - key: OPENCLAW_TZ
         value: America/Argentina/Buenos_Aires
+      - key: NODE_OPTIONS
+        value: "--max-old-space-size=384"
       - key: OPENCLAW_GATEWAY_TOKEN
         generateValue: true
       - key: QDV_API_BASE_URL

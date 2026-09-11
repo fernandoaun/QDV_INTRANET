@@ -167,3 +167,5 @@ Guía completa (colegas, env, QR): [`openclaw/README.md`](openclaw/README.md).
 
 **No** copies `DATABASE_URL` al servicio OpenClaw. El bot llama `https://TU-QDV.onrender.com/api/v1` con Bearer + identidad WhatsApp.
 
+Si el deploy de `qdv-openclaw` se cancela con “No open ports detected” o memoria crítica: Health Check Path = `/healthz` (no `/startupz`, a veces da 403 sin token), el proceso tiene que escuchar `$PORT` (Render suele usar 10000), y Starter tiene 512 MB — el aviso de heap es esperado. No pongas el servicio en Free.
+
