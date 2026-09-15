@@ -372,6 +372,7 @@ def create_app() -> Flask:
         personal_vacaciones_pendientes = 0
         user_tiene_legajo_personal = False
         cumpleanos_hoy_lista: list = []
+        permisos_recursos_nuevos: list = []
         if u is not None:
             try:
                 if _personal_service.user_requires_legajo(u):
@@ -390,6 +391,14 @@ def create_app() -> Flask:
                 cumpleanos_hoy_lista = _personal_service.cumpleanos_hoy()
             except Exception:
                 app.logger.exception("inject_nav_user: cumpleaños de hoy")
+                db.session.rollback()
+            try:
+                from app.services import permiso_asignacion_service as _perm_asig
+
+                if _user_can_view_admin_configuration(u):
+                    permisos_recursos_nuevos = _perm_asig.new_unassigned_resources()
+            except Exception:
+                app.logger.exception("inject_nav_user: recursos nuevos sin asignar")
                 db.session.rollback()
         return {
             "nav_user": u,
@@ -432,6 +441,7 @@ def create_app() -> Flask:
             "personal_vacaciones_pendientes": personal_vacaciones_pendientes,
             "user_tiene_legajo_personal": user_tiene_legajo_personal,
             "cumpleanos_hoy": cumpleanos_hoy_lista,
+            "permisos_recursos_nuevos": permisos_recursos_nuevos,
         }
 
     @app.context_processor

@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Perfiles y recursos{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">Perfiles y recursos</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_users.list_users') }}">Usuarios</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+  </div>
+</div>
+
+{% if permisos_recursos_nuevos %}
+<div class="alert alert-warning" role="status">
+  <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start">
+    <div>
+      <strong>Hay {{ permisos_recursos_nuevos|length }} recurso(s) nuevo(s) sin asignar.</strong>
+      <p class="mb-1 mt-1">Quedaron en el catálogo (módulo o submódulo nuevo) y todavía no se asignaron a un puesto ni a una persona:</p>
+      <ul class="mb-0">
+        {% for r in permisos_recursos_nuevos %}
+        <li>{{ r.label }} <span class="text-muted small">({{ r.key }})</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% if viewer_may_mutate %}
+    <form method="post" action="{{ url_for('admin_users.perfiles_reconocer_recursos_nuevos') }}" class="flex-shrink-0">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="ambito" value="{{ ambito }}">
+      <button type="submit" class="btn btn-sm btn-outline-dark">Ocultar aviso</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{% if not viewer_may_mutate %}
+<div class="alert alert-info" role="status">Modo solo lectura: solo un administrador puede asignar recursos.</div>
+{% endif %}
+
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if ambito == 'puesto' %}active{% endif %}" href="{{ url_for('admin_users.perfiles_recursos', ambito='puesto') }}">Por puesto</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if ambito == 'persona' %}active{% endif %}" href="{{ url_for('admin_users.perfiles_recursos', ambito='persona') }}">Por persona</a>
+  </li>
+</ul>
+
+{% if ambito == 'puesto' %}
+<p class="small app-text-secondary">
+  En <strong>Comunes a todos</strong> marcás una sola vez lo que comparte todo el mundo.
+  Tildá varios puestos para <strong>sumarles</strong> de una vez lo que esté marcado en la grilla (no se les quita lo que ya tienen).
+  El nombre abre un puesto para editarlo fino.
+</p>
+<form method="post" action="{{ url_for('admin_users.perfiles_guardar_puesto') }}" id="formPermisosPuesto">
+{% include "_csrf.html" %}
+<input type="hidden" name="puesto_id" value="{{ puesto_selected }}">
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="app-card">
+      <div class="app-card-header d-flex justify-content-between align-items-center gap-2">
+        <span>Puestos del organigrama</span>
+        {% if viewer_may_mutate %}
+        <button type="button" class="btn btn-link btn-sm p-0 js-toggle-all" data-target=".js-puesto-sel">Todos / ninguno</button>
+        {% endif %}
+      </div>
+      <div class="list-group list-group-flush">
+        <div class="list-group-item d-flex align-items-center gap-2 {% if puesto_is_comun %}active{% endif %}">
+          {% if viewer_may_mutate %}
+          <input class="form-check-input mt-0 js-puesto-sel" type="checkbox" name="puesto_ids" value="__comun__"
+                 {% if '__comun__' in puesto_sel %}checked{% endif %} title="Incluir comunes" aria-label="Incluir comunes a todos">
+          {% endif %}
+          <a class="text-reset text-decoration-none flex-grow-1 d-flex justify-content-between align-items-center js-keep-sel"
+             href="{{ url_for('admin_users.perfiles_recursos', ambito='puesto', puesto='__comun__') }}">
+            <span><strong>Comunes a todos</strong></span>
+            <span class="badge {% if puesto_is_comun %}text-bg-light{% else %}text-bg-primary{% endif %}">{{ puesto_perm_counts.get('__comun__', 0) }}</span>
+          </a>
+        </div>
+        {% for p in organigrama_puestos %}
+        <div class="list-group-item d-flex align-items-center gap-2 {% if p.id == puesto_selected %}active{% endif %}">
+          {% if viewer_may_mutate %}
+          <input class="form-check-input mt-0 js-puesto-sel" type="checkbox" name="puesto_ids" value="{{ p.id }}"
+                 {% if p.id in puesto_sel %}checked{% endif %} aria-label="Seleccionar {{ p.titulo }}">
+          {% endif %}
+          <a class="text-reset text-decoration-none flex-grow-1 d-flex justify-content-between align-items-center js-keep-sel"
+             href="{{ url_for('admin_users.perfiles_recursos', ambito='puesto', puesto=p.id) }}">
+            <span>{{ p.titulo }}</span>
+            <span class="badge {% if p.id == puesto_selected %}text-bg-light{% else %}text-bg-secondary{% endif %}">{{ puesto_perm_counts.get(p.id, 0) }}</span>
+          </a>
+        </div>
+        {% else %}
+        <div class="list-group-item text-muted">No hay puestos en el organigrama.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="app-card">
+      <div class="app-card-header">Recursos · {{ puesto_selected_titulo }}</div>
+      <div class="app-card-body">
+        {% if puesto_selected %}
+        {% if puesto_is_comun %}
+        <p class="small app-text-secondary">Estos recursos los tienen <strong>todos</strong> los puestos. No hace falta repetirlos uno por uno.</p>
+        {% else %}
+        <p class="small app-text-secondary">Acá se edita lo extra de este puesto. Lo <span class="badge text-bg-primary app-badge-soft">común</span> se cambia en Comunes a todos. Con varios tildados a la izquierda, «Sumar a seleccionados» les agrega lo marcado acá.</p>
+        {% endif %}
+        {% set grid_disabled = not viewer_may_mutate %}
+        {% include "admin/_permission_grid.html" %}
+        {% if viewer_may_mutate %}
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button type="submit" class="btn btn-primary">{% if puesto_is_comun %}Guardar comunes{% else %}Guardar este puesto{% endif %}</button>
+          <button type="submit" class="btn btn-outline-primary" formaction="{{ url_for('admin_users.perfiles_sumar_puestos') }}">Sumar a seleccionados</button>
+        </div>
+        {% endif %}
+        {% else %}
+        <p class="text-muted mb-0">No hay un puesto para editar.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+</form>
+{% else %}
+<p class="small app-text-secondary">
+  El nombre abre la grilla de esa persona. Tildá varias para <strong>sumarles</strong> de una vez lo marcado, sin quitarles lo que ya tienen.
+  Guardar persona deja exactamente lo de la grilla para la cuenta abierta.
+</p>
+<form method="post" action="{% if persona_user %}{{ url_for('admin_users.perfiles_guardar_persona', uid=persona_user.id) }}{% else %}#{% endif %}" id="formPermisosPersona">
+{% include "_csrf.html" %}
+{% if persona_user %}<input type="hidden" name="user_id" value="{{ persona_user.id }}">{% endif %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="app-card">
+      <div class="app-card-header d-flex justify-content-between align-items-center gap-2">
+        <span>Personas</span>
+        {% if viewer_may_mutate %}
+        <button type="button" class="btn btn-link btn-sm p-0 js-toggle-all" data-target=".js-user-sel">Todos / ninguno</button>
+        {% endif %}
+      </div>
+      <div class="list-group list-group-flush" style="max-height: 32rem; overflow: auto;">
+        {% for u in users %}
+        <div class="list-group-item d-flex align-items-start gap-2 {% if persona_user and u.id == persona_user.id %}active{% endif %}">
+          {% if viewer_may_mutate %}
+          <input class="form-check-input mt-1 js-user-sel" type="checkbox" name="user_ids" value="{{ u.id }}"
+                 {% if u.id in persona_sel %}checked{% endif %} aria-label="Seleccionar {{ u.username }}">
+          {% endif %}
+          <a class="text-reset text-decoration-none flex-grow-1 js-keep-sel"
+             href="{{ url_for('admin_users.perfiles_recursos', ambito='persona', user_id=u.id) }}">
+            <div class="d-flex justify-content-between gap-2">
+              <strong>{{ u.username }}</strong>
+              <span class="small">{{ user_role_label(u) }}</span>
+            </div>
+            {% if u.nombre_completo %}<div class="small {% if persona_user and u.id == persona_user.id %}{% else %}app-text-secondary{% endif %}">{{ u.nombre_completo }}</div>{% endif %}
+          </a>
+        </div>
+        {% else %}
+        <div class="list-group-item text-muted">No hay usuarios.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="app-card">
+      <div class="app-card-header">
+        {% if persona_user %}Recursos · {{ persona_user.username }}{% else %}Recursos{% endif %}
+      </div>
+      <div class="app-card-body">
+        {% if not persona_user %}
+        <p class="text-muted mb-0">Elegí una persona.</p>
+        {% elif hide_perm_grid %}
+        <p class="mb-2">Este perfil no usa la grilla de módulos (plantilla fija: administrador, Angel, SGC o laboratorista).</p>
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('admin_users.edit_user', uid=persona_user.id) }}">Abrir ficha de usuario</a>
+        {% else %}
+        {% if organigrama_puestos_selected %}
+        <p class="small mb-3">Puestos:
+          {% for p in organigrama_puestos %}
+            {% if p.id in organigrama_puestos_selected %}<span class="badge text-bg-secondary app-badge-soft me-1">{{ p.titulo }}</span>{% endif %}
+          {% endfor %}
+        </p>
+        {% endif %}
+        {% set grid_disabled = not viewer_may_mutate %}
+        {% include "admin/_permission_grid.html" %}
+        {% if viewer_may_mutate %}
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button type="submit" class="btn btn-primary">Guardar esta persona</button>
+          <button type="submit" class="btn btn-outline-primary" formaction="{{ url_for('admin_users.perfiles_sumar_personas') }}">Sumar a seleccionadas</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('admin_users.edit_user', uid=persona_user.id) }}">Ficha completa</a>
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  document.querySelectorAll(".js-keep-sel").forEach(function (link) {
+    link.addEventListener("click", function (ev) {
+      var boxes = link.closest("form") && link.closest("form").querySelectorAll("input.js-puesto-sel:checked, input.js-user-sel:checked");
+      if (!boxes || !boxes.length) return;
+      ev.preventDefault();
+      var url = new URL(link.href, window.location.origin);
+      url.searchParams.delete("sel");
+      Array.prototype.forEach.call(boxes, function (el) {
+        url.searchParams.append("sel", el.value);
+      });
+      window.location.href = url.toString();
+    });
+  });
+  document.querySelectorAll(".js-toggle-all").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var nodes = document.querySelectorAll(btn.getAttribute("data-target"));
+      var allOn = Array.prototype.every.call(nodes, function (el) { return el.checked; });
+      Array.prototype.forEach.call(nodes, function (el) { el.checked = !allOn; });
+    });
+  });
+})();
+</script>
+{% endblock %}

@@ -108,6 +108,10 @@
         {% endif %}
         {% if user_can_view_admin_configuration() %}
         <li>
+          <a href="{{ url_for('admin_users.perfiles_recursos') }}" class="app-sidenav-link {% if ep and ep.startswith('admin_users.perfiles') %}is-active{% endif %}"
+             data-filter-text="perfiles recursos permisos puestos" title="Perfiles y recursos"><i class="bi bi-key" aria-hidden="true"></i></a>
+        </li>
+        <li>
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
              data-filter-text="equipos" title="Equipos"><i class="bi bi-cpu" aria-hidden="true"></i></a>
         </li>
@@ -365,6 +369,7 @@
             {% endif %}
             {% if user_can_view_admin_configuration() %}
             <li><a class="dropdown-item" href="{{ url_for('admin_users.list_users') }}"><i class="bi bi-people me-2" aria-hidden="true"></i>Usuarios</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('admin_users.perfiles_recursos') }}"><i class="bi bi-key me-2" aria-hidden="true"></i>Perfiles y recursos{% if permisos_recursos_nuevos %}<span class="badge text-bg-warning ms-2">{{ permisos_recursos_nuevos|length }}</span>{% endif %}</a></li>
             <li><a class="dropdown-item" href="{{ url_for('admin_users.deadline_alert_emails') }}"><i class="bi bi-envelope-at me-2" aria-hidden="true"></i>Avisos por correo</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
@@ -383,6 +388,12 @@
       </div>
     </header>
     <main class="app-main">
+{% if user_can_view_admin_configuration() and permisos_recursos_nuevos and ep and ep.startswith('admin_users.') and ep != 'admin_users.perfiles_recursos' %}
+<div class="alert alert-warning mx-3 mt-3 mb-0" role="status">
+  Hay {{ permisos_recursos_nuevos|length }} recurso(s) nuevo(s) sin asignar.
+  <a href="{{ url_for('admin_users.perfiles_recursos') }}" class="alert-link">Asignarlos por puesto o persona</a>.
+</div>
+{% endif %}
 {% else %}
 <header class="app-guest-header">
   <a class="app-guest-brand" href="{{ url_for('main.index') }}">Química del Valle</a>

@@ -1,0 +1,75 @@
+{# Grilla Recurso | Ver | Editar.
+   Opcionales: grid_disabled, role_view_set, puesto_view_set, comun_view_set, comun_edit_set, lock_comun #}
+{% set grid_disabled = grid_disabled|default(false) %}
+{% set role_view_set = role_view_set|default([]) %}
+{% set puesto_view_set = puesto_view_set|default([]) %}
+{% set comun_view_set = comun_view_set|default([]) %}
+{% set comun_edit_set = comun_edit_set|default([]) %}
+{% set lock_comun = lock_comun|default(false) %}
+<div class="table-responsive app-table-scroll">
+  <table class="table table-app table-compact mb-0 align-middle">
+    <thead><tr><th>Recurso</th><th>Ver</th><th>Editar</th></tr></thead>
+    <tbody>
+      {% for g in permission_tree %}
+      {% set gkey = g.key %}
+      {% set rowid = grid_id_prefix|default('grp') ~ '_' ~ loop.index %}
+      {% set lock_gv = grid_disabled or (lock_comun and gkey in comun_view_set) %}
+      {% set lock_ge = grid_disabled or (lock_comun and gkey in comun_edit_set) %}
+      <tr>
+        <td>
+          <strong>{{ g.label }}</strong>
+          {% if gkey in comun_view_set %}<span class="badge text-bg-primary app-badge-soft ms-1">común</span>{% endif %}
+          {% if gkey in puesto_view_set %}<span class="badge text-bg-secondary app-badge-soft ms-1">puesto</span>{% endif %}
+          {% if gkey in role_view_set %}<span class="badge text-bg-light border ms-1">perfil</span>{% endif %}
+        </td>
+        <td>
+          <div class="form-check mb-0">
+            {% if lock_gv and gkey in perms_set %}<input type="hidden" name="permv_{{ gkey }}" value="1">{% endif %}
+            <input class="form-check-input" type="checkbox" name="permv_{{ gkey }}" value="1" id="{{ rowid }}_v"
+                   {% if gkey in perms_set %}checked{% endif %} {% if lock_gv %}disabled{% endif %}>
+            <label class="form-check-label small" for="{{ rowid }}_v">ver</label>
+          </div>
+        </td>
+        <td>
+          <div class="form-check mb-0">
+            {% if lock_ge and gkey in perms_edit_set %}<input type="hidden" name="perme_{{ gkey }}" value="1">{% endif %}
+            <input class="form-check-input" type="checkbox" name="perme_{{ gkey }}" value="1" id="{{ rowid }}_e"
+                   {% if gkey in perms_edit_set %}checked{% endif %} {% if lock_ge %}disabled{% endif %}>
+            <label class="form-check-label small" for="{{ rowid }}_e">editar</label>
+          </div>
+        </td>
+      </tr>
+      {% for c in g.children %}
+      {% set ckey = c.key %}
+      {% set cid = rowid ~ '_c' ~ loop.index %}
+      {% set lock_cv = grid_disabled or (lock_comun and ckey in comun_view_set) %}
+      {% set lock_ce = grid_disabled or (lock_comun and ckey in comun_edit_set) %}
+      <tr>
+        <td class="ps-4">
+          {{ c.label }}
+          {% if ckey in comun_view_set %}<span class="badge text-bg-primary app-badge-soft ms-1">común</span>{% endif %}
+          {% if ckey in puesto_view_set %}<span class="badge text-bg-secondary app-badge-soft ms-1">puesto</span>{% endif %}
+          {% if ckey in role_view_set %}<span class="badge text-bg-light border ms-1">perfil</span>{% endif %}
+        </td>
+        <td>
+          <div class="form-check mb-0">
+            {% if lock_cv and ckey in perms_set %}<input type="hidden" name="permv_{{ ckey }}" value="1">{% endif %}
+            <input class="form-check-input" type="checkbox" name="permv_{{ ckey }}" value="1" id="{{ cid }}_v"
+                   {% if ckey in perms_set %}checked{% endif %} {% if lock_cv %}disabled{% endif %}>
+            <label class="form-check-label small" for="{{ cid }}_v">ver</label>
+          </div>
+        </td>
+        <td>
+          <div class="form-check mb-0">
+            {% if lock_ce and ckey in perms_edit_set %}<input type="hidden" name="perme_{{ ckey }}" value="1">{% endif %}
+            <input class="form-check-input" type="checkbox" name="perme_{{ ckey }}" value="1" id="{{ cid }}_e"
+                   {% if ckey in perms_edit_set %}checked{% endif %} {% if lock_ce %}disabled{% endif %}>
+            <label class="form-check-label small" for="{{ cid }}_e">editar</label>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

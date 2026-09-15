@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# Catálogo de recursos ACL. Al agregar una clave nueva (módulo o submódulo),
+# aparece en Admin → Perfiles como recurso sin asignar hasta que se asigne
+# a un puesto / persona o se reconozca el aviso.
 PERMISSION_KEYS: list[str] = [
     "produccion",
     "entregas",

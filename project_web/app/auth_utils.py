@@ -6,20 +6,16 @@ from typing import Any, Callable, TypeVar, cast
 from flask import flash, g, has_request_context, redirect, request, session, url_for
 
 from app.extensions import db
-from app.models import PermisoUsuario, User
+from app.models import User
 from app.security_http import request_path_for_login_next
-from app.constants import PERMISSION_KEYS
 from app.user_roles import (
     ROLE_LOGISTICA,
     ROLE_SGI,
-    compute_session_perm_lists,
     normalized_role_has_global_view,
     normalize_stored_rol,
     normalized_role_is_global_read_only,
     user_is_global_read_only,
 )
-
-from sqlalchemy import select
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -340,16 +336,9 @@ def user_can_edit_stock_hub_aggregate(user: User | None) -> bool:
 
 def perm_sets_for_user(user: User) -> tuple[list[str], list[str]]:
     """Listas de permisos de vista y edición (misma lógica que la sesión web)."""
-    if user.is_admin:
-        p = list(PERMISSION_KEYS)
-        return p, p
-    rows = list(
-        db.session.scalars(
-            select(PermisoUsuario).where(PermisoUsuario.user_id == user.id)
-        ).all()
-    )
-    stored = normalize_stored_rol(getattr(user, "rol", None))
-    p_view, p_edit = compute_session_perm_lists(stored, rows)
+    from app.services.permiso_asignacion_service import effective_perm_lists_for_user
+
+    p_view, p_edit = effective_perm_lists_for_user(user)
     return list(p_view), list(p_edit)
 
 

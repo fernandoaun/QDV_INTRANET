@@ -2,14 +2,23 @@ from __future__ import annotations
 
 import re
 
+from urllib.parse import urlencode
+
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from werkzeug.security import generate_password_hash
 
-from app.auth_utils import admin_required, current_user, login_required, user_can_view_admin_configuration
-from app.constants import PERMISSION_FORM_KEYS, PERMISSION_KEYS, PERMISSION_LABELS, PERMISSION_TREE
+from app.auth_utils import (
+    admin_required,
+    current_user,
+    login_required,
+    set_session_for_user,
+    user_can_view_admin_configuration,
+)
+from app.constants import PERMISSION_LABELS, PERMISSION_TREE
 from app.extensions import db
 from app.models import Equipo, PermisoUsuario, User
+from app.services import permiso_asignacion_service as perm_asig
 from app.security_http import json_preview, truncate_plain_text
 from app.services import security_audit_service as audit_svc
 from app.services.deadline_alert_email_service import (
@@ -29,13 +38,8 @@ from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
     ROLE_ADMINISTRADOR,
-    ROLE_LABORATORISTA,
     ROLE_LABELS,
-    ROLE_SGI,
-    ROLE_SOLO_LECTURA_TOTAL,
     USER_ROLES_ORDERED,
-    compute_session_perm_lists,
-    normalize_stored_rol,
     role_template_perm_sets,
     validate_rol_submitted,
 )
@@ -59,7 +63,300 @@ def list_users():
         user_requires_legajo=personal_svc.user_requires_legajo,
         viewer_may_manage_users=bool(u.is_admin),
         organigrama_puestos=anexo_svc.organigrama_puesto_opciones(),
+        permisos_recursos_nuevos=perm_asig.new_unassigned_resources(),
     )
+
+
+def _refresh_session_if_self(user: User) -> None:
+    viewer = current_user()
+    if viewer is None or int(viewer.id) != int(user.id):
+        return
+    set_session_for_user(user)
+
+
+def _perfiles_puestos_context(puesto_id: str | None = None) -> dict:
+    puestos = anexo_svc.organigrama_puesto_opciones()
+    counts = perm_asig.puesto_assigned_counts()
+    selected = (puesto_id or request.args.get("puesto") or "").strip()
+    if not selected:
+        selected = perm_asig.PUESTO_COMUN_ID
+    valid = {str(p["id"]) for p in puestos}
+    valid.add(perm_asig.PUESTO_COMUN_ID)
+    if selected not in valid:
+        selected = perm_asig.PUESTO_COMUN_ID
+    is_comun = perm_asig.is_puesto_comun(selected)
+    comun_v, comun_e = perm_asig.comunes_perm_sets()
+    if is_comun:
+        view_set, edit_set = comun_v, comun_e
+        lock_comun = False
+    else:
+        view_set, edit_set = perm_asig.puesto_perm_sets(selected)
+        lock_comun = True
+    selected_titulo = "Comunes a todos"
+    if not is_comun:
+        selected_titulo = next((p["titulo"] for p in puestos if p["id"] == selected), selected)
+    sel = [str(x).strip() for x in request.args.getlist("sel") if str(x).strip() in valid]
+    return {
+        "organigrama_puestos": puestos,
+        "puesto_selected": selected,
+        "puesto_selected_titulo": selected_titulo,
+        "puesto_is_comun": is_comun,
+        "puesto_perm_counts": counts,
+        "puesto_sel": sel,
+        "perms_set": view_set,
+        "perms_edit_set": edit_set,
+        "comun_view_set": comun_v,
+        "comun_edit_set": comun_e,
+        "lock_comun": lock_comun,
+        "permission_tree": PERMISSION_TREE,
+        "permission_labels": PERMISSION_LABELS,
+        "permisos_recursos_nuevos": perm_asig.new_unassigned_resources(),
+    }
+
+
+@bp.get("/perfiles")
+@login_required
+def perfiles_recursos():
+    u = current_user()
+    if u is None or not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a perfiles.", "warning")
+        return redirect(url_for("main.dashboard"))
+    ambito = (request.args.get("ambito") or "puesto").strip().lower()
+    if ambito not in ("puesto", "persona"):
+        ambito = "puesto"
+    viewer_may_mutate = bool(u.is_admin)
+    persona_user = None
+    persona_ctx: dict = {}
+    if ambito == "persona":
+        uid_raw = request.args.get("user_id") or ""
+        try:
+            uid = int(uid_raw)
+        except (TypeError, ValueError):
+            uid = 0
+        users = db.session.scalars(select(User).order_by(User.username)).all()
+        if uid:
+            persona_user = db.session.get(User, uid)
+        if persona_user is None and users:
+            persona_user = next((x for x in users if not perm_asig.user_uses_fixed_perm_template(x)), None)
+        if persona_user is not None:
+            puesto_ids = anexo_svc.organigrama_node_ids_for_user(int(persona_user.id))
+            pv, pe = perm_asig.view_edit_for_puestos(puesto_ids)
+            cv, ce = perm_asig.comunes_perm_sets()
+            rv, re = role_template_perm_sets(persona_user.rol)
+            view_l, edit_l = perm_asig.effective_perm_lists_for_user(persona_user)
+            persona_ctx = {
+                "hide_perm_grid": perm_asig.user_uses_fixed_perm_template(persona_user),
+                "perms_set": set(view_l),
+                "perms_edit_set": set(edit_l),
+                "role_view_set": rv,
+                "role_edit_set": re,
+                "puesto_view_set": pv,
+                "puesto_edit_set": pe,
+                "comun_view_set": cv,
+                "comun_edit_set": ce,
+                "organigrama_puestos_selected": puesto_ids,
+            }
+        persona_ctx["users"] = users
+        persona_ctx["persona_user"] = persona_user
+        persona_ctx["persona_sel"] = []
+        for raw in request.args.getlist("sel"):
+            try:
+                persona_ctx["persona_sel"].append(int(raw))
+            except (TypeError, ValueError):
+                continue
+        return render_template(
+            "admin/perfiles.html",
+            ambito="persona",
+            viewer_may_mutate=viewer_may_mutate,
+            permission_tree=PERMISSION_TREE,
+            permission_labels=PERMISSION_LABELS,
+            permisos_recursos_nuevos=perm_asig.new_unassigned_resources(),
+            organigrama_puestos=anexo_svc.organigrama_puesto_opciones(),
+            **persona_ctx,
+        )
+    ctx = _perfiles_puestos_context()
+    return render_template(
+        "admin/perfiles.html",
+        ambito="puesto",
+        viewer_may_mutate=viewer_may_mutate,
+        **ctx,
+    )
+
+
+@bp.post("/perfiles/puesto")
+@login_required
+@admin_required
+def perfiles_guardar_puesto():
+    puesto_id = (request.form.get("puesto_id") or "").strip()
+    valid = {p["id"] for p in anexo_svc.organigrama_puesto_opciones()}
+    valid.add(perm_asig.PUESTO_COMUN_ID)
+    if not puesto_id or puesto_id not in valid:
+        flash("Seleccioná un puesto válido del organigrama.", "danger")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="puesto"))
+    flags = perm_asig.perm_flags_from_form(request.form)
+    perm_asig.replace_puesto_permissions(puesto_id, flags)
+    db.session.commit()
+    viewer = current_user()
+    if viewer is not None and not viewer.is_admin:
+        _refresh_session_if_self(viewer)
+    elif viewer is not None:
+        mine = set(anexo_svc.organigrama_node_ids_for_user(int(viewer.id)))
+        if puesto_id in mine or perm_asig.is_puesto_comun(puesto_id):
+            _refresh_session_if_self(viewer)
+    audit_svc.record_event(
+        action="puesto_permissions_update",
+        module="admin",
+        actor=current_user(),
+        entity_type="puesto",
+        entity_id=None,
+        detail=truncate_plain_text(puesto_id, max_len=220),
+        new_value=json_preview(
+            {k: {"ver": fv, "editar": fe} for k, (fv, fe) in flags.items() if fv}
+        ),
+    )
+    if perm_asig.is_puesto_comun(puesto_id):
+        flash(
+            "Recursos comunes guardados: aplican a todos los puestos. Quienes ya estaban logueados tienen que volver a entrar.",
+            "success",
+        )
+    else:
+        flash(
+            "Recursos extra de este puesto guardados. Quienes ya estaban logueados tienen que volver a entrar para ver el cambio.",
+            "success",
+        )
+    return redirect(url_for("admin_users.perfiles_recursos", ambito="puesto", puesto=puesto_id))
+
+
+@bp.post("/perfiles/puestos/sumar")
+@login_required
+@admin_required
+def perfiles_sumar_puestos():
+    valid = {p["id"] for p in anexo_svc.organigrama_puesto_opciones()}
+    valid.add(perm_asig.PUESTO_COMUN_ID)
+    ids = [str(x).strip() for x in request.form.getlist("puesto_ids") if str(x).strip() in valid]
+    if not ids:
+        flash("Tildá uno o más puestos (o Comunes a todos) para sumarles permisos.", "warning")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="puesto"))
+    flags = perm_asig.perm_flags_from_form(request.form)
+    if not any(fv for fv, _fe in flags.values()):
+        flash("Tildá al menos un recurso en la grilla para sumárselo a los seleccionados.", "warning")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="puesto", puesto=request.form.get("puesto_id")))
+    changed = 0
+    for pid in ids:
+        if perm_asig.grant_puesto_permissions(pid, flags):
+            changed += 1
+    db.session.commit()
+    audit_svc.record_event(
+        action="puesto_permissions_grant_bulk",
+        module="admin",
+        actor=current_user(),
+        entity_type="puesto",
+        detail=truncate_plain_text(",".join(ids), max_len=220),
+        new_value=json_preview({k: {"ver": fv, "editar": fe} for k, (fv, fe) in flags.items() if fv}),
+    )
+    flash(
+        f"Se sumaron los recursos tildados a {changed} de {len(ids)} destino(s). Quienes ya estaban logueados tienen que volver a entrar.",
+        "success",
+    )
+    focus = (request.form.get("puesto_id") or perm_asig.PUESTO_COMUN_ID).strip()
+    url = url_for("admin_users.perfiles_recursos", ambito="puesto", puesto=focus)
+    if ids:
+        url += "&" + urlencode([("sel", s) for s in ids])
+    return redirect(url)
+
+
+@bp.post("/perfiles/personas/sumar")
+@login_required
+@admin_required
+def perfiles_sumar_personas():
+    raw_ids = request.form.getlist("user_ids")
+    uids: list[int] = []
+    for raw in raw_ids:
+        try:
+            uids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    if not uids:
+        flash("Tildá una o más personas para sumarles permisos.", "warning")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="persona"))
+    flags = perm_asig.perm_flags_from_form(request.form)
+    if not any(fv for fv, _fe in flags.values()):
+        flash("Tildá al menos un recurso en la grilla para sumárselo a las seleccionadas.", "warning")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="persona"))
+    changed = 0
+    skipped = 0
+    last_ok: int | None = None
+    for uid in uids:
+        u = db.session.get(User, uid)
+        if u is None:
+            continue
+        if perm_asig.user_uses_fixed_perm_template(u):
+            skipped += 1
+            continue
+        if perm_asig.grant_user_permissions(u, flags):
+            changed += 1
+            last_ok = int(u.id)
+            _refresh_session_if_self(u)
+    db.session.commit()
+    audit_svc.record_event(
+        action="user_permissions_grant_bulk",
+        module="admin",
+        actor=current_user(),
+        entity_type="user",
+        detail=truncate_plain_text(",".join(str(i) for i in uids), max_len=220),
+        new_value=json_preview({k: {"ver": fv, "editar": fe} for k, (fv, fe) in flags.items() if fv}),
+    )
+    msg = f"Se sumaron los recursos tildados a {changed} persona(s)."
+    if skipped:
+        msg += f" Se omitieron {skipped} con plantilla fija (administrador, Angel, SGC o laboratorista)."
+    flash(msg, "success" if changed else "info")
+    focus = last_ok or (int(request.form.get("user_id") or 0) or None)
+    url = url_for("admin_users.perfiles_recursos", ambito="persona", **({"user_id": focus} if focus else {}))
+    if uids:
+        url += "&" + urlencode([("sel", str(i)) for i in uids])
+    return redirect(url)
+
+
+@bp.post("/perfiles/persona/<int:uid>")
+@login_required
+@admin_required
+def perfiles_guardar_persona(uid: int):
+    u = db.session.get(User, uid)
+    if u is None:
+        flash("Usuario no encontrado.", "danger")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="persona"))
+    if perm_asig.user_uses_fixed_perm_template(u):
+        flash("Este perfil usa una plantilla fija; no se asignan recursos por persona.", "warning")
+        return redirect(url_for("admin_users.perfiles_recursos", ambito="persona", user_id=uid))
+    puesto_ids = anexo_svc.organigrama_node_ids_for_user(int(u.id))
+    base_v, base_e = perm_asig.base_perm_sets_for_role_and_puestos(u.rol, puesto_ids)
+    flags = perm_asig.perm_flags_from_form(request.form)
+    perm_asig.replace_user_permission_overrides(u, flags, base_v, base_e)
+    db.session.commit()
+    _refresh_session_if_self(u)
+    audit_svc.record_event(
+        action="user_permissions_update",
+        module="admin",
+        actor=current_user(),
+        entity_type="user",
+        entity_id=int(u.id),
+        detail=truncate_plain_text(u.username, max_len=220),
+    )
+    flash("Recursos de la persona guardados.", "success")
+    return redirect(url_for("admin_users.perfiles_recursos", ambito="persona", user_id=uid))
+
+
+@bp.post("/perfiles/recursos-nuevos/reconocer")
+@login_required
+@admin_required
+def perfiles_reconocer_recursos_nuevos():
+    n = perm_asig.acknowledge_new_permission_keys()
+    if n:
+        flash(f"Se ocultó el aviso de {n} recurso(s) nuevo(s). Podés asignarlos cuando quieras.", "info")
+    else:
+        flash("No había recursos nuevos pendientes.", "info")
+    ambito = (request.form.get("ambito") or "puesto").strip()
+    return redirect(url_for("admin_users.perfiles_recursos", ambito=ambito))
 
 
 def _normalize_username(raw: str) -> str:
@@ -240,59 +537,22 @@ def edit_user(uid: int):
                     return redirect(url_for("admin_users.edit_user", uid=uid))
             u.whatsapp_e164 = wa_norm
             personal_svc.sync_empleado_for_user_role(u)
-            db.session.execute(delete(PermisoUsuario).where(PermisoUsuario.user_id == u.id))
-            if not u.is_admin and normalize_stored_rol(u.rol) not in (
-                ROLE_LABORATORISTA,
-                ROLE_SOLO_LECTURA_TOTAL,
-                ROLE_SGI,
-            ):
-                bv, be = role_template_perm_sets(u.rol)
-                for key in PERMISSION_FORM_KEYS:
-                    if key not in PERMISSION_KEYS:
-                        continue
-                    fv = request.form.get(f"permv_{key}") == "1"
-                    fe = request.form.get(f"perme_{key}") == "1"
-                    if fe and not fv:
-                        fe = False
-                    in_bv = key in bv
-                    in_be = key in be
-                    if not fv:
-                        if in_bv:
-                            db.session.add(
-                                PermisoUsuario(
-                                    user_id=u.id,
-                                    permiso=key,
-                                    habilitado=False,
-                                    puede_editar=False,
-                                )
-                            )
-                        continue
-                    if not in_bv:
-                        db.session.add(
-                            PermisoUsuario(
-                                user_id=u.id,
-                                permiso=key,
-                                habilitado=True,
-                                puede_editar=fe,
-                            )
-                        )
-                        continue
-                    default_edit = in_be
-                    if fe != default_edit:
-                        db.session.add(
-                            PermisoUsuario(
-                                user_id=u.id,
-                                permiso=key,
-                                habilitado=True,
-                                puede_editar=fe,
-                            )
-                        )
+            puesto_ids = anexo_svc.organigrama_puestos_from_form(request.form)
+            org_pending: list = []
+            anexo_svc.organigrama_sync_user_puestos(
+                int(u.id), puesto_ids, commit=False, difundir_pendiente=org_pending
+            )
+            flags = perm_asig.perm_flags_from_form(request.form)
+            base_v, base_e = perm_asig.base_perm_sets_for_role_and_puestos(u.rol, puesto_ids)
+            perm_asig.replace_user_permission_overrides(u, flags, base_v, base_e)
             db.session.commit()
+            anexo_svc.enviar_mails_organigrama_actualizado(org_pending)
+            _refresh_session_if_self(u)
             if current_app.debug:
+                v_dbg, e_dbg = perm_asig.effective_perm_lists_for_user(u)
                 rows_dbg = list(
                     db.session.scalars(select(PermisoUsuario).where(PermisoUsuario.user_id == u.id)).all()
                 )
-                v_dbg, e_dbg = compute_session_perm_lists(u.rol, rows_dbg)
                 current_app.logger.debug(
                     "perm_save user_id=%s rol=%s effective_view=%s effective_edit=%s raw_rows=%s",
                     u.id,
@@ -301,7 +561,6 @@ def edit_user(uid: int):
                     e_dbg,
                     [(r.permiso, r.habilitado, r.puede_editar) for r in rows_dbg],
                 )
-            anexo_svc.organigrama_sync_user_puestos(int(u.id), anexo_svc.organigrama_puestos_from_form(request.form))
             try:
                 difusion_svc.notify_usuario_si_cobertura_aumenta(
                     current_app._get_current_object(), int(u.id), before_sgi_docs
@@ -349,16 +608,23 @@ def edit_user(uid: int):
 
     perms_set: set[str] = set()
     perms_edit_set: set[str] = set()
-    if not u.is_admin:
-        rows = list(db.session.scalars(select(PermisoUsuario).where(PermisoUsuario.user_id == u.id)).all())
-        view_l, edit_l = compute_session_perm_lists(u.rol, rows)
+    role_view_set: set[str] = set()
+    role_edit_set: set[str] = set()
+    puesto_view_set: set[str] = set()
+    puesto_edit_set: set[str] = set()
+    comun_view_set: set[str] = set()
+    comun_edit_set: set[str] = set()
+    hide_perm_grid = perm_asig.user_uses_fixed_perm_template(u) and not u.is_admin
+    if u.is_admin:
+        hide_perm_grid = True
+    else:
+        puesto_ids = anexo_svc.organigrama_node_ids_for_user(u.id)
+        puesto_view_set, puesto_edit_set = perm_asig.view_edit_for_puestos(puesto_ids)
+        comun_view_set, comun_edit_set = perm_asig.comunes_perm_sets()
+        role_view_set, role_edit_set = role_template_perm_sets(u.rol)
+        view_l, edit_l = perm_asig.effective_perm_lists_for_user(u)
         perms_set = set(view_l)
         perms_edit_set = set(edit_l)
-    hide_perm_grid = (not u.is_admin) and normalize_stored_rol(u.rol) in (
-        ROLE_LABORATORISTA,
-        ROLE_SOLO_LECTURA_TOTAL,
-        ROLE_SGI,
-    )
     empleado_personal = (
         personal_svc.get_empleado_by_user_id(u.id) if personal_svc.user_requires_legajo(u) else None
     )
@@ -373,15 +639,21 @@ def edit_user(uid: int):
         user_requires_legajo=personal_svc.user_requires_legajo,
         hide_perm_grid=hide_perm_grid,
         admin_viewer_read_only=admin_viewer_read_only,
-        permission_keys=PERMISSION_KEYS,
         permission_labels=PERMISSION_LABELS,
         permission_tree=PERMISSION_TREE,
         perms_set=perms_set,
         perms_edit_set=perms_edit_set,
+        role_view_set=role_view_set,
+        role_edit_set=role_edit_set,
+        puesto_view_set=puesto_view_set,
+        puesto_edit_set=puesto_edit_set,
+        comun_view_set=comun_view_set,
+        comun_edit_set=comun_edit_set,
         user_roles_ordered=USER_ROLES_ORDERED,
         role_labels=ROLE_LABELS,
         organigrama_puestos=anexo_svc.organigrama_puesto_opciones(),
         organigrama_puestos_selected=anexo_svc.organigrama_node_ids_for_user(u.id),
+        permisos_recursos_nuevos=perm_asig.new_unassigned_resources(),
     )
 
 

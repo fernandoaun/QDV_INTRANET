@@ -35,7 +35,7 @@ from app.models.plant_stop import PlantStopAlertEmail, PlantStopEvent
 from app.models.stock_alert import StockAlertEmail, StockCriticalAlertSent
 from app.models.birthday_reminder_sent import BirthdayReminderSent
 from app.models.deadline_reminder_sent import DeadlineReminderSent
-from app.models.user import PermisoUsuario, User
+from app.models.user import PermisoPuesto, PermisoRecursoConocido, PermisoUsuario, User
 from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHistorial
 from app.models.personal import (
     EmpleadoPersonal,
@@ -75,6 +75,8 @@ __all__ = [
     "AppUploadedDocument",
     "User",
     "PermisoUsuario",
+    "PermisoPuesto",
+    "PermisoRecursoConocido",
     "Operador",
     "SalmueraRegistro",
     "SalmueraAnalisis8hs",

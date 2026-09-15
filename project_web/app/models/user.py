@@ -42,3 +42,26 @@ class PermisoUsuario(db.Model):
     puede_editar = db.Column(db.Boolean, nullable=False, default=True)
 
     __table_args__ = (db.UniqueConstraint("user_id", "permiso", name="uq_permiso_user_perm"),)
+
+
+class PermisoPuesto(db.Model):
+    """Recursos (ver/editar) asignados a un puesto del organigrama."""
+
+    __tablename__ = "permisos_puesto"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    puesto_id = db.Column(db.String(64), nullable=False, index=True)
+    permiso = db.Column(db.String(64), nullable=False)
+    habilitado = db.Column(db.Boolean, nullable=False, default=True)
+    puede_editar = db.Column(db.Boolean, nullable=False, default=True)
+
+    __table_args__ = (db.UniqueConstraint("puesto_id", "permiso", name="uq_permiso_puesto_perm"),)
+
+
+class PermisoRecursoConocido(db.Model):
+    """Claves de permiso ya vistas por admin (baseline + asignadas o reconocidas)."""
+
+    __tablename__ = "permisos_recursos_conocidos"
+
+    permiso = db.Column(db.String(64), primary_key=True)
+    reconocido_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)

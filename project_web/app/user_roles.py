@@ -7,8 +7,8 @@ Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 - «mantenimiento_operaciones»: plantilla unión de mantenimiento + operaciones; puede tomar turno de planta.
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
-- Los permisos finales = plantilla del rol efectivo, aplicando filas en `permisos_usuario` como overrides:
-  `habilitado=True` fuerza vista (y puede ajustar edición); `habilitado=False` revoca aunque el perfil lo incluya.
+- Los permisos finales = plantilla del rol + recursos del puesto (organigrama), aplicando filas en `permisos_usuario` como overrides:
+  `habilitado=True` fuerza vista (y puede ajustar edición); `habilitado=False` revoca aunque el perfil o el puesto lo incluyan.
 - Valores desconocidos en BD se normalizan a «operaciones» (seguro, sin borrar usuarios).
 - «pasante» en datos legados se normaliza a «laboratorista» (ver migración).
 """
@@ -290,10 +290,32 @@ def role_template_perm_sets(stored_rol: str | None) -> tuple[set[str], set[str]]
     return v, e
 
 
-def compute_session_perm_lists(stored_rol: str | None, rows: list[PermisoUsuario]) -> tuple[list[str], list[str]]:
+def merge_puesto_into_role_template(
+    base_view: set[str],
+    base_edit: set[str],
+    puesto_view: set[str] | None,
+    puesto_edit: set[str] | None,
+) -> tuple[set[str], set[str]]:
+    """Suma recursos del puesto a la plantilla del perfil (unión; edición ⊆ vista)."""
+    view = set(base_view) & _ALL_PERM_KEYS
+    edit = set(base_edit) & _ALL_PERM_KEYS
+    if puesto_view:
+        view |= set(puesto_view) & _ALL_PERM_KEYS
+    if puesto_edit:
+        edit |= set(puesto_edit) & _ALL_PERM_KEYS
+    edit &= view
+    return view, edit
+
+
+def compute_session_perm_lists(
+    stored_rol: str | None,
+    rows: list[PermisoUsuario],
+    puesto_view: set[str] | None = None,
+    puesto_edit: set[str] | None = None,
+) -> tuple[list[str], list[str]]:
     """
     Lista final para session['perms'] y session['perms_edit'].
-    Plantilla(rol_efectivo) + overrides en `permisos_usuario` (incluye revocaciones habilitado=False).
+    Plantilla(rol_efectivo) ∪ puesto + overrides en `permisos_usuario` (incluye revocaciones habilitado=False).
     """
     eff = effective_role_for_permissions(stored_rol)
     if eff == ROLE_SGI:
@@ -303,6 +325,7 @@ def compute_session_perm_lists(stored_rol: str | None, rows: list[PermisoUsuario
         # Vista total fija; sin edición aunque existan filas en permisos_usuario.
         return sorted(_ALL_PERM_KEYS), []
     bv, be = _base_view_edit_for_effective_role(eff)
+    bv, be = merge_puesto_into_role_template(bv, be, puesto_view, puesto_edit)
     view, edit = apply_permiso_rows_over_template(bv, be, rows)
     return sorted(view), sorted(edit)
 

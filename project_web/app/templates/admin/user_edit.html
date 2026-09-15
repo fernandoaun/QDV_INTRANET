@@ -11,6 +11,7 @@
        title="Falta completar: {{ empleado_legajo_status.missing | join(', ') }}">Completar legajo ({{ empleado_legajo_status.missing_count }})</a>
     {% endif %}
     {% endif %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('admin_users.perfiles_recursos') }}">Perfiles y recursos</a>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin_users.list_users') }}">← Lista</a>
   </div>
 </div>
@@ -82,52 +83,8 @@
       {% if hide_perm_grid %}
       <p class="small app-text-secondary mb-0">Este perfil no usa permisos por módulo en el panel (plantilla fija del rol).</p>
       {% else %}
-      <p class="small app-text-secondary">Permisos <strong>efectivos</strong> (plantilla del perfil más lo guardado aquí). Desmarcar un ítem que trae el perfil lo revoca para este usuario. Guardá para aplicar.</p>
-      <div class="table-responsive app-table-scroll">
-        <table class="table table-app table-compact mb-0 align-middle">
-          <thead><tr><th>Recurso</th><th>Ver</th><th>Editar</th></tr></thead>
-          <tbody>
-            {% for g in permission_tree %}
-            {% set gkey = g.key %}
-            {% set rowid = 'grp_' ~ loop.index %}
-            <tr>
-              <td><strong>{{ g.label }}</strong></td>
-              <td>
-                <div class="form-check mb-0">
-                  <input class="form-check-input" type="checkbox" name="permv_{{ gkey }}" value="1" id="{{ rowid }}_v" {% if gkey in perms_set %}checked{% endif %}>
-                  <label class="form-check-label small" for="{{ rowid }}_v">ver</label>
-                </div>
-              </td>
-              <td>
-                <div class="form-check mb-0">
-                  <input class="form-check-input" type="checkbox" name="perme_{{ gkey }}" value="1" id="{{ rowid }}_e" {% if gkey in perms_edit_set %}checked{% endif %}>
-                  <label class="form-check-label small" for="{{ rowid }}_e">editar</label>
-                </div>
-              </td>
-            </tr>
-            {% for c in g.children %}
-            {% set ckey = c.key %}
-            {% set cid = rowid ~ '_c' ~ loop.index %}
-            <tr>
-              <td class="ps-4">{{ c.label }}</td>
-              <td>
-                <div class="form-check mb-0">
-                  <input class="form-check-input" type="checkbox" name="permv_{{ ckey }}" value="1" id="{{ cid }}_v" {% if ckey in perms_set %}checked{% endif %}>
-                  <label class="form-check-label small" for="{{ cid }}_v">ver</label>
-                </div>
-              </td>
-              <td>
-                <div class="form-check mb-0">
-                  <input class="form-check-input" type="checkbox" name="perme_{{ ckey }}" value="1" id="{{ cid }}_e" {% if ckey in perms_edit_set %}checked{% endif %}>
-                  <label class="form-check-label small" for="{{ cid }}_e">editar</label>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+      <p class="small app-text-secondary" id="permisos">Permisos <strong>efectivos</strong> (perfil + puesto + lo guardado acá). Desmarcar un ítem del perfil o del puesto lo revoca para esta persona. El badge <em>puesto</em> viene del organigrama; <em>perfil</em> de la plantilla del rol. También podés asignar por puesto en <a href="{{ url_for('admin_users.perfiles_recursos') }}">Perfiles y recursos</a>.</p>
+      {% include "admin/_permission_grid.html" %}
       {% endif %}
       {% endif %}
       <button type="submit" class="btn btn-primary mt-3">Guardar</button>

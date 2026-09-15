@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, inspect, select, text
 
 from app.extensions import db
 from app.models import ColumnaIntercambio, Operador
@@ -9,8 +9,34 @@ from app.constants import DEFAULT_OPERATORS
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds, now_operacion_naive_local
 
 
+def ensure_local_sqlite_schema() -> None:
+    """Completa columnas/tablas nuevas en SQLite local si Alembic no corrió."""
+    if db.engine.dialect.name != "sqlite":
+        return
+    insp = inspect(db.engine)
+    tables = set(insp.get_table_names())
+    if "usuarios" in tables:
+        cols = {c["name"] for c in insp.get_columns("usuarios")}
+        if "whatsapp_e164" not in cols:
+            with db.engine.begin() as conn:
+                conn.execute(text("ALTER TABLE usuarios ADD COLUMN whatsapp_e164 VARCHAR(20)"))
+                conn.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS ix_usuarios_whatsapp_e164 "
+                        "ON usuarios (whatsapp_e164)"
+                    )
+                )
+    try:
+        from app.services import permiso_asignacion_service as perm_asig
+
+        perm_asig.ensure_schema()
+    except Exception:
+        db.session.rollback()
+
+
 def ensure_seed_data() -> None:
     """Operadores por defecto y filas iniciales de columnas (paridad con app de escritorio)."""
+    ensure_local_sqlite_schema()
     n_op = db.session.scalar(select(func.count()).select_from(Operador)) or 0
     if n_op == 0:
         now = now_operacion_local_iso_seconds()
