@@ -367,6 +367,9 @@ def get_config_dict(base_dir: Path) -> dict:
         "USE_PROXY_FIX": use_proxy_fix,
         "PREFERRED_URL_SCHEME": preferred_scheme or "http",
         "WTF_CSRF_ENABLED": getattr(cfg, "WTF_CSRF_ENABLED", True),
+        # None = el token vale mientras dure la sesión. El default de Flask-WTF (1 h)
+        # cortaba la parada de planta en pantallas que quedan abiertas todo el turno.
+        "WTF_CSRF_TIME_LIMIT": None,
         "SQLALCHEMY_DATABASE_URI": uri,
         "SQLALCHEMY_TRACK_MODIFICATIONS": cfg.SQLALCHEMY_TRACK_MODIFICATIONS,
         "SQLALCHEMY_ECHO": cfg.SQLALCHEMY_ECHO,

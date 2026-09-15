@@ -7,8 +7,12 @@
   const PARADA_URL = "/produccion/parada-planta";
 
   function csrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.content) return meta.content;
     const inp = document.querySelector('input[name="csrf_token"]');
-    return inp ? inp.value : "";
+    if (inp && inp.value) return inp.value;
+    const marked = document.querySelector("[data-csrf-token]");
+    return marked ? String(marked.getAttribute("data-csrf-token") || "") : "";
   }
 
   function parseIsoLocal(iso) {
@@ -175,6 +179,7 @@
       fecha_iso: fechaIso,
       action,
     };
+    if (token) body.csrf_token = token;
     if (observaciones) {
       body.observaciones = observaciones;
     }
@@ -192,9 +197,13 @@
       payload = null;
     }
     if (!resp.ok || !payload || !payload.ok) {
-      const msg =
-        (payload && (payload.error || payload.message)) ||
-        `No se pudo registrar la parada (${resp.status}).`;
+      let msg = (payload && (payload.error || payload.message)) || "";
+      if (!msg && raw && /csrf/i.test(raw)) {
+        msg = "La sesión de seguridad venció. Recargá la página e intentá de nuevo.";
+      }
+      if (!msg) {
+        msg = `No se pudo registrar la parada (${resp.status}).`;
+      }
       throw new Error(msg);
     }
     return payload;
@@ -236,16 +245,12 @@
         btn.disabled = true;
         try {
           const fechaHoy = wrap && wrap.dataset.fechaHoy ? String(wrap.dataset.fechaHoy).trim() : "";
-          if (fechaHoy && fechaIso && fechaIso !== fechaHoy) {
-            throw new Error(
-              "La parada de planta solo puede declararse o reanudarse en la fecha operativa de hoy."
-            );
-          }
+          const fechaPost = fechaHoy || fechaIso;
           if (!active && !window.confirm("¿Declarar parada de planta? El cronómetro se detendrá.")) {
             return;
           }
           const motivo = !active ? motivoForCircuit(circuitKey, wrap) : "";
-          const payload = await postToggle(circuitKey, fechaIso, action, motivo);
+          const payload = await postToggle(circuitKey, fechaPost, action, motivo);
           const ps = payload.plant_stop;
           document
             .querySelectorAll(`.js-plant-stop-toggle[data-circuit-key="${CSS.escape(circuitKey)}"]`)

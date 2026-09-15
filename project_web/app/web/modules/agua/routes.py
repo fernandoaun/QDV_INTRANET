@@ -114,7 +114,7 @@ def register_agua_routes(bp: Blueprint) -> None:
                 plant_stop_svc.CIRCUIT_AGUA,
                 last_agua_created_at_iso(),
                 int(AGUA_ANALYSIS_INTERVAL_SECONDS),
-                fecha_iso=fecha,
+                fecha_iso=plant_stop_svc.today_operacion_iso(),
             ),
         )
 

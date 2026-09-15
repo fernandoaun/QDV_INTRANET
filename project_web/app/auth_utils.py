@@ -19,6 +19,18 @@ from app.user_roles import (
 
 F = TypeVar("F", bound=Callable[..., Any])
 
+
+def request_wants_json() -> bool:
+    """True si el cliente espera JSON (fetch/XHR), no un redirect HTML."""
+    if (request.headers.get("X-Requested-With") or "").lower() == "xmlhttprequest":
+        return True
+    accept = (request.headers.get("Accept") or "").lower()
+    if "application/json" in accept:
+        return True
+    ctype = (request.headers.get("Content-Type") or "").lower()
+    return "application/json" in ctype
+
+
 # Permisos que permiten ver el hub /produccion (además del flag general "produccion").
 _PRODUCTION_HUB_PERMS: tuple[str, ...] = (
     "produccion",

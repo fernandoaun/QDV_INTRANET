@@ -38,7 +38,8 @@ def test_plant_stop_js_resolve_marks_from_local():
     assert "Último:" in js and "Atraso:" in js
     assert "Sin último registro" in js
     assert "_emptyAnchorMs = null" in js
-    assert "--:--:--" in js
+    assert "meta[name=\"csrf-token\"]" in js or "csrf-token" in js
+    assert "Recargá la página" in js
 
 
 def test_reactor_analisis8_uses_shared_timer_engine():

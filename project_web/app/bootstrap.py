@@ -32,6 +32,25 @@ def ensure_local_sqlite_schema() -> None:
         perm_asig.ensure_schema()
     except Exception:
         db.session.rollback()
+    if "filtro_lavado_registros" not in tables:
+        with db.engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE IF NOT EXISTS filtro_lavado_registros ("
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    "fecha_iso VARCHAR(16) NOT NULL, "
+                    "hora_hm VARCHAR(8) NOT NULL, "
+                    "operador VARCHAR(256) NOT NULL, "
+                    "observaciones TEXT, "
+                    "created_at_iso VARCHAR(32) NOT NULL)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_filtro_lavado_registros_fecha_iso "
+                    "ON filtro_lavado_registros (fecha_iso)"
+                )
+            )
 
 
 def ensure_seed_data() -> None:

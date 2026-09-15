@@ -160,7 +160,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
                 plant_stop_svc.CIRCUIT_REACTOR,
                 last_reactor_created_at_iso(),
                 int(ANALYSIS_INTERVAL_SECONDS),
-                fecha_iso=fecha,
+                fecha_iso=plant_stop_svc.today_operacion_iso(),
             ),
             plant_stop_motivo=((active_parada.observaciones or "").strip() if active_parada else ""),
         )

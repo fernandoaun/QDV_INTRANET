@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from flask import Flask
+from flask_wtf.csrf import CSRFError
 
 from config import get_config_dict
 from app.extensions import csrf, db, limiter
@@ -96,6 +97,18 @@ def create_app() -> Flask:
             set_session_for_user(u)
             app.logger.info("DEV_AUTO_LOGIN: sesión como %s (id=%s)", u.username, u.id)
         return None
+
+    @app.errorhandler(CSRFError)
+    def _csrf_error(exc):
+        from flask import flash, jsonify, redirect, request, url_for
+
+        from app.auth_utils import request_wants_json
+
+        msg = "La sesión de seguridad venció. Recargá la página e intentá de nuevo."
+        if request_wants_json():
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "danger")
+        return redirect(request.referrer or url_for("main.dashboard"))
 
     @app.errorhandler(429)
     def _rate_limit_429(exc):
@@ -292,11 +305,12 @@ def create_app() -> Flask:
 
     @app.before_request
     def _guard_operational_shift_writes():
-        from flask import flash, redirect, request, session, url_for
+        from flask import flash, jsonify, redirect, request, session, url_for
 
         from app.auth_utils import (
             current_user,
             endpoint_requires_operational_shift_for_post,
+            request_wants_json,
             user_shift_may_write_operational,
         )
 
@@ -310,10 +324,10 @@ def create_app() -> Flask:
             return None
         if user_shift_may_write_operational(u, session):
             return None
-        flash(
-            "Modo solo lectura: no podés modificar datos sin turno de planta activo a tu nombre.",
-            "danger",
-        )
+        msg = "Modo solo lectura: no podés modificar datos sin turno de planta activo a tu nombre."
+        if request_wants_json():
+            return jsonify({"ok": False, "error": msg}), 403
+        flash(msg, "danger")
         return redirect(request.referrer or url_for("main.dashboard"))
 
     from app.template_filters import register_template_filters

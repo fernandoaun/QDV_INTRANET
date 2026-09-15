@@ -24,7 +24,9 @@ def test_start_and_end_plant_stop_freezes_timer_context(app):
         db.session.commit()
 
         anchor = "2026-05-29T10:00:00"
-        with patch.object(ps, "now_local_iso", return_value="2026-05-29T11:00:00"):
+        with patch.object(ps, "now_local_iso", return_value="2026-05-29T11:00:00"), patch.object(
+            ps, "today_operacion_iso", return_value="2026-05-29"
+        ):
             ev = ps.start_plant_stop(
                 app,
                 circuit_key=ps.CIRCUIT_SALMUERA_E2,
@@ -37,12 +39,13 @@ def test_start_and_end_plant_stop_freezes_timer_context(app):
         assert ev.frozen_remaining_sec is not None
         assert ev.frozen_remaining_sec >= 0
 
-        state = ps.timer_ui_state(
-            ps.CIRCUIT_SALMUERA_E2,
-            anchor,
-            int(ANALYSIS_INTERVAL_SECONDS),
-            fecha_iso="2026-05-29",
-        )
+        with patch.object(ps, "today_operacion_iso", return_value="2026-05-29"):
+            state = ps.timer_ui_state(
+                ps.CIRCUIT_SALMUERA_E2,
+                anchor,
+                int(ANALYSIS_INTERVAL_SECONDS),
+                fecha_iso="2026-05-29",
+            )
         assert state["active"] is True
         assert state["frozen_remaining_sec"] == ev.frozen_remaining_sec
 
@@ -81,7 +84,9 @@ def test_reactor_stop_sets_analisis8_frozen(app):
         )
         db.session.commit()
 
-        with patch.object(ps, "now_local_iso", return_value="2026-05-29T10:00:00"):
+        with patch.object(ps, "now_local_iso", return_value="2026-05-29T10:00:00"), patch.object(
+            ps, "today_operacion_iso", return_value="2026-05-29"
+        ):
             ev = ps.start_plant_stop(
                 app,
                 circuit_key=ps.CIRCUIT_REACTOR,
@@ -94,11 +99,12 @@ def test_reactor_stop_sets_analisis8_frozen(app):
         assert ev.frozen_remaining_sec_analisis8 is not None
         assert (ev.observaciones or "").startswith("Mantenimiento")
 
-        overlay = ps.analisis8_plant_stop_overlay(
-            last_fecha_hora_iso="2026-05-29T08:00:00",
-            interval_sec=8 * 3600,
-            fecha_iso="2026-05-29",
-        )
+        with patch.object(ps, "today_operacion_iso", return_value="2026-05-29"):
+            overlay = ps.analisis8_plant_stop_overlay(
+                last_fecha_hora_iso="2026-05-29T08:00:00",
+                interval_sec=8 * 3600,
+                fecha_iso="2026-05-29",
+            )
         assert overlay["active"] is True
         assert overlay["frozen_remaining_sec"] == ev.frozen_remaining_sec_analisis8
 
@@ -127,26 +133,26 @@ def test_analisis8_overlay_ignores_stop_on_historical_fecha(app):
                 interval_sec=int(ANALYSIS_INTERVAL_SECONDS),
             )
 
-        overlay_hoy = ps.analisis8_plant_stop_overlay(
-            last_fecha_hora_iso="2026-05-28T08:00:00",
-            interval_sec=8 * 3600,
-            fecha_iso="2026-05-29",
-        )
-        overlay_ayer = ps.analisis8_plant_stop_overlay(
-            last_fecha_hora_iso="2026-05-28T08:00:00",
-            interval_sec=8 * 3600,
-            fecha_iso="2026-05-28",
-        )
-        assert overlay_hoy["active"] is True
-        assert overlay_ayer["active"] is False
+            overlay_hoy = ps.analisis8_plant_stop_overlay(
+                last_fecha_hora_iso="2026-05-28T08:00:00",
+                interval_sec=8 * 3600,
+                fecha_iso="2026-05-29",
+            )
+            overlay_ayer = ps.analisis8_plant_stop_overlay(
+                last_fecha_hora_iso="2026-05-28T08:00:00",
+                interval_sec=8 * 3600,
+                fecha_iso="2026-05-28",
+            )
+            assert overlay_hoy["active"] is True
+            assert overlay_ayer["active"] is False
 
-        state_ayer = ps.timer_ui_state(
-            ps.CIRCUIT_REACTOR,
-            "2026-05-28T10:00:00",
-            int(ANALYSIS_INTERVAL_SECONDS),
-            fecha_iso="2026-05-28",
-        )
-        assert state_ayer["active"] is False
+            state_ayer = ps.timer_ui_state(
+                ps.CIRCUIT_REACTOR,
+                "2026-05-28T10:00:00",
+                int(ANALYSIS_INTERVAL_SECONDS),
+                fecha_iso="2026-05-28",
+            )
+            assert state_ayer["active"] is False
 
 
 def test_list_stops_in_interval(app):
@@ -164,3 +170,37 @@ def test_list_stops_in_interval(app):
         rows = ps.list_stops_in_interval("2026-05-29T07:00:00", "2026-05-29T10:00:00")
         assert len(rows) == 1
         assert rows[0]["circuit_label"] == ps.CIRCUIT_LABELS[ps.CIRCUIT_AGUA]
+
+
+_AJAX = {"X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}
+
+
+def test_csrf_time_limit_covers_whole_session(app):
+    assert app.config.get("WTF_CSRF_TIME_LIMIT") is None
+
+
+def test_parada_planta_toggle_agua_json(auth_client):
+    resp = auth_client.post(
+        "/produccion/parada-planta",
+        json={"circuit_key": "agua", "action": "start", "fecha_iso": "2020-01-01"},
+        headers=_AJAX,
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    data = resp.get_json()
+    assert data["ok"] is True
+    assert data["plant_stop"]["active"] is True
+    assert data["plant_stop"]["circuit_key"] == "agua"
+
+
+def test_parada_planta_missing_csrf_returns_json(auth_client, app):
+    app.config["WTF_CSRF_ENABLED"] = True
+    resp = auth_client.post(
+        "/produccion/parada-planta",
+        json={"circuit_key": "agua", "action": "start"},
+        headers=_AJAX,
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data is not None
+    assert data["ok"] is False
+    assert "Recargá" in (data.get("error") or "")

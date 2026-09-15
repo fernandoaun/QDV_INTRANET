@@ -54,7 +54,7 @@
             </div>
             <div class="app-timer-display mb-1" id="timerText-{{ eid }}">--:--:--</div>
             <div class="small app-text-secondary app-timer-e-sub" id="timerSub-{{ eid }}">Calculando…</div>
-            {% with plant_stop=t.plant_stop, circuit_key=t.plant_stop.circuit_key, fecha_iso=fecha %}
+            {% with plant_stop=t.plant_stop, circuit_key=t.plant_stop.circuit_key, fecha_iso=fecha_operativa_hoy %}
             {% include "produccion/_plant_stop_controls.html" %}
             {% endwith %}
           </div>
@@ -297,7 +297,7 @@
           </div>
           <div class="app-timer-display mb-1" id="filtroTimerText">--:--:--</div>
           <div class="small app-text-secondary" id="filtroTimerSub">Calculando…</div>
-          {% with plant_stop=filtro_plant_stop, circuit_key='filtro', fecha_iso=fecha %}
+          {% with plant_stop=filtro_plant_stop, circuit_key='filtro', fecha_iso=fecha_operativa_hoy %}
           {% include "produccion/_plant_stop_controls.html" %}
           {% endwith %}
         </div>
@@ -347,7 +347,7 @@
 {{ analysis_ref_pdf_modal(ar.doc_key, ar.pdf_present, ar.modal_id, ar.label, nav_user) }}
 {% endfor %}
 
-<script src="{{ url_for('static', filename='js/plant_stop.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plant_stop.js') }}?v={{ app_release_version|default('1') }}"></script>
 <script>
 (() => {
   const SALMUERA_PANEL_IDS = {{ salmuera_panel_electrolizadores | tojson }};

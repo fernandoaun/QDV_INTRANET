@@ -57,7 +57,8 @@ def register_plant_stop_routes(bp: Blueprint) -> None:
         data: dict[str, Any] = request.get_json(silent=True) or {}
         circuit_key = (data.get("circuit_key") or request.form.get("circuit_key") or "").strip()
         action = (data.get("action") or request.form.get("action") or "").strip().lower()
-        fecha_iso = (data.get("fecha_iso") or request.form.get("fecha_iso") or ps.today_operacion_iso()).strip()
+        # La parada es "ahora": no usar la fecha del filtro de planilla (puede ser un día anterior).
+        fecha_iso = ps.today_operacion_iso()
 
         if circuit_key not in ps.VALID_CIRCUIT_KEYS:
             return jsonify({"ok": False, "error": "Circuito no válido."}), 400
@@ -68,17 +69,6 @@ def register_plant_stop_routes(bp: Blueprint) -> None:
 
         if action not in ("start", "end"):
             return jsonify({"ok": False, "error": "Acción no válida."}), 400
-
-        if not ps.is_fecha_operativa_actual(fecha_iso):
-            return (
-                jsonify(
-                    {
-                        "ok": False,
-                        "error": "La parada de planta solo puede declararse o reanudarse en la fecha operativa de hoy.",
-                    }
-                ),
-                400,
-            )
 
         last_created = _last_created_for_circuit(circuit_key, fecha_iso)
         interval_sec = _interval_for_circuit(circuit_key)

@@ -264,7 +264,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
             server_now_iso=now_local().isoformat(timespec="seconds"),
             salmuera_timer_rows=plant_stop_svc.enrich_salmuera_timer_rows(
                 salmuera_timer_rows_for_date(fecha),
-                fecha,
+                plant_stop_svc.today_operacion_iso(),
                 int(ANALYSIS_INTERVAL_SECONDS),
             ),
             salmuera_panel_electrolizadores=list(SALMUERA_PANEL_ELECTROLIZADORES),
@@ -280,7 +280,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                 plant_stop_svc.CIRCUIT_FILTRO,
                 filtro_svc.last_filtro_created_at_iso(),
                 int(FILTRO_LAVADO_INTERVAL_SECONDS),
-                fecha_iso=fecha,
+                fecha_iso=plant_stop_svc.today_operacion_iso(),
             ),
         )
 
