@@ -1362,9 +1362,21 @@ def create_catalog_product(
             func.lower(func.trim(ProductoCatalogo.nombre_producto)) == key,
         )
     ).scalar_one_or_none()
-    if dup is not None:
+    if dup is not None and bool(getattr(dup, "activo", True)):
         raise ValueError("Ya existe un producto con ese nombre en la categoría.")
     stockable_f = bool(is_stockable) if c == "materia_prima" else True
+    tipo_n = normalize_tipo_producto(tipo_producto)
+    req_eq = bool(requiere_equipo) or tipo_n == "Filtro"
+    if dup is not None:
+        dup.activo = True
+        dup.nombre_producto = n
+        dup.tipo_producto = tipo_n
+        dup.requiere_equipo = req_eq
+        dup.is_stockable = stockable_f
+        dup.stock_minimo_alerta = smin if stockable_f else None
+        db.session.commit()
+        after_stock_mutation(c, n)
+        return
     ensure_producto(
         c,
         n,
@@ -1455,3 +1467,16 @@ def update_catalog_product_admin(
             row.requiere_equipo = True
     db.session.commit()
     after_stock_mutation(str(row.categoria), str(row.nombre_producto))
+
+
+def deactivate_catalog_product(producto_id: int) -> None:
+    """Quita el producto del catálogo activo. Conserva ingresos, consumos y ajustes."""
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None or not bool(getattr(row, "activo", True)):
+        raise ValueError("Producto no encontrado.")
+    cat = str(row.categoria or "").strip()
+    nombre = str(row.nombre_producto or "").strip()
+    row.activo = False
+    db.session.commit()
+    if cat and nombre:
+        after_stock_mutation(cat, nombre)

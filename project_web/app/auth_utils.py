@@ -438,15 +438,19 @@ def user_can_edit_stock_ingreso_categoria(user: User | None, categoria: str | No
     return user_can_edit(user, stock_ingreso_perm_for_categoria(categoria))
 
 
+def stock_catalogo_categorias_editables(user: User | None) -> list[str]:
+    """Categorías del catálogo de stock que el usuario puede dar de alta o quitar."""
+    cats: list[str] = []
+    if user_can_edit_stock_ingreso_categoria(user, "materia_prima"):
+        cats.extend(["materia_prima", "producto_terminado"])
+    if user_can_edit_stock_ingreso_categoria(user, "laboratorio"):
+        cats.append("laboratorio")
+    return cats
+
+
 def user_can_edit_stock_catalogo_alta(user: User | None) -> bool:
     """Alta de producto en catálogo (sin stock): mismo criterio que edición de ingreso MP o laboratorio."""
-    if user is None:
-        return False
-    if user.is_admin:
-        return True
-    return user_can_edit_stock_ingreso_categoria(user, "materia_prima") or user_can_edit_stock_ingreso_categoria(
-        user, "laboratorio"
-    )
+    return bool(stock_catalogo_categorias_editables(user))
 
 
 def user_can_view_stock_consumos(user: User | None) -> bool:

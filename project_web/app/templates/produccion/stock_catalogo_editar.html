@@ -55,6 +55,11 @@
           <button type="submit" class="btn btn-primary">Guardar</button>
         </div>
       </form>
+      <hr>
+      <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar', pid=p.id) }}" onsubmit="return confirm('¿Quitar este producto del catálogo? Dejará de aparecer en ingresos y consumos. El historial no se borra.');">
+        {% include "_csrf.html" %}
+        <button type="submit" class="btn btn-outline-danger btn-sm">Quitar del catálogo</button>
+      </form>
     </div>
   </div>
 </div>

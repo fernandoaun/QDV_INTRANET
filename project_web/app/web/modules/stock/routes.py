@@ -7,6 +7,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from app.auth_utils import (
     current_user,
     login_required,
+    stock_catalogo_categorias_editables,
     user_can_access_stock_hub,
     user_can_edit_stock_catalogo_alta,
     user_can_edit_stock_consumos,
@@ -215,6 +216,7 @@ def register_stock_routes(bp: Blueprint) -> None:
             "produccion/stock_catalogo_lista.html",
             rows=rows,
             filtro_cat=filtro,
+            catalogo_categorias_editables=stock_catalogo_categorias_editables(u),
         )
 
     @bp.route("/stock/catalogo/alta", methods=["GET", "POST"])
@@ -224,12 +226,7 @@ def register_stock_routes(bp: Blueprint) -> None:
         if not user_can_edit_stock_catalogo_alta(u):
             flash("No tenés permiso para dar de alta productos en catálogo.", "warning")
             return redirect(url_for("produccion.stock_hub"))
-        categorias_alta: list[str] = []
-        if u.is_admin or user_can_edit_stock_ingreso_categoria(u, "materia_prima"):
-            categorias_alta.extend(["materia_prima", "producto_terminado"])
-        if u.is_admin or user_can_edit_stock_ingreso_categoria(u, "laboratorio"):
-            if "laboratorio" not in categorias_alta:
-                categorias_alta.append("laboratorio")
+        categorias_alta = stock_catalogo_categorias_editables(u)
         if not categorias_alta:
             flash("No tenés permiso de ingreso para ninguna categoría.", "warning")
             return redirect(url_for("produccion.stock_hub"))
@@ -291,3 +288,28 @@ def register_stock_routes(bp: Blueprint) -> None:
             except Exception as e:
                 flash(str(e), "danger")
         return render_template("produccion/stock_catalogo_editar.html", p=match)
+
+    @bp.post("/stock/catalogo/<int:pid>/eliminar")
+    @login_required
+    def stock_catalogo_eliminar(pid: int):
+        u = current_user()
+        if not user_can_access_stock_hub(u):
+            flash("No tenés permiso.", "warning")
+            return redirect(url_for("produccion.hub"))
+        match = stock_service.get_catalog_product(pid)
+        if match is None:
+            flash("Producto no encontrado.", "danger")
+            return redirect(url_for("produccion.stock_catalogo_lista"))
+        if not user_can_edit_stock_ingreso_categoria(u, str(match.categoria or "")):
+            flash("No tenés permiso para quitar productos de esa categoría.", "warning")
+            return redirect(url_for("produccion.stock_catalogo_lista"))
+        try:
+            nombre = (match.nombre_producto or "").strip() or "producto"
+            stock_service.deactivate_catalog_product(pid)
+            flash(
+                f"Se quitó «{nombre}» del catálogo. Ya no aparece en ingresos ni consumos.",
+                "success",
+            )
+        except Exception as e:
+            flash(str(e), "danger")
+        return redirect(url_for("produccion.stock_catalogo_lista"))

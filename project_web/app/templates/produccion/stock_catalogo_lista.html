@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Catálogo de productos · QDV{% endblock %}
 {% block content %}
+{% set catalogo_categorias_editables = catalogo_categorias_editables or [] %}
+{% set show_acciones = (nav_user and nav_user.is_admin) or catalogo_categorias_editables %}
 <div class="app-stock-module">
   <div class="app-page-head">
     <div>
       <h1 class="app-page-title">Catálogo de productos (stock)</h1>
-      <p class="app-intro mb-0">Productos disponibles para ingresos y consumos. El stock mínimo de alerta vive acá.</p>
+      <p class="app-intro mb-0">Productos disponibles para ingresos y consumos. El stock mínimo de alerta vive acá. Si cargaste uno por error, podés quitarlo: deja de aparecer en los formularios y el historial se conserva.</p>
     </div>
     <div class="app-page-actions d-flex flex-wrap gap-2">
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('produccion.stock_hub') }}">← Stock y consumos</a>
@@ -41,7 +43,7 @@
             <th>Estoqueable</th>
             <th>Equipo</th>
             <th>Stock mín. alerta</th>
-            {% if nav_user and nav_user.is_admin %}<th></th>{% endif %}
+            {% if show_acciones %}<th></th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -54,12 +56,24 @@
             <td>{% if r.is_stockable %}Sí{% else %}No{% endif %}</td>
             <td>{% if r.requiere_equipo %}Sí{% else %}No{% endif %}</td>
             <td>{% if r.stock_minimo_alerta is not none %}{{ r.stock_minimo_alerta }}{% else %}—{% endif %}</td>
-            {% if nav_user and nav_user.is_admin %}
-            <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('produccion.stock_catalogo_editar', pid=r.id) }}">Editar</a></td>
+            {% if show_acciones %}
+            <td class="text-nowrap">
+              <div class="d-flex flex-wrap gap-1 justify-content-end">
+                {% if nav_user and nav_user.is_admin %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('produccion.stock_catalogo_editar', pid=r.id) }}">Editar</a>
+                {% endif %}
+                {% if r.categoria in catalogo_categorias_editables %}
+                <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar', pid=r.id) }}" class="d-inline" onsubmit="return confirm('¿Quitar este producto del catálogo? Dejará de aparecer en ingresos y consumos. El historial no se borra.');">
+                  {% include "_csrf.html" %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
             {% endif %}
           </tr>
           {% else %}
-          <tr><td colspan="{% if nav_user and nav_user.is_admin %}8{% else %}7{% endif %}" class="text-muted text-center py-4">Sin productos en catálogo.</td></tr>
+          <tr><td colspan="{% if show_acciones %}8{% else %}7{% endif %}" class="text-muted text-center py-4">Sin productos en catálogo.</td></tr>
           {% endfor %}
         </tbody>
       </table>
