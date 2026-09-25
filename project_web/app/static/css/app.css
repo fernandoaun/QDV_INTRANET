@@ -1894,3 +1894,9 @@ body.qdv-overdue-active .app-topbar {
   margin: 0 0 1rem;
   font-size: 1rem;
 }
+.qdv-overdue-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}

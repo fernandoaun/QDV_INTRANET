@@ -10,6 +10,8 @@
  * - «Entendido» se recuerda en sessionStorage para no reabrir el modal al cambiar de página
  *   (el banner/titileo siguen hasta registrar el análisis).
  * - Al guardar un análisis se limpia ese circuito de inmediato.
+ * - «Seguir cargando acá» solo cierra el modal; «Ir a registrarlo» navega al módulo y,
+ *   si hay datos sin guardar en la página, pide confirmación antes de perderlos.
  */
 (function () {
   "use strict";
@@ -189,6 +191,35 @@
     return null;
   }
 
+  /** Algún campo de un formulario POST difiere de su valor inicial (carga a medio hacer). */
+  function hasUnsavedInput() {
+    var forms = document.querySelectorAll("form");
+    for (var i = 0; i < forms.length; i++) {
+      var f = forms[i];
+      if (String(f.method || "").toLowerCase() !== "post") continue;
+      var els = f.elements;
+      for (var j = 0; j < els.length; j++) {
+        var el = els[j];
+        var type = String(el.type || "").toLowerCase();
+        if (el.disabled || type === "hidden" || type === "submit" || type === "button" || type === "reset") {
+          continue;
+        }
+        if (type === "checkbox" || type === "radio") {
+          if (el.checked !== el.defaultChecked) return true;
+        } else if (el.tagName === "SELECT") {
+          for (var k = 0; k < el.options.length; k++) {
+            if (el.options[k].selected !== el.options[k].defaultSelected) return true;
+          }
+        } else if (type === "file") {
+          if (el.value) return true;
+        } else if ("defaultValue" in el && el.value !== el.defaultValue) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function goToOverdueModule() {
     var keys = Object.keys(overdueKeys);
     var preferred = null;
@@ -210,6 +241,12 @@
           target.scrollIntoView(true);
         }
       }
+      return false;
+    }
+    if (
+      hasUnsavedInput() &&
+      !window.confirm("Tenés datos cargados sin guardar en esta pantalla. Si salís ahora se pierden. ¿Salir igual?")
+    ) {
       return false;
     }
     window.location.href = url;
@@ -402,6 +439,10 @@
         hideModal();
         goToOverdueModule();
       });
+    }
+    var stay = document.getElementById("qdvOverdueModalStay");
+    if (stay) {
+      stay.addEventListener("click", hideModal);
     }
   }
 
