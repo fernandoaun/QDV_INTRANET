@@ -99,6 +99,60 @@
                value="{{ (form.linked_entity_id if form else ((row.linked_entity_id|string) if row and row.linked_entity_id else ''))|e }}">
       </div>
 
+      {% if mode == 'nueva' %}
+      {% set rep_on = form and form.repetir %}
+      {% set rep_fin = (form.rep_fin if form and form.rep_fin else 'veces') %}
+      <div class="col-12">
+        <div class="border rounded p-3 bg-body-tertiary bg-opacity-25" id="planifRepBox">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="repetir" name="repetir" value="1" {% if rep_on %}checked{% endif %}>
+            <label class="form-check-label fw-semibold" for="repetir">Repetir esta actividad</label>
+          </div>
+          <div id="planifRepFields" class="row g-2 align-items-end mt-1" {% if not rep_on %}hidden{% endif %}>
+            <div class="col-6 col-md-2">
+              <label class="form-label small mb-0" for="rep_intervalo">Cada</label>
+              <input class="form-control" type="number" min="1" max="100" id="rep_intervalo" name="rep_intervalo"
+                     value="{{ (form.rep_intervalo if form and form.rep_intervalo else '1')|e }}">
+            </div>
+            <div class="col-6 col-md-3">
+              <label class="form-label small mb-0" for="rep_unidad">&nbsp;</label>
+              {% set ucur = (form.rep_unidad if form and form.rep_unidad else 'meses') %}
+              <select class="form-select" id="rep_unidad" name="rep_unidad">
+                {% for un in repeticion_unidades %}
+                <option value="{{ un }}" {% if ucur == un %}selected{% endif %}>{{ repeticion_unidad_labels[un] }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12 col-md-7">
+              <div class="small mb-1">Termina</div>
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="radio" name="rep_fin" id="rep_fin_veces" value="veces" {% if rep_fin != 'hasta' %}checked{% endif %}>
+                  <label class="form-check-label" for="rep_fin_veces">después de</label>
+                </div>
+                <input class="form-control" style="width:6rem" type="number" min="2" max="{{ repeticion_max }}" id="rep_veces" name="rep_veces"
+                       value="{{ (form.rep_veces if form and form.rep_veces else '12')|e }}" aria-label="Cantidad de veces">
+                <span class="small">veces</span>
+                <div class="form-check mb-0 ms-md-2">
+                  <input class="form-check-input" type="radio" name="rep_fin" id="rep_fin_hasta" value="hasta" {% if rep_fin == 'hasta' %}checked{% endif %}>
+                  <label class="form-check-label" for="rep_fin_hasta">el</label>
+                </div>
+                <input class="form-control" style="width:11rem" type="date" id="rep_hasta" name="rep_hasta"
+                       value="{{ (form.rep_hasta if form and form.rep_hasta else '')|e }}" aria-label="Repetir hasta">
+              </div>
+            </div>
+            <div class="col-12 small app-text-secondary" id="planifRepPreview" aria-live="polite"></div>
+          </div>
+        </div>
+      </div>
+      {% elif row and row.serie_id %}
+      <div class="col-12">
+        <div class="alert alert-info mb-0 py-2 small">
+          Esta actividad es parte de una serie repetitiva de {{ serie_total }} actividades. Los cambios que guardes acá afectan solo a esta.
+        </div>
+      </div>
+      {% endif %}
+
       <div class="col-12">
         <div class="border rounded p-3 bg-body-tertiary bg-opacity-25">
           <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -151,6 +205,13 @@
       </div>
       {% endif %}
     </form>
+    {% if mode == 'editar' and row and row.serie_id and page_can_edit_current %}
+    <form method="post" class="border-top mt-3 pt-3" action="{{ url_for('planificacion.eliminar_serie', actividad_id=row.id) }}"
+          onsubmit="return confirm('¿Eliminar esta actividad y todas las siguientes de la serie? Las anteriores se conservan.');">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar esta y las siguientes de la serie</button>
+    </form>
+    {% endif %}
   </div>
 </div>
 <script type="application/json" id="planifPickerJson">{{ picker_options_json | tojson }}</script>
@@ -202,6 +263,73 @@
   }
   if (fi) fi.addEventListener("change", refresh);
   if (ff) ff.addEventListener("change", refresh);
+  refresh();
+})();
+(function () {
+  var sw = document.getElementById("repetir");
+  var box = document.getElementById("planifRepFields");
+  if (!sw || !box) return;
+  var fi = document.getElementById("fecha_inicio");
+  var intervalo = document.getElementById("rep_intervalo");
+  var unidad = document.getElementById("rep_unidad");
+  var veces = document.getElementById("rep_veces");
+  var hasta = document.getElementById("rep_hasta");
+  var finVeces = document.getElementById("rep_fin_veces");
+  var finHasta = document.getElementById("rep_fin_hasta");
+  var preview = document.getElementById("planifRepPreview");
+  var MAX = {{ repeticion_max|int }};
+  function parse(v) {
+    var d = new Date(v + "T12:00:00");
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function fmt(d) {
+    return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+  }
+  // Misma regla que el servidor: meses/años conservan el día de origen o usan el último del mes.
+  function shift(base, n, step, un) {
+    if (un === "dias" || un === "semanas") {
+      var r = new Date(base.getTime());
+      r.setDate(r.getDate() + n * step * (un === "semanas" ? 7 : 1));
+      return r;
+    }
+    var months = n * step * (un === "anios" ? 12 : 1);
+    var total = base.getFullYear() * 12 + base.getMonth() + months;
+    var y = Math.floor(total / 12), m = total % 12;
+    var last = new Date(y, m + 1, 0, 12).getDate();
+    return new Date(y, m, Math.min(base.getDate(), last), 12);
+  }
+  function refresh() {
+    box.hidden = !sw.checked;
+    veces.disabled = !finVeces.checked;
+    hasta.disabled = !finHasta.checked;
+    if (!sw.checked || !preview) return;
+    var base = parse(fi && fi.value);
+    var step = parseInt(intervalo.value, 10);
+    if (!base || !(step >= 1)) { preview.textContent = ""; return; }
+    var dates = [];
+    var limit = finVeces.checked ? parseInt(veces.value, 10) : null;
+    var until = finHasta.checked ? parse(hasta.value) : null;
+    if (!limit && !until) { preview.textContent = ""; return; }
+    for (var n = 0; n <= MAX; n++) {
+      if (limit && n >= limit) break;
+      var d = shift(base, n, step, unidad.value);
+      if (until && d > until) break;
+      dates.push(d);
+    }
+    if (dates.length > MAX) {
+      preview.textContent = "Son más de " + MAX + " actividades: acortá la fecha o espaciá las repeticiones.";
+      return;
+    }
+    if (dates.length < 2) { preview.textContent = "Con esa fecha no llega a repetirse."; return; }
+    var muestra = dates.slice(0, 4).map(fmt).join(", ");
+    preview.textContent = "Se van a crear " + dates.length + " actividades: " + muestra +
+      (dates.length > 4 ? " … hasta el " + fmt(dates[dates.length - 1]) : "") + ".";
+  }
+  [sw, fi, intervalo, unidad, veces, hasta, finVeces, finHasta].forEach(function (el) {
+    if (!el) return;
+    el.addEventListener("change", refresh);
+    el.addEventListener("input", refresh);
+  });
   refresh();
 })();
 (function () {

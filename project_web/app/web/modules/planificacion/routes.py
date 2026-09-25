@@ -162,6 +162,7 @@ def _render_form_error(
         default_fecha_fin=default_fecha_fin,
         deps_actuales=deps_actuales,
         picker_options_json=_picker_json(exclude_id),
+        serie_total=ps.contar_serie(row.serie_id) if row is not None else 0,
         **ps.labels_context(),
     )
 
@@ -195,6 +196,13 @@ def nueva():
             )
         stubs = ps.dependencia_stubs_for_validation(pairs)
         row, errs = ps.validate_and_build_from_form(request.form, existing=None, deps_entrantes=stubs)
+        rep, rep_errs = ps.parse_repeticion_form(request.form, row.fecha_inicio if row is not None else None)
+        errs = list(errs) + rep_errs
+        fechas: list = []
+        if row is not None and rep is not None and not errs:
+            fechas, ferr = ps.fechas_repeticion(row.fecha_inicio, row.fecha_fin, rep)
+            if ferr:
+                errs.append(ferr)
         if errs or row is None:
             for e in errs:
                 flash(e, "danger")
@@ -209,7 +217,23 @@ def nueva():
             )
         row.created_by_user_id = u.id
         db.session.add(row)
+        copias: list = []
+        if fechas:
+            copias, err_rep = ps.crear_repeticiones(row, fechas)
+            if err_rep:
+                db.session.rollback()
+                flash(err_rep, "danger")
+                return _render_form_error(
+                    mode="nueva",
+                    row=None,
+                    form=request.form,
+                    default_fecha_inicio=default_fecha_inicio,
+                    default_fecha_fin=default_fecha_fin,
+                    deps_actuales=[],
+                    exclude_id=None,
+                )
         db.session.flush()
+        # Las predecesoras aplican solo a la primera ocurrencia de una serie.
         err_dep = ps.replace_dependencias_sucesora(int(row.id), pairs)
         if err_dep:
             db.session.rollback()
@@ -224,7 +248,14 @@ def nueva():
                 exclude_id=None,
             )
         db.session.commit()
-        flash("Actividad creada.", "success")
+        if copias:
+            flash(
+                f"Actividad creada con {len(copias) + 1} repeticiones "
+                f"(del {row.fecha_inicio.strftime('%d/%m/%Y')} al {copias[-1].fecha_inicio.strftime('%d/%m/%Y')}).",
+                "success",
+            )
+        else:
+            flash("Actividad creada.", "success")
         return redirect(url_for("planificacion.tabla"))
     return render_template(
         "planificacion/form.html",
@@ -314,6 +345,7 @@ def editar(actividad_id: int):
         default_fecha_fin=default_fecha_fin,
         deps_actuales=deps_db,
         picker_options_json=_picker_json(int(row.id)),
+        serie_total=ps.contar_serie(row.serie_id),
         **ps.labels_context(),
     )
 
@@ -334,6 +366,28 @@ def eliminar(actividad_id: int):
     db.session.delete(row)
     db.session.commit()
     flash("Actividad eliminada.", "success")
+    return redirect(url_for("planificacion.tabla"))
+
+
+@bp.post("/eliminar-serie/<int:actividad_id>")
+@login_required
+def eliminar_serie(actividad_id: int):
+    """Elimina esta actividad y las siguientes de su serie; las anteriores quedan como historial."""
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    r = _require_edit(u)
+    if r is not None:
+        return r
+    row = ps.get_actividad_or_none(actividad_id)
+    if row is None:
+        flash("Actividad no encontrada.", "danger")
+        return redirect(url_for("planificacion.tabla"))
+    rows = ps.serie_restantes(row)
+    for x in rows:
+        db.session.delete(x)
+    db.session.commit()
+    flash(f"Se eliminaron {len(rows)} actividad(es) de la serie.", "success")
     return redirect(url_for("planificacion.tabla"))
 
 

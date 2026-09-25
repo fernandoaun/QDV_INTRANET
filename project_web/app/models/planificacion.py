@@ -28,6 +28,8 @@ class PlanificacionActividad(db.Model):
     observaciones = db.Column(db.Text, nullable=True)
     linked_entity_type = db.Column(db.String(32), nullable=True, index=True)
     linked_entity_id = db.Column(db.Integer, nullable=True, index=True)
+    # Actividades generadas juntas por una repetición (semanal, mensual, …) comparten serie_id.
+    serie_id = db.Column(db.String(32), nullable=True, index=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
     created_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)

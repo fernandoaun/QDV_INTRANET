@@ -30,6 +30,16 @@ CATEGORIAS: tuple[str, ...] = (
 
 TIPOS_DEPENDENCIA: tuple[str, ...] = ("FS", "SS", "FF", "SF")
 
+REPETICION_UNIDADES: tuple[str, ...] = ("dias", "semanas", "meses", "anios")
+REPETICION_UNIDAD_LABELS: dict[str, str] = {
+    "dias": "día(s)",
+    "semanas": "semana(s)",
+    "meses": "mes(es)",
+    "anios": "año(s)",
+}
+# Tope de actividades que genera una sola repetición (evita miles de filas por error de tipeo).
+REPETICION_MAX_OCURRENCIAS = 400
+
 ESTADO_LABELS: dict[str, str] = {
     "pendiente": "Pendiente",
     "en_curso": "En curso",
@@ -81,6 +91,9 @@ def labels_context() -> dict[str, Any]:
         "categoria_labels": CATEGORIA_LABELS,
         "tipos_dependencia": TIPOS_DEPENDENCIA,
         "tipo_dependencia_labels": TIPO_DEPENDENCIA_LABELS,
+        "repeticion_unidades": REPETICION_UNIDADES,
+        "repeticion_unidad_labels": REPETICION_UNIDAD_LABELS,
+        "repeticion_max": REPETICION_MAX_OCURRENCIAS,
     }
 
 
@@ -577,6 +590,161 @@ def validate_and_build_from_form(
     if errors:
         return None, errors
     return row, []
+
+
+@dataclass
+class Repeticion:
+    intervalo: int
+    unidad: str
+    hasta: date | None
+    veces: int | None
+
+
+def _add_months(d: date, months: int, dia_ancla: int) -> date:
+    """Suma meses conservando el día de origen; si el mes es más corto, usa su último día (31 → 30/28)."""
+    total = d.year * 12 + (d.month - 1) + months
+    y, m = divmod(total, 12)
+    m += 1
+    ultimo = (date(y + (m // 12), m % 12 + 1, 1) - timedelta(days=1)).day
+    return date(y, m, min(dia_ancla, ultimo))
+
+
+def _desplazar(base: date, n: int, rep: Repeticion) -> date:
+    if rep.unidad == "dias":
+        return base + timedelta(days=n * rep.intervalo)
+    if rep.unidad == "semanas":
+        return base + timedelta(weeks=n * rep.intervalo)
+    meses = n * rep.intervalo * (12 if rep.unidad == "anios" else 1)
+    return _add_months(base, meses, base.day)
+
+
+def parse_repeticion_form(form: Any, fecha_inicio: date | None) -> tuple[Repeticion | None, list[str]]:
+    """Lee los campos de repetición. Devuelve (None, []) si la actividad no se repite."""
+    if (form.get("repetir") or "").strip() not in ("1", "on", "true"):
+        return None, []
+    errors: list[str] = []
+    raw_int = (form.get("rep_intervalo") or "1").strip()
+    intervalo = int(raw_int) if raw_int.isdigit() else 0
+    if not 1 <= intervalo <= 100:
+        errors.append("Repetición: «cada» tiene que ser un número entre 1 y 100.")
+    unidad = (form.get("rep_unidad") or "").strip()
+    if unidad not in REPETICION_UNIDADES:
+        errors.append("Repetición: elegí días, semanas, meses o años.")
+    fin = (form.get("rep_fin") or "veces").strip()
+    hasta: date | None = None
+    veces: int | None = None
+    if fin == "hasta":
+        hasta, err = _parse_date_required(form.get("rep_hasta"), "Repetir hasta")
+        if err:
+            errors.append(err)
+        elif fecha_inicio and hasta < fecha_inicio:
+            errors.append("Repetición: la fecha «hasta» no puede ser anterior a la fecha de inicio.")
+    else:
+        raw_veces = (form.get("rep_veces") or "").strip()
+        veces = int(raw_veces) if raw_veces.isdigit() else 0
+        if not 2 <= veces <= REPETICION_MAX_OCURRENCIAS:
+            errors.append(f"Repetición: la cantidad de veces tiene que estar entre 2 y {REPETICION_MAX_OCURRENCIAS}.")
+    if errors:
+        return None, errors
+    return Repeticion(intervalo=intervalo, unidad=unidad, hasta=hasta, veces=veces), []
+
+
+def fechas_repeticion(fecha_inicio: date, fecha_fin: date, rep: Repeticion) -> tuple[list[tuple[date, date]], str | None]:
+    """(inicio, fin) de cada ocurrencia, la primera incluida. Cada una conserva la duración de la original."""
+    dur = fecha_fin - fecha_inicio
+    out: list[tuple[date, date]] = []
+    n = 0
+    while True:
+        if rep.veces is not None and n >= rep.veces:
+            break
+        try:
+            ini = _desplazar(fecha_inicio, n, rep)
+        except (OverflowError, ValueError):
+            break
+        if rep.hasta is not None and ini > rep.hasta:
+            break
+        if len(out) >= REPETICION_MAX_OCURRENCIAS:
+            return [], (
+                f"La repetición generaría más de {REPETICION_MAX_OCURRENCIAS} actividades. "
+                "Acortá la fecha «hasta» o espaciá más las repeticiones."
+            )
+        out.append((ini, ini + dur))
+        n += 1
+    if len(out) < 2:
+        return [], "Con esa fecha «hasta» la actividad no llega a repetirse ni una vez."
+    return out, None
+
+
+def crear_repeticiones(
+    primera: PlanificacionActividad,
+    fechas: list[tuple[date, date]],
+) -> tuple[list[PlanificacionActividad], str | None]:
+    """Asigna serie a `primera` y agrega a la sesión las copias para las fechas siguientes."""
+    import uuid
+
+    serie = uuid.uuid4().hex
+    primera.serie_id = serie
+    base_codigo = primera.codigo
+    codigos: list[str | None] = [None] * len(fechas)
+    if base_codigo:
+        ancho = len(str(len(fechas)))
+        codigos = [f"{base_codigo}-{i + 1:0{ancho}d}" for i in range(len(fechas))]
+        if any(len(c) > 64 for c in codigos):
+            return [], "El código es demasiado largo para numerar las repeticiones."
+        dup = db.session.scalar(select(PlanificacionActividad.codigo).where(PlanificacionActividad.codigo.in_(codigos)))
+        if dup is not None:
+            return [], f"Ya existe una actividad con el código {dup}."
+        primera.codigo = codigos[0]
+    copias: list[PlanificacionActividad] = []
+    for (ini, fin), cod in zip(fechas[1:], codigos[1:]):
+        c = PlanificacionActividad(
+            codigo=cod,
+            titulo=primera.titulo,
+            descripcion=primera.descripcion,
+            fecha_inicio=ini,
+            fecha_fin=fin,
+            duracion_dias=primera.duracion_dias,
+            responsable_user_id=primera.responsable_user_id,
+            categoria=primera.categoria,
+            prioridad=primera.prioridad,
+            estado="pendiente",
+            observaciones=primera.observaciones,
+            linked_entity_type=primera.linked_entity_type,
+            linked_entity_id=primera.linked_entity_id,
+            created_by_user_id=primera.created_by_user_id,
+            serie_id=serie,
+        )
+        db.session.add(c)
+        copias.append(c)
+    return copias, None
+
+
+def serie_restantes(row: PlanificacionActividad) -> list[PlanificacionActividad]:
+    """Esta actividad y las siguientes de su serie (por fecha de inicio)."""
+    if not row.serie_id:
+        return [row]
+    stmt = (
+        select(PlanificacionActividad)
+        .where(
+            PlanificacionActividad.serie_id == row.serie_id,
+            PlanificacionActividad.fecha_inicio >= row.fecha_inicio,
+        )
+        .order_by(PlanificacionActividad.fecha_inicio)
+    )
+    return list(db.session.scalars(stmt).unique())
+
+
+def contar_serie(serie_id: str | None) -> int:
+    if not serie_id:
+        return 0
+    from sqlalchemy import func
+
+    return int(
+        db.session.scalar(
+            select(func.count(PlanificacionActividad.id)).where(PlanificacionActividad.serie_id == serie_id)
+        )
+        or 0
+    )
 
 
 def gantt_tasks_for_rows(
