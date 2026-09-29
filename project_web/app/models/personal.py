@@ -37,6 +37,8 @@ class EmpleadoPersonal(db.Model):
     talle_guantes = db.Column(db.String(16), nullable=False, default="", server_default="")
     talle_mameluco = db.Column(db.String(16), nullable=False, default="", server_default="")
     observaciones = db.Column(db.String(4000), nullable=False, default="", server_default="")
+    # Constancia de entrega EPP (Res. 299/11, Anexo I), casillero (9): se carga una vez por trabajador.
+    epp_descripcion_puesto = db.Column(db.String(2000), nullable=False, default="", server_default="")
     operador_id = db.Column(db.Integer, db.ForeignKey("operadores.id", ondelete="SET NULL"), nullable=True, index=True)
 
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
@@ -91,6 +93,10 @@ class PersonalEntregaEpp(db.Model):
     confirmada_at = db.Column(db.DateTime(timezone=True), nullable=True)
     confirmada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     aviso_pendiente_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    # Columnas (12)–(14) de la constancia Res. 299/11.
+    tipo_modelo = db.Column(db.String(128), nullable=False, default="", server_default="")
+    marca = db.Column(db.String(128), nullable=False, default="", server_default="")
+    certificacion = db.Column(db.String(2), nullable=False, default="", server_default="")  # "SI" / "NO" / ""
 
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
     created_by_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
@@ -104,6 +110,22 @@ class PersonalEntregaEpp(db.Model):
     )
     confirmada_por = db.relationship("User", foreign_keys=[confirmada_by_user_id])
 
+
+
+class PersonalEppAsignacion(db.Model):
+    """Elementos de EPP asignados a un trabajador: casillero (10) de la constancia Res. 299/11."""
+
+    __tablename__ = "personal_epp_asignaciones"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_id = db.Column(db.Integer, db.ForeignKey("personal_epp_items.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    item = db.relationship("PersonalEppItem", lazy="joined")
+
+    __table_args__ = (db.UniqueConstraint("empleado_id", "item_id", name="uq_personal_epp_asig_emp_item"),)
 
 class PersonalCurso(db.Model):
     __tablename__ = "personal_cursos"

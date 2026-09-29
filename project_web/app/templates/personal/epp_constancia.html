@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Constancia de entrega EPP{% if emp %} · {{ emp.nombre_completo }}{% else %} (en blanco){% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Formulario Res. 299/11, Anexo I (registro QDV-PO-02_01): siempre "papel". */
+  .epp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .epp-sheet { background: #fff; color: #000; min-width: 1100px; padding: 14px; font-family: "Times New Roman", Times, serif; font-size: .85rem; }
+  .epp-sheet table { border-collapse: collapse; width: 100%; }
+  .epp-sheet td, .epp-sheet th { border: 1px solid #000; padding: 4px 6px; vertical-align: top; }
+  .epp-head td { border-width: 2px; vertical-align: middle; font-family: Arial, Helvetica, sans-serif; }
+  .epp-head .logo { width: 11%; text-align: center; }
+  .epp-head .logo img { max-height: 70px; max-width: 100%; }
+  .epp-head .titulo { text-align: center; font-weight: 700; font-size: 1rem; }
+  .epp-head .meta { width: 20%; text-align: center; font-weight: 700; font-size: .85rem; padding: 3px 6px; }
+  .epp-res { text-align: center; font-style: italic; font-weight: 700; border: 1px solid #000; border-top: 0; }
+  .epp-barra { background: #000; color: #fff; text-align: center; font-weight: 700; letter-spacing: .04em; padding: 3px; }
+  .epp-n { color: #777; font-size: .7em; vertical-align: super; margin-right: 2px; }
+  .epp-datos b { font-weight: 700; }
+  .epp-alto { height: 110px; }
+  .epp-grid th { font-weight: 400; text-align: center; vertical-align: top; }
+  .epp-grid th .epp-n { display: block; text-align: left; vertical-align: baseline; }
+  .epp-grid td { height: 30px; vertical-align: middle; }
+  .epp-grid td.nro { width: 2.2%; background: #f2f2f2; text-align: center; font-size: .75rem; }
+  .epp-grid .c { text-align: center; }
+  .epp-firma { font-family: Arial, Helvetica, sans-serif; font-size: .75rem; }
+  .epp-firma.pend { color: #b02a37; font-weight: 600; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body * { visibility: hidden; }
+    .epp-sheet, .epp-sheet * { visibility: visible; }
+    .epp-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 8pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Constancia de entrega EPP{% if blanco %} — en blanco{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · Res. 299/11, Anexo I{% if emp %} · {{ emp.nombre_completo }} (legajo {{ emp.legajo }}){% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_entregas', empleado_id=emp.id) if emp else url_for('personal.epp_entregas') }}">Entregas EPP</a>
+  </div>
+</div>
+
+<div class="epp-scroll app-card p-0 mb-3">
+  <div class="epp-sheet">
+    <table class="epp-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de Vigencia: {{ reg.fecha_vigencia.day }}/{{ reg.fecha_vigencia.month }}/{{ reg.fecha_vigencia.year }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+    <div class="epp-res">Resolución 299/11, Anexo I</div>
+    <div class="epp-barra">ENTREGA DE ROPA DE TRABAJO Y ELEMENTOS DE PROTECCIÓN PERSONAL</div>
+
+    <table class="epp-datos">
+      <tr>
+        <td colspan="3"><span class="epp-n">(1)</span>Razón Social: <b>{{ empresa.razon_social }}</b></td>
+        <td><span class="epp-n">(2)</span>C.U.I.T.: <b>{{ empresa.cuit }}</b></td>
+      </tr>
+      <tr>
+        <td style="width:36%"><span class="epp-n">(3)</span>Dirección: <b>{{ empresa.direccion }}</b></td>
+        <td style="width:20%"><span class="epp-n">(4)</span>Localidad: <b>{{ empresa.localidad }}</b></td>
+        <td style="width:10%"><span class="epp-n">(5)</span>C.P: <b>{{ empresa.cp }}</b></td>
+        <td><span class="epp-n">(6)</span>Provincia: <b>{{ empresa.provincia }}</b></td>
+      </tr>
+      <tr>
+        <td colspan="3"><span class="epp-n">(7)</span>Nombre y Apellido del Trabajador: <b>{% if emp %}{{ emp.nombre }} {{ emp.apellido }}{% endif %}</b></td>
+        <td><span class="epp-n">(8)</span>D.N.I.: <b>{{ emp.dni if emp else '' }}</b></td>
+      </tr>
+      <tr>
+        <td colspan="2" class="epp-alto"><span class="epp-n">(9)</span>Descripción breve del puesto/s de trabajo en el/los cuales se desempeña el trabajador:
+          {% if emp %}<div class="mt-1" style="white-space:pre-line"><b>{{ emp.epp_descripcion_puesto or emp.puesto }}</b></div>{% endif %}
+        </td>
+        <td colspan="2" class="epp-alto"><span class="epp-n">(10)</span>Elementos de protección personal, necesarios para el trabajador, según el puesto de trabajo:
+          {% if asignados %}<div class="mt-1"><b>{{ asignados | map(attribute='nombre') | join(', ') }}</b></div>{% endif %}
+        </td>
+      </tr>
+    </table>
+
+    <table class="epp-grid mt-2">
+      <thead>
+        <tr>
+          <th class="nro" style="background:#f2f2f2"></th>
+          <th style="width:17%"><span class="epp-n">(11)</span>Producto</th>
+          <th style="width:17%"><span class="epp-n">(12)</span>Tipo // Modelo</th>
+          <th style="width:12%"><span class="epp-n">(13)</span>Marca</th>
+          <th style="width:7%"><span class="epp-n">(14)</span>Posee certificación SI // NO</th>
+          <th style="width:7%"><span class="epp-n">(15)</span>Cantidad</th>
+          <th style="width:9%"><span class="epp-n">(16)</span>Fecha de entrega</th>
+          <th><span class="epp-n">(17)</span>Firma del trabajador</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in filas %}
+        <tr>
+          <td class="nro">{{ loop.index }}</td>
+          <td>{{ producto_texto(e) }}</td>
+          <td>{{ e.tipo_modelo }}</td>
+          <td>{{ e.marca }}</td>
+          <td class="c">{{ e.certificacion }}</td>
+          <td class="c">{{ e.cantidad }}</td>
+          <td class="c">{{ e.fecha.strftime('%d/%m/%Y') }}</td>
+          <td class="epp-firma{% if e.estado != 'confirmada' %} pend{% endif %}">{{ firma_texto(e) }}</td>
+        </tr>
+        {% endfor %}
+        {% for _ in range(filas_vacias) %}
+        <tr><td class="nro">{{ filas|length + loop.index }}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if puede_editar and emp %}
+<div class="app-card">
+  <div class="app-card-header">Datos de la constancia (se cargan una vez por trabajador)</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-3">
+      {% include "_csrf.html" %}
+      <div class="col-lg-5">
+        <label class="form-label" for="eppDescPuesto">(9) Descripción breve del puesto</label>
+        <textarea class="form-control" id="eppDescPuesto" name="epp_descripcion_puesto" rows="5" placeholder="{{ emp.puesto }}">{{ emp.epp_descripcion_puesto }}</textarea>
+        <div class="form-text">Si queda vacío se muestra el puesto del legajo{% if emp.puesto %} («{{ emp.puesto }}»){% endif %}.</div>
+      </div>
+      <div class="col-lg-7">
+        <div class="form-label">(10) Elementos de protección personal asignados a {{ emp.nombre }}</div>
+        {% set ids_asignados = asignados | map(attribute='id') | list %}
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-1">
+          {% for it in items %}
+          <div class="col">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="epp_asignados" value="{{ it.id }}" id="eppAsig{{ it.id }}" {% if it.id in ids_asignados %}checked{% endif %}>
+              <label class="form-check-label" for="eppAsig{{ it.id }}">{{ it.nombre }}</label>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="col-12"><button type="submit" class="btn btn-primary">Guardar</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -55,6 +55,22 @@
         <input type="number" class="form-control" name="cantidad" value="1" min="1">
       </div>
       <div class="col-md-3">
+        <label class="form-label">Tipo / Modelo</label>
+        <input type="text" class="form-control" name="tipo_modelo" maxlength="128">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">Marca</label>
+        <input type="text" class="form-control" name="marca" maxlength="128">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">¿Posee certificación?</label>
+        <select class="form-select" name="certificacion">
+          <option value="">—</option>
+          <option value="SI">SI</option>
+          <option value="NO">NO</option>
+        </select>
+      </div>
+      <div class="col-md-3">
         <label class="form-label">Observaciones</label>
         <input type="text" class="form-control" name="observaciones">
       </div>
@@ -86,6 +102,11 @@
           {% endfor %}
         </select>
       </div>
+      {% if filtro_empleado_id %}
+      <div class="col-md-auto">
+        <a class="btn btn-outline-primary" href="{{ url_for('personal.epp_constancia', empleado_id=filtro_empleado_id) }}"><i class="bi bi-file-earmark-text me-1"></i>Constancia Res. 299/11</a>
+      </div>
+      {% endif %}
     </form>
   </div>
 </div>
@@ -93,7 +114,7 @@
 <div class="app-card">
   <div class="app-card-body--flush table-responsive">
     <table class="table table-app table-compact mb-0">
-      <thead><tr><th>Fecha</th><th>Empleado</th><th>Ítem</th><th>Talle</th><th>Cant.</th><th>Estado</th><th>Prenda ant.</th><th>Obs.</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Empleado</th><th>Ítem</th><th>Talle</th><th>Tipo / Modelo</th><th>Marca</th><th>Cert.</th><th>Cant.</th><th>Estado</th><th>Prenda ant.</th><th>Obs.</th><th></th></tr></thead>
       <tbody>
         {% for en in entregas %}
         <tr>
@@ -101,6 +122,9 @@
           <td><a href="{{ url_for('personal.legajo_detalle', empleado_id=en.empleado_id, tab='epp') }}">{{ en.empleado.nombre_completo }}</a></td>
           <td>{{ en.item.nombre }}</td>
           <td>{{ en.talle or '—' }}</td>
+          <td>{{ en.tipo_modelo or '—' }}</td>
+          <td>{{ en.marca or '—' }}</td>
+          <td>{{ en.certificacion or '—' }}</td>
           <td>{{ en.cantidad }}</td>
           <td>
             <span class="badge {% if en.estado == 'pendiente' %}text-bg-warning{% else %}text-bg-success{% endif %}">
@@ -109,9 +133,10 @@
           </td>
           <td>{% if en.prenda_anterior_devuelta %}Sí{% elif en.prenda_anterior_entrega_id %}No{% else %}—{% endif %}</td>
           <td>{{ en.observaciones or '—' }}</td>
+          <td><a class="small text-nowrap" href="{{ url_for('personal.epp_constancia', empleado_id=en.empleado_id) }}">Constancia</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="text-muted p-3">Sin entregas.</td></tr>
+        <tr><td colspan="12" class="text-muted p-3">Sin entregas.</td></tr>
         {% endfor %}
       </tbody>
     </table>

@@ -18,6 +18,7 @@ from app.auth_utils import (
 from app.extensions import db
 from app.models import Operador, PersonalApercibimiento, PersonalCurso, User
 from app.services import archivo_service as avs
+from app.services import epp_constancia_service as epp_cs
 from app.services import personal_service as ps
 
 bp = Blueprint("personal", __name__, url_prefix="/personal")
@@ -335,6 +336,43 @@ def epp_entregas():
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
         puede_registrar_entregas=user_can_register_entregas_personal(u),
+    )
+
+
+@bp.get("/epp/constancia/en-blanco")
+@login_required
+def epp_constancia_en_blanco():
+    """Formulario Res. 299/11 sin completar (registro QDV-PO-02_01, «Ver en blanco»)."""
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    return render_template("personal/epp_constancia.html", blanco=True, puede_editar=False, items=[], **epp_cs.contexto(None))
+
+
+@bp.route("/epp/constancia/<int:empleado_id>", methods=["GET", "POST"])
+@login_required
+def epp_constancia(empleado_id: int):
+    """Constancia de entrega de EPP de un trabajador, con todas sus entregas."""
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    emp = ps.get_empleado(empleado_id)
+    if emp is None:
+        abort(404)
+    if request.method == "POST":
+        mredir = _require_manage(u)
+        if mredir is not None:
+            return mredir
+        epp_cs.guardar_encabezado(emp, request.form)
+        db.session.commit()
+        flash("Datos de la constancia guardados.", "success")
+        return redirect(url_for("personal.epp_constancia", empleado_id=emp.id))
+    return render_template(
+        "personal/epp_constancia.html",
+        blanco=False,
+        puede_editar=user_can_manage_personal(u),
+        items=ps.list_epp_items(solo_activos=True),
+        **epp_cs.contexto(emp),
     )
 
 
