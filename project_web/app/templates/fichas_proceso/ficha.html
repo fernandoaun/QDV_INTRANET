@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Ficha de proceso{% if ficha %} · {{ ficha.proceso }}{% elif blanco %} (en blanco){% else %} nueva{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-09_03: diagrama tortuga con la estética de la ficha original (siempre "papel"). */
+  .fp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .fp-sheet { --fp-naranja: #ED7D31; background: #fff; color: #000; min-width: 1100px; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .fp-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .fp-head td { border: 2px solid #000; vertical-align: middle; }
+  .fp-head .logo { width: 17%; text-align: center; }
+  .fp-head .logo img { max-height: 76px; }
+  .fp-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .fp-head .meta { width: 20%; text-align: center; font-weight: 700; font-size: .95rem; padding: 1px 6px; }
+  .fp-tortuga { display: grid; grid-template-columns: 1fr 70px 1.35fr 70px 1fr; grid-template-rows: auto auto auto; gap: 14px 0; align-items: center; }
+  .fp-caja { border: 1.5px solid #333; align-self: stretch; display: flex; flex-direction: column; }
+  .fp-caja h3 { background: var(--fp-naranja); color: #fff; font-size: .82rem; font-weight: 700; text-align: center; margin: 0; padding: 4px; border-bottom: 1.5px solid #333; }
+  .fp-lista { margin: 0; padding: 6px 10px 8px 26px; list-style: none; }
+  .fp-lista li { position: relative; line-height: 1.3; margin-bottom: 1px; }
+  .fp-lista li::before { content: "o"; position: absolute; left: -16px; font-size: .75em; top: .1em; }
+  .fp-centro { grid-column: 3; grid-row: 1 / 4; border: 2.5px solid #000; padding: 10px 14px; align-self: stretch; display: flex; flex-direction: column; }
+  .fp-centro .nombre { text-align: center; font-weight: 700; font-size: 1.35rem; text-decoration: underline; margin: 2px 0 4px; }
+  .fp-centro .resp { text-align: center; font-weight: 700; text-decoration: underline; margin-bottom: 12px; font-size: .85rem; }
+  .fp-centro .fp-lista { font-size: .82rem; text-align: justify; }
+  .fp-flecha { display: flex; justify-content: center; align-items: center; }
+  .fp-flecha svg { width: 46px; height: 34px; }
+  .fp-actual { text-align: center; margin-top: 14px; font-size: .95rem; }
+  .fp-sheet textarea, .fp-sheet input { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 4px 6px; }
+  .fp-sheet textarea { flex: 1; min-height: 90px; resize: vertical; margin: 6px; width: calc(100% - 12px); }
+  .fp-centro input.nombre-in { font-size: 1.1rem; font-weight: 700; text-align: center; margin-bottom: 6px; }
+  @media print {
+    @page { size: A4 landscape; margin: 6mm; }
+    body * { visibility: hidden; }
+    .fp-sheet, .fp-sheet * { visibility: visible; }
+    .fp-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 7.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro flecha(grados) -%}
+<div class="fp-flecha" aria-hidden="true"><svg viewBox="0 0 46 34" style="transform: rotate({{ grados }}deg)"><path d="M2 10 H26 V2 L44 17 L26 32 V24 H2 Z" fill="#ED7D31" stroke="#9c4a12" stroke-width="1.2" stroke-linejoin="round"/></svg></div>
+{%- endmacro %}
+{% macro caja(clave) -%}
+<div class="fp-caja">
+  <h3>{{ cajas[clave] }}</h3>
+  {% if editar %}
+  <textarea name="{{ clave }}" aria-label="{{ cajas[clave] }} (un ítem por renglón)">{{ ficha[clave] if ficha else '' }}</textarea>
+  {% else %}
+  <ul class="fp-lista">{% if ficha %}{% for it in items(ficha[clave]) %}<li>{{ it }}</li>{% endfor %}{% endif %}</ul>
+  {% if blanco %}<div style="min-height:110px"></div>{% endif %}
+  {% endif %}
+</div>
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Ficha de proceso{% if ficha %} — {{ ficha.proceso }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-09{% if editar %} · Escribí un ítem por renglón en cada recuadro.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="fpForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('fichas.ver', ficha_id=ficha.id) if ficha else url_for('fichas.hub') }}">Cancelar</a>
+    {% else %}
+    {% if ficha and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('fichas.ver', ficha_id=ficha.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if ficha %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('fichas.ver', ficha_id=ficha.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('fichas.hub') }}">Todas las fichas</a>
+  </div>
+</div>
+
+<form id="fpForm" method="post" action="{{ url_for('fichas.ver', ficha_id=ficha.id) if ficha else url_for('fichas.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="fp-scroll app-card p-0 mb-3">
+  <div class="fp-sheet">
+    <table class="fp-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ reg.fecha_vigencia.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <div class="fp-tortuga">
+      <div style="grid-column:1;grid-row:1">{{ caja('con_que') }}</div>
+      <div style="grid-column:2;grid-row:1">{{ flecha(225) }}</div>
+      <div style="grid-column:1;grid-row:2">{{ caja('entradas') }}</div>
+      <div style="grid-column:2;grid-row:2">{{ flecha(0) }}</div>
+      <div style="grid-column:1;grid-row:3">{{ caja('como') }}</div>
+      <div style="grid-column:2;grid-row:3">{{ flecha(135) }}</div>
+
+      <div class="fp-centro">
+        {% if editar %}
+        <label class="small text-muted">Proceso</label>
+        <input class="nombre-in" name="proceso" required maxlength="160" value="{{ ficha.proceso if ficha else '' }}" placeholder="Nombre del proceso">
+        <label class="small text-muted">Responsable</label>
+        <input name="responsable" maxlength="160" value="{{ ficha.responsable if ficha else '' }}" placeholder="ej. Responsable de Administración" style="margin-bottom:6px">
+        <label class="small text-muted">Actividades</label>
+        <textarea name="actividades" style="min-height:260px" aria-label="Actividades (una por renglón)">{{ ficha.actividades if ficha else '' }}</textarea>
+        {% else %}
+        <div class="nombre">Proceso {{ ficha.proceso if ficha else '' }}</div>
+        <div class="resp">Responsable: {{ ficha.responsable if ficha else '' }}</div>
+        <ul class="fp-lista">{% if ficha %}{% for it in items(ficha.actividades) %}<li>{{ it }}</li>{% endfor %}{% endif %}</ul>
+        {% endif %}
+      </div>
+
+      <div style="grid-column:4;grid-row:1">{{ flecha(315) }}</div>
+      <div style="grid-column:5;grid-row:1">{{ caja('con_quien') }}</div>
+      <div style="grid-column:4;grid-row:2">{{ flecha(0) }}</div>
+      <div style="grid-column:5;grid-row:2">{{ caja('salidas') }}</div>
+      <div style="grid-column:4;grid-row:3">{{ flecha(45) }}</div>
+      <div style="grid-column:5;grid-row:3">{{ caja('indicadores') }}</div>
+    </div>
+    <div class="fp-actual"><b>Fecha de actualización:</b> {% if ficha and ficha.fecha_actualizacion %}{{ ficha.fecha_actualizacion.strftime('%d/%m/%Y') }}{% endif %}</div>
+  </div>
+</div>
+</form>
+
+{% if ficha and editar and es_admin %}
+<form method="post" action="{{ url_for('fichas.baja', ficha_id=ficha.id) }}" onsubmit="return confirm('¿Dar de baja esta ficha? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la ficha</button>
+</form>
+{% endif %}
+
+{% if historial is not none and historial is defined %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ ficha_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

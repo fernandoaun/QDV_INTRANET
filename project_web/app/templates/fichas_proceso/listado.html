@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Fichas de proceso · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Fichas de proceso</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-09 · {{ fichas|length }} ficha(s)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if es_admin %}<a class="btn btn-primary btn-sm" href="{{ url_for('fichas.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nueva ficha</a>{% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th>Proceso</th><th>Responsable</th><th class="text-center">Actividades</th><th>Actualizada</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for f in fichas %}
+        <tr>
+          <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('fichas.ver', ficha_id=f.id) }}">{{ f.proceso }}</a></td>
+          <td class="small">{{ f.responsable or '—' }}</td>
+          <td class="text-center small">{{ items(f.actividades)|length }}</td>
+          <td class="small text-nowrap">{{ f.fecha_actualizacion.strftime('%d/%m/%Y') if f.fecha_actualizacion else '—' }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('fichas.ver', ficha_id=f.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('fichas.ver', ficha_id=f.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-4">Todavía no hay fichas de proceso cargadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

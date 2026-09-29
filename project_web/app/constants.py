@@ -122,6 +122,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "objetivos.cmass_en_blanco",
         "filled_endpoint": "objetivos.cmass_hub",
     },
+    "fichas_proceso": {
+        "label": "Fichas de proceso",
+        "blank_endpoint": "fichas.en_blanco",
+        "filled_endpoint": "fichas.hub",
+    },
     "epp_constancia": {
         "label": "Entregas EPP (Res. 299/11)",
         "blank_endpoint": "personal.epp_constancia_en_blanco",
