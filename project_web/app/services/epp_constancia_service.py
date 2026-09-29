@@ -78,6 +78,15 @@ def asignados(emp: EmpleadoPersonal) -> list[PersonalEppItem]:
     return sorted((a.item for a in rows if a.item is not None), key=lambda i: (i.orden, i.nombre))
 
 
+def asignados_por_empleado(empleado_ids: list[int]) -> dict[int, list[int]]:
+    out: dict[int, list[int]] = {}
+    if not empleado_ids:
+        return out
+    for a in db.session.scalars(select(PersonalEppAsignacion).where(PersonalEppAsignacion.empleado_id.in_(empleado_ids))).unique():
+        out.setdefault(a.empleado_id, []).append(a.item_id)
+    return out
+
+
 def guardar_encabezado(emp: EmpleadoPersonal, form: Any) -> None:
     """(9) descripción del puesto y (10) EPP asignados. El llamador hace commit."""
     emp.epp_descripcion_puesto = (form.get("epp_descripcion_puesto") or "").strip()[:2000]

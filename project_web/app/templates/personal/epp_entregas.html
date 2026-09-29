@@ -43,33 +43,20 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label">Fecha</label>
-        <input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}">
+        <label class="form-label">Fecha de entrega *</label>
+        <input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}" required>
       </div>
       <div class="col-md-2">
         <label class="form-label">Talle</label>
         <input type="text" class="form-control" name="talle">
       </div>
       <div class="col-md-1">
-        <label class="form-label">Cant.</label>
-        <input type="number" class="form-control" name="cantidad" value="1" min="1">
+        <label class="form-label">Cant. *</label>
+        <input type="number" class="form-control" name="cantidad" value="1" min="1" required>
       </div>
-      <div class="col-md-3">
-        <label class="form-label">Tipo / Modelo</label>
-        <input type="text" class="form-control" name="tipo_modelo" maxlength="128">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">Marca</label>
-        <input type="text" class="form-control" name="marca" maxlength="128">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">¿Posee certificación?</label>
-        <select class="form-select" name="certificacion">
-          <option value="">—</option>
-          <option value="SI">SI</option>
-          <option value="NO">NO</option>
-        </select>
-      </div>
+      {% set epp_empleados = {} %}{% for e in empleados %}{% set _ = epp_empleados.update({e.id: {"dni": e.dni or "", "puesto_ok": (e.epp_descripcion_puesto or e.puesto or "")|trim != "", "asignados": asignados_por_empleado.get(e.id, [])}}) %}{% endfor %}
+      {% set epp_empleado_fijo = none %}
+      {% include "personal/_epp_campos_constancia.html" %}
       <div class="col-md-3">
         <label class="form-label">Observaciones</label>
         <input type="text" class="form-control" name="observaciones">

@@ -1,0 +1,81 @@
+{# Campos de la constancia Res. 299/11 al registrar una entrega de EPP.
+   Requiere: items (catálogo activo) y epp_empleados = {id: {"dni", "puesto_ok", "asignados": [ids]}}.
+   Los datos del trabajador (arriba en la planilla) se piden solo si le faltan. #}
+<div class="col-md-3">
+  <label class="form-label">Tipo / Modelo *</label>
+  <input type="text" class="form-control" name="tipo_modelo" maxlength="128" required>
+</div>
+<div class="col-md-2">
+  <label class="form-label">Marca *</label>
+  <input type="text" class="form-control" name="marca" maxlength="128" required>
+</div>
+<div class="col-md-2">
+  <label class="form-label">¿Posee certificación? *</label>
+  <select class="form-select" name="certificacion" required>
+    <option value="">Seleccionar…</option>
+    <option value="SI">SI</option>
+    <option value="NO">NO</option>
+  </select>
+</div>
+<div class="col-12 epp-enc" hidden>
+  <div class="border rounded p-3 bg-body-tertiary">
+    <div class="fw-semibold mb-1">Datos del trabajador para la constancia</div>
+    <div class="small text-muted mb-2">Se cargan una sola vez; después no se vuelven a pedir.</div>
+    <div class="row g-2">
+      <div class="col-md-3 epp-enc-dni" hidden>
+        <label class="form-label">DNI *</label>
+        <input type="text" class="form-control" name="emp_dni" maxlength="16" inputmode="numeric">
+      </div>
+      <div class="col-md-9 epp-enc-desc" hidden>
+        <label class="form-label">(9) Descripción breve del puesto *</label>
+        <textarea class="form-control" name="epp_descripcion_puesto" rows="2" maxlength="2000"></textarea>
+      </div>
+      <div class="col-12 epp-enc-asig" hidden>
+        <div class="form-label">(10) EPP asignados al trabajador * <span class="small text-muted">(marcá al menos uno)</span></div>
+        <div class="row row-cols-2 row-cols-md-4 g-1">
+          {% for it in items %}
+          <div class="col"><div class="form-check">
+            <input class="form-check-input" type="checkbox" name="epp_asignados" value="{{ it.id }}" id="eppAsigNueva{{ it.id }}">
+            <label class="form-check-label" for="eppAsigNueva{{ it.id }}">{{ it.nombre }}</label>
+          </div></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var datos = {{ epp_empleados | tojson }};
+  var scripts = document.getElementsByTagName("script");
+  var form = scripts[scripts.length - 1].closest("form");
+  if (!form) return;
+  var sel = form.querySelector('[name="empleado_id"]');
+  var fijo = {{ (epp_empleado_fijo or none) | tojson }};
+  function toggle(cls, falta) {
+    var box = form.querySelector(cls);
+    box.hidden = !falta;
+    box.querySelectorAll("input[type=text], textarea").forEach(function (el) { el.required = falta; });
+    return falta;
+  }
+  function refresh() {
+    var id = fijo || (sel && sel.value);
+    var d = id ? datos[id] : null;
+    var a = toggle(".epp-enc-dni", !!d && !d.dni);
+    var b = toggle(".epp-enc-desc", !!d && !d.puesto_ok);
+    var c = toggle(".epp-enc-asig", !!d && !(d.asignados || []).length);
+    form.querySelector(".epp-enc").hidden = !(a || b || c);
+  }
+  // Al menos un EPP asignado cuando se piden.
+  form.addEventListener("submit", function (ev) {
+    var box = form.querySelector(".epp-enc-asig");
+    if (!box.hidden && !box.querySelector("input:checked")) {
+      ev.preventDefault();
+      alert("Marcá al menos un EPP asignado al trabajador (casillero 10 de la constancia).");
+    }
+  });
+  if (sel) sel.addEventListener("change", refresh);
+  refresh();
+})();
+</script>

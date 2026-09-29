@@ -54,6 +54,7 @@ def test_registrar_entrega_ropa_y_epp(auth_client, app):
             data={
                 "empleado_id": str(emp_id),
                 "item_id": str(item_id),
+                "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item_id),
                 "fecha": "2026-06-18",
                 "talle": "M",
             },
@@ -163,6 +164,7 @@ def test_entrega_epp_workflow_devolucion_y_confirmacion(auth_client, app):
         data={
             "empleado_id": str(emp_id),
             "item_id": str(item_id),
+            "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item_id),
             "fecha": "2026-06-01",
             "talle": "42",
             "cantidad": "1",
@@ -193,6 +195,7 @@ def test_entrega_epp_workflow_devolucion_y_confirmacion(auth_client, app):
         data={
             "empleado_id": str(emp_id),
             "item_id": str(item_id),
+            "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item_id),
             "fecha": "2026-06-18",
             "talle": "44",
             "cantidad": "1",
@@ -210,6 +213,7 @@ def test_entrega_epp_workflow_devolucion_y_confirmacion(auth_client, app):
         data={
             "empleado_id": str(emp_id),
             "item_id": str(item_id),
+            "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item_id),
             "fecha": "2026-06-18",
             "talle": "44",
             "cantidad": "1",
@@ -258,7 +262,7 @@ def test_mis_entregas_epp_sin_checkbox_muestra_aviso(auth_client, app):
         db.session.add(item)
         db.session.commit()
         ok, _ = ps.save_entrega_epp(
-            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-06-20"},
+            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-06-20", "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item.id)},
             user_id=admin.id,
         )
         assert ok is True
@@ -332,6 +336,7 @@ def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch
         data={
             "empleado_id": str(emp_id),
             "item_id": str(item_id),
+            "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item_id),
             "fecha": "2026-06-18",
             "talle": "M",
         },
@@ -429,7 +434,7 @@ def test_entrega_epp_sin_devolucion_rechazada(auth_client, app):
         db.session.add(item)
         db.session.commit()
         ok, _ = ps.save_entrega_epp(
-            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-05-01"},
+            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-05-01", "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item.id)},
             user_id=1,
         )
         assert ok is True
@@ -445,6 +450,7 @@ def test_entrega_epp_sin_devolucion_rechazada(auth_client, app):
         data={
             "empleado_id": str(emp_id),
             "item_id": str(item_id),
+            "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item_id),
             "fecha": "2026-06-18",
             "talle": "L",
         },
@@ -1127,7 +1133,7 @@ def test_resolve_empleado_prefiere_legajo_con_entrega_pendiente(app):
         ps.ensure_default_epp_catalog()
         item = db.session.query(PersonalEppItem).first()
         ok, _ = ps.save_entrega_epp(
-            {"empleado_id": str(orphan.id), "item_id": str(item.id), "fecha": "2026-06-18"},
+            {"empleado_id": str(orphan.id), "item_id": str(item.id), "fecha": "2026-06-18", "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item.id)},
             user_id=1,
         )
         assert ok
@@ -1178,7 +1184,7 @@ def test_mis_entregas_epp_login_next_administracion(app):
         ps.ensure_default_epp_catalog()
         item = db.session.query(PersonalEppItem).first()
         ok, _ = ps.save_entrega_epp(
-            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-06-18"},
+            {"empleado_id": str(emp.id), "item_id": str(item.id), "fecha": "2026-06-18", "tipo_modelo": "Modelo test", "marca": "Marca test", "certificacion": "SI", "cantidad": "1", "emp_dni": "20111222", "epp_descripcion_puesto": "Puesto test", "epp_asignados": str(item.id)},
             user_id=1,
         )
         assert ok

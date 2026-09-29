@@ -31,6 +31,7 @@ def test_constancia_con_entrega_firma_por_confirmacion(auth_client, app):
             "tipo_modelo": "Puntera de acero",
             "marca": "Funcional",
             "certificacion": "si",
+            "epp_asignados": str(item_id),
         },
     )
     assert r.status_code in (302, 303)
@@ -83,3 +84,71 @@ def test_constancia_en_blanco_y_registro_sgi(auth_client, app):
         links = proc.registro_modulo_links("epp_constancia")
     assert links["blank_url"] == "/personal/epp/constancia/en-blanco"
     assert links["filled_url"] == "/personal/epp/entregas"
+
+
+def test_entrega_exige_todos_los_datos_de_la_planilla(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEntregaEpp
+    from app.services import epp_constancia_service as cs
+
+    emp_id, item_id = _emp_item(app, "Casco test")
+    with app.app_context():
+        emp = db.session.get(EmpleadoPersonal, emp_id)
+        emp.dni = ""
+        emp.puesto = ""
+        db.session.commit()
+    base = {"empleado_id": str(emp_id), "item_id": str(item_id), "fecha": "2026-09-12", "cantidad": "1"}
+
+    r = auth_client.post("/personal/epp/entregas", data=base, follow_redirects=True)
+    html = r.get_data(as_text=True)
+    assert "falta" in html and "tipo / modelo" in html and "DNI del trabajador" in html and "EPP asignados" in html
+    with app.app_context():
+        assert db.session.query(PersonalEntregaEpp).filter_by(empleado_id=emp_id).count() == 0
+
+    completo = {**base, "tipo_modelo": "Clase B", "marca": "3M", "certificacion": "NO",
+                "emp_dni": "27333444", "epp_descripcion_puesto": "Mantenimiento eléctrico", "epp_asignados": str(item_id)}
+    assert auth_client.post("/personal/epp/entregas", data=completo).status_code in (302, 303)
+    with app.app_context():
+        emp = db.session.get(EmpleadoPersonal, emp_id)
+        assert emp.dni == "27333444" and emp.epp_descripcion_puesto == "Mantenimiento eléctrico"
+        assert [i.id for i in cs.asignados(emp)] == [item_id]
+
+    # Una vez cargados, los datos del trabajador ya no se piden.
+    segunda = {**base, "fecha": "2026-09-20", "tipo_modelo": "Clase B", "marca": "3M", "certificacion": "NO"}
+    item2 = None
+    with app.app_context():
+        from app.models import PersonalEppItem
+
+        it = PersonalEppItem(nombre="Protector auditivo test", categoria="otro", activo=True)
+        db.session.add(it)
+        db.session.commit()
+        item2 = it.id
+    segunda["item_id"] = str(item2)
+    assert auth_client.post("/personal/epp/entregas", data=segunda).status_code in (302, 303)
+    with app.app_context():
+        assert db.session.query(PersonalEntregaEpp).filter_by(empleado_id=emp_id).count() == 2
+
+    page = auth_client.get("/personal/epp/entregas").get_data(as_text=True)
+    assert 'name="tipo_modelo" maxlength="128" required' in page and "Datos del trabajador para la constancia" in page
+
+
+def test_pestania_epp_del_legajo_pide_los_datos(auth_client, app):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal
+
+    emp_id, item_id = _emp_item(app, "Guantes test")
+    with app.app_context():
+        db.session.get(EmpleadoPersonal, emp_id).dni = ""
+        db.session.commit()
+    html = auth_client.get(f"/personal/legajos/{emp_id}?tab=epp").get_data(as_text=True)
+    assert 'name="marca" maxlength="128" required' in html and 'name="emp_dni"' in html
+    r = auth_client.post(
+        f"/personal/legajos/{emp_id}",
+        data={"action": "entrega_epp", "tab": "epp", "item_id": str(item_id), "fecha": "2026-09-15", "cantidad": "2",
+              "tipo_modelo": "Nitrilo", "marca": "Ansell", "certificacion": "SI", "emp_dni": "28999000",
+              "epp_asignados": [str(item_id)]},
+    )
+    assert r.status_code in (302, 303)
+    with app.app_context():
+        emp = db.session.get(EmpleadoPersonal, emp_id)
+        assert emp.dni == "28999000" and emp.entregas_epp.count() == 1

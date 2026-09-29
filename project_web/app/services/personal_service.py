@@ -990,6 +990,44 @@ def _checkbox_truthy(raw: str | None) -> bool:
     return (raw or "") in ("1", "on", "true", "yes")
 
 
+def _encabezado_constancia_epp(emp: EmpleadoPersonal, data: Any) -> tuple[dict[str, Any], list[str]]:
+    """Datos del trabajador de la constancia (DNI, puesto, EPP asignados): toma los que vienen en el
+    formulario y, si no vienen, los ya cargados. Devuelve (a aplicar, faltantes) sin tocar el legajo."""
+    from app.models import PersonalEppAsignacion
+
+    dni = (data.get("emp_dni") or "").strip()[:16] or (emp.dni or "").strip()
+    desc = (data.get("epp_descripcion_puesto") or "").strip()[:2000]
+    getlist = getattr(data, "getlist", None)
+    raw = getlist("epp_asignados") if getlist else data.get("epp_asignados") or []
+    if isinstance(raw, (str, int)):
+        raw = [raw]
+    nuevos = {int(x) for x in raw if str(x).isdigit()}
+    if nuevos:
+        nuevos = set(db.session.scalars(select(PersonalEppItem.id).where(PersonalEppItem.id.in_(nuevos))))
+    ya = set(
+        db.session.scalars(select(PersonalEppAsignacion.item_id).where(PersonalEppAsignacion.empleado_id == emp.id))
+    )
+    faltan = []
+    if not dni:
+        faltan.append("DNI del trabajador")
+    if not (desc or (emp.epp_descripcion_puesto or "").strip() or (emp.puesto or "").strip()):
+        faltan.append("descripción del puesto")
+    if not (ya | nuevos):
+        faltan.append("EPP asignados al trabajador")
+    return {"dni": dni, "desc": desc, "agregar": nuevos - ya}, faltan
+
+
+def _aplicar_encabezado_constancia_epp(emp: EmpleadoPersonal, enc: dict[str, Any]) -> None:
+    from app.models import PersonalEppAsignacion
+
+    if enc["dni"] and enc["dni"] != (emp.dni or ""):
+        emp.dni = enc["dni"]
+    if enc["desc"]:
+        emp.epp_descripcion_puesto = enc["desc"]
+    for item_id in enc["agregar"]:
+        db.session.add(PersonalEppAsignacion(empleado_id=emp.id, item_id=item_id))
+
+
 def save_entrega_epp(
     data: dict[str, Any],
     *,
@@ -1004,9 +1042,29 @@ def save_entrega_epp(
     if emp is None or item is None:
         return False, "Empleado o ítem no encontrado."
     try_auto_link_empleado_user(emp, commit=False)
-    fecha = parse_iso_date(data.get("fecha")) or today_operacion()
-    cant_raw = (data.get("cantidad") or "1").strip()
-    cantidad = int(cant_raw) if cant_raw.isdigit() and int(cant_raw) > 0 else 1
+    fecha = parse_iso_date(data.get("fecha"))
+    cant_raw = (data.get("cantidad") or "").strip()
+    cantidad = int(cant_raw) if cant_raw.isdigit() and int(cant_raw) > 0 else 0
+
+    # La constancia Res. 299/11 tiene que quedar completa: todos sus datos son obligatorios.
+    tipo_modelo = (data.get("tipo_modelo") or "").strip()[:128]
+    marca = (data.get("marca") or "").strip()[:128]
+    certificacion = (data.get("certificacion") or "").strip().upper()
+    faltan = [
+        nombre
+        for nombre, ok in (
+            ("fecha de entrega", fecha is not None),
+            ("cantidad", cantidad > 0),
+            ("tipo / modelo", bool(tipo_modelo)),
+            ("marca", bool(marca)),
+            ("si posee certificación (SI / NO)", certificacion in ("SI", "NO")),
+        )
+        if not ok
+    ]
+    encabezado, faltan_enc = _encabezado_constancia_epp(emp, data)
+    faltan += faltan_enc
+    if faltan:
+        return False, "Para que la constancia quede completa falta: " + ", ".join(faltan) + "."
 
     requiere_workflow = item_epp_requiere_workflow(item)
     if requiere_workflow:
@@ -1042,9 +1100,9 @@ def save_entrega_epp(
         talle=(data.get("talle") or "").strip()[:32],
         cantidad=cantidad,
         observaciones=(data.get("observaciones") or "").strip()[:2000],
-        tipo_modelo=(data.get("tipo_modelo") or "").strip()[:128],
-        marca=(data.get("marca") or "").strip()[:128],
-        certificacion=cert if (cert := (data.get("certificacion") or "").strip().upper()) in ("SI", "NO") else "",
+        tipo_modelo=tipo_modelo,
+        marca=marca,
+        certificacion=certificacion,
         estado=estado,
         prenda_anterior_devuelta=prenda_devuelta,
         prenda_anterior_entrega_id=anterior.id if anterior is not None else None,
@@ -1053,6 +1111,7 @@ def save_entrega_epp(
         created_by_id=user_id,
     )
     db.session.add(entrega)
+    _aplicar_encabezado_constancia_epp(emp, encabezado)
     try:
         db.session.commit()
     except Exception as exc:

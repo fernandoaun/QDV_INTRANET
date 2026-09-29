@@ -96,17 +96,21 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label">Fecha</label>
-        <input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}">
+        <label class="form-label">Fecha de entrega *</label>
+        <input type="date" class="form-control" name="fecha" value="{{ fecha_operativa_hoy }}" required>
       </div>
       <div class="col-md-2">
         <label class="form-label">Talle</label>
         <input type="text" class="form-control" name="talle">
       </div>
       <div class="col-md-1">
-        <label class="form-label">Cant.</label>
-        <input type="number" class="form-control" name="cantidad" value="1" min="1">
+        <label class="form-label">Cant. *</label>
+        <input type="number" class="form-control" name="cantidad" value="1" min="1" required>
       </div>
+      {% set items = items_epp %}
+      {% set epp_empleados = {empleado.id: {"dni": empleado.dni or "", "puesto_ok": (empleado.epp_descripcion_puesto or empleado.puesto or "")|trim != "", "asignados": epp_asignados_ids|default([])}} %}
+      {% set epp_empleado_fijo = empleado.id %}
+      {% include "personal/_epp_campos_constancia.html" %}
       <div class="col-md-3">
         <label class="form-label">Observaciones</label>
         <input type="text" class="form-control" name="observaciones">

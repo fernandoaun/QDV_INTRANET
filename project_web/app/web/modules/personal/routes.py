@@ -203,7 +203,7 @@ def legajo_detalle(empleado_id: int):
         elif action == "art":
             ok, msg = ps.save_art(empleado_id, request.form)
         elif action == "entrega_epp":
-            data = dict(request.form)
+            data = request.form.copy()  # MultiDict: conserva la lista de EPP asignados
             data["empleado_id"] = str(empleado_id)
             ok, msg = ps.save_entrega_epp(data, user_id=u.id)
         elif action == "vacacion":
@@ -228,6 +228,7 @@ def legajo_detalle(empleado_id: int):
         "personal/legajo_detalle.html",
         empleado=emp,
         tab=tab,
+        epp_asignados_ids=epp_cs.asignados_por_empleado([emp.id]).get(emp.id, []),
         operadores=db.session.query(Operador).order_by(Operador.nombre).all(),
         items_epp=ps.list_epp_items(solo_activos=True),
         entregas=ps.list_entregas_epp(empleado_id=empleado_id),
@@ -328,6 +329,7 @@ def epp_entregas():
         flash("No hay ítems activos en el catálogo. Cargalos en Catálogo ropa / EPP.", "warning")
     return render_template(
         "personal/epp_entregas.html",
+        asignados_por_empleado=epp_cs.asignados_por_empleado([e.id for e in empleados]),
         entregas=ps.list_entregas_epp(empleado_id=emp_id),
         empleados=empleados,
         items=items,
