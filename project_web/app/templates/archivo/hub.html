@@ -49,14 +49,14 @@
     {% if section.procedimientos %}
       {% for it in section.procedimientos %}
       <div class="archivo-proc px-3 pt-3">
-        <a class="fw-semibold text-decoration-none" href="{{ url_for('archivo.procedimiento', doc_id=it.doc.id) }}">
+        <a class="fw-semibold text-decoration-none" href="{{ url_for('sgi.procedimiento_vista', slug=it.slug, doc_id=it.doc.id, rev_id=it.rev_id) if it.rev_id else url_for('archivo.procedimiento', doc_id=it.doc.id) }}">
           {% if it.doc.codigo %}<span class="text-muted me-1">{{ it.doc.codigo }}</span>{% endif %}{{ it.doc.titulo }}
         </a>
         {% if it.registros %}
         <ul class="archivo-reg">
           {% for rg in it.registros %}
           <li>
-            <a class="text-decoration-none" href="{{ url_for('archivo.registro', doc_id=it.doc.id, registro_id=rg.row.id) }}">{{ rg.row.nombre }}</a>
+            <a class="text-decoration-none" href="{{ rg.destino_url or url_for('archivo.registro', doc_id=it.doc.id, registro_id=rg.row.id) }}">{{ rg.row.nombre }}</a>
             {% if rg.n_cargas %}
             <span class="badge text-bg-secondary">{{ rg.n_cargas }}</span>
             {% endif %}
@@ -72,6 +72,8 @@
               </li>
               {% endfor %}
             </ul>
+            {% elif rg.destino_label %}
+            <div class="text-muted small">Se lleva en el SGC: {{ rg.destino_label }}</div>
             {% else %}
             <div class="text-muted small">Todavía no hay archivos cargados.</div>
             {% endif %}

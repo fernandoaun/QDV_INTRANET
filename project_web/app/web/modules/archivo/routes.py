@@ -51,11 +51,12 @@ def hub():
     if redir is not None:
         return redir
     avs.ensure_schema()
-    tree = avs.hub_tree()
+    # Solo procedimientos aprobados, con los registros de su última versión aprobada.
+    tree = avs.hub_tree(solo_aprobados=True)
     return render_template(
         "archivo/hub.html",
         tree=tree,
-        counts=avs.counts_hub(),
+        counts=avs.counts_hub(solo_aprobados=True),
         puede_gestionar=user_can_manage_archivo(u),
     )
 

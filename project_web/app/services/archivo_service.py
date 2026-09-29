@@ -170,8 +170,8 @@ def count_cargas_registro(doc_id: int, clave: str) -> int:
     )
 
 
-def counts_hub() -> dict[str, int]:
-    tree = hub_tree()
+def counts_hub(*, solo_aprobados: bool = False) -> dict[str, int]:
+    tree = hub_tree(solo_aprobados=solo_aprobados)
     n_proc = sum(len(sec["procedimientos"]) for sec in tree)
     n_reg = sum(len(it["registros"]) for sec in tree for it in sec["procedimientos"])
     n_cargas = ArchivoCarga.query.filter(
@@ -234,7 +234,7 @@ def hub_tree(*, for_user: User | None = None, solo_aprobados: bool = False) -> l
         regs = []
         for r in list_registros(doc, rev=rev if solo_aprobados else None):
             cs = _cargas_of(doc, r)
-            regs.append({"row": r, "n_cargas": len(cs), "cargas": cs})
+            regs.append({"row": r, "n_cargas": len(cs), "cargas": cs, **_destino_registro(r)})
         grouped.setdefault(doc.tipo, []).append(
             {
                 "doc": doc,
@@ -252,6 +252,17 @@ def hub_tree(*, for_user: User | None = None, solo_aprobados: bool = False) -> l
         {"tipo": t, "title": titles[t], "procedimientos": grouped.get(t, [])}
         for t in (TIPO_PG, TIPO_PO)
     ]
+
+
+def _destino_registro(r: SgiProcedimientoRegistro) -> dict[str, str]:
+    """A dónde lleva un registro: su registro digital o el módulo asociado en el SGC; si no, vacío (archivo)."""
+    meta = proc_svc._registro_row_payload(r)
+    if meta.get("record_url"):
+        summary = meta.get("record_summary") or {}
+        return {"destino_url": meta["record_url"], "destino_label": summary.get("name") or "Registro digital"}
+    if meta.get("filled_url"):
+        return {"destino_url": meta["filled_url"], "destino_label": meta.get("modulo_label") or ""}
+    return {"destino_url": "", "destino_label": ""}
 
 
 def list_cargas_registro(doc: SgiDocumento, registro: SgiProcedimientoRegistro) -> list[ArchivoCarga]:

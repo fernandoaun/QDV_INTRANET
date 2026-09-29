@@ -32,6 +32,47 @@ def test_archivo_blocked_nonprivileged(mant_client):
     assert r.status_code in (302, 303)
 
 
+def _aprobar(doc_id, rev_id):
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento, SgiProcedimientoRevision
+
+    db.session.get(SgiProcedimientoRevision, rev_id).estado = "aprobado"
+    db.session.get(SgiDocumento, doc_id).estado = "aprobado"
+    db.session.commit()
+
+
+def _proc_con_registro(proc_svc, titulo, registro):
+    doc, rev, err = proc_svc.create_procedimiento_visual("PG", 1, "tester", titulo=titulo)
+    assert err is None
+    ok, msg, _ = proc_svc.save_revision_content(
+        rev.id,
+        {"titulo": titulo, "secciones": {}, "registros": [{"nombre": registro}], "anexos": []},
+        1,
+        "tester",
+    )
+    assert ok, msg
+    reg_id = proc_svc.revision_to_payload(proc_svc.get_revision(rev.id))["registros"][0]["id"]
+    return doc.id, rev.id, reg_id
+
+
+def test_archivo_solo_aprobados_y_registro_lleva_al_modulo(auth_client, app):
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        d1, r1, reg1 = _proc_con_registro(proc_svc, "PLANIFICACION DEL SGC", "Programa de objetivos")
+        _aprobar(d1, r1)
+        ok, msg, _ = proc_svc.set_registro_modulo(d1, reg1, "objetivos")
+        assert ok, msg
+        _proc_con_registro(proc_svc, "PROCEDIMIENTO EN BORRADOR", "Registro borrador")
+
+    html = auth_client.get("/archivo/").get_data(as_text=True)
+    assert "PLANIFICACION DEL SGC" in html
+    assert "PROCEDIMIENTO EN BORRADOR" not in html and "Registro borrador".upper() not in html.upper()
+    # El registro asociado lleva al módulo del SGC y el procedimiento a su versión aprobada.
+    assert 'href="/sgi/objetivos/"' in html and "Se lleva en el SGC: Programa de Objetivos" in html
+    assert f"/procedimientos/{d1}/vista/{r1}" in html
+
+
 def test_archivo_lists_sgi_procedure_and_upload(auth_client, app):
     from app.services import sgi_procedimiento_service as proc_svc
 
@@ -92,6 +133,9 @@ def test_archivo_lists_sgi_procedure_and_upload(auth_client, app):
             "tester",
         )
         assert ok_po, msg_po
+        # La pantalla muestra solo procedimientos aprobados.
+        _aprobar(doc_id, rev_id)
+        _aprobar(doc_po.id, rev_po.id)
 
     r = auth_client.get("/archivo/")
     assert r.status_code == 200
