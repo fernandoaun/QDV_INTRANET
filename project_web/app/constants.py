@@ -112,6 +112,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "produccion.stock_hub",
         "filled_endpoint": "produccion.stock_ver",
     },
+    "objetivos": {
+        "label": "Programa de Objetivos",
+        "blank_endpoint": "objetivos.hub",
+        "filled_endpoint": "objetivos.hub",
+    },
     "planificacion": {
         "label": "Planificación",
         "blank_endpoint": "planificacion.nueva",

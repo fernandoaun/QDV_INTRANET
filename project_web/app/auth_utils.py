@@ -615,6 +615,8 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user_can_manage_archivo(user)
     if ep.startswith("planificacion."):
         return user_can_edit(user, "planificacion")
+    if ep.startswith("objetivos."):
+        return user_can_edit_sgi_documentos(user)
     if ep.startswith("mantenimiento.equipos") or ep.startswith("mantenimiento.equipo") or ep.startswith(
         "mantenimiento.component"
     ):

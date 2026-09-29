@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+{% block title %}Programa de Objetivos {{ anio }} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Hoja con la estética del registro QDV-RG-PG-02_01 (siempre "papel": fondo blanco, bordes negros). */
+  .obj-sheet-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .obj-sheet { background: #fff; color: #000; min-width: 1500px; padding: 12px; font-size: 0.86rem; }
+  .obj-sheet table { border-collapse: collapse; width: 100%; }
+  .obj-sheet td, .obj-sheet th { border: 1px solid #000; padding: 6px 8px; vertical-align: middle; }
+  .obj-head td { border-width: 2px; }
+  .obj-head .obj-logo { width: 13%; text-align: center; }
+  .obj-head .obj-logo img { max-height: 84px; max-width: 100%; }
+  .obj-head .obj-title { text-align: center; font-size: 1.9rem; font-weight: 700; letter-spacing: .02em; }
+  .obj-head .obj-meta { width: 20%; text-align: center; font-weight: 700; font-size: .95rem; padding: 4px 8px; }
+  .obj-act { background: #{{ obj_color_encabezado }}; font-weight: 700; font-size: .95rem; border: 2px solid #000; padding: 4px 8px; margin: 8px 0; }
+  .obj-grid th { background: #{{ obj_color_encabezado }}; font-weight: 700; text-align: center; border-width: 2px; }
+  .obj-grid td { font-size: .86rem; }
+  .obj-grid .c-proceso { font-weight: 700; text-align: center; width: 9%; }
+  .obj-grid .c-obj { width: 14%; }
+  .obj-grid .c-meta, .obj-grid .c-ind { width: 9%; text-align: center; }
+  .obj-grid .c-estado { width: 8%; text-align: center; }
+  .obj-grid .c-rec { width: 15%; white-space: pre-line; }
+  .obj-grid .c-frec { width: 6%; text-align: center; font-weight: 700; }
+  .obj-grid .c-mes { width: 3.1%; min-width: 46px; height: 96px; text-align: center; padding: 2px; font-weight: 600; font-size: .78rem; }
+  .obj-grid .c-anual { width: 4%; }
+  .obj-grid tr:target td { outline: 3px solid #0d6efd; outline-offset: -3px; }
+  .obj-cell-btn { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: 88px; cursor: pointer; word-break: break-word; }
+  .obj-cell-btn:focus-visible { outline: 3px solid #0d6efd; outline-offset: -3px; }
+  .obj-edit-btn { font-size: .75rem; }
+  .obj-legend td { border: none; padding: 3px 8px; }
+  .obj-legend .sw { width: 60px; border: 1px solid #000; }
+  .obj-swatch { display: inline-block; width: 1.1em; height: 1.1em; border: 1px solid #000; vertical-align: -0.2em; margin-right: .35em; }
+  .obj-estado-opt input { display: none; }
+  .obj-estado-opt label { display: flex; align-items: center; gap: .5rem; border: 2px solid transparent; border-radius: 8px; padding: .45rem .6rem; cursor: pointer; }
+  .obj-estado-opt input:checked + label { border-color: #0d6efd; background: rgba(13,110,253,.08); }
+</style>
+{% endblock %}
+{% block content %}
+{% set estado_bg = obj_estado_colores %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Programa de Objetivos</h1>
+    <div class="text-muted small">Registro SGI {{ prog.codigo if prog else 'QDV-RG-PG-02_01' }} · procedimiento PG-02{% if puede_seg %} · Tocá un mes para cambiar su color o cargar el valor del indicador.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2 align-items-center">
+    <form method="get" class="d-flex align-items-center gap-1" onchange="window.location = '{{ url_for('objetivos.hub') }}' + this.anio.value">
+      <label for="objAnio" class="small text-muted">Año</label>
+      <select id="objAnio" name="anio" class="form-select form-select-sm" style="width:auto">
+        {% for a in anios %}<option value="{{ a }}" {% if a == anio %}selected{% endif %}>{{ a }}</option>{% endfor %}
+      </select>
+    </form>
+    {% if prog %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('objetivos.historial', anio=anio) }}"><i class="bi bi-clock-history me-1"></i>Historial</a>
+    <a class="btn btn-outline-success btn-sm" href="{{ url_for('objetivos.exportar', anio=anio) }}"><i class="bi bi-file-earmark-excel me-1"></i>Descargar Excel</a>
+    {% if es_admin %}
+    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#objNuevoModal"><i class="bi bi-plus-lg me-1"></i>Nuevo objetivo</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#objEncModal">Encabezado</button>
+    {% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">SGC</a>
+  </div>
+</div>
+
+{% if not prog %}
+<div class="app-card">
+  <div class="app-card-body">
+    <p class="mb-3">Todavía no hay Programa de Objetivos para {{ anio }}.</p>
+    {% if es_admin %}
+    <div class="d-flex flex-column gap-3">
+      <form method="post" action="{{ url_for('objetivos.importar', anio=anio) }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">
+        {% include "_csrf.html" %}
+        <input type="file" name="archivo" accept=".xlsx" class="form-control form-control-sm" style="max-width:22rem" required>
+        <button class="btn btn-primary btn-sm">Importar planilla Excel</button>
+      </form>
+      <form method="post" action="{{ url_for('objetivos.crear', anio=anio) }}" class="d-flex flex-wrap gap-2">
+        {% include "_csrf.html" %}
+        {% if anio_anterior %}
+        <button class="btn btn-outline-primary btn-sm" name="copiar_de" value="{{ anio_anterior }}">Crear copiando los objetivos abiertos de {{ anio_anterior }}</button>
+        {% endif %}
+        <button class="btn btn-outline-secondary btn-sm">Crear vacío</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="text-muted small mb-0">Lo crea el administrador.</p>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+
+<div class="obj-sheet-scroll app-card p-0">
+  <div class="obj-sheet">
+    <table class="obj-head">
+      <tr>
+        <td class="obj-logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="obj-title" rowspan="4">PROGRAMA DE OBJETIVOS</td>
+        <td class="obj-meta">{{ prog.codigo }}</td>
+      </tr>
+      <tr><td class="obj-meta">Fecha de Vigencia: {{ prog.fecha_vigencia.strftime('%d/%m/%Y') if prog.fecha_vigencia else '—' }}</td></tr>
+      <tr><td class="obj-meta">Rev. {{ prog.revision }}</td></tr>
+      <tr><td class="obj-meta">Página 1 de 1</td></tr>
+    </table>
+    <div class="obj-act">Fecha de actualización: <span id="objFechaAct">{{ prog.fecha_actualizacion.strftime('%d/%m/%Y') if prog.fecha_actualizacion else '—' }}</span> · Año {{ anio }}</div>
+
+    <table class="obj-grid">
+      <thead>
+        <tr>
+          <th rowspan="2">PROCESO</th>
+          <th rowspan="2">OBJETIVO</th>
+          <th rowspan="2">META</th>
+          <th rowspan="2">INDICADOR</th>
+          <th rowspan="2">ESTADO DE CUMPLIMIENTO</th>
+          <th colspan="15">SEGUIMIENTO DE PLANIFICACIÓN DEL OBJETIVO / VALOR DEL INDICADOR</th>
+        </tr>
+        <tr>
+          <th>RECURSOS / ACTIVIDADES A DESARROLLAR</th>
+          <th>FRECUENCIA</th>
+          {% for m in obj_meses %}<th>{{ m }}</th>{% endfor %}
+          <th>ANUAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in objetivos %}
+        {% set mm = meses_map(o) %}
+        <tr id="obj-{{ o.id }}">
+          <td class="c-proceso">
+            {{ o.proceso }}
+            {% if puede_seg %}
+            <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary obj-edit-btn" data-bs-toggle="modal" data-bs-target="#objEdit{{ o.id }}"><i class="bi bi-pencil"></i> Editar</button></div>
+            {% endif %}
+          </td>
+          <td class="c-obj">{{ o.objetivo }}</td>
+          <td class="c-meta">{{ o.meta }}</td>
+          <td class="c-ind">{{ o.indicador }}</td>
+          <td class="c-estado" {% if o.estado_cumplimiento %}style="background:#{{ estado_bg[o.estado_cumplimiento] }}"{% endif %}>{{ obj_estado_labels.get(o.estado_cumplimiento or '', '') }}</td>
+          <td class="c-rec">{{ o.recursos }}</td>
+          <td class="c-frec">{{ o.frecuencia }}</td>
+          {% for mes in range(1, obj_mes_anual + 1) %}
+          {% set m = mm.get(mes) %}
+          <td class="c-mes{% if mes == obj_mes_anual %} c-anual{% endif %}"
+              data-obj="{{ o.id }}" data-mes="{{ mes }}" data-estado="{{ m.estado if m and m.estado else '' }}" data-valor="{{ m.valor if m else '' }}"
+              {% if m and m.estado %}style="background:#{{ estado_bg[m.estado] }}"{% endif %}
+              title="{{ obj_mes_label(mes) }}{% if m and m.estado %} · {{ obj_estado_labels[m.estado] }}{% endif %}{% if m and m.valor %} · {{ m.valor }}{% endif %}">
+            {% if puede_seg %}
+            <button type="button" class="obj-cell-btn" aria-label="{{ o.proceso }}, {{ obj_mes_label(mes) }}">{{ m.valor if m else '' }}</button>
+            {% else %}{{ m.valor if m else '' }}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% else %}
+        <tr><td colspan="20" class="text-center text-muted py-4">Sin objetivos cargados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <table class="obj-legend mt-3" style="width:auto">
+      {% for e in obj_estados %}
+      <tr><td class="sw" style="background:#{{ estado_bg[e] }}"></td><td>{{ obj_estado_labels[e] }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+{% if puede_seg %}
+{# Selector de color / valor de un mes #}
+<div class="modal fade" id="objMesModal" tabindex="-1" aria-labelledby="objMesTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h2 class="modal-title fs-6" id="objMesTitle">Seguimiento</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div class="small text-muted mb-2" id="objMesObj"></div>
+        <div class="d-flex flex-column gap-1 mb-3">
+          {% for e in obj_estados %}
+          <div class="obj-estado-opt">
+            <input type="radio" name="objMesEstado" id="objMesE_{{ e }}" value="{{ e }}">
+            <label for="objMesE_{{ e }}"><span class="obj-swatch" style="background:#{{ estado_bg[e] }}"></span>{{ obj_estado_labels[e] }}</label>
+          </div>
+          {% endfor %}
+          <div class="obj-estado-opt">
+            <input type="radio" name="objMesEstado" id="objMesE_none" value="">
+            <label for="objMesE_none"><span class="obj-swatch" style="background:repeating-linear-gradient(45deg,#fff,#fff 3px,#ddd 3px,#ddd 6px)"></span>Sin color</label>
+          </div>
+        </div>
+        <label class="form-label small mb-1" for="objMesValor">Valor del indicador (opcional)</label>
+        <input class="form-control" id="objMesValor" maxlength="64" placeholder="ej. 40 %, 48 ppb">
+        <div class="text-danger small mt-2" id="objMesErr" role="alert"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="objMesGuardar">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% for o in objetivos %}
+<div class="modal fade" id="objEdit{{ o.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form class="modal-content" method="post" action="{{ url_for('objetivos.editar', objetivo_id=o.id) }}">
+      {% include "_csrf.html" %}
+      <div class="modal-header">
+        <h2 class="modal-title fs-5">Editar objetivo — {{ o.proceso }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body row g-3">
+        {% if es_admin %}
+        <div class="col-md-6"><label class="form-label">Proceso</label><input class="form-control" name="proceso" maxlength="128" required value="{{ o.proceso }}"></div>
+        <div class="col-md-6"><label class="form-label">Meta</label><input class="form-control" name="meta" maxlength="256" value="{{ o.meta }}"></div>
+        <div class="col-12"><label class="form-label">Objetivo</label><textarea class="form-control" name="objetivo" rows="3" required>{{ o.objetivo }}</textarea></div>
+        <div class="col-12"><label class="form-label">Indicador</label><input class="form-control" name="indicador" maxlength="256" value="{{ o.indicador }}"></div>
+        {% else %}
+        <div class="col-12 small text-muted">{{ o.objetivo }}<br><strong>Meta:</strong> {{ o.meta }} · <strong>Indicador:</strong> {{ o.indicador }}</div>
+        {% endif %}
+        <div class="col-12"><label class="form-label">Recursos / actividades a desarrollar</label><textarea class="form-control" name="recursos" rows="6">{{ o.recursos }}</textarea><div class="form-text">Una actividad por renglón (podés usar «•» al principio).</div></div>
+        <div class="col-md-6">
+          <label class="form-label">Frecuencia</label>
+          <select class="form-select" name="frecuencia">
+            {% for f in obj_frecuencias %}<option {% if o.frecuencia == f %}selected{% endif %}>{{ f }}</option>{% endfor %}
+            {% if o.frecuencia not in obj_frecuencias %}<option selected>{{ o.frecuencia }}</option>{% endif %}
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Estado de cumplimiento</label>
+          <select class="form-select" name="estado_cumplimiento">
+            <option value="">(sin definir)</option>
+            {% for e in obj_estados %}<option value="{{ e }}" {% if o.estado_cumplimiento == e %}selected{% endif %}>{{ obj_estado_labels[e] }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <div>
+          {% if es_admin %}
+          <button type="submit" class="btn btn-outline-danger btn-sm" form="objBaja{{ o.id }}">Dar de baja</button>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% if es_admin %}
+<form id="objBaja{{ o.id }}" method="post" action="{{ url_for('objetivos.baja', objetivo_id=o.id) }}" class="d-none"
+      onsubmit="return confirm('¿Dar de baja este objetivo? Deja de verse en el programa pero queda en el historial.');">
+  {% include "_csrf.html" %}
+</form>
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if es_admin %}
+<div class="modal fade" id="objNuevoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form class="modal-content" method="post" action="{{ url_for('objetivos.alta', anio=anio) }}">
+      {% include "_csrf.html" %}
+      <div class="modal-header">
+        <h2 class="modal-title fs-5">Nuevo objetivo {{ anio }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body row g-3">
+        <div class="col-md-6"><label class="form-label">Proceso <span class="text-danger">*</span></label><input class="form-control" name="proceso" maxlength="128" required placeholder="ej. Producción / Calidad"></div>
+        <div class="col-md-6"><label class="form-label">Meta</label><input class="form-control" name="meta" maxlength="256" placeholder="ej. 100% implementación"></div>
+        <div class="col-12"><label class="form-label">Objetivo <span class="text-danger">*</span></label><textarea class="form-control" name="objetivo" rows="3" required></textarea></div>
+        <div class="col-12"><label class="form-label">Indicador</label><input class="form-control" name="indicador" maxlength="256"></div>
+        <div class="col-12"><label class="form-label">Recursos / actividades a desarrollar</label><textarea class="form-control" name="recursos" rows="5" placeholder="• Primera actividad&#10;• Segunda actividad"></textarea></div>
+        <div class="col-md-6">
+          <label class="form-label">Frecuencia</label>
+          <select class="form-select" name="frecuencia">{% for f in obj_frecuencias %}<option>{{ f }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Agregar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="objEncModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" method="post" action="{{ url_for('objetivos.encabezado', anio=anio) }}">
+      {% include "_csrf.html" %}
+      <div class="modal-header">
+        <h2 class="modal-title fs-5">Encabezado del registro</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body row g-3">
+        <div class="col-12"><label class="form-label">Código</label><input class="form-control" name="codigo" maxlength="64" required value="{{ prog.codigo }}"></div>
+        <div class="col-6"><label class="form-label">Revisión</label><input class="form-control" name="revision" maxlength="16" required value="{{ prog.revision }}"></div>
+        <div class="col-6"><label class="form-label">Fecha de vigencia</label><input class="form-control" type="date" name="fecha_vigencia" value="{{ prog.fecha_vigencia.isoformat() if prog.fecha_vigencia else '' }}"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if prog and puede_seg %}
+<script>
+(function () {
+  "use strict";
+  var COLORES = {{ obj_estado_colores | tojson }};
+  var LABELS = {{ obj_estado_labels | tojson }};
+  var MESES = {{ obj_meses | list | tojson }};
+  var modalEl = document.getElementById("objMesModal");
+  if (!modalEl || typeof bootstrap === "undefined") return;
+  var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  var valor = document.getElementById("objMesValor");
+  var err = document.getElementById("objMesErr");
+  var titulo = document.getElementById("objMesTitle");
+  var sub = document.getElementById("objMesObj");
+  var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || "";
+  var celda = null;
+
+  function mesLabel(m) { return m === 13 ? "ANUAL" : MESES[m - 1]; }
+
+  document.querySelectorAll(".obj-grid td.c-mes .obj-cell-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      celda = btn.closest("td");
+      var est = celda.dataset.estado || "";
+      var r = modalEl.querySelector('input[name="objMesEstado"][value="' + est + '"]');
+      if (r) r.checked = true;
+      valor.value = celda.dataset.valor || "";
+      err.textContent = "";
+      var fila = celda.closest("tr");
+      titulo.textContent = "Seguimiento · " + mesLabel(parseInt(celda.dataset.mes, 10));
+      sub.textContent = fila ? fila.querySelector(".c-proceso").firstChild.textContent.trim() : "";
+      modal.show();
+    });
+  });
+
+  document.getElementById("objMesGuardar").addEventListener("click", function () {
+    if (!celda) return;
+    var sel = modalEl.querySelector('input[name="objMesEstado"]:checked');
+    var body = { mes: celda.dataset.mes, estado: sel ? sel.value : "", valor: valor.value };
+    var boton = this;
+    boton.disabled = true;
+    fetch("{{ url_for('objetivos.hub') }}objetivo/" + celda.dataset.obj + "/mes", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", "Accept": "application/json", "X-CSRFToken": csrf, "X-Requested-With": "XMLHttpRequest" },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: "Respuesta inválida (" + r.status + ")." }; }); })
+      .then(function (d) {
+        if (!d.ok) { err.textContent = d.error || "No se pudo guardar."; return; }
+        celda.dataset.estado = d.estado;
+        celda.dataset.valor = d.valor;
+        celda.style.background = d.estado ? "#" + COLORES[d.estado] : "";
+        celda.querySelector(".obj-cell-btn").textContent = d.valor;
+        celda.title = mesLabel(d.mes) + (d.estado ? " · " + LABELS[d.estado] : "") + (d.valor ? " · " + d.valor : "");
+        var fa = document.getElementById("objFechaAct");
+        if (fa && d.fecha_actualizacion) fa.textContent = d.fecha_actualizacion;
+        modal.hide();
+      })
+      .catch(function () { err.textContent = "Sin conexión. Probá de nuevo."; })
+      .finally(function () { boton.disabled = false; });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}
