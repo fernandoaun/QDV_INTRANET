@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Programa de Objetivos {{ anio }} · QDV{% endblock %}
+{% block title %}Programa de Objetivos{% if blanco %} (en blanco){% else %} {{ anio }}{% endif %} · QDV{% endblock %}
 {% block extra_head %}
 <style>
   /* Hoja con la estética del registro QDV-RG-PG-02_01 (siempre "papel": fondo blanco, bordes negros). */
@@ -33,16 +33,29 @@
   .obj-estado-opt input { display: none; }
   .obj-estado-opt label { display: flex; align-items: center; gap: .5rem; border: 2px solid transparent; border-radius: 8px; padding: .45rem .6rem; cursor: pointer; }
   .obj-estado-opt input:checked + label { border-color: #0d6efd; background: rgba(13,110,253,.08); }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body * { visibility: hidden; }
+    .obj-sheet, .obj-sheet * { visibility: visible; }
+    .obj-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 8pt; }
+    .obj-sheet-scroll { overflow: visible; }
+    .obj-cell-btn, .obj-edit-btn { display: none !important; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 {% endblock %}
 {% block content %}
 {% set estado_bg = obj_estado_colores %}
 <div class="app-page-head">
   <div>
-    <h1 class="app-page-title">Programa de Objetivos</h1>
-    <div class="text-muted small">Registro SGI {{ prog.codigo if prog else 'QDV-RG-PG-02_01' }} · procedimiento PG-02{% if puede_seg %} · Tocá un mes para cambiar su color o cargar el valor del indicador.{% endif %}</div>
+    <h1 class="app-page-title">Programa de Objetivos{% if blanco %} — en blanco{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ prog.codigo if prog else 'QDV-RG-PG-02_01' }} · procedimiento PG-02{% if blanco %} · formulario sin completar{% elif puede_seg %} · Tocá un mes para cambiar su color o cargar el valor del indicador.{% endif %}</div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2 align-items-center">
+    {% if blanco %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('objetivos.hub') }}">Ir al programa</a>
+    {% else %}
     <form method="get" class="d-flex align-items-center gap-1" onchange="window.location = '{{ url_for('objetivos.hub') }}' + this.anio.value">
       <label for="objAnio" class="small text-muted">Año</label>
       <select id="objAnio" name="anio" class="form-select form-select-sm" style="width:auto">
@@ -57,11 +70,12 @@
     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#objEncModal">Encabezado</button>
     {% endif %}
     {% endif %}
+    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">SGC</a>
   </div>
 </div>
 
-{% if not prog %}
+{% if not prog and not blanco %}
 <div class="app-card">
   <div class="app-card-body">
     <p class="mb-3">Todavía no hay Programa de Objetivos para {{ anio }}.</p>
@@ -93,13 +107,17 @@
       <tr>
         <td class="obj-logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
         <td class="obj-title" rowspan="4">PROGRAMA DE OBJETIVOS</td>
-        <td class="obj-meta">{{ prog.codigo }}</td>
+        <td class="obj-meta">{{ prog.codigo if prog else 'QDV-RG-PG-02_01' }}</td>
       </tr>
-      <tr><td class="obj-meta">Fecha de Vigencia: {{ prog.fecha_vigencia.strftime('%d/%m/%Y') if prog.fecha_vigencia else '—' }}</td></tr>
-      <tr><td class="obj-meta">Rev. {{ prog.revision }}</td></tr>
+      <tr><td class="obj-meta">Fecha de Vigencia: {{ prog.fecha_vigencia.strftime('%d/%m/%Y') if prog and prog.fecha_vigencia else '' }}</td></tr>
+      <tr><td class="obj-meta">Rev. {{ prog.revision if prog else '00' }}</td></tr>
       <tr><td class="obj-meta">Página 1 de 1</td></tr>
     </table>
+    {% if blanco %}
+    <div class="obj-act">Fecha de actualización:</div>
+    {% else %}
     <div class="obj-act">Fecha de actualización: <span id="objFechaAct">{{ prog.fecha_actualizacion.strftime('%d/%m/%Y') if prog.fecha_actualizacion else '—' }}</span> · Año {{ anio }}</div>
+    {% endif %}
 
     <table class="obj-grid">
       <thead>
@@ -147,7 +165,13 @@
           {% endfor %}
         </tr>
         {% else %}
+        {% if blanco %}
+        {% for _ in range(filas_vacias) %}
+        <tr>{% for _c in range(7 + obj_mes_anual) %}<td class="{% if loop.index > 7 %}c-mes{% endif %}" style="height:96px"></td>{% endfor %}</tr>
+        {% endfor %}
+        {% else %}
         <tr><td colspan="20" class="text-center text-muted py-4">Sin objetivos cargados.</td></tr>
+        {% endif %}
         {% endfor %}
       </tbody>
     </table>

@@ -41,6 +41,31 @@ def hub():
     return redirect(url_for("objetivos.programa", anio=svc.anio_por_defecto()))
 
 
+@bp.get("/en-blanco")
+@login_required
+def en_blanco():
+    """Planilla vacía del registro (solo encabezado controlado), como el formulario sin completar."""
+    u, _, _, redir = _perfil()
+    if redir is not None:
+        return redir
+    anios = svc.anios_disponibles()
+    ref = svc.get_programa(anios[0]) if anios else None
+    return render_template(
+        "objetivos/programa.html",
+        blanco=True,
+        anio=None,
+        prog=ref,
+        objetivos=[],
+        filas_vacias=8,
+        meses_map=svc.meses_map,
+        anios=[],
+        anio_anterior=None,
+        puede_seg=False,
+        es_admin=False,
+        **svc.labels_context(),
+    )
+
+
 @bp.get("/<int:anio>")
 @login_required
 def programa(anio: int):

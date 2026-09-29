@@ -114,7 +114,7 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
     },
     "objetivos": {
         "label": "Programa de Objetivos",
-        "blank_endpoint": "objetivos.hub",
+        "blank_endpoint": "objetivos.en_blanco",
         "filled_endpoint": "objetivos.hub",
     },
     "planificacion": {

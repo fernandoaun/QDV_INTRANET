@@ -163,4 +163,14 @@ def test_registro_sgi_puede_asociarse_al_modulo(app):
     with app.app_context():
         links = proc.registro_modulo_links("objetivos")
     assert links["label"] == "Programa de Objetivos"
-    assert links["blank_url"] == "/sgi/objetivos/"
+    assert links["blank_url"] == "/sgi/objetivos/en-blanco"
+    assert links["filled_url"] == "/sgi/objetivos/"
+
+
+def test_ver_en_blanco_no_muestra_datos(admin_client, app):
+    _importar(admin_client)
+    html = admin_client.get("/sgi/objetivos/en-blanco").get_data(as_text=True)
+    assert "PROGRAMA DE OBJETIVOS" in html and "QDV-RG-PG-02_01" in html and "ENE" in html
+    assert "Objetivo de Producción" not in html and "Tarea uno" not in html
+    # Ninguna celda de seguimiento con datos ni editable (la leyenda de colores sí se muestra).
+    assert "data-obj=" not in html and "Editar</button>" not in html and "Realizado" in html
