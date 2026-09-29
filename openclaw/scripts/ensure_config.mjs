@@ -41,6 +41,10 @@ function publicOrigins() {
 
 function enableWhatsappPlugin(cfg) {
   cfg.plugins = cfg.plugins || {};
+  // OPENCLAW_PLUGINS_ALLOW=whatsapp,openai,memory-core: carga solo esos plugins.
+  // Con todos los que trae la imagen el gateway pasa los 700 MB (medido 2026-09-29).
+  const allow = parseAllowFrom(process.env.OPENCLAW_PLUGINS_ALLOW);
+  if (allow.length) cfg.plugins.allow = allow;
   cfg.plugins.entries = cfg.plugins.entries || {};
   cfg.plugins.entries.whatsapp = {
     ...(cfg.plugins.entries.whatsapp || {}),

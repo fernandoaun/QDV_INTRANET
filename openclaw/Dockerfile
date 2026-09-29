@@ -19,4 +19,10 @@ ENV OPENCLAW_STATE_DIR=/data/.openclaw \
 
 WORKDIR /app
 EXPOSE 18789
-ENTRYPOINT ["/opt/qdv/docker-entrypoint.sh"]
+# El HEALTHCHECK de la imagen base corre `openclaw` y, con USER root, puede crear
+# /data/.openclaw/state como root antes que el gateway (EACCES al arrancar).
+# /healthz no toca el estado.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=5 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||18789)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# tini (de la imagen base) como PID 1: reenvía señales y cosecha procesos hijos.
+ENTRYPOINT ["tini", "-s", "--", "/opt/qdv/docker-entrypoint.sh"]
