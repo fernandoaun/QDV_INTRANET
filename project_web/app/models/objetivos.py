@@ -10,18 +10,21 @@ def _utc_now() -> datetime:
 
 
 class ObjetivoPrograma(db.Model):
-    """Programa de Objetivos anual (registro SGI QDV-RG-PG-02_01)."""
+    """Programa anual de un registro del PG-02: Objetivos (02_01), CMASS (02_02), … según `tipo`."""
 
     __tablename__ = "objetivos_programas"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    anio = db.Column(db.Integer, nullable=False, unique=True, index=True)
+    tipo = db.Column(db.String(32), nullable=False, default="objetivos", server_default="objetivos", index=True)
+    anio = db.Column(db.Integer, nullable=False, index=True)
     codigo = db.Column(db.String(64), nullable=False, default="QDV-RG-PG-02_01", server_default="QDV-RG-PG-02_01")
     revision = db.Column(db.String(16), nullable=False, default="00", server_default="00")
     fecha_vigencia = db.Column(db.Date, nullable=True)
     fecha_actualizacion = db.Column(db.Date, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, onupdate=_utc_now)
+
+    __table_args__ = (db.UniqueConstraint("tipo", "anio", name="uq_objetivos_programas_tipo_anio"),)
 
     objetivos = db.relationship(
         "Objetivo",
@@ -49,6 +52,7 @@ class Objetivo(db.Model):
     estado_cumplimiento = db.Column(db.String(24), nullable=True)
     recursos = db.Column(db.Text, nullable=False, default="", server_default="")
     frecuencia = db.Column(db.String(64), nullable=False, default="Mensual", server_default="Mensual")
+    observaciones = db.Column(db.Text, nullable=False, default="", server_default="")
     # Baja lógica: el objetivo deja de mostrarse pero se conserva su historial.
     activo = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)

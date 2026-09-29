@@ -40,15 +40,24 @@
   {% endfor %}
 </div>
 
-<div class="app-card mb-4">
-  <div class="app-card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-    <div>
-      <div class="text-muted small mb-1">QDV-RG-PG-02_01</div>
-      <h2 class="h5 mb-0">Programa de Objetivos</h2>
-      <div class="text-muted small">Objetivos, metas e indicadores con seguimiento mensual.</div>
+<div class="row g-3 mb-4">
+  {% for cod, nombre, desc, url in [
+      ('QDV-RG-PG-02_01', 'Programa de Objetivos', 'Objetivos, metas e indicadores con seguimiento mensual.', url_for('objetivos.hub')),
+      ('QDV-RG-PG-02_02', 'Programa CMASS', 'Actividades de calidad, medio ambiente, seguridad y salud.', url_for('objetivos.cmass_hub')),
+  ] %}
+  <div class="col-md-6">
+    <div class="app-card h-100">
+      <div class="app-card-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div>
+          <div class="text-muted small mb-1">{{ cod }}</div>
+          <h2 class="h5 mb-0">{{ nombre }}</h2>
+          <div class="text-muted small">{{ desc }}</div>
+        </div>
+        <a class="btn btn-primary btn-sm" href="{{ url }}">Abrir programa</a>
+      </div>
     </div>
-    <a class="btn btn-primary btn-sm" href="{{ url_for('objetivos.hub') }}">Abrir programa</a>
   </div>
+  {% endfor %}
 </div>
 
 <div class="app-card">

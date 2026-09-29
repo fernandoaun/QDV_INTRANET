@@ -66,18 +66,18 @@ def admin_client(app, client):
 
 def _importar(c, anio=2026):
     return c.post(
-        f"/sgi/objetivos/{anio}/importar",
+        f"/sgi/programas/objetivos/{anio}/importar",
         data={"archivo": (io.BytesIO(_planilla()), "programa.xlsx")},
         content_type="multipart/form-data",
     )
 
 
-def _objetivos(app, anio=2026):
+def _objetivos(app, anio=2026, tipo="objetivos"):
     from app.models import ObjetivoPrograma
     from app.services import objetivos_service as svc
 
     with app.app_context():
-        prog = svc.get_programa(anio)
+        prog = svc.get_programa(tipo, anio)
         assert isinstance(prog, ObjetivoPrograma)
         return prog.codigo, prog.revision, prog.fecha_vigencia, [
             (o.id, o.proceso, o.estado_cumplimiento, o.recursos, {m.mes: (m.estado, m.valor) for m in o.meses})
@@ -102,29 +102,29 @@ def test_importar_planilla_respeta_colores_y_encabezado(admin_client, app):
     _importar(admin_client)
     assert len(_objetivos(app)[3]) == 2
 
-    page = admin_client.get("/sgi/objetivos/2026").get_data(as_text=True)
+    page = admin_client.get("/sgi/programas/objetivos/2026").get_data(as_text=True)
     assert "PROGRAMA DE OBJETIVOS" in page and "Objetivo de Calidad" in page and "#FF0000" in page
 
 
 def test_seguimiento_mes_y_campos_admin(admin_client, app):
     _importar(admin_client)
     oid = _objetivos(app)[3][0][0]
-    r = admin_client.post(f"/sgi/objetivos/objetivo/{oid}/mes", json={"mes": 9, "estado": "en_implementacion", "valor": "55 %"})
+    r = admin_client.post(f"/sgi/programas/fila/{oid}/mes", json={"mes": 9, "estado": "en_implementacion", "valor": "55 %"})
     assert r.status_code == 200 and r.get_json()["ok"] is True
     assert _objetivos(app)[3][0][4][9] == ("en_implementacion", "55 %")
-    assert admin_client.post(f"/sgi/objetivos/objetivo/{oid}/mes", json={"mes": 14, "estado": "na"}).status_code == 400
+    assert admin_client.post(f"/sgi/programas/fila/{oid}/mes", json={"mes": 14, "estado": "na"}).status_code == 400
 
     r = admin_client.post(
-        f"/sgi/objetivos/objetivo/{oid}/editar",
+        f"/sgi/programas/fila/{oid}/editar",
         data={"proceso": "Producción / Ambiente", "objetivo": "Nuevo texto", "recursos": "• Otra", "frecuencia": "Mensual"},
     )
     assert r.status_code in (302, 303)
     assert _objetivos(app)[3][0][1] == "Producción / Ambiente"
 
-    hist = admin_client.get("/sgi/objetivos/2026/historial").get_data(as_text=True)
+    hist = admin_client.get("/sgi/programas/objetivos/2026/historial").get_data(as_text=True)
     assert "Seguimiento SEP" in hist and "55 %" in hist
 
-    x = admin_client.get("/sgi/objetivos/2026/export.xlsx")
+    x = admin_client.get("/sgi/programas/objetivos/2026/export.xlsx")
     assert x.status_code == 200 and x.data[:2] == b"PK"
 
 
@@ -133,28 +133,28 @@ def test_sgi_edita_tareas_y_colores_pero_no_el_objetivo(app, client):
     from app.services import objetivos_service as svc
 
     with app.app_context():
-        prog = svc.crear_programa(2026, None)
+        prog = svc.crear_programa("objetivos", 2026, None)
         obj, errs = svc.alta_objetivo(prog, {"proceso": "Calidad", "objetivo": "Original"}, None)
         db.session.commit()
         oid = obj.id
     c = _make_client(app, client, "pytest_obj_sgi", is_admin=False, rol="sgi")
-    r = c.post(f"/sgi/objetivos/objetivo/{oid}/editar", data={"objetivo": "Cambiado", "recursos": "• Tarea SGI"})
+    r = c.post(f"/sgi/programas/fila/{oid}/editar", data={"objetivo": "Cambiado", "recursos": "• Tarea SGI"})
     assert r.status_code in (302, 303)
     _, _, _, objs = _objetivos(app)
     assert objs[0][3] == "• Tarea SGI"
     with app.app_context():
         assert svc.get_objetivo(oid).objetivo == "Original"
-    assert c.post(f"/sgi/objetivos/objetivo/{oid}/mes", json={"mes": 1, "estado": "realizado"}).get_json()["ok"] is True
+    assert c.post(f"/sgi/programas/fila/{oid}/mes", json={"mes": 1, "estado": "realizado"}).get_json()["ok"] is True
     # Alta y baja son del administrador.
-    c.post("/sgi/objetivos/2026/objetivos", data={"proceso": "X", "objetivo": "Y"})
-    c.post(f"/sgi/objetivos/objetivo/{oid}/baja")
+    c.post("/sgi/programas/objetivos/2026/filas", data={"proceso": "X", "objetivo": "Y"})
+    c.post(f"/sgi/programas/fila/{oid}/baja")
     assert len(_objetivos(app)[3]) == 1
 
 
 def test_sin_acceso_sgi_no_ve_ni_edita(app, client):
     c = _make_client(app, client, "pytest_obj_oper", is_admin=False, rol="operaciones")
-    assert c.get("/sgi/objetivos/2026", follow_redirects=False).status_code in (302, 303)
-    assert c.post("/sgi/objetivos/objetivo/1/mes", json={"mes": 1, "estado": "realizado"}).status_code == 403
+    assert c.get("/sgi/programas/objetivos/2026", follow_redirects=False).status_code in (302, 303)
+    assert c.post("/sgi/programas/fila/1/mes", json={"mes": 1, "estado": "realizado"}).status_code == 403
 
 
 def test_registro_sgi_puede_asociarse_al_modulo(app):
@@ -174,3 +174,112 @@ def test_ver_en_blanco_no_muestra_datos(admin_client, app):
     assert "Objetivo de Producción" not in html and "Tarea uno" not in html
     # Ninguna celda de seguimiento con datos ni editable (la leyenda de colores sí se muestra).
     assert "data-obj=" not in html and "Editar</button>" not in html and "Realizado" in html
+
+
+def test_url_vieja_de_objetivos_redirige(admin_client):
+    r = admin_client.get("/sgi/objetivos/2026", follow_redirects=False)
+    assert r.status_code in (302, 303) and r.headers["Location"].endswith("/sgi/programas/objetivos/2026")
+
+
+# ---------------------------------------------------------------- Programa CMASS (QDV-RG-PG-02_02)
+
+
+def _planilla_cmass() -> bytes:
+    """Misma estructura que el registro QDV-RG-PG-02_02 (datos ficticios)."""
+    import openpyxl
+    from openpyxl.styles import PatternFill
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws["C1"] = "PROGRAMA CMASS"
+    ws["S1"] = "QDV-RG-PG-02_02      "
+    ws["S2"] = "Fecha de Vigencia: 22/9/2026"
+    ws["S3"] = "Rev. 00"
+    ws["A5"] = "PROCESO"
+    ws["B5"] = "Fecha de actualización: 22/09/2026"
+    ws["B6"], ws["F6"], ws["G6"], ws["S6"] = "ACTIVIDADES", "FRECUENCIA", "AÑO 2026", "OBSERVACIONES"
+    for i, m in enumerate(("ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC")):
+        ws.cell(7, 7 + i, m)
+    verde, rojo, gris = (PatternFill("solid", fgColor=c) for c in ("FF92D050", "FFFF0000", "FF808080"))
+    ws.merge_cells("A8:A9")
+    ws["A8"] = "SGC"
+    ws.merge_cells("A10:A11")
+    ws["A10"] = "HSE"
+    filas = [
+        ("Seguimiento de no conformidades", "Mensual", {7: ("R", verde), 8: ("R", verde)}),
+        ("Seguimiento de objetivos", "Mensual", {}),
+        ("Check list extintores", "Semestral", {12: ("A", rojo), 13: ("C", verde), 15: ("P", gris)}),
+        ("Check list botiquín", "Semestral", {13: ("P", None)}),
+    ]
+    for r, (act, frec, meses) in enumerate(filas, start=8):
+        ws.cell(r, 2, act)
+        ws.cell(r, 6, frec)
+        for c, (letra, fill) in meses.items():
+            ws.cell(r, c, letra)
+            if fill is not None:
+                ws.cell(r, c).fill = fill
+    ws["S10"] = "Vence en diciembre"
+    ws["B13"].fill = verde
+    ws["C13"] = "Realizado"
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_cmass_importa_procesos_agrupados_letras_y_observaciones(admin_client, app):
+    r = admin_client.post(
+        "/sgi/programas/cmass/2026/importar",
+        data={"archivo": (io.BytesIO(_planilla_cmass()), "cmass.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code in (302, 303)
+    codigo, rev, vig, filas = _objetivos(app, tipo="cmass")
+    assert codigo == "QDV-RG-PG-02_02"
+    assert [f[1] for f in filas] == ["SGC", "SGC", "HSE", "HSE"]
+    assert filas[0][4] == {1: ("realizado", "R"), 2: ("realizado", "R")}
+    assert filas[2][4] == {6: ("atrasado", "A"), 7: ("realizado", "C"), 9: ("programado", "P")}
+    # «P» sin relleno se interpreta como programado.
+    assert filas[3][4] == {7: ("programado", "P")}
+    with app.app_context():
+        from app.services import objetivos_service as svc
+
+        assert svc.get_objetivo(filas[2][0]).observaciones == "Vence en diciembre"
+        # Objetivos y CMASS del mismo año conviven.
+        assert svc.get_programa("objetivos", 2026) is None
+
+    page = admin_client.get("/sgi/programas/cmass/2026").get_data(as_text=True)
+    assert "PROGRAMA CMASS" in page and "OBSERVACIONES" in page and 'rowspan="2"' in page and "<th>ANUAL</th>" not in page
+    assert admin_client.post(f"/sgi/programas/fila/{filas[0][0]}/mes", json={"mes": 13, "estado": "realizado"}).status_code == 400
+    assert admin_client.post(f"/sgi/programas/fila/{filas[0][0]}/mes", json={"mes": 3, "estado": "en_implementacion"}).status_code == 400
+    ok = admin_client.post(f"/sgi/programas/fila/{filas[0][0]}/mes", json={"mes": 3, "estado": "programado", "valor": "P"})
+    assert ok.get_json()["ok"] is True
+
+    x = admin_client.get("/sgi/programas/cmass/2026/export.xlsx")
+    assert x.status_code == 200 and x.data[:2] == b"PK"
+
+    blanco = admin_client.get("/sgi/cmass/en-blanco").get_data(as_text=True)
+    assert "PROGRAMA CMASS" in blanco and "QDV-RG-PG-02_02" in blanco
+    assert "Seguimiento de no conformidades" not in blanco and "data-obj=" not in blanco
+
+
+def test_cmass_alta_queda_al_final_de_su_proceso(admin_client, app):
+    admin_client.post(
+        "/sgi/programas/cmass/2026/importar",
+        data={"archivo": (io.BytesIO(_planilla_cmass()), "cmass.xlsx")},
+        content_type="multipart/form-data",
+    )
+    admin_client.post("/sgi/programas/cmass/2026/filas", data={"proceso": "SGC", "objetivo": "Auditoría interna", "frecuencia": "Anual"})
+    assert [(f[1]) for f in _objetivos(app, tipo="cmass")[3]] == ["SGC", "SGC", "SGC", "HSE", "HSE"]
+    with app.app_context():
+        from app.services import objetivos_service as svc
+
+        prog = svc.get_programa("cmass", 2026)
+        assert [o.objetivo for o in svc.objetivos_activos(prog)][2] == "Auditoría interna"
+
+
+def test_cmass_registro_sgi(app):
+    from app.services import sgi_procedimiento_service as proc
+
+    with app.app_context():
+        links = proc.registro_modulo_links("cmass")
+    assert links == {"label": "Programa CMASS", "blank_url": "/sgi/cmass/en-blanco", "filled_url": "/sgi/cmass/"}

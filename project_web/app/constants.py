@@ -117,6 +117,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "objetivos.en_blanco",
         "filled_endpoint": "objetivos.hub",
     },
+    "cmass": {
+        "label": "Programa CMASS",
+        "blank_endpoint": "objetivos.cmass_en_blanco",
+        "filled_endpoint": "objetivos.cmass_hub",
+    },
     "planificacion": {
         "label": "Planificación",
         "blank_endpoint": "planificacion.nueva",

@@ -1,25 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Historial · Programa de Objetivos {{ anio }} · QDV{% endblock %}
+{% block title %}Historial · {{ tp.nombre }} {{ anio }} · QDV{% endblock %}
 {% block content %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Historial de cambios</h1>
-    <div class="text-muted small">Programa de Objetivos {{ anio }} · {{ prog.codigo }} · últimos {{ cambios|length }} cambios</div>
+    <div class="text-muted small">{{ tp.nombre }} {{ anio }} · {{ prog.codigo }} · últimos {{ cambios|length }} cambios</div>
   </div>
   <div class="app-page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('objetivos.programa', anio=anio) }}">← Programa</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('objetivos.programa', tipo=tp.clave, anio=anio) }}">← Programa</a>
   </div>
 </div>
 <div class="app-card">
   <div class="table-responsive">
     <table class="table table-sm align-middle mb-0">
-      <thead><tr><th>Fecha</th><th>Usuario</th><th>Objetivo</th><th>Qué</th><th>Antes</th><th>Después</th></tr></thead>
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>{{ tp.fila|capitalize }}</th><th>Qué</th><th>Antes</th><th>Después</th></tr></thead>
       <tbody>
         {% for c in cambios %}
         <tr>
           <td class="text-nowrap small">{{ fecha_local(c.created_at) }}</td>
           <td class="small">{{ c.user.username if c.user else '—' }}</td>
-          <td class="small">{{ c.objetivo_rel.proceso if c.objetivo_rel else '—' }}</td>
+          <td class="small">{{ (c.objetivo_rel.proceso ~ ' · ' ~ c.objetivo_rel.objetivo[:50]) if c.objetivo_rel else '—' }}</td>
           <td class="small">{% if c.campo.startswith('mes:') %}Seguimiento {{ c.campo[4:] }}{% else %}{{ obj_campo_labels.get(c.campo, c.campo) }}{% endif %}</td>
           <td class="small text-muted" style="max-width:22rem;white-space:pre-line">{{ c.antes or '' }}</td>
           <td class="small" style="max-width:22rem;white-space:pre-line">{{ c.despues or '' }}</td>
