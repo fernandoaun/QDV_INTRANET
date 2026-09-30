@@ -10,6 +10,7 @@ from app.auth_utils import current_user
 from app.extensions import db
 from app.models import Operador
 from app.services import shift_handover_service as sh
+from app.user_roles import user_is_responsable_laboratorio
 from app.utils.datetime_operacion import now_operacion_naive_local
 
 
@@ -23,6 +24,8 @@ def now_local() -> datetime:
 
 def default_operador_for_salmuera() -> str:
     u = current_user()
+    if u is not None and user_is_responsable_laboratorio(u):
+        return sh.operador_responsable_para_carga(u)
     if u and (u.username or "").strip():
         return (u.username or "").strip()
     op = db.session.scalar(select(Operador.nombre).order_by(Operador.nombre).limit(1))

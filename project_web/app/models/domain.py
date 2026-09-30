@@ -35,6 +35,8 @@ class SalmueraRegistro(db.Model):
     declor_ph = db.Column(db.Float, nullable=False)
     orp = db.Column(db.Float)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     lote = db.Column(db.String(128))
     observaciones = db.Column(db.Text)
     atraso_motivo = db.Column(db.Text)
@@ -50,6 +52,8 @@ class SalmueraAnalisis8hs(db.Model):
     fecha_hora_iso = db.Column(db.String(32), nullable=False, index=True)
     turno = db.Column(db.String(64), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     dureza_salmuera = db.Column(db.Float, nullable=False)
     cloro_libre_salmuera = db.Column(db.Float, nullable=False)
     observaciones = db.Column(db.Text)
@@ -74,6 +78,8 @@ class ReactorRegistro(db.Model):
     fecha_iso = db.Column(db.String(16), nullable=False, index=True)
     hora_hm = db.Column(db.String(8), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     lote = db.Column(db.String(128), nullable=False)
     ph = db.Column(db.Float, nullable=False)
     temperatura = db.Column(db.Float, nullable=False)
@@ -100,6 +106,8 @@ class AguaRegistro(db.Model):
     hora_hm = db.Column(db.String(8), nullable=False)
     turno = db.Column(db.String(64), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     lote = db.Column(db.String(128), nullable=False)
     numero_columna = db.Column(db.Integer, nullable=False)
     temperatura = db.Column(db.Float, nullable=False)
@@ -117,6 +125,8 @@ class FiltroLavadoRegistro(db.Model):
     fecha_iso = db.Column(db.String(16), nullable=False, index=True)
     hora_hm = db.Column(db.String(8), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     observaciones = db.Column(db.Text)
     created_at_iso = db.Column(db.String(32), nullable=False)
 
@@ -183,6 +193,8 @@ class ConsumoStock(db.Model):
     fecha = db.Column(db.String(16), nullable=False)
     hora = db.Column(db.String(8), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     observaciones = db.Column(db.Text)
     equipo_id = db.Column(db.Integer, db.ForeignKey("equipos.id"))
     ingreso_stock_id = db.Column(db.Integer, db.ForeignKey("ingresos_stock.id"), nullable=True, index=True)
@@ -200,6 +212,8 @@ class StockAjuste(db.Model):
     fecha = db.Column(db.String(16), nullable=False, index=True)
     hora = db.Column(db.String(8), nullable=False)
     operador = db.Column(db.String(256), nullable=False)
+    # Usuario que hizo la carga (puede no ser el operador responsable del turno).
+    cargado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
     motivo = db.Column(db.String(256), nullable=False)
     observaciones = db.Column(db.Text)
     ingreso_stock_id = db.Column(db.Integer, db.ForeignKey("ingresos_stock.id"), nullable=True, index=True)

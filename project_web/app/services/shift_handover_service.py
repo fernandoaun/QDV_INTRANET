@@ -39,6 +39,7 @@ from app.user_roles import (
     ROLE_MANTENIMIENTO_OPERACIONES,
     ROLE_OPERACIONES,
     normalize_stored_rol,
+    user_is_responsable_laboratorio,
 )
 
 SESSION_KEY_SHIFT_DECLINED = "shift_operational_declined"
@@ -154,10 +155,22 @@ def format_shift_operator_display(sess: ShiftSession | None) -> str:
     return base
 
 
+def operador_responsable_para_carga(user: User, open_s: ShiftSession | None = None) -> str:
+    """Responsable de laboratorio: lo que carga queda a nombre del operador del turno abierto.
+    Sin turno abierto queda a su nombre, marcado «(sin turno)»."""
+    os = open_s if open_s is not None else get_open_shift_session()
+    responsable = format_shift_operator_display(os) if os is not None else ""
+    if responsable:
+        return responsable
+    return f"{user_display_name(user) or (user.username or '').strip()} (sin turno)"
+
+
 def operador_turno_display_line(user: User | None, open_s: ShiftSession | None = None) -> str:
     """Línea de operador para formularios del usuario actual y su turno abierto (si es titular)."""
     if user is None:
         return ""
+    if user_is_responsable_laboratorio(user):
+        return operador_responsable_para_carga(user, open_s)
     os = open_s if open_s is not None else get_open_shift_session()
     if os is not None and int(os.user_id) == int(user.id):
         return format_shift_operator_display(os)

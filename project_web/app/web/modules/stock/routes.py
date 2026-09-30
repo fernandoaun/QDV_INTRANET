@@ -17,6 +17,7 @@ from app.auth_utils import (
     user_can_view_stock_ingreso_categoria,
 )
 from app.services import stock_service
+from app.user_roles import user_is_responsable_laboratorio
 from app.web.modules.produccion.operativa_context import (
     default_operador_for_salmuera,
     now_local,
@@ -137,8 +138,9 @@ def register_stock_routes(bp: Blueprint) -> None:
     @login_required
     def stock_ajustes():
         u = current_user()
-        if u is None or not bool(getattr(u, "is_admin", False)):
-            flash("Solo administradores pueden registrar ajustes de stock.", "warning")
+        # Conteos: administrador o responsable de laboratorio (queda como quien ajustó).
+        if u is None or not (bool(getattr(u, "is_admin", False)) or user_is_responsable_laboratorio(u)):
+            flash("Solo administradores y el responsable de laboratorio pueden registrar ajustes de stock.", "warning")
             return redirect(url_for("produccion.stock_hub"))
         cat = (request.values.get("categoria") or "materia_prima").strip()
         producto = (request.values.get("producto") or "").strip()

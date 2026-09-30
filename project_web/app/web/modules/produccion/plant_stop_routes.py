@@ -6,6 +6,7 @@ from typing import Any
 from flask import Blueprint, current_app, jsonify, request
 
 from app.auth_utils import current_user, login_required, user_can
+from app.user_roles import user_is_responsable_laboratorio
 from app.constants import AGUA_ANALYSIS_INTERVAL_SECONDS, ANALYSIS_INTERVAL_SECONDS, FILTRO_LAVADO_INTERVAL_SECONDS
 from app.services import filtro_lavado_service as filtro_svc
 from app.services import plant_stop_service as ps
@@ -62,6 +63,9 @@ def register_plant_stop_routes(bp: Blueprint) -> None:
 
         if circuit_key not in ps.VALID_CIRCUIT_KEYS:
             return jsonify({"ok": False, "error": "Circuito no válido."}), 400
+
+        if user_is_responsable_laboratorio(u):
+            return jsonify({"ok": False, "error": "Las paradas de planta las registra el operador de turno."}), 403
 
         perm = _CIRCUIT_PERM.get(circuit_key)
         if perm and not user_can(u, perm):

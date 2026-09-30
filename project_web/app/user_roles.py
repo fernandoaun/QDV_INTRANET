@@ -5,6 +5,9 @@ Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 - «sgi»: vista global en todo el sistema, con edición limitada al módulo SGI.
 - «administracion»: carga ingresos de materia prima y laboratorio (stock); no toma turno operativo.
 - «mantenimiento_operaciones»: plantilla unión de mantenimiento + operaciones; puede tomar turno de planta.
+- «responsable_laboratorio»: carga análisis, stock (ingresos, consumos, conteos/ajustes) y entregas con su usuario, en su
+  horario y sin tomar turno. La responsabilidad sigue en el operador: lo que carga queda con el operador del turno abierto
+  (o «(sin turno)» si no hay) y ella como «cargado por». No registra paradas de planta.
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
 - Los permisos finales = plantilla del rol + recursos del puesto (organigrama), aplicando filas en `permisos_usuario` como overrides:
@@ -30,6 +33,7 @@ ROLE_MANTENIMIENTO_OPERACIONES = "mantenimiento_operaciones"
 ROLE_SOLO_LECTURA_TOTAL = "solo_lectura_total"
 ROLE_SGI = "sgi"
 ROLE_LABORATORISTA = "laboratorista"
+ROLE_RESPONSABLE_LABORATORIO = "responsable_laboratorio"
 
 USER_ROLES_ORDERED: tuple[str, ...] = (
     ROLE_ADMINISTRADOR,
@@ -40,6 +44,7 @@ USER_ROLES_ORDERED: tuple[str, ...] = (
     ROLE_MANTENIMIENTO_OPERACIONES,
     ROLE_SOLO_LECTURA_TOTAL,
     ROLE_SGI,
+    ROLE_RESPONSABLE_LABORATORIO,
     ROLE_LABORATORISTA,
 )
 
@@ -52,6 +57,7 @@ ROLE_LABELS: dict[str, str] = {
     ROLE_MANTENIMIENTO_OPERACIONES: "Mantenimiento y operaciones",
     ROLE_SOLO_LECTURA_TOTAL: "Angel",
     ROLE_SGI: "SGC",
+    ROLE_RESPONSABLE_LABORATORIO: "Responsable de laboratorio",
     ROLE_LABORATORISTA: "Laboratorista",
 }
 
@@ -74,6 +80,8 @@ _LEGACY_ALIASES: dict[str, str] = {
     "pasante": ROLE_LABORATORISTA,
     "practicante": ROLE_LABORATORISTA,
     "pasant": ROLE_LABORATORISTA,
+    "responsable de laboratorio": ROLE_RESPONSABLE_LABORATORIO,
+    "responsable_lab": ROLE_RESPONSABLE_LABORATORIO,
     "angel": ROLE_SOLO_LECTURA_TOTAL,
     "read_only_full": ROLE_SOLO_LECTURA_TOTAL,
     "solo_lectura": ROLE_SOLO_LECTURA_TOTAL,
@@ -155,7 +163,17 @@ _BASE_MANTENIMIENTO: frozenset[str] = frozenset(
     }
 )
 
+# Operaciones (análisis, stock, carga de camiones) + programar y marcar entregas como entregadas.
+_BASE_RESPONSABLE_LABORATORIO: frozenset[str] = _BASE_OPERACIONES | frozenset({"entregas_programar", "entregas_entregar"})
+
 _ALL_PERM_KEYS: frozenset[str] = frozenset(PERMISSION_KEYS)
+
+
+def user_is_responsable_laboratorio(user: object | None) -> bool:
+    """Carga en nombre del turno sin tomarlo (ver docstring del módulo)."""
+    if user is None or bool(getattr(user, "is_admin", False)):
+        return False
+    return normalize_stored_rol(getattr(user, "rol", None)) == ROLE_RESPONSABLE_LABORATORIO
 
 
 def normalize_stored_rol(raw: str | None) -> str:
@@ -240,6 +258,9 @@ def _base_view_edit_for_effective_role(effective: str) -> tuple[set[str], set[st
         return v, set(v)
     if effective == ROLE_MANTENIMIENTO_OPERACIONES:
         v = (set(_BASE_OPERACIONES) | set(_BASE_MANTENIMIENTO)) & keys
+        return v, set(v)
+    if effective == ROLE_RESPONSABLE_LABORATORIO:
+        v = set(_BASE_RESPONSABLE_LABORATORIO) & keys
         return v, set(v)
     if effective == ROLE_SGI:
         return set(_ALL_PERM_KEYS), {"sgi_documentos_edit", "archivo_edit"}

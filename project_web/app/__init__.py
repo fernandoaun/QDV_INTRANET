@@ -184,6 +184,10 @@ def create_app() -> Flask:
 
     register_api_bearer(api_v1_bp)
     app.register_blueprint(api_v1_bp)
+
+    from app.services import carga_usuario_service
+
+    carga_usuario_service.register()
     csrf.exempt(api_v1_bp)
 
     cors_origins = app.config.get("CORS_ORIGINS") or []
@@ -378,7 +382,13 @@ def create_app() -> Flask:
         from app.services import planificacion_service as _planificacion_service
         from app.services import personal_service as _personal_service
         from app.services.entregas_service import entrega_pendiente_logistica as _entrega_pendiente_logistica
-        from app.user_roles import ROLE_LABELS, USER_ROLES_ORDERED, role_label, user_is_global_read_only
+        from app.user_roles import (
+            ROLE_LABELS,
+            USER_ROLES_ORDERED,
+            role_label,
+            user_is_global_read_only,
+            user_is_responsable_laboratorio,
+        )
         from flask import request
 
         try:
@@ -425,6 +435,7 @@ def create_app() -> Flask:
             "user_can_edit": (lambda perm: _user_can_edit(u, perm)),
             "user_can_view_admin_configuration": (lambda: _user_can_view_admin_configuration(u)),
             "user_is_global_read_only": (lambda: user_is_global_read_only(u)),
+            "user_is_responsable_laboratorio": user_is_responsable_laboratorio(u),
             "page_can_edit_current": _page_can_edit_effective(u, request.endpoint, flask_session),
             "user_can_production_hub": user_can_access_production_hub(u),
             "user_can_entregas_hub": user_can_access_entregas_hub(u),
