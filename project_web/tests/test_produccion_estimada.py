@@ -89,3 +89,42 @@ def test_pantalla_de_configuracion(auth_client):
     assert "Producción estimada de hipoclorito" in html and "Electrolizador 2" in html and "Margen para cargar" in html
     r = auth_client.post("/admin/produccion-estimada", data={"horas_turno": "8", "margen_carga_pct": "90", "litros_e2": "1500", "litros_e3": "1500"})
     assert r.status_code in (302, 303)
+
+
+def test_turno_entregado_sin_recepcionar_parte_de_lo_declarado(app):
+    """Caso real del 01/10: cierre recepcionado 3.000 L, turno entregado (sin recepcionar) declarando 1.000 L.
+    El stock tiene que partir de los 1.000 L medidos, no volver a sumar la producción de ese turno."""
+    from app.extensions import db
+    from app.models import Entrega, ShiftHandover, ShiftSession, User
+    from app.services import operational_informed_stock as st
+    from app.services import shift_handover_service as sh
+
+    with app.app_context():
+        ahora = datetime.fromisoformat(sh.now_local_iso())
+        iso = lambda h: (ahora - timedelta(hours=h)).isoformat(timespec="seconds")  # noqa: E731
+        u = User(username="pytest_pendiente", password_hash="x", is_admin=False, activo=True, rol="operaciones")
+        db.session.add(u)
+        db.session.flush()
+        s1 = ShiftSession(user_id=u.id, effective_role="operaciones", started_at_iso=iso(16), ended_at_iso=iso(8),
+                          status="closed", created_at_iso=iso(16), updated_at_iso=iso(8))
+        s2 = ShiftSession(user_id=u.id, effective_role="operaciones", started_at_iso=iso(7), ended_at_iso=iso(0.5),
+                          status="closed", created_at_iso=iso(7), updated_at_iso=iso(0.5))
+        db.session.add_all([s1, s2])
+        db.session.flush()
+        db.session.add(ShiftHandover(shift_session_id=s1.id, outgoing_user_id=u.id, shift_started_at_iso=iso(16),
+                                     handed_over_at_iso=iso(8), received_at_iso=iso(7), hypochlorite_stock_liters=3000.0,
+                                     status=sh.HANDOVER_RECEIVED, created_at_iso=iso(8), updated_at_iso=iso(7)))
+        db.session.add(ShiftHandover(shift_session_id=s2.id, outgoing_user_id=u.id, shift_started_at_iso=iso(7),
+                                     handed_over_at_iso=iso(0.5), hypochlorite_stock_liters=1000.0,
+                                     status=sh.HANDOVER_PENDING, created_at_iso=iso(0.5), updated_at_iso=iso(0.5)))
+        # Camión cargado durante el turno ya entregado: ya está reflejado en los 1.000 L declarados.
+        db.session.add(Entrega(cliente="C", lugar_entrega="P", producto="Hipoclorito", cantidad=3500.0, unidad="L",
+                               fecha_prevista=iso(3)[:10], estado="cargada", created_at_iso=iso(3),
+                               updated_at_iso=iso(3), cargada_at_iso=iso(3)))
+        db.session.commit()
+
+        c = st.get_stock_components()
+        assert c["s0"] == 1000.0 and c["cargas"] == 0.0
+        # Media hora desde la entrega con los dos electrolizadores: 0,5 h × 375 L/h.
+        assert c["produccion_estimada"] == pytest.approx(187.5, abs=2)
+        assert st.get_instant_stock() == pytest.approx(1187.5, abs=2)

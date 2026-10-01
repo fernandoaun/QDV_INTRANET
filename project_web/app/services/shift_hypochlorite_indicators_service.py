@@ -19,12 +19,10 @@ Definición obligatoria (no mezclar con otras fórmulas):
   de hipoclorito con `cargado_por` = usuario **administrador** (`User.is_admin`),
   todos contados **desde el inicio operativo** de ese turno hasta ahora (ISO local).
 
-- Stock al inicio del turno: lo declarado al **cierre recepcionado inmediatamente anterior**
-  (última fila `shift_handovers` con status received y stock válido); es el volumen con el que
-  arrancó el turno en curso o el de la partida pendiente.
-- Inicio operativo (ancla T0): inicio de sesión de turno del `ShiftHandover` pendiente de
-  recepción si existe; si no, `started_at_iso` de la `ShiftSession` abierta; si no hay
-  ni pendiente ni sesión, `received_at_iso` del último turno recepcionado.
+- Base: si hay un turno **entregado y pendiente de recepción** con stock válido, lo declarado en esa
+  entrega, desde la hora de la entrega (es la última medición real del tanque). Si no, lo declarado al
+  **cierre recepcionado inmediatamente anterior**, desde el `started_at_iso` de la `ShiftSession`
+  abierta o, si no hay sesión, desde `received_at_iso` de ese cierre.
 - Cargas: `Entrega` de hipoclorito con `cargada_at_iso` en [T0, ahora].
 - Ingresos administrativos: `ingresos_stock` PT + join a `User.is_admin` + ventana de tiempo.
 
@@ -158,14 +156,16 @@ def _resolve_s0_t0_instant(
     Stock al inicio del turno en curso = cierre del último handover recepcionado; ancla
     de tiempo T0 según partida pendiente, sesión abierta o, en última instancia, recepción.
     """
+    pending = sh.get_pending_handover()
+    if pending is not None and _finite_non_negative_stock(pending.hypochlorite_stock_liters):
+        # Turno entregado y sin recepcionar: lo declarado al entregar es la medición más reciente del tanque
+        # (ya incluye la producción de ese turno). Se toma como base desde la hora de la entrega.
+        t0 = (pending.handed_over_at_iso or "").strip()
+        if t0:
+            return float(pending.hypochlorite_stock_liters), t0
     if not handovers:
         return None
     s0 = float(handovers[0].hypochlorite_stock_liters)
-    pending = sh.get_pending_handover()
-    if pending is not None and _finite_non_negative_stock(pending.hypochlorite_stock_liters):
-        t0 = (pending.shift_started_at_iso or "").strip()
-        if t0:
-            return s0, t0
     open_s = sh.get_open_shift_session()
     if open_s is not None:
         t0 = (open_s.started_at_iso or "").strip()
@@ -312,7 +312,7 @@ def _pending_handover_panel_extra() -> tuple[str | None, int | None]:
         f"Entrega de turno sin recepcionar: {liters} de hipoclorito declarado al cierre"
         + (f" ({closed})" if closed else "")
         + ". Recepcioná el parte para continuar el ciclo. La producción del panel sigue "
-        "siendo del último turno ya recepcionado; el stock instantáneo se calcula con el turno en trámite o el en curso."
+        "siendo del último turno ya recepcionado; el stock instantáneo parte de lo declarado en esta entrega."
     )
     return msg, int(ho.id)
 
