@@ -15,6 +15,11 @@
     <div class="app-card-body">
       <form method="post" class="row g-3">
         {% include "_csrf.html" %}
+        <div class="col-12">
+          <label class="form-label" for="nombreProd">Nombre</label>
+          <input class="form-control" id="nombreProd" name="nombre_producto" maxlength="256" required value="{{ p.nombre_producto }}">
+          <div class="form-text">Si lo renombrás, los ingresos, consumos y ajustes ya cargados pasan al nombre nuevo. Si el nombre correcto ya existe en el catálogo, usá <strong>Unificar</strong> (abajo).</div>
+        </div>
         <div class="col-md-6">
           <label class="form-label" for="catDest">Categoría</label>
           <select class="form-select" id="catDest" name="nueva_categoria" required>
@@ -56,10 +61,42 @@
         </div>
       </form>
       <hr>
-      <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar', pid=p.id) }}" onsubmit="return confirm('¿Quitar este producto del catálogo? Dejará de aparecer en ingresos y consumos. El historial no se borra.');">
+      <h2 class="h6">Unificar con otro producto (duplicados)</h2>
+      <p class="small text-muted mb-2">Si «{{ p.nombre_producto }}» es el mismo producto que otro cargado con distinto nombre, elegí el correcto: todos sus ingresos, consumos, ajustes y stock pasan a ese producto y este queda dado de baja. No se puede deshacer desde la pantalla.</p>
+      <form method="post" action="{{ url_for('produccion.stock_catalogo_unificar', pid=p.id) }}" class="row g-2 align-items-end mb-3"
+            onsubmit="var s=this.destino_id; return s.value && confirm('¿Unificar «{{ p.nombre_producto|e }}» en «' + s.options[s.selectedIndex].text + '»? Todo su historial y stock pasa a ese producto y este queda dado de baja.');">
         {% include "_csrf.html" %}
-        <button type="submit" class="btn btn-outline-danger btn-sm">Quitar del catálogo</button>
+        <div class="col-md-8">
+          <label class="form-label small mb-0" for="destinoId">Producto correcto</label>
+          <select class="form-select" id="destinoId" name="destino_id" required>
+            <option value="">Elegí…</option>
+            {% for cat_key, cat_lbl in [('materia_prima', 'Materia prima'), ('laboratorio', 'Laboratorio'), ('producto_terminado', 'Producto terminado')] %}
+            {% set de_cat = otros|selectattr('categoria', 'equalto', cat_key)|list %}
+            {% if de_cat %}
+            <optgroup label="{{ cat_lbl }}">
+              {% for o in de_cat %}<option value="{{ o.id }}">{{ o.nombre_producto }}</option>{% endfor %}
+            </optgroup>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4"><button type="submit" class="btn btn-outline-primary w-100">Unificar</button></div>
       </form>
+      <hr>
+      <div class="d-flex flex-wrap gap-2">
+        <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar', pid=p.id) }}" onsubmit="return confirm('¿Dar de baja este producto? Deja de aparecer en ingresos y consumos. El historial no se borra.');">
+          {% include "_csrf.html" %}
+          <button type="submit" class="btn btn-outline-danger btn-sm">Dar de baja</button>
+        </form>
+        {% if n_movimientos == 0 %}
+        <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar_definitivo', pid=p.id) }}" onsubmit="return confirm('¿Eliminar definitivamente «{{ p.nombre_producto|e }}»? No tiene movimientos cargados.');">
+          {% include "_csrf.html" %}
+          <button type="submit" class="btn btn-danger btn-sm">Eliminar definitivamente</button>
+        </form>
+        {% else %}
+        <span class="small text-muted align-self-center">Tiene {{ n_movimientos }} movimiento(s): se puede dar de baja o unificar, pero no eliminar.</span>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>

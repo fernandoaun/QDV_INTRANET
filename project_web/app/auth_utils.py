@@ -448,6 +448,15 @@ def stock_catalogo_categorias_editables(user: User | None) -> list[str]:
     return cats
 
 
+def user_can_manage_stock_catalogo(user: User | None) -> bool:
+    """Editar, renombrar, unificar duplicados y eliminar productos del catálogo: administrador o responsable de laboratorio."""
+    from app.user_roles import user_is_responsable_laboratorio
+
+    if user is None:
+        return False
+    return bool(user.is_admin) or user_is_responsable_laboratorio(user)
+
+
 def user_can_edit_stock_catalogo_alta(user: User | None) -> bool:
     """Alta de producto en catálogo (sin stock): mismo criterio que edición de ingreso MP o laboratorio."""
     return bool(stock_catalogo_categorias_editables(user))

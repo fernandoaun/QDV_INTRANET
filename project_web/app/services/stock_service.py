@@ -1469,6 +1469,94 @@ def update_catalog_product_admin(
     after_stock_mutation(str(row.categoria), str(row.nombre_producto))
 
 
+def _mover_movimientos(old_c: str, old_n: str, new_c: str, new_n: str) -> dict[str, int]:
+    """Pasa ingresos, consumos y ajustes (y el vínculo con productos terminados) de un nombre a otro."""
+    from app.models import ProductoTerminado, StockCriticalAlertSent
+
+    out: dict[str, int] = {}
+    for nombre, model in (("ingresos", IngresoStock), ("consumos", ConsumoStock), ("ajustes", StockAjuste)):
+        r = db.session.execute(
+            update(model).where(model.categoria == old_c, model.producto == old_n).values(categoria=new_c, producto=new_n)
+        )
+        out[nombre] = int(r.rowcount or 0)
+    r = db.session.execute(
+        update(ProductoTerminado).where(ProductoTerminado.stock_producto == old_n).values(stock_producto=new_n)
+    )
+    out["productos_terminados"] = int(r.rowcount or 0)
+    # El estado de «aviso crítico enviado» se recalcula con el nombre nuevo.
+    db.session.query(StockCriticalAlertSent).filter(
+        StockCriticalAlertSent.categoria == old_c, StockCriticalAlertSent.producto == old_n
+    ).delete(synchronize_session=False)
+    return out
+
+
+def contar_movimientos_catalogo(producto_id: int) -> int:
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None:
+        return 0
+    c, n = str(row.categoria or ""), str(row.nombre_producto or "")
+    return sum(
+        int(db.session.scalar(select(func.count()).select_from(m).where(m.categoria == c, m.producto == n)) or 0)
+        for m in (IngresoStock, ConsumoStock, StockAjuste)
+    )
+
+
+def rename_catalog_product(producto_id: int, nuevo_nombre: str) -> None:
+    """Cambia el nombre del producto y de todos sus movimientos. No hace commit."""
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None or not bool(getattr(row, "activo", True)):
+        raise ValueError("Producto no encontrado.")
+    nuevo = " ".join((nuevo_nombre or "").split())[:256]
+    viejo = str(row.nombre_producto or "").strip()
+    if not nuevo:
+        raise ValueError("El nombre no puede quedar vacío.")
+    if nuevo == viejo:
+        return
+    otro = db.session.execute(
+        select(ProductoCatalogo).where(
+            ProductoCatalogo.categoria == row.categoria,
+            func.lower(func.trim(ProductoCatalogo.nombre_producto)) == nuevo.lower(),
+            ProductoCatalogo.id != int(row.id),
+        )
+    ).scalar_one_or_none()
+    if otro is not None:
+        if bool(getattr(otro, "activo", True)):
+            raise ValueError(f"Ya existe «{otro.nombre_producto}» en esta categoría. Si es el mismo producto, usá «Unificar».")
+        raise ValueError(f"Hay un producto dado de baja que se llama «{otro.nombre_producto}». Elegí otro nombre.")
+    _mover_movimientos(str(row.categoria), viejo, str(row.categoria), nuevo)
+    row.nombre_producto = nuevo
+
+
+def merge_catalog_products(duplicado_id: int, destino_id: int) -> dict[str, int]:
+    """Unifica un producto duplicado en otro: mueve todo su historial y stock y lo da de baja. Hace commit."""
+    dup = db.session.get(ProductoCatalogo, int(duplicado_id))
+    dst = db.session.get(ProductoCatalogo, int(destino_id))
+    if dup is None or not bool(getattr(dup, "activo", True)):
+        raise ValueError("Producto a unificar no encontrado.")
+    if dst is None or not bool(getattr(dst, "activo", True)):
+        raise ValueError("Elegí un producto activo del catálogo para unificar.")
+    if int(dup.id) == int(dst.id):
+        raise ValueError("Elegí un producto distinto.")
+    movidos = _mover_movimientos(
+        str(dup.categoria), str(dup.nombre_producto).strip(), str(dst.categoria), str(dst.nombre_producto).strip()
+    )
+    dup.activo = False
+    db.session.commit()
+    after_stock_mutation(str(dst.categoria), str(dst.nombre_producto))
+    return movidos
+
+
+def delete_catalog_product(producto_id: int) -> None:
+    """Elimina definitivamente un producto sin ningún movimiento (alta por error). Hace commit."""
+    row = db.session.get(ProductoCatalogo, int(producto_id))
+    if row is None:
+        raise ValueError("Producto no encontrado.")
+    if contar_movimientos_catalogo(int(row.id)):
+        raise ValueError("Tiene ingresos, consumos o ajustes: no se puede eliminar. Dalo de baja o unificalo con otro.")
+    db.session.delete(row)
+    db.session.commit()
+
+
 def deactivate_catalog_product(producto_id: int) -> None:
     """Quita el producto del catálogo activo. Conserva ingresos, consumos y ajustes."""
     row = db.session.get(ProductoCatalogo, int(producto_id))

@@ -2,7 +2,8 @@
 {% block title %}Catálogo de productos · QDV{% endblock %}
 {% block content %}
 {% set catalogo_categorias_editables = catalogo_categorias_editables or [] %}
-{% set show_acciones = (nav_user and nav_user.is_admin) or catalogo_categorias_editables %}
+{% set puede_gestionar_catalogo = (nav_user and nav_user.is_admin) or user_is_responsable_laboratorio %}
+{% set show_acciones = puede_gestionar_catalogo or catalogo_categorias_editables %}
 <div class="app-stock-module">
   <div class="app-page-head">
     <div>
@@ -59,7 +60,7 @@
             {% if show_acciones %}
             <td class="text-nowrap">
               <div class="d-flex flex-wrap gap-1 justify-content-end">
-                {% if nav_user and nav_user.is_admin %}
+                {% if puede_gestionar_catalogo %}
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('produccion.stock_catalogo_editar', pid=r.id) }}">Editar</a>
                 {% endif %}
                 {% if r.categoria in catalogo_categorias_editables %}

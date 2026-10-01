@@ -10,12 +10,14 @@ from app.auth_utils import (
     stock_catalogo_categorias_editables,
     user_can_access_stock_hub,
     user_can_edit_stock_catalogo_alta,
+    user_can_manage_stock_catalogo,
     user_can_edit_stock_consumos,
     user_can_edit_stock_ingreso_categoria,
     user_can_view_stock_consumos,
     user_can_view_stock_existencias,
     user_can_view_stock_ingreso_categoria,
 )
+from app.extensions import db
 from app.services import stock_service
 from app.user_roles import user_is_responsable_laboratorio
 from app.web.modules.produccion.operativa_context import (
@@ -259,8 +261,8 @@ def register_stock_routes(bp: Blueprint) -> None:
     @login_required
     def stock_catalogo_editar(pid: int):
         u = current_user()
-        if u is None or not u.is_admin:
-            flash("Solo administradores pueden editar el catálogo de productos.", "warning")
+        if not user_can_manage_stock_catalogo(u):
+            flash("Solo el administrador y el responsable de laboratorio editan el catálogo de productos.", "warning")
             return redirect(url_for("produccion.stock_catalogo_lista"))
         match = stock_service.get_catalog_product(pid)
         if match is None:
@@ -268,6 +270,11 @@ def register_stock_routes(bp: Blueprint) -> None:
             return redirect(url_for("produccion.stock_catalogo_lista"))
         if request.method == "POST":
             try:
+                nombre_nuevo = (request.form.get("nombre_producto") or "").strip()
+                if nombre_nuevo and nombre_nuevo != str(match.nombre_producto or "").strip():
+                    stock_service.rename_catalog_product(pid, nombre_nuevo)
+                    db.session.flush()
+                    match = stock_service.get_catalog_product(pid)
                 nueva_cat = (request.form.get("nueva_categoria") or "").strip()
                 if nueva_cat and nueva_cat != str(match.categoria or "").strip():
                     stock_service.reassign_catalog_product_categoria(pid, nueva_cat)
@@ -288,8 +295,58 @@ def register_stock_routes(bp: Blueprint) -> None:
                 flash("Producto actualizado.", "success")
                 return redirect(url_for("produccion.stock_catalogo_lista"))
             except Exception as e:
+                db.session.rollback()
                 flash(str(e), "danger")
-        return render_template("produccion/stock_catalogo_editar.html", p=match)
+                match = stock_service.get_catalog_product(pid) or match
+        return render_template(
+            "produccion/stock_catalogo_editar.html",
+            p=match,
+            otros=[r for r in stock_service.list_productos_catalogo_rows(None) if int(r.id) != int(pid)],
+            n_movimientos=stock_service.contar_movimientos_catalogo(pid),
+        )
+
+    @bp.post("/stock/catalogo/<int:pid>/unificar")
+    @login_required
+    def stock_catalogo_unificar(pid: int):
+        u = current_user()
+        if not user_can_manage_stock_catalogo(u):
+            flash("Solo el administrador y el responsable de laboratorio unifican productos.", "warning")
+            return redirect(url_for("produccion.stock_catalogo_lista"))
+        dup = stock_service.get_catalog_product(pid)
+        destino_raw = (request.form.get("destino_id") or "").strip()
+        if dup is None or not destino_raw.isdigit():
+            flash("Elegí el producto con el que se unifica.", "warning")
+            return redirect(url_for("produccion.stock_catalogo_editar", pid=pid))
+        destino = stock_service.get_catalog_product(int(destino_raw))
+        try:
+            movidos = stock_service.merge_catalog_products(pid, int(destino_raw))
+        except Exception as e:
+            db.session.rollback()
+            flash(str(e), "danger")
+            return redirect(url_for("produccion.stock_catalogo_editar", pid=pid))
+        flash(
+            f"«{dup.nombre_producto}» se unificó en «{destino.nombre_producto}»: se pasaron {movidos['ingresos']} ingreso(s), "
+            f"{movidos['consumos']} consumo(s) y {movidos['ajustes']} ajuste(s), y el duplicado quedó dado de baja.",
+            "success",
+        )
+        return redirect(url_for("produccion.stock_catalogo_lista"))
+
+    @bp.post("/stock/catalogo/<int:pid>/eliminar-definitivo")
+    @login_required
+    def stock_catalogo_eliminar_definitivo(pid: int):
+        u = current_user()
+        if not user_can_manage_stock_catalogo(u):
+            flash("Solo el administrador y el responsable de laboratorio eliminan productos.", "warning")
+            return redirect(url_for("produccion.stock_catalogo_lista"))
+        match = stock_service.get_catalog_product(pid)
+        try:
+            stock_service.delete_catalog_product(pid)
+            flash(f"Se eliminó «{match.nombre_producto if match else 'el producto'}» del catálogo.", "success")
+        except Exception as e:
+            db.session.rollback()
+            flash(str(e), "danger")
+            return redirect(url_for("produccion.stock_catalogo_editar", pid=pid))
+        return redirect(url_for("produccion.stock_catalogo_lista"))
 
     @bp.post("/stock/catalogo/<int:pid>/eliminar")
     @login_required
