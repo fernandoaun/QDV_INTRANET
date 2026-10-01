@@ -725,6 +725,39 @@ def equipo_toggle(eid: int):
     return redirect(url_for("admin_users.equipos_list"))
 
 
+@bp.route("/produccion-estimada", methods=["GET", "POST"])
+@login_required
+def produccion_estimada():
+    """Ritmo de producción por electrolizador y margen de seguridad para cargar camiones."""
+    from app.services import produccion_estimada_service as pe
+    from app.services.operational_informed_stock import format_header_liters, get_stock_components
+
+    u = current_user()
+    if u is None or not user_can_view_admin_configuration(u):
+        flash("No tenés permiso para acceder a esta configuración.", "warning")
+        return redirect(url_for("main.dashboard"))
+    if request.method == "POST":
+        if not u.is_admin:
+            flash("Solo el administrador cambia estos valores.", "warning")
+            return redirect(url_for("admin_users.produccion_estimada"))
+        errs = pe.guardar_config(request.form, u.id)
+        if errs:
+            db.session.rollback()
+            for e in errs:
+                flash(e, "danger")
+        else:
+            db.session.commit()
+            flash("Configuración guardada.", "success")
+        return redirect(url_for("admin_users.produccion_estimada"))
+    return render_template(
+        "admin/produccion_estimada.html",
+        cfg=pe.config(),
+        actual=get_stock_components(),
+        fmt=format_header_liters,
+        puede_editar=bool(u.is_admin),
+    )
+
+
 @bp.get("/avisos-correo")
 @login_required
 def deadline_alert_emails():

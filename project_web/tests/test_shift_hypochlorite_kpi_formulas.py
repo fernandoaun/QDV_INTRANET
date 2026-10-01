@@ -2,6 +2,15 @@
 Regresión numérica de las fórmulas fijas de negocio (documentación ejecutable).
 Implementación: app.services.shift_hypochlorite_indicators_service
 """
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _sin_produccion_estimada(monkeypatch):
+    """Estos tests validan la fórmula de cargas e ingresos; la producción estimada se prueba aparte."""
+    from app.services import produccion_estimada_service as pe
+
+    monkeypatch.setattr(pe, "estimar", lambda *a, **k: {"litros": 0.0, "detalle": {}, "config": pe.DEFAULTS | {"margen_carga_pct": 90.0}})
 
 
 def test_ejemplo_caso1_produccion():

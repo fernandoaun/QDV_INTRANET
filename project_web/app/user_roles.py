@@ -7,7 +7,7 @@ Perfiles de usuario (rol almacenado) y resolución de permisos efectivos.
 - «mantenimiento_operaciones»: plantilla unión de mantenimiento + operaciones; puede tomar turno de planta.
 - «responsable_laboratorio»: carga análisis, stock (ingresos, consumos, conteos/ajustes) y entregas con su usuario, en su
   horario y sin tomar turno. La responsabilidad sigue en el operador: lo que carga queda con el operador del turno abierto
-  (o «(sin turno)» si no hay) y ella como «cargado por». No registra paradas de planta.
+  (o «(sin turno)» si no hay) y ella como «cargado por». También registra paradas de planta (prender/parar electrolizadores).
 - «laboratorista»: sin plantilla operativa en el panel; no toma turno ni muta datos (el acceso web está bloqueado en login).
   En planta se registra junto al turno del operador responsable, no como usuario operativo independiente.
 - Los permisos finales = plantilla del rol + recursos del puesto (organigrama), aplicando filas en `permisos_usuario` como overrides:

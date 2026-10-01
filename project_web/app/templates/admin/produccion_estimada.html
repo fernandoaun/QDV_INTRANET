@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Producción estimada · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Producción estimada de hipoclorito</h1>
+    <div class="text-muted small">El stock del Panel suma lo que producen los electrolizadores durante el turno, mientras no tengan una parada registrada. Al cerrar el turno, el stock declarado reemplaza la estimación.</div>
+  </div>
+</div>
+
+{% if actual %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Ahora</div>
+  <div class="app-card-body">
+    <div class="row g-3 text-center">
+      <div class="col-6 col-md"><div class="small text-muted">Último cierre</div><div class="fs-5 fw-semibold">{{ fmt(actual.s0) }}</div></div>
+      <div class="col-6 col-md"><div class="small text-muted">+ Producción estimada</div><div class="fs-5 fw-semibold">{{ fmt(actual.produccion_estimada) }}</div></div>
+      <div class="col-6 col-md"><div class="small text-muted">− Cargas</div><div class="fs-5 fw-semibold">{{ fmt(actual.cargas) }}</div></div>
+      <div class="col-6 col-md"><div class="small text-muted">= Stock estimado</div><div class="fs-5 fw-semibold">{{ fmt(actual.estimado) }}</div></div>
+      <div class="col-12 col-md"><div class="small text-muted">Disponible para carga ({{ '%.0f'|format(actual.margen_pct) }} %)</div><div class="fs-5 fw-semibold text-primary">{{ fmt(actual.para_carga) }}</div></div>
+    </div>
+    <div class="small text-muted mt-2">
+      Desde {{ actual.t0.replace('T', ' ') }}:
+      {% for e, d in actual.detalle|dictsort %}Electrolizador {{ e }} {{ '%.1f'|format(d.horas_en_marcha) }} h en marcha{% if d.horas_paradas >= 0.05 %} y {{ '%.1f'|format(d.horas_paradas) }} h en parada{% endif %} ({{ fmt(d.litros) }}){% if not loop.last %} · {% endif %}{% endfor %}.
+      {% if actual.ingresos_admin %}Incluye {{ fmt(actual.ingresos_admin) }} de ingresos del administrador.{% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">Todavía no hay un cierre de turno recepcionado con stock válido para calcular.</div>
+{% endif %}
+
+<div class="app-card">
+  <div class="app-card-header">Configuración</div>
+  <div class="app-card-body">
+    <form method="post" class="row g-3">
+      {% include "_csrf.html" %}
+      {% for e, litros in cfg.litros_turno|dictsort %}
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label" for="litros_e{{ e }}">Electrolizador {{ e }} — litros por turno</label>
+        <input class="form-control" id="litros_e{{ e }}" name="litros_e{{ e }}" inputmode="decimal" value="{{ '%g'|format(litros) }}" {% if not puede_editar %}disabled{% endif %}>
+        <div class="form-text">≈ {{ '%.1f'|format(litros / cfg.horas_turno) }} L por hora.</div>
+      </div>
+      {% endfor %}
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label" for="horas_turno">Horas por turno</label>
+        <input class="form-control" id="horas_turno" name="horas_turno" inputmode="decimal" value="{{ '%g'|format(cfg.horas_turno) }}" {% if not puede_editar %}disabled{% endif %}>
+      </div>
+      <div class="col-sm-6 col-md-3">
+        <label class="form-label" for="margen_carga_pct">Margen para cargar camiones (%)</label>
+        <input class="form-control" id="margen_carga_pct" name="margen_carga_pct" inputmode="decimal" value="{{ '%g'|format(cfg.margen_carga_pct) }}" {% if not puede_editar %}disabled{% endif %}>
+        <div class="form-text">Porcentaje de la producción estimada que se puede cargar. 100 % = toda.</div>
+      </div>
+      {% if puede_editar %}<div class="col-12"><button class="btn btn-primary">Guardar</button></div>{% endif %}
+    </form>
+  </div>
+</div>
+{% endblock %}

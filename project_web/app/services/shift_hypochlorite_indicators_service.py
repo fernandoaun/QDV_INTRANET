@@ -12,8 +12,10 @@ Definición obligatoria (no mezclar con otras fórmulas):
     − `sum_hipo_administrador_pt_ingresos` en el mismo intervalo
   (las cargas bajaron el stock y se re-suman; los ingresos admin lo inflaron y se restan.)
 
-**STOCK INSTANTÁNEO**
-  = stock al inicio del turno en análisis − cargas (entregas «cargada») + ingresos de PT
+**STOCK INSTANTÁNEO (estimado)**
+  = stock al inicio del turno en análisis + producción estimada del turno en curso
+  (`produccion_estimada_service`: electrolizadores en marcha, sin parada, a ritmo fijo)
+  − cargas (entregas «cargada») + ingresos de PT
   de hipoclorito con `cargado_por` = usuario **administrador** (`User.is_admin`),
   todos contados **desde el inicio operativo** de ese turno hasta ahora (ISO local).
 
@@ -26,8 +28,9 @@ Definición obligatoria (no mezclar con otras fórmulas):
 - Cargas: `Entrega` de hipoclorito con `cargada_at_iso` en [T0, ahora].
 - Ingresos administrativos: `ingresos_stock` PT + join a `User.is_admin` + ventana de tiempo.
 
-Las entregas «programada» se comparan con el techo de stock instantáneo
-(`operational_liters_available_for_new_programada`).
+Para cargar camiones y programar entregas se usa el **disponible para carga**: igual que el
+instantáneo pero tomando solo el margen configurado (p. ej. 90 %) de la producción estimada.
+Las entregas «programada» se comparan con ese techo (`operational_liters_available_for_new_programada`).
 
 `ingresos_stock` / `consumos_stock` (lotes) distintos de esta vista operativa.
 """
@@ -174,17 +177,49 @@ def _resolve_s0_t0_instant(
     return None
 
 
-def _instant_from_handovers(handovers: list[ShiftHandover]) -> float | None:
+def _componentes_stock(handovers: list[ShiftHandover]) -> dict[str, Any] | None:
+    """Base del último cierre, producción estimada, cargas e ingresos admin desde el inicio operativo."""
+    from app.services import produccion_estimada_service as pe
+
     pair = _resolve_s0_t0_instant(handovers)
     if pair is None:
         return None
     s0, t0 = pair
     loads = _sum_hipochlorite_truck_loads_liters(t0, None)
     ingr = sum_hipo_administrador_pt_ingresos_in_interval(t0, None)
-    v = s0 - loads + ingr
-    if not math.isfinite(v):
+    est = pe.estimar(t0)
+    prod = float(est["litros"])
+    margen = max(0.0, min(100.0, float(est["config"]["margen_carga_pct"]))) / 100.0
+    estimado = s0 + prod - loads + ingr
+    para_carga = s0 + prod * margen - loads + ingr
+    if not (math.isfinite(estimado) and math.isfinite(para_carga)):
         return None
-    return v
+    return {
+        "s0": s0,
+        "t0": t0,
+        "produccion_estimada": prod,
+        "cargas": loads,
+        "ingresos_admin": ingr,
+        "estimado": estimado,
+        "para_carga": para_carga,
+        "margen_pct": margen * 100.0,
+        "detalle": est["detalle"],
+    }
+
+
+def _instant_from_handovers(handovers: list[ShiftHandover]) -> float | None:
+    c = _componentes_stock(handovers)
+    return None if c is None else c["estimado"]
+
+
+def get_stock_components() -> dict[str, Any] | None:
+    return _componentes_stock(_list_received_handovers_with_valid_stock())
+
+
+def get_carga_available() -> float | None:
+    """Techo para cargar camiones: stock instantáneo con solo el margen de la producción estimada."""
+    c = get_stock_components()
+    return None if c is None else c["para_carga"]
 
 
 def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> float | None:
@@ -232,7 +267,7 @@ def sum_hipochlorito_programada_liters(exclude_entrega_id: int | None = None) ->
 
 
 def operational_liters_available_for_new_programada(exclude_entrega_id: int | None = None) -> float | None:
-    instant = get_instant_stock()
+    instant = get_carga_available()
     if instant is None:
         return None
     reserved = sum_hipochlorito_programada_liters(exclude_entrega_id)
@@ -305,13 +340,27 @@ def _panel_shift_subnotes_from_handovers(handovers: list[ShiftHandover]) -> tupl
     else:
         ancla += "."
     stock_note = (
-        f"{ancla} Instantáneo = ese volumen "
+        f"{ancla} Instantáneo = ese volumen + producción estimada del turno en curso "
         "− entregas «cargada» (hipo) + ingresos de PT hechos con usuario administrador, desde el inicio operativo de turno."
     )
+    c = _componentes_stock(handovers)
+    if c is not None:
+        partes = " · ".join(
+            f"E{e}: {d['horas_en_marcha']:.1f} h en marcha" + (f", {d['horas_paradas']:.1f} h en parada" if d["horas_paradas"] >= 0.05 else "")
+            for e, d in sorted(c["detalle"].items())
+        )
+        stock_note += (
+            f" Ahora: cierre {format_header_liters(c['s0'])} + producción estimada {format_header_liters(c['produccion_estimada'])}"
+            f" ({partes}) − cargas {format_header_liters(c['cargas'])}"
+            + (f" + ingresos admin {format_header_liters(c['ingresos_admin'])}" if c["ingresos_admin"] else "")
+            + f" = {format_header_liters(c['estimado'])} (estimado). Para cargar camiones se toma el"
+            f" {c['margen_pct']:.0f} % de la producción estimada: disponible para carga {format_header_liters(c['para_carga'])}."
+        )
     kpi_legend = (
         "Producción del turno: stock final − stock inicial + cargas (camión) − ingresos PT por administrador, "
         "todos en [inicio, cierre] de ese turno. "
-        "Stock instantáneo: stock al inicio del turno en curso − cargas + ingresos admin desde el inicio operativo hasta ahora. "
+        "Stock instantáneo: stock al inicio del turno en curso + producción estimada (electrolizadores sin parada) "
+        "− cargas + ingresos admin desde el inicio operativo hasta ahora. "
         "No se usa el saldo teórico por lotes de existencias."
     )
     return stock_note, prod_note, kpi_legend

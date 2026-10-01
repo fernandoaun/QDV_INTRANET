@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from app.services.shift_hypochlorite_indicators_service import (
     format_header_liters,
+    get_carga_available,
+    get_stock_components,
     get_instant_stock,
     get_last_shift_production,
     header_operational_indicators_dict,
@@ -19,6 +21,8 @@ from app.services.shift_hypochlorite_indicators_service import (
 __all__ = [
     "format_header_liters",
     "get_instant_stock",
+    "get_carga_available",
+    "get_stock_components",
     "get_last_shift_production",
     "header_operational_indicators_dict",
     "operational_liters_available_for_new_programada",
@@ -30,11 +34,11 @@ __all__ = [
 
 def raise_if_carga_qty_exceeds_instant(cantidad: float) -> None:
     """
-    Al marcar «Cargar», el volumen no puede superar el stock instantáneo (antes de registrar el consumo
-    en el ledger). Ese instantáneo es el mismo valor que muestra el Panel.
+    Al marcar «Cargar», el volumen no puede superar el disponible para carga (antes de registrar el consumo
+    en el ledger): el stock del Panel tomando solo el margen de seguridad de la producción estimada del turno.
     """
     qty = float(cantidad)
-    instant = get_instant_stock()
+    instant = get_carga_available()
     if instant is None:
         raise ValueError(
             "No hay stock operativo informado en planta para validar la carga. "
@@ -44,5 +48,6 @@ def raise_if_carga_qty_exceeds_instant(cantidad: float) -> None:
         disp = format_header_liters(float(instant))
         raise ValueError(
             "No hay stock suficiente en planta para realizar la carga. "
-            f"Disponible según el stock operativo del Panel antes de este camión: {disp}."
+            f"Disponible para carga antes de este camión: {disp} (stock del último cierre + producción "
+            "estimada del turno con margen de seguridad − cargas)."
         )

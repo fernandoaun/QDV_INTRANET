@@ -115,6 +115,8 @@
         <li>
           <a href="{{ url_for('admin_users.equipos_list') }}" class="app-sidenav-link {% if ep == 'admin_users.equipos_list' %}is-active{% endif %}"
              data-filter-text="equipos" title="Equipos"><i class="bi bi-cpu" aria-hidden="true"></i></a>
+          <a href="{{ url_for('admin_users.produccion_estimada') }}" class="app-sidenav-link {% if ep == 'admin_users.produccion_estimada' %}is-active{% endif %}"
+             data-filter-text="producción estimada hipoclorito electrolizador margen stock" title="Producción estimada"><i class="bi bi-droplet-half" aria-hidden="true"></i></a>
         </li>
         <li>
           <a href="{{ url_for('admin_users.deadline_alert_emails') }}" class="app-sidenav-link {% if ep == 'admin_users.deadline_alert_emails' %}is-active{% endif %}"

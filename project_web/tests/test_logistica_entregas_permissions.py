@@ -4,6 +4,7 @@ import re
 from datetime import datetime
 
 
+
 def test_operaciones_cargar_does_not_require_active_shift(app):
     from flask import session
 
@@ -110,6 +111,7 @@ def test_carga_camion_creates_cargada_pending_logistica(auth_client, app, monkey
     from app.services.entregas_service import entrega_pendiente_logistica
 
     monkeypatch.setattr(operational_informed_stock, "get_instant_stock", lambda: 99999.0)
+    monkeypatch.setattr(operational_informed_stock, "get_carga_available", lambda: 99999.0)
 
     now = "2026-04-24T12:00:00"
     with app.app_context():
@@ -161,6 +163,7 @@ def test_logistica_asigna_carga_a_varias_entregas(auth_client, app, monkeypatch)
     from app.services.entregas_service import entregas_kpis_rolling, es_origen_carga
 
     monkeypatch.setattr(operational_informed_stock, "get_instant_stock", lambda: 99999.0)
+    monkeypatch.setattr(operational_informed_stock, "get_carga_available", lambda: 99999.0)
 
     now = "2026-07-24T12:00:00"
     with app.app_context():

@@ -31,6 +31,7 @@ from app.models.lab_reagent import LaboratoryReagent, LaboratoryReagentUsage
 from app.models.planificacion import PlanificacionActividad, PlanificacionDependencia
 from app.models.objetivos import Objetivo, ObjetivoCambio, ObjetivoMes, ObjetivoPrograma
 from app.models.fichas_proceso import FichaProceso, FichaProcesoCambio
+from app.models.parametro import AppParametro
 from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
 from app.models.plant_stop import PlantStopAlertEmail, PlantStopEvent
@@ -120,6 +121,7 @@ __all__ = [
     "ObjetivoCambio",
     "FichaProceso",
     "FichaProcesoCambio",
+    "AppParametro",
     "PlanificacionDependencia",
     "SecurityAuditLog",
     "BirthdayReminderSent",

@@ -85,9 +85,9 @@ def test_carga_analisis_sin_turno_y_con_turno(app, lab):
     assert _ultimo_agua(app) == ("Oscar Operador", lab_id)
 
 
-def test_no_registra_paradas_y_puede_ajustar_stock(app, lab):
+def test_registra_paradas_y_puede_ajustar_stock(app, lab):
     client, _ = lab
-    r = client.post("/produccion/parada-planta", json={"circuit_key": "agua", "action": "start"})
-    assert r.status_code == 403 and "operador de turno" in r.get_json()["error"]
+    r = client.post("/produccion/parada-planta", json={"circuit_key": "salmuera_e2", "action": "start"})
+    assert r.status_code == 200 and r.get_json()["ok"] is True
     page = client.get("/produccion/stock/ajustes", follow_redirects=True).get_data(as_text=True)
     assert "Solo administradores" not in page
