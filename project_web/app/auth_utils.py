@@ -590,8 +590,8 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
     if ep.startswith("entregas."):
         # Entregas no exige turno de planta; cada acción valida permisos entregas_*.
         return True
-    if ep == "personal.mis_entregas_epp":
-        # Autogestión del empleado (confirmar entregas, pedir EPP): no es dato operativo, no exige turno.
+    if ep in ("personal.mis_entregas_epp", "personal.mis_vacaciones"):
+        # Autogestión del empleado (confirmar entregas, pedir EPP, pedir vacaciones): no es dato operativo, no exige turno.
         return True
     from app.services import shift_handover_service as sh
 

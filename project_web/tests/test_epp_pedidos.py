@@ -148,3 +148,21 @@ def test_formulario_de_pedido_no_queda_deshabilitado(app):
     html = c.get("/personal/mis-entregas-epp").get_data(as_text=True)
     assert "Pedir ropa / EPP" in html
     assert "Solo lectura en UI" not in html
+
+
+def test_mis_vacaciones_editable_para_operador_sin_turno(app):
+    from flask import session
+
+    from app.auth_utils import page_can_edit_effective, user_can_solicitar_vacaciones
+    from app.extensions import db
+    from app.models import User
+
+    with app.app_context(), app.test_request_context():
+        oper = User(username="pytest_vac_oper", password_hash="x", activo=True, is_admin=False, rol="operaciones")
+        db.session.add(oper)
+        db.session.commit()
+        esperado = user_can_solicitar_vacaciones(oper)
+        assert page_can_edit_effective(oper, "personal.mis_vacaciones", session) is esperado
+        assert page_can_edit_effective(oper, "personal.mis_entregas_epp", session) is True
+        # Producción sigue exigiendo turno.
+        assert page_can_edit_effective(oper, "produccion.salmuera", session) is False
