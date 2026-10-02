@@ -102,3 +102,27 @@ def test_operador_no_edita_ni_unifica(app, client):
 
     with app.app_context():
         assert db.session.get(ProductoCatalogo, a).activo is True
+
+
+def test_dado_de_baja_con_stock_se_puede_unificar(app, client):
+    """Caso real del 02/10: duplicados quitados del catálogo seguían en Stock y no se podían unificar."""
+    from app.extensions import db
+    from app.models import IngresoStock, ProductoCatalogo
+    from app.services import stock_service
+
+    with app.app_context():
+        _ingreso("Agua Oxigenada", 2.0, "L7")
+        _ingreso("Agua Oxigenada 30%", 1.0, "L8")
+        dup, dst = _pid("Agua Oxigenada"), _pid("Agua Oxigenada 30%")
+        stock_service.deactivate_catalog_product(dup)
+
+    c = _login(app, client, "pytest_lucia_baja", rol="responsable_laboratorio")
+    lista = c.get("/produccion/stock/catalogo").get_data(as_text=True)
+    assert "Dados de baja que todavía tienen stock (1)" in lista and "Agua Oxigenada" in lista
+    r = c.post(f"/produccion/stock/catalogo/{dup}/unificar", data={"destino_id": str(dst)}, follow_redirects=True)
+    assert "se unificó en «Agua Oxigenada 30%»" in r.get_data(as_text=True)
+    with app.app_context():
+        assert db.session.query(IngresoStock).filter_by(producto="Agua Oxigenada").count() == 0
+        assert db.session.query(IngresoStock).filter_by(producto="Agua Oxigenada 30%").count() == 2
+        assert stock_service.list_baja_con_movimientos() == []
+    assert "Dados de baja que todavía tienen stock" not in c.get("/produccion/stock/catalogo").get_data(as_text=True)

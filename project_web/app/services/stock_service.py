@@ -1531,7 +1531,8 @@ def merge_catalog_products(duplicado_id: int, destino_id: int) -> dict[str, int]
     """Unifica un producto duplicado en otro: mueve todo su historial y stock y lo da de baja. Hace commit."""
     dup = db.session.get(ProductoCatalogo, int(duplicado_id))
     dst = db.session.get(ProductoCatalogo, int(destino_id))
-    if dup is None or not bool(getattr(dup, "activo", True)):
+    # El duplicado puede estar ya dado de baja (quedó con stock): igual se unifica.
+    if dup is None:
         raise ValueError("Producto a unificar no encontrado.")
     if dst is None or not bool(getattr(dst, "activo", True)):
         raise ValueError("Elegí un producto activo del catálogo para unificar.")
@@ -1544,6 +1545,20 @@ def merge_catalog_products(duplicado_id: int, destino_id: int) -> dict[str, int]
     db.session.commit()
     after_stock_mutation(str(dst.categoria), str(dst.nombre_producto))
     return movidos
+
+
+def list_baja_con_movimientos() -> list[tuple[ProductoCatalogo, int]]:
+    """Productos dados de baja que todavía tienen ingresos, consumos o ajustes (siguen apareciendo en Stock)."""
+    out = []
+    for row in db.session.scalars(
+        select(ProductoCatalogo)
+        .where(ProductoCatalogo.activo.is_(False))
+        .order_by(ProductoCatalogo.categoria, ProductoCatalogo.nombre_producto)
+    ):
+        n = contar_movimientos_catalogo(int(row.id))
+        if n:
+            out.append((row, n))
+    return out
 
 
 def delete_catalog_product(producto_id: int) -> None:

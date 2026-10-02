@@ -64,7 +64,7 @@
                 <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('produccion.stock_catalogo_editar', pid=r.id) }}">Editar</a>
                 {% endif %}
                 {% if r.categoria in catalogo_categorias_editables %}
-                <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar', pid=r.id) }}" class="d-inline" onsubmit="return confirm('¿Quitar este producto del catálogo? Dejará de aparecer en ingresos y consumos. El historial no se borra.');">
+                <form method="post" action="{{ url_for('produccion.stock_catalogo_eliminar', pid=r.id) }}" class="d-inline" onsubmit="return confirm('¿Quitar este producto del catálogo? Dejará de aparecer en ingresos y consumos. El historial no se borra.\n\nSi es un DUPLICADO de otro producto, cancelá y usá Editar → Unificar: si no, su stock queda apartado.');">
                   {% include "_csrf.html" %}
                   <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
                 </form>
@@ -80,5 +80,31 @@
       </table>
     </div>
   </div>
+
+  {% if baja_con_movimientos %}
+  <div class="app-card mt-3 border-warning" id="baja-con-stock">
+    <div class="app-card-header">Dados de baja que todavía tienen stock ({{ baja_con_movimientos|length }})</div>
+    <div class="app-card-body">
+      <p class="small text-muted">Estos productos se quitaron del catálogo pero conservan ingresos o consumos, por eso siguen apareciendo en Stock. Si son duplicados, unificalos con el producto correcto: su historial y su stock pasan a ese producto.</p>
+      {% for prod, n in baja_con_movimientos %}
+      <form method="post" action="{{ url_for('produccion.stock_catalogo_unificar', pid=prod.id) }}" class="row g-2 align-items-center border-top py-2"
+            onsubmit="var s=this.destino_id; return s.value && confirm('¿Unificar «{{ prod.nombre_producto|e }}» en «' + s.options[s.selectedIndex].text + '»? Su historial y stock pasan a ese producto.');">
+        {% include "_csrf.html" %}
+        <div class="col-md-4">
+          <div class="fw-semibold">{{ prod.nombre_producto }}</div>
+          <div class="small text-muted">{% if prod.categoria == 'materia_prima' %}Materia prima{% elif prod.categoria == 'producto_terminado' %}Producto terminado{% else %}Laboratorio{% endif %} · {{ n }} movimiento(s)</div>
+        </div>
+        <div class="col-md-6">
+          <select class="form-select form-select-sm" name="destino_id" required aria-label="Producto correcto para {{ prod.nombre_producto }}">
+            <option value="">Unificar con…</option>
+            {% for o in activos_todos if o.categoria == prod.categoria %}<option value="{{ o.id }}">{{ o.nombre_producto }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100">Unificar</button></div>
+      </form>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

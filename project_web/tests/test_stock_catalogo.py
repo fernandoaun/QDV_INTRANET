@@ -52,7 +52,10 @@ def test_quitar_catalogo_hides_product_and_keeps_ingreso(app, auth_client):
 
     listed = auth_client.get("/produccion/stock/catalogo")
     listed_html = listed.get_data(as_text=True)
-    assert "Reactivo mal cargado" not in listed_html
+    # Ya no está entre los activos; como conserva su ingreso, figura en «Dados de baja que todavía tienen stock».
+    activos_html, _, baja_html = listed_html.partition('id="baja-con-stock"')
+    assert "Reactivo mal cargado" not in activos_html
+    assert "Reactivo mal cargado" in baja_html
 
     ingreso = auth_client.get("/produccion/stock/ingreso?categoria=laboratorio")
     assert "Reactivo mal cargado" not in ingreso.get_data(as_text=True)

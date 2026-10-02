@@ -221,6 +221,8 @@ def register_stock_routes(bp: Blueprint) -> None:
             rows=rows,
             filtro_cat=filtro,
             catalogo_categorias_editables=stock_catalogo_categorias_editables(u),
+            baja_con_movimientos=stock_service.list_baja_con_movimientos() if user_can_manage_stock_catalogo(u) else [],
+            activos_todos=stock_service.list_productos_catalogo_rows(None) if user_can_manage_stock_catalogo(u) else [],
         )
 
     @bp.route("/stock/catalogo/alta", methods=["GET", "POST"])
@@ -312,18 +314,25 @@ def register_stock_routes(bp: Blueprint) -> None:
         if not user_can_manage_stock_catalogo(u):
             flash("Solo el administrador y el responsable de laboratorio unifican productos.", "warning")
             return redirect(url_for("produccion.stock_catalogo_lista"))
-        dup = stock_service.get_catalog_product(pid)
+        from app.models import ProductoCatalogo
+
+        dup = db.session.get(ProductoCatalogo, int(pid))
+        volver = (
+            url_for("produccion.stock_catalogo_lista") + "#baja-con-stock"
+            if dup is not None and not dup.activo
+            else url_for("produccion.stock_catalogo_editar", pid=pid)
+        )
         destino_raw = (request.form.get("destino_id") or "").strip()
         if dup is None or not destino_raw.isdigit():
             flash("Elegí el producto con el que se unifica.", "warning")
-            return redirect(url_for("produccion.stock_catalogo_editar", pid=pid))
+            return redirect(volver)
         destino = stock_service.get_catalog_product(int(destino_raw))
         try:
             movidos = stock_service.merge_catalog_products(pid, int(destino_raw))
         except Exception as e:
             db.session.rollback()
             flash(str(e), "danger")
-            return redirect(url_for("produccion.stock_catalogo_editar", pid=pid))
+            return redirect(volver)
         flash(
             f"«{dup.nombre_producto}» se unificó en «{destino.nombre_producto}»: se pasaron {movidos['ingresos']} ingreso(s), "
             f"{movidos['consumos']} consumo(s) y {movidos['ajustes']} ajuste(s), y el duplicado quedó dado de baja.",
