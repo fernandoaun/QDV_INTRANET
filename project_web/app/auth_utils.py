@@ -590,6 +590,9 @@ def page_can_edit_effective(user: User | None, endpoint: str | None, session: ob
     if ep.startswith("entregas."):
         # Entregas no exige turno de planta; cada acción valida permisos entregas_*.
         return True
+    if ep == "personal.mis_entregas_epp":
+        # Autogestión del empleado (confirmar entregas, pedir EPP): no es dato operativo, no exige turno.
+        return True
     from app.services import shift_handover_service as sh
 
     if not sh.user_participates_operational_shift(user):
@@ -624,6 +627,11 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         )
     if ep == "personal.mis_vacaciones":
         return user_can_solicitar_vacaciones(user)
+    if ep == "personal.mis_entregas_epp":
+        # Cada empleado confirma sus entregas y pide EPP desde acá (el servidor valida que sea su legajo).
+        return user is not None and not user_is_global_read_only(user)
+    if ep in ("personal.epp_entregas", "personal.epp_pedidos", "personal.epp_constancia"):
+        return user_can_register_entregas_personal(user)
     if ep.startswith("personal."):
         return user_can_manage_personal(user)
     if ep.startswith("sgi."):

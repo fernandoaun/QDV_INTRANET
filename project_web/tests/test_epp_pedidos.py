@@ -113,3 +113,38 @@ def test_destinatario_es_la_responsable_de_laboratorio(app):
         db.session.add(EmpleadoPersonal(user_id=u.id, legajo="L-MAIL-1", apellido="Lab", nombre="Lucía", email="lucia@example.com"))
         db.session.commit()
         assert svc.destinatarios_responsables(app) == ["lucia@example.com"]
+
+
+def test_pantallas_editables_para_empleado_y_responsable(app):
+    """La sección Personal es solo lectura para quien no administra legajos: estas pantallas no."""
+    from app.auth_utils import user_can_edit_endpoint
+    from app.extensions import db
+    from app.models import User
+
+    with app.app_context(), app.test_request_context():
+        oper = User(username="pytest_ed_oper", password_hash="x", activo=True, is_admin=False, rol="operaciones")
+        lab = User(username="pytest_ed_lab", password_hash="x", activo=True, is_admin=False, rol="responsable_laboratorio")
+        db.session.add_all([oper, lab])
+        db.session.commit()
+        assert user_can_edit_endpoint(oper, "personal.mis_entregas_epp") is True
+        assert user_can_edit_endpoint(oper, "personal.epp_pedidos") is False
+        for ep in ("personal.epp_entregas", "personal.epp_pedidos", "personal.epp_constancia", "personal.mis_entregas_epp"):
+            assert user_can_edit_endpoint(lab, ep) is True, ep
+        assert user_can_edit_endpoint(lab, "personal.legajo_detalle") is False
+
+
+def test_formulario_de_pedido_no_queda_deshabilitado(app):
+    """El script de solo lectura de base.html no debe estar en «Mis entregas EPP» para un operador."""
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEppItem, User
+
+    c = _cliente(app, "pytest_ped_form", rol="operaciones")
+    with app.app_context():
+        u = db.session.query(User).filter_by(username="pytest_ped_form").one()
+        if db.session.query(EmpleadoPersonal).filter_by(user_id=u.id).first() is None:
+            db.session.add(EmpleadoPersonal(user_id=u.id, legajo="L-FORM-1", apellido="Op", nombre="Test"))
+        db.session.add(PersonalEppItem(nombre="Casco form test", categoria="epp", activo=True))
+        db.session.commit()
+    html = c.get("/personal/mis-entregas-epp").get_data(as_text=True)
+    assert "Pedir ropa / EPP" in html
+    assert "Solo lectura en UI" not in html
