@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Pedidos de EPP · QDV{% endblock %}
+{% block content %}
+{% set pend = pedidos|selectattr('estado', 'equalto', 'pendiente')|list %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Pedidos de ropa / EPP</h1>
+    <div class="text-muted small">Pedidos que hizo el personal desde la plataforma · {{ pend|length }} pendiente(s). Al entregar se registra la entrega con los datos del pedido (confirmación del empleado y constancia, como siempre).</div>
+  </div>
+  <div class="app-page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_entregas') }}">Entregas EPP</a>
+    {% if puede_personal %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Personal</a>{% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0 align-middle">
+      <thead><tr><th>Pedido el</th><th>Empleado</th><th>Necesita</th><th>Motivo</th><th>Estado</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for p in pedidos %}
+        <tr id="pedido-{{ p.id }}">
+          <td class="text-nowrap small">{{ fecha_local_pedido(p.created_at) }}</td>
+          <td>{{ p.empleado.nombre_completo }}</td>
+          <td>{{ p.item.nombre }}{% if p.talle %} · talle {{ p.talle }}{% endif %} · {{ p.cantidad }}</td>
+          <td class="small">{{ motivos_pedido_epp.get(p.motivo, p.motivo) }}{% if p.comentario %}<div class="text-muted">{{ p.comentario }}</div>{% endif %}</td>
+          <td>
+            <span class="badge {% if p.estado == 'pendiente' %}text-bg-warning{% elif p.estado == 'entregada' %}text-bg-success{% elif p.estado == 'rechazada' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ estados_pedido_epp.get(p.estado, p.estado) }}</span>
+            {% if p.estado != 'pendiente' and p.resuelta_at %}<div class="small text-muted">{{ fecha_local_pedido(p.resuelta_at) }}{% if p.resuelta_by %} · {{ p.resuelta_by.username }}{% endif %}</div>{% endif %}
+            {% if p.estado == 'rechazada' and p.respuesta %}<div class="small text-muted">{{ p.respuesta }}</div>{% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            {% if p.estado == 'pendiente' and puede_resolver %}
+            <a class="btn btn-sm btn-primary" href="{{ url_for('personal.epp_entregas', solicitud_id=p.id) }}">Entregar</a>
+            <button class="btn btn-sm btn-outline-danger" type="button" data-bs-toggle="collapse" data-bs-target="#rech{{ p.id }}">Rechazar</button>
+            {% elif p.estado == 'entregada' %}
+            <a class="small" href="{{ url_for('personal.epp_constancia', empleado_id=p.empleado_id) }}">Constancia</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% if p.estado == 'pendiente' and puede_resolver %}
+        <tr class="collapse" id="rech{{ p.id }}">
+          <td colspan="6">
+            <form method="post" class="d-flex flex-wrap gap-2 align-items-center">
+              {% include "_csrf.html" %}
+              <input type="hidden" name="solicitud_id" value="{{ p.id }}">
+              <input class="form-control form-control-sm" style="max-width:32rem" name="respuesta" maxlength="1000" required placeholder="Motivo del rechazo (le llega por mail a {{ p.empleado.nombre }})">
+              <button class="btn btn-sm btn-danger">Confirmar rechazo</button>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay pedidos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

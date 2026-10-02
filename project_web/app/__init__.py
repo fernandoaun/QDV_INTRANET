@@ -344,6 +344,20 @@ def create_app() -> Flask:
 
     register_cli(app)
 
+    def _epp_pedidos_pendientes(u):
+        """Cantidad de pedidos de EPP pendientes para el menú; None si el usuario no los gestiona."""
+        from app.auth_utils import user_can_gestionar_epp
+
+        if u is None or not user_can_gestionar_epp(u):
+            return None
+        try:
+            from app.services.epp_pedidos_service import contar_pendientes
+
+            return contar_pendientes()
+        except Exception:
+            db.session.rollback()
+            return None
+
     @app.context_processor
     def inject_nav_user():
         from flask import session as flask_session
@@ -436,6 +450,7 @@ def create_app() -> Flask:
             "user_can_view_admin_configuration": (lambda: _user_can_view_admin_configuration(u)),
             "user_is_global_read_only": (lambda: user_is_global_read_only(u)),
             "user_is_responsable_laboratorio": user_is_responsable_laboratorio(u),
+            "epp_pedidos_pendientes": _epp_pedidos_pendientes(u),
             "page_can_edit_current": _page_can_edit_effective(u, request.endpoint, flask_session),
             "user_can_production_hub": user_can_access_production_hub(u),
             "user_can_entregas_hub": user_can_access_entregas_hub(u),

@@ -127,6 +127,34 @@ class PersonalEppAsignacion(db.Model):
 
     __table_args__ = (db.UniqueConstraint("empleado_id", "item_id", name="uq_personal_epp_asig_emp_item"),)
 
+
+class PersonalSolicitudEpp(db.Model):
+    """Pedido de ropa/EPP hecho por el empleado desde la plataforma (también se puede pedir verbalmente)."""
+
+    __tablename__ = "personal_solicitudes_epp"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    empleado_id = db.Column(
+        db.Integer, db.ForeignKey("personal_empleados.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_id = db.Column(db.Integer, db.ForeignKey("personal_epp_items.id", ondelete="RESTRICT"), nullable=False)
+    talle = db.Column(db.String(32), nullable=False, default="", server_default="")
+    cantidad = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    motivo = db.Column(db.String(32), nullable=False)
+    comentario = db.Column(db.String(1000), nullable=False, default="", server_default="")
+    # pendiente → entregada | rechazada | cancelada
+    estado = db.Column(db.String(16), nullable=False, default="pendiente", server_default="pendiente", index=True)
+    respuesta = db.Column(db.String(1000), nullable=False, default="", server_default="")
+    entrega_id = db.Column(db.Integer, db.ForeignKey("personal_entregas_epp.id", ondelete="SET NULL"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    resuelta_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    resuelta_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+
+    empleado = db.relationship("EmpleadoPersonal", lazy="joined")
+    item = db.relationship("PersonalEppItem", lazy="joined")
+    resuelta_by = db.relationship("User", foreign_keys=[resuelta_by_user_id], lazy="joined")
+
 class PersonalCurso(db.Model):
     __tablename__ = "personal_cursos"
 

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import re
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, url_for
 
 from app.auth_utils import (
     current_user,
     login_required,
     user_can_access_personal,
     user_can_gestionar_vacaciones,
+    user_can_gestionar_epp,
     user_can_manage_personal,
     user_can_manage_vacacion_periodos,
     user_can_register_entregas_personal,
@@ -19,6 +20,7 @@ from app.extensions import db
 from app.models import Operador, PersonalApercibimiento, PersonalCurso, User
 from app.services import archivo_service as avs
 from app.services import epp_constancia_service as epp_cs
+from app.services import epp_pedidos_service as epp_ped_svc
 from app.services import personal_service as ps
 
 bp = Blueprint("personal", __name__, url_prefix="/personal")
@@ -52,6 +54,14 @@ def _no_register_entregas():
 def _require_view():
     u = current_user()
     if not user_can_access_personal(u):
+        return None, _no_access()
+    return u, None
+
+
+def _require_epp():
+    """Parte de EPP de Personal: también para la responsable de laboratorio."""
+    u = current_user()
+    if not user_can_gestionar_epp(u):
         return None, _no_access()
     return u, None
 
@@ -306,7 +316,7 @@ def epp_catalogo():
 @bp.route("/epp/entregas", methods=["GET", "POST"])
 @login_required
 def epp_entregas():
-    u, redir = _require_view()
+    u, redir = _require_epp()
     if redir is not None:
         return redir
     if request.method == "POST":
@@ -315,12 +325,24 @@ def epp_entregas():
             return rredir
         ok, msg = ps.save_entrega_epp(request.form, user_id=u.id)
         flash(msg, "success" if ok else "danger")
+        sol_raw = (request.form.get("solicitud_id") or "").strip()
+        if sol_raw.isdigit():
+            if ok:
+                return redirect(url_for("personal.epp_pedidos"))
+            return redirect(url_for("personal.epp_entregas", solicitud_id=sol_raw))
         return redirect(url_for("personal.epp_entregas"))
+    pedido = None
+    sol_raw = (request.args.get("solicitud_id") or "").strip()
+    if sol_raw.isdigit():
+        pedido = epp_ped_svc.get(int(sol_raw))
+        if pedido is None or pedido.estado != "pendiente":
+            flash("Ese pedido ya no está pendiente.", "info")
+            pedido = None
     seeded = ps.ensure_default_epp_catalog()
     if seeded > 0:
         flash("Se cargó el catálogo inicial de ropa y EPP. Podés ajustarlo en Catálogo EPP.", "info")
     emp_id_raw = (request.args.get("empleado_id") or "").strip()
-    emp_id = int(emp_id_raw) if emp_id_raw.isdigit() else None
+    emp_id = int(emp_id_raw) if emp_id_raw.isdigit() else (pedido.empleado_id if pedido else None)
     empleados = ps.list_empleados(estado="activo")
     items = ps.list_epp_items(solo_activos=True)
     if not empleados:
@@ -338,6 +360,42 @@ def epp_entregas():
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         puede_gestionar=user_can_manage_personal(u),
         puede_registrar_entregas=user_can_register_entregas_personal(u),
+        pedido=pedido,
+        pedidos_pendientes=epp_ped_svc.contar_pendientes(),
+        **epp_ped_svc.labels_context(),
+    )
+
+
+@bp.route("/epp/pedidos", methods=["GET", "POST"])
+@login_required
+def epp_pedidos():
+    """Pedidos de EPP hechos por el personal: entregar (registra la entrega) o rechazar con motivo."""
+    u, redir = _require_epp()
+    if redir is not None:
+        return redir
+    if request.method == "POST":
+        rredir = _require_register_entregas(u)
+        if rredir is not None:
+            return rredir
+        sol_raw = (request.form.get("solicitud_id") or "").strip()
+        sol = epp_ped_svc.get(int(sol_raw)) if sol_raw.isdigit() else None
+        if sol is None:
+            flash("Pedido no encontrado.", "danger")
+            return redirect(url_for("personal.epp_pedidos"))
+        err = epp_ped_svc.rechazar(sol, request.form.get("respuesta") or "", u.id)
+        if err:
+            flash(err, "danger")
+            return redirect(url_for("personal.epp_pedidos"))
+        db.session.commit()
+        ok_mail, det = epp_ped_svc.avisar_rechazo(current_app, sol)
+        flash("Pedido rechazado." + ("" if ok_mail else f" No se pudo avisar por mail al empleado: {det}."), "success")
+        return redirect(url_for("personal.epp_pedidos"))
+    return render_template(
+        "personal/epp_pedidos.html",
+        pedidos=epp_ped_svc.listar(),
+        puede_resolver=user_can_register_entregas_personal(u),
+        puede_personal=user_can_access_personal(u),
+        **epp_ped_svc.labels_context(),
     )
 
 
@@ -345,7 +403,7 @@ def epp_entregas():
 @login_required
 def epp_constancia_en_blanco():
     """Formulario Res. 299/11 sin completar (registro QDV-PO-02_01, «Ver en blanco»)."""
-    u, redir = _require_view()
+    u, redir = _require_epp()
     if redir is not None:
         return redir
     return render_template("personal/epp_constancia.html", blanco=True, puede_editar=False, items=[], **epp_cs.contexto(None))
@@ -355,16 +413,16 @@ def epp_constancia_en_blanco():
 @login_required
 def epp_constancia(empleado_id: int):
     """Constancia de entrega de EPP de un trabajador, con todas sus entregas."""
-    u, redir = _require_view()
+    u, redir = _require_epp()
     if redir is not None:
         return redir
     emp = ps.get_empleado(empleado_id)
     if emp is None:
         abort(404)
     if request.method == "POST":
-        mredir = _require_manage(u)
-        if mredir is not None:
-            return mredir
+        rredir = _require_register_entregas(u)
+        if rredir is not None:
+            return rredir
         epp_cs.guardar_encabezado(emp, request.form)
         db.session.commit()
         flash("Datos de la constancia guardados.", "success")
@@ -372,7 +430,7 @@ def epp_constancia(empleado_id: int):
     return render_template(
         "personal/epp_constancia.html",
         blanco=False,
-        puede_editar=user_can_manage_personal(u),
+        puede_editar=user_can_register_entregas_personal(u),
         items=ps.list_epp_items(solo_activos=True),
         **epp_cs.contexto(emp),
     )
@@ -392,6 +450,30 @@ def mis_entregas_epp():
         return redirect(url_for("main.dashboard"))
 
     entrega_error_id: int | None = None
+    accion = (request.form.get("accion") or "").strip() if request.method == "POST" else ""
+    if accion == "pedir_epp":
+        sol, err = epp_ped_svc.crear(emp, request.form, u.id)
+        if err or sol is None:
+            db.session.rollback()
+            flash(err, "danger")
+            return redirect(url_for("personal.mis_entregas_epp") + "#pedir")
+        db.session.commit()
+        ok_mail, det = epp_ped_svc.avisar_nuevo_pedido(current_app, sol)
+        flash(
+            "Pedido enviado a la responsable de laboratorio." + ("" if ok_mail else f" (No se pudo avisar por mail: {det}; igual queda registrado.)"),
+            "success",
+        )
+        return redirect(url_for("personal.mis_entregas_epp") + "#pedidos")
+    if accion == "cancelar_pedido":
+        raw = (request.form.get("solicitud_id") or "").strip()
+        sol = epp_ped_svc.get(int(raw)) if raw.isdigit() else None
+        err = "Pedido no encontrado." if sol is None else epp_ped_svc.cancelar(sol, emp)
+        if err:
+            flash(err, "danger")
+        else:
+            db.session.commit()
+            flash("Pedido cancelado.", "success")
+        return redirect(url_for("personal.mis_entregas_epp") + "#pedidos")
     if request.method == "POST":
         entrega_id_raw = (request.form.get("entrega_id") or "").strip()
         if not entrega_id_raw.isdigit():
@@ -410,6 +492,9 @@ def mis_entregas_epp():
                 historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
                 estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
                 entrega_error_id=entrega_error_id,
+                items_pedido=ps.list_epp_items(solo_activos=True),
+                mis_pedidos=epp_ped_svc.del_empleado(emp.id),
+                **epp_ped_svc.labels_context(),
             )
         ok, msg = ps.confirmar_entrega_epp(entrega_error_id, user_id=u.id)
         flash(msg, "success" if ok else "danger")
@@ -422,6 +507,9 @@ def mis_entregas_epp():
             historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
             estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
             entrega_error_id=entrega_error_id,
+            items_pedido=ps.list_epp_items(solo_activos=True),
+            mis_pedidos=epp_ped_svc.del_empleado(emp.id),
+            **epp_ped_svc.labels_context(),
         )
 
     return render_template(
@@ -431,6 +519,9 @@ def mis_entregas_epp():
         historial=ps.list_entregas_epp(empleado_id=emp.id, limit=50),
         estado_entrega_labels=ps.ESTADO_ENTREGA_EPP_LABELS,
         entrega_error_id=None,
+        items_pedido=ps.list_epp_items(solo_activos=True),
+        mis_pedidos=epp_ped_svc.del_empleado(emp.id),
+        **epp_ped_svc.labels_context(),
     )
 
 

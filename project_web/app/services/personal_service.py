@@ -1112,6 +1112,11 @@ def save_entrega_epp(
     )
     db.session.add(entrega)
     _aplicar_encabezado_constancia_epp(emp, encabezado)
+    if (data.get("solicitud_id") or "").strip():
+        from app.services import epp_pedidos_service
+
+        db.session.flush()
+        epp_pedidos_service.marcar_entregada(data.get("solicitud_id"), entrega.id, emp.id, user_id)
     try:
         db.session.commit()
     except Exception as exc:

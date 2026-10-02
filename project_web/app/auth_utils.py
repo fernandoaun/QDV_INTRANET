@@ -128,13 +128,21 @@ def user_can_manage_personal(user: User | None) -> bool:
     return user_can_edit(user, "personal")
 
 
+def user_can_gestionar_epp(user: User | None) -> bool:
+    """Pedidos, entregas y constancias de EPP: quien accede a Personal o la responsable de laboratorio
+    (ella solo la parte de EPP, sin legajos ni el resto de Personal)."""
+    from app.user_roles import user_is_responsable_laboratorio
+
+    return user_can_access_personal(user) or user_is_responsable_laboratorio(user)
+
+
 def user_can_register_entregas_personal(user: User | None) -> bool:
-    """Registrar entregas de ropa/EPP: quien accede a Personal y no es solo lectura global."""
+    """Registrar entregas de ropa/EPP: quien accede a Personal (o gestiona EPP) y no es solo lectura global."""
     if user is None or user_is_global_read_only(user):
         return False
     if user.is_admin:
         return True
-    return user_can_access_personal(user)
+    return user_can_gestionar_epp(user)
 
 
 def user_can_manage_vacacion_periodos(user: User | None) -> bool:

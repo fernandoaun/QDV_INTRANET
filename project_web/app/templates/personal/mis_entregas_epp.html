@@ -4,7 +4,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Mis entregas de ropa / EPP</h1>
-    <div class="text-muted">Confirmá desde tu usuario la recepción de prendas y EPP registrados por RRHH.</div>
+    <div class="text-muted">Pedí la ropa o el EPP que te falte y confirmá desde tu usuario la recepción de lo que te entregan.</div>
   </div>
   <div class="app-page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Volver al panel</a>
@@ -71,6 +71,78 @@
 </div>
 {% else %}
 <div class="alert alert-success">No tenés entregas pendientes de confirmación.</div>
+{% endif %}
+
+<div class="app-card mb-3" id="pedir">
+  <div class="app-card-header">Pedir ropa / EPP</div>
+  <div class="app-card-body">
+    <p class="small text-muted">Le llega a la responsable de laboratorio. También lo podés seguir pidiendo verbalmente.</p>
+    <form method="post" class="row g-2 align-items-end">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="accion" value="pedir_epp">
+      <div class="col-md-4">
+        <label class="form-label" for="pedItem">¿Qué necesitás? *</label>
+        <select class="form-select" id="pedItem" name="item_id" required>
+          <option value="">Elegí…</option>
+          {% for it in items_pedido %}<option value="{{ it.id }}">{{ it.nombre }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label" for="pedTalle">Talle</label>
+        <input class="form-control" id="pedTalle" name="talle" maxlength="32">
+      </div>
+      <div class="col-6 col-md-2">
+        <label class="form-label" for="pedCant">Cantidad *</label>
+        <input class="form-control" id="pedCant" name="cantidad" type="number" min="1" max="20" value="1" required>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="pedMotivo">Motivo *</label>
+        <select class="form-select" id="pedMotivo" name="motivo" required>
+          <option value="">Elegí…</option>
+          {% for k, v in motivos_pedido_epp.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-9">
+        <label class="form-label" for="pedComent">Comentario</label>
+        <input class="form-control" id="pedComent" name="comentario" maxlength="1000" placeholder="Opcional (obligatorio si el motivo es «Otro»)">
+      </div>
+      <div class="col-md-3"><button type="submit" class="btn btn-primary w-100">Enviar pedido</button></div>
+    </form>
+  </div>
+</div>
+
+{% if mis_pedidos %}
+<div class="app-card mb-3" id="pedidos">
+  <div class="app-card-header">Mis pedidos</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0 align-middle">
+      <thead><tr><th>Fecha</th><th>Pedido</th><th>Motivo</th><th>Estado</th><th></th></tr></thead>
+      <tbody>
+        {% for p in mis_pedidos %}
+        <tr>
+          <td class="text-nowrap">{{ fecha_local_pedido(p.created_at) }}</td>
+          <td>{{ p.item.nombre }}{% if p.talle %} · talle {{ p.talle }}{% endif %} · {{ p.cantidad }}</td>
+          <td class="small">{{ motivos_pedido_epp.get(p.motivo, p.motivo) }}{% if p.comentario %}<div class="text-muted">{{ p.comentario }}</div>{% endif %}</td>
+          <td>
+            <span class="badge {% if p.estado == 'pendiente' %}text-bg-warning{% elif p.estado == 'entregada' %}text-bg-success{% elif p.estado == 'rechazada' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ estados_pedido_epp.get(p.estado, p.estado) }}</span>
+            {% if p.estado == 'rechazada' and p.respuesta %}<div class="small text-muted">{{ p.respuesta }}</div>{% endif %}
+          </td>
+          <td class="text-end">
+            {% if p.estado == 'pendiente' %}
+            <form method="post" class="d-inline" onsubmit="return confirm('¿Cancelar este pedido?');">
+              {% include "_csrf.html" %}
+              <input type="hidden" name="accion" value="cancelar_pedido">
+              <input type="hidden" name="solicitud_id" value="{{ p.id }}">
+              <button class="btn btn-sm btn-outline-secondary">Cancelar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endif %}
 
 <div class="app-card">

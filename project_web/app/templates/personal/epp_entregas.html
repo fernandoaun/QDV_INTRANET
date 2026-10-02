@@ -3,10 +3,18 @@
 {% block content %}
 <div class="app-page-head">
   <h1 class="app-page-title">Entregas ropa / EPP</h1>
-  <div class="app-page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>
+  <div class="app-page-actions d-flex gap-2">
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.epp_pedidos') }}">Pedidos{% if pedidos_pendientes %} <span class="badge text-bg-warning">{{ pedidos_pendientes }}</span>{% endif %}</a>
+    {% if user_can_access_personal() %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>{% endif %}
   </div>
 </div>
+{% if pedido %}
+<div class="alert alert-info">
+  Entregando el pedido de <strong>{{ pedido.empleado.nombre_completo }}</strong>: {{ pedido.item.nombre }}{% if pedido.talle %} · talle {{ pedido.talle }}{% endif %} · cantidad {{ pedido.cantidad }}
+  ({{ motivos_pedido_epp.get(pedido.motivo, pedido.motivo) }}{% if pedido.comentario %}: {{ pedido.comentario }}{% endif %}).
+  Completá los datos que faltan y registrá la entrega. <a href="{{ url_for('personal.epp_pedidos') }}">Volver a pedidos</a>
+</div>
+{% endif %}
 
 {% if puede_registrar_entregas %}
 <div class="app-card mb-3">
@@ -17,6 +25,7 @@
     {% else %}
     <form method="post" class="row g-2 align-items-end">
       {% include "_csrf.html" %}
+      {% if pedido %}<input type="hidden" name="solicitud_id" value="{{ pedido.id }}">{% endif %}
       <div class="col-md-3">
         <label class="form-label">Empleado *</label>
         <select class="form-select" name="empleado_id" required>
@@ -35,7 +44,7 @@
           {% if cat_items %}
           <optgroup label="{{ cat_lbl }}">
             {% for it in cat_items %}
-            <option value="{{ it.id }}">{{ it.nombre }}</option>
+            <option value="{{ it.id }}" {% if pedido and pedido.item_id == it.id %}selected{% endif %}>{{ it.nombre }}</option>
             {% endfor %}
           </optgroup>
           {% endif %}
@@ -48,11 +57,11 @@
       </div>
       <div class="col-md-2">
         <label class="form-label">Talle</label>
-        <input type="text" class="form-control" name="talle">
+        <input type="text" class="form-control" name="talle" value="{{ pedido.talle if pedido else '' }}">
       </div>
       <div class="col-md-1">
         <label class="form-label">Cant. *</label>
-        <input type="number" class="form-control" name="cantidad" value="1" min="1" required>
+        <input type="number" class="form-control" name="cantidad" value="{{ pedido.cantidad if pedido else 1 }}" min="1" required>
       </div>
       {% set epp_empleados = {} %}{% for e in empleados %}{% set _ = epp_empleados.update({e.id: {"dni": e.dni or "", "puesto_ok": (e.epp_descripcion_puesto or e.puesto or "")|trim != "", "asignados": asignados_por_empleado.get(e.id, [])}}) %}{% endfor %}
       {% set epp_empleado_fijo = none %}
