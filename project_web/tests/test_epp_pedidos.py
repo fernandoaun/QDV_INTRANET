@@ -166,3 +166,31 @@ def test_mis_vacaciones_editable_para_operador_sin_turno(app):
         assert page_can_edit_effective(oper, "personal.mis_entregas_epp", session) is True
         # Producción sigue exigiendo turno.
         assert page_can_edit_effective(oper, "produccion.salmuera", session) is False
+
+
+def test_responsable_ve_y_registra_entregas_de_ropa(app, auth_client):
+    from app.extensions import db
+    from app.models import EmpleadoPersonal, PersonalEntregaEpp, PersonalEppItem, User
+    from app.services import personal_service as ps
+
+    with app.app_context():
+        ps.sync_empleados_from_users()
+        admin = db.session.query(User).filter(User.username == "pytest_admin").one()
+        emp = db.session.query(EmpleadoPersonal).filter(EmpleadoPersonal.user_id == admin.id).one()
+        emp.dni, emp.puesto = "30222000", "Operador"
+        ropa = PersonalEppItem(nombre="Pantalón ropa test", categoria="ropa", activo=True)
+        db.session.add(ropa)
+        db.session.commit()
+        emp_id, ropa_id = emp.id, ropa.id
+    lab = _cliente(app, "pytest_lab_ropa", rol="responsable_laboratorio")
+    menu = lab.get("/personal/epp/pedidos").get_data(as_text=True)
+    assert "Entregas de ropa / EPP" in menu
+    page = lab.get("/personal/epp/entregas").get_data(as_text=True)
+    assert "Pantalón ropa test" in page and "Solo lectura en UI" not in page
+    r = lab.post("/personal/epp/entregas", data={"empleado_id": str(emp_id), "item_id": str(ropa_id), "fecha": "2026-10-02",
+                                                 "talle": "44", "cantidad": "1", "tipo_modelo": "Cargo", "marca": "Pampero",
+                                                 "certificacion": "NO", "epp_asignados": str(ropa_id)})
+    assert r.status_code in (302, 303)
+    with app.app_context():
+        assert db.session.query(PersonalEntregaEpp).filter_by(empleado_id=emp_id, item_id=ropa_id).count() == 1
+    assert "Pantalón ropa test" in lab.get("/personal/epp/entregas").get_data(as_text=True)

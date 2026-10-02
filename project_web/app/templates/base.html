@@ -346,6 +346,13 @@
                 {% if epp_pedidos_pendientes %}<span class="badge text-bg-warning ms-1">{{ epp_pedidos_pendientes }}</span>{% endif %}
               </a>
             </li>
+            {% if user_is_responsable_laboratorio %}
+            <li>
+              <a class="dropdown-item" href="{{ url_for('personal.epp_entregas') }}">
+                <i class="bi bi-box-seam me-2 opacity-50" aria-hidden="true"></i>Entregas de ropa / EPP
+              </a>
+            </li>
+            {% endif %}
             {% endif %}
             {% if user_can_production_hub %}
             <li><a class="dropdown-item fw-semibold" href="{{ url_for('produccion.hub') }}"><i class="bi bi-grid-1x2 me-2 opacity-50" aria-hidden="true"></i>PRODUCCIÓN</a></li>
