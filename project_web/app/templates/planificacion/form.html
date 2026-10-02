@@ -100,34 +100,91 @@
       </div>
 
       {% if mode == 'nueva' %}
-      {% set rep_on = form and form.repetir %}
-      {% set rep_fin = (form.rep_fin if form and form.rep_fin else 'veces') %}
+      {% set rep_on = (form.repetir if form else request.args.get('repetir')) %}
+      {% set rep_modo = (form.rep_modo if form and form.rep_modo else 'dias_semana') %}
+      {% set rep_fin = (form.rep_fin if form and form.rep_fin else 'sin_fin') %}
+      {% set dias_sel = (form.getlist('rep_dias_semana') if form else []) %}
+      {% set meses_sel = (form.getlist('rep_meses') if form else []) %}
       <div class="col-12">
         <div class="border rounded p-3 bg-body-tertiary bg-opacity-25" id="planifRepBox">
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="repetir" name="repetir" value="1" {% if rep_on %}checked{% endif %}>
-            <label class="form-check-label fw-semibold" for="repetir">Repetir esta actividad</label>
+            <label class="form-check-label fw-semibold" for="repetir">Tarea repetitiva</label>
           </div>
-          <div id="planifRepFields" class="row g-2 align-items-end mt-1" {% if not rep_on %}hidden{% endif %}>
-            <div class="col-6 col-md-2">
-              <label class="form-label small mb-0" for="rep_intervalo">Cada</label>
-              <input class="form-control" type="number" min="1" max="100" id="rep_intervalo" name="rep_intervalo"
-                     value="{{ (form.rep_intervalo if form and form.rep_intervalo else '1')|e }}">
+          <div id="planifRepFields" class="mt-2" {% if not rep_on %}hidden{% endif %}>
+            <div class="d-flex flex-wrap gap-1 mb-3" role="group" aria-label="Atajos de frecuencia">
+              <span class="small text-muted align-self-center me-1">Atajos:</span>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="semana1">1 vez por semana</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="semana2">2 veces por semana</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="semana3">3 veces por semana</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="mes2">2 veces por mes</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="mes1">1 vez por mes</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="anio2">2 veces por año</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" data-preset="anio1">1 vez por año</button>
             </div>
-            <div class="col-6 col-md-3">
-              <label class="form-label small mb-0" for="rep_unidad">&nbsp;</label>
-              {% set ucur = (form.rep_unidad if form and form.rep_unidad else 'meses') %}
-              <select class="form-select" id="rep_unidad" name="rep_unidad">
-                {% for un in repeticion_unidades %}
-                <option value="{{ un }}" {% if ucur == un %}selected{% endif %}>{{ repeticion_unidad_labels[un] }}</option>
+            <div class="row g-2 align-items-end">
+              <div class="col-md-5">
+                <label class="form-label small mb-0" for="rep_modo">Se repite</label>
+                <select class="form-select" id="rep_modo" name="rep_modo">
+                  <option value="dias_semana" {% if rep_modo == 'dias_semana' %}selected{% endif %}>Ciertos días de la semana</option>
+                  <option value="dias_mes" {% if rep_modo == 'dias_mes' %}selected{% endif %}>Ciertos días del mes</option>
+                  <option value="meses_anio" {% if rep_modo == 'meses_anio' %}selected{% endif %}>Ciertos meses del año</option>
+                  <option value="intervalo" {% if rep_modo == 'intervalo' %}selected{% endif %}>Cada cierta cantidad de días / semanas / meses / años</option>
+                </select>
+              </div>
+              <div class="col-5 col-md-2">
+                <label class="form-label small mb-0" for="rep_intervalo">Cada</label>
+                <input class="form-control" type="number" min="1" max="100" id="rep_intervalo" name="rep_intervalo"
+                       value="{{ (form.rep_intervalo if form and form.rep_intervalo else '1')|e }}">
+              </div>
+              <div class="col-7 col-md-3">
+                <label class="form-label small mb-0" for="rep_unidad">&nbsp;</label>
+                {% set ucur = (form.rep_unidad if form and form.rep_unidad else 'semanas') %}
+                <select class="form-select rep-solo-intervalo" id="rep_unidad" name="rep_unidad">
+                  {% for un in repeticion_unidades %}<option value="{{ un }}" {% if ucur == un %}selected{% endif %}>{{ repeticion_unidad_labels[un] }}</option>{% endfor %}
+                </select>
+                <div class="form-control-plaintext small rep-unidad-fija" id="repUnidadFija"></div>
+              </div>
+            </div>
+
+            <div class="mt-2 rep-bloque" data-modo="dias_semana">
+              <div class="small mb-1">Días</div>
+              <div class="d-flex flex-wrap gap-2">
+                {% for d in repeticion_dias_semana %}
+                <div class="form-check form-check-inline me-0">
+                  <input class="form-check-input" type="checkbox" name="rep_dias_semana" value="{{ loop.index0 }}" id="repDs{{ loop.index0 }}" {% if loop.index0|string in dias_sel %}checked{% endif %}>
+                  <label class="form-check-label" for="repDs{{ loop.index0 }}">{{ d }}</label>
+                </div>
                 {% endfor %}
-              </select>
+              </div>
             </div>
-            <div class="col-12 col-md-7">
+            <div class="mt-2 rep-bloque" data-modo="dias_mes">
+              <label class="form-label small mb-0" for="rep_dias_mes">Días del mes (separados por coma)</label>
+              <input class="form-control" style="max-width:16rem" id="rep_dias_mes" name="rep_dias_mes" placeholder="ej. 1, 15"
+                     value="{{ (form.rep_dias_mes if form and form.rep_dias_mes else '')|e }}">
+              <div class="form-text">Si el mes no tiene ese día (31, 30, 29) se usa el último.</div>
+            </div>
+            <div class="mt-2 rep-bloque" data-modo="meses_anio">
+              <div class="small mb-1">Meses (el día del mes es el de la fecha de inicio)</div>
+              <div class="d-flex flex-wrap gap-2">
+                {% for m in repeticion_meses %}
+                <div class="form-check form-check-inline me-0">
+                  <input class="form-check-input" type="checkbox" name="rep_meses" value="{{ loop.index }}" id="repMes{{ loop.index }}" {% if loop.index|string in meses_sel %}checked{% endif %}>
+                  <label class="form-check-label" for="repMes{{ loop.index }}">{{ m }}</label>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+
+            <div class="mt-3">
               <div class="small mb-1">Termina</div>
               <div class="d-flex flex-wrap align-items-center gap-2">
                 <div class="form-check mb-0">
-                  <input class="form-check-input" type="radio" name="rep_fin" id="rep_fin_veces" value="veces" {% if rep_fin != 'hasta' %}checked{% endif %}>
+                  <input class="form-check-input" type="radio" name="rep_fin" id="rep_fin_sin" value="sin_fin" {% if rep_fin == 'sin_fin' %}checked{% endif %}>
+                  <label class="form-check-label" for="rep_fin_sin">Nunca (se programa sola, siempre {{ repeticion_horizonte_meses }} meses adelante)</label>
+                </div>
+                <div class="form-check mb-0 ms-md-2">
+                  <input class="form-check-input" type="radio" name="rep_fin" id="rep_fin_veces" value="veces" {% if rep_fin == 'veces' %}checked{% endif %}>
                   <label class="form-check-label" for="rep_fin_veces">después de</label>
                 </div>
                 <input class="form-control" style="width:6rem" type="number" min="2" max="{{ repeticion_max }}" id="rep_veces" name="rep_veces"
@@ -141,14 +198,14 @@
                        value="{{ (form.rep_hasta if form and form.rep_hasta else '')|e }}" aria-label="Repetir hasta">
               </div>
             </div>
-            <div class="col-12 small app-text-secondary" id="planifRepPreview" aria-live="polite"></div>
+            <div class="small app-text-secondary mt-2" id="planifRepPreview" aria-live="polite"></div>
           </div>
         </div>
       </div>
       {% elif row and row.serie_id %}
       <div class="col-12">
         <div class="alert alert-info mb-0 py-2 small">
-          Esta actividad es parte de una serie repetitiva de {{ serie_total }} actividades. Los cambios que guardes acá afectan solo a esta.
+          Esta actividad es parte de una tarea repetitiva{% if serie_regla %} (<strong>{{ serie_regla }}</strong>){% endif %}: hay {{ serie_total }} fecha(s) programadas. Los cambios que guardes acá afectan solo a esta. Para cambiar la frecuencia, eliminá esta y las siguientes y creala de nuevo.
         </div>
       </div>
       {% endif %}
@@ -269,67 +326,88 @@
   var sw = document.getElementById("repetir");
   var box = document.getElementById("planifRepFields");
   if (!sw || !box) return;
-  var fi = document.getElementById("fecha_inicio");
-  var intervalo = document.getElementById("rep_intervalo");
-  var unidad = document.getElementById("rep_unidad");
-  var veces = document.getElementById("rep_veces");
-  var hasta = document.getElementById("rep_hasta");
-  var finVeces = document.getElementById("rep_fin_veces");
-  var finHasta = document.getElementById("rep_fin_hasta");
-  var preview = document.getElementById("planifRepPreview");
-  var MAX = {{ repeticion_max|int }};
-  function parse(v) {
-    var d = new Date(v + "T12:00:00");
-    return isNaN(d.getTime()) ? null : d;
-  }
-  function fmt(d) {
-    return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
-  }
-  // Misma regla que el servidor: meses/años conservan el día de origen o usan el último del mes.
-  function shift(base, n, step, un) {
-    if (un === "dias" || un === "semanas") {
-      var r = new Date(base.getTime());
-      r.setDate(r.getDate() + n * step * (un === "semanas" ? 7 : 1));
-      return r;
+  var $ = function (id) { return document.getElementById(id); };
+  var fi = $("fecha_inicio"), modo = $("rep_modo"), intervalo = $("rep_intervalo"), unidad = $("rep_unidad");
+  var veces = $("rep_veces"), hasta = $("rep_hasta"), diasMes = $("rep_dias_mes"), preview = $("planifRepPreview");
+  var MAX = {{ repeticion_max|int }}, HORIZ = {{ repeticion_horizonte_meses|int }};
+  var DIAS = {{ repeticion_dias_semana | list | tojson }}, MESES = {{ repeticion_meses | list | tojson }};
+  function parse(v) { var d = new Date(v + "T12:00:00"); return isNaN(d.getTime()) ? null : d; }
+  function fmt(d) { return DIAS[(d.getDay() + 6) % 7] + " " + String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear(); }
+  function ultimo(y, m) { return new Date(y, m + 1, 0, 12).getDate(); }
+  function addMeses(d, n, dia) { var t = d.getFullYear() * 12 + d.getMonth() + n; var y = Math.floor(t / 12), m = t % 12; return new Date(y, m, Math.min(dia, ultimo(y, m)), 12); }
+  function marcados(name) { return Array.prototype.map.call(box.querySelectorAll('input[name="' + name + '"]:checked'), function (c) { return parseInt(c.value, 10); }); }
+  function finSel() { var r = box.querySelector('input[name="rep_fin"]:checked'); return r ? r.value : "sin_fin"; }
+  // Misma lógica que el servidor (planificacion_series_service.ocurrencias).
+  function fechas(ancla, limite, max) {
+    var out = [], paso = Math.max(1, parseInt(intervalo.value, 10) || 1), k, guard = 0, m = modo.value;
+    function push(d) { if (d >= ancla && (!limite || d <= limite)) out.push(d); return out.length >= max || (limite && d > limite); }
+    for (k = 0; guard++ < 2000; k++) {
+      var lista = [], stop = false;
+      if (m === "dias_semana") {
+        var ds = marcados("rep_dias_semana").sort(); if (!ds.length) return out;
+        var lunes = new Date(ancla.getTime()); lunes.setDate(lunes.getDate() - (lunes.getDay() + 6) % 7);
+        ds.forEach(function (d) { var x = new Date(lunes.getTime()); x.setDate(x.getDate() + k * 7 * paso + d); lista.push(x); });
+      } else if (m === "dias_mes") {
+        var dm = (diasMes.value || "").split(/[,;\s]+/).map(Number).filter(function (n) { return n >= 1 && n <= 31; }).sort(function (a, b) { return a - b; });
+        if (!dm.length) return out;
+        var base = addMeses(new Date(ancla.getFullYear(), ancla.getMonth(), 1, 12), k * paso, 1);
+        var vistos = {};
+        dm.forEach(function (d) { var x = new Date(base.getFullYear(), base.getMonth(), Math.min(d, ultimo(base.getFullYear(), base.getMonth())), 12); if (!vistos[x.getTime()]) { vistos[x.getTime()] = 1; lista.push(x); } });
+      } else if (m === "meses_anio") {
+        var ms = marcados("rep_meses").sort(function (a, b) { return a - b; }); if (!ms.length) return out;
+        var y = ancla.getFullYear() + k * paso;
+        ms.forEach(function (mm) { lista.push(new Date(y, mm - 1, Math.min(ancla.getDate(), ultimo(y, mm - 1)), 12)); });
+      } else {
+        var u = unidad.value, x;
+        if (u === "dias" || u === "semanas") { x = new Date(ancla.getTime()); x.setDate(x.getDate() + k * paso * (u === "semanas" ? 7 : 1)); }
+        else x = addMeses(ancla, k * paso * (u === "anios" ? 12 : 1), ancla.getDate());
+        lista.push(x);
+      }
+      lista.sort(function (a, b) { return a - b; });
+      for (var i = 0; i < lista.length; i++) { if (push(lista[i])) { stop = true; break; } }
+      if (stop) break;
     }
-    var months = n * step * (un === "anios" ? 12 : 1);
-    var total = base.getFullYear() * 12 + base.getMonth() + months;
-    var y = Math.floor(total / 12), m = total % 12;
-    var last = new Date(y, m + 1, 0, 12).getDate();
-    return new Date(y, m, Math.min(base.getDate(), last), 12);
+    return out;
   }
+  var PRESETS = {
+    semana1: ["dias_semana", 1, [0]], semana2: ["dias_semana", 1, [0, 3]], semana3: ["dias_semana", 1, [0, 2, 4]],
+    mes2: ["dias_mes", 1, "1, 15"], mes1: ["dias_mes", 1, null], anio2: ["meses_anio", 1, 2], anio1: ["meses_anio", 1, 1]
+  };
+  box.querySelectorAll("[data-preset]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var p = PRESETS[b.dataset.preset], ancla = parse(fi.value) || new Date();
+      modo.value = p[0]; intervalo.value = p[1];
+      box.querySelectorAll('input[name="rep_dias_semana"], input[name="rep_meses"]').forEach(function (c) { c.checked = false; });
+      if (p[0] === "dias_semana") p[2].forEach(function (d) { $("repDs" + d).checked = true; });
+      if (p[0] === "dias_mes") diasMes.value = p[2] || String(ancla.getDate());
+      if (p[0] === "meses_anio") { var m0 = ancla.getMonth() + 1; $("repMes" + m0).checked = true; if (p[2] === 2) $("repMes" + (((m0 + 5) % 12) + 1)).checked = true; }
+      refresh();
+    });
+  });
   function refresh() {
     box.hidden = !sw.checked;
-    veces.disabled = !finVeces.checked;
-    hasta.disabled = !finHasta.checked;
+    var m = modo.value;
+    box.querySelectorAll(".rep-bloque").forEach(function (el) { el.hidden = el.dataset.modo !== m; });
+    unidad.hidden = m !== "intervalo";
+    $("repUnidadFija").hidden = m === "intervalo";
+    $("repUnidadFija").textContent = { dias_semana: "semana(s)", dias_mes: "mes(es)", meses_anio: "año(s)" }[m] || "";
+    veces.disabled = finSel() !== "veces"; hasta.disabled = finSel() !== "hasta";
     if (!sw.checked || !preview) return;
-    var base = parse(fi && fi.value);
-    var step = parseInt(intervalo.value, 10);
-    if (!base || !(step >= 1)) { preview.textContent = ""; return; }
-    var dates = [];
-    var limit = finVeces.checked ? parseInt(veces.value, 10) : null;
-    var until = finHasta.checked ? parse(hasta.value) : null;
-    if (!limit && !until) { preview.textContent = ""; return; }
-    for (var n = 0; n <= MAX; n++) {
-      if (limit && n >= limit) break;
-      var d = shift(base, n, step, unidad.value);
-      if (until && d > until) break;
-      dates.push(d);
-    }
-    if (dates.length > MAX) {
-      preview.textContent = "Son más de " + MAX + " actividades: acortá la fecha o espaciá las repeticiones.";
-      return;
-    }
-    if (dates.length < 2) { preview.textContent = "Con esa fecha no llega a repetirse."; return; }
-    var muestra = dates.slice(0, 4).map(fmt).join(", ");
-    preview.textContent = "Se van a crear " + dates.length + " actividades: " + muestra +
-      (dates.length > 4 ? " … hasta el " + fmt(dates[dates.length - 1]) : "") + ".";
+    var ancla = parse(fi && fi.value);
+    if (!ancla) { preview.textContent = "Elegí la fecha de inicio."; return; }
+    var fin = finSel(), limite = null, max = MAX + 1;
+    if (fin === "hasta") { limite = parse(hasta.value); if (!limite) { preview.textContent = ""; return; } }
+    if (fin === "veces") max = Math.min(MAX + 1, parseInt(veces.value, 10) || 0);
+    if (fin === "sin_fin") limite = addMeses(new Date(), HORIZ, new Date().getDate());
+    var ds = fechas(ancla, limite, max);
+    if (!ds.length) { preview.textContent = "Con esa configuración no hay fechas: revisá los días o meses marcados."; return; }
+    if (fin !== "sin_fin" && ds.length > MAX) { preview.textContent = "Son más de " + MAX + " fechas: acortá la fecha o espaciá las repeticiones."; return; }
+    var muestra = ds.slice(0, 6).map(fmt).join(", ");
+    preview.textContent = (fin === "sin_fin" ? "Se programan " + ds.length + " fechas para los próximos " + HORIZ + " meses y después se siguen agregando solas: " : "Se van a programar " + ds.length + " fechas: ") +
+      muestra + (ds.length > 6 ? " … hasta el " + fmt(ds[ds.length - 1]) : "") + ".";
   }
-  [sw, fi, intervalo, unidad, veces, hasta, finVeces, finHasta].forEach(function (el) {
-    if (!el) return;
-    el.addEventListener("change", refresh);
-    el.addEventListener("input", refresh);
-  });
+  [sw, fi, modo, intervalo, unidad, veces, hasta, diasMes].forEach(function (el) { if (el) { el.addEventListener("change", refresh); el.addEventListener("input", refresh); } });
+  box.addEventListener("change", refresh);
   refresh();
 })();
 (function () {

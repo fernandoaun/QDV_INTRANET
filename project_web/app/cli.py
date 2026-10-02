@@ -173,6 +173,11 @@ def register_cli(app: Flask) -> None:
             out_v = run_vencimiento_reminders(app, dry_run=dry_run)
             out_epp = run_entrega_epp_reminders(app, dry_run=dry_run)
             out_bday = run_birthday_reminders(app, dry_run=dry_run)
+            series_nuevas = 0
+            if not dry_run:
+                from app.services.planificacion_series_service import extender_series
+
+                series_nuevas = extender_series()
         click.echo(out.get("message") or "")
         click.echo(
             f"Fecha operación: {out.get('today')} · Días de anticipación: {out.get('days_before')} · "
@@ -193,6 +198,7 @@ def register_cli(app: Flask) -> None:
             f"Cumpleaños · hoy: {out_bday.get('cumpleaneros')} · "
             f"felicitaciones: {out_bday.get('congrats_sent')} · avisos equipo: {out_bday.get('team_emails_sent')}"
         )
+        click.echo(f"Planificación · tareas repetitivas programadas hoy: {series_nuevas}")
         if dry_run and out.get("preview_body"):
             click.echo("--- Planificación/Mantenimiento: asunto ---")
             click.echo(out.get("preview_subject") or "")

@@ -37,6 +37,9 @@ class PlanificacionActividad(db.Model):
     responsable = db.relationship("User", foreign_keys=[responsable_user_id], lazy="joined")
     created_by = db.relationship("User", foreign_keys=[created_by_user_id], lazy="joined")
 
+    # Una misma serie no repite fecha (protege la extensión automática de duplicados).
+    __table_args__ = (db.Index("uq_planif_serie_fecha", "serie_id", "fecha_inicio", unique=True),)
+
     deps_entrantes = db.relationship(
         "PlanificacionDependencia",
         foreign_keys="PlanificacionDependencia.sucesora_id",
@@ -53,6 +56,33 @@ class PlanificacionActividad(db.Model):
     @staticmethod
     def compute_duracion_dias(fecha_inicio: date, fecha_fin: date) -> int:
         return max(1, (fecha_fin - fecha_inicio).days + 1)
+
+
+class PlanificacionSerie(db.Model):
+    """Regla de una tarea repetitiva. Las ocurrencias son actividades con el mismo `serie_id` (= este id).
+
+    Las series «sin fin» se van extendiendo solas para tener siempre programados los próximos meses.
+    """
+
+    __tablename__ = "planificacion_series"
+
+    id = db.Column(db.String(32), primary_key=True)
+    regla_json = db.Column(db.Text, nullable=False)
+    ancla = db.Column(db.Date, nullable=False)
+    duracion_dias = db.Column(db.Integer, nullable=False, default=1, server_default="1")
+    generada_hasta = db.Column(db.Date, nullable=True)
+    ocurrencias_generadas = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    activa = db.Column(db.Boolean, nullable=False, default=True, server_default=db.true())
+    # Plantilla de cada ocurrencia nueva.
+    codigo_base = db.Column(db.String(48), nullable=True)
+    titulo = db.Column(db.String(256), nullable=False)
+    descripcion = db.Column(db.Text, nullable=True)
+    responsable_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    categoria = db.Column(db.String(32), nullable=False, default="otro", server_default="otro")
+    prioridad = db.Column(db.String(16), nullable=False, default="media", server_default="media")
+    observaciones = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
 
 class PlanificacionDependencia(db.Model):

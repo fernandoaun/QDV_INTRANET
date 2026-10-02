@@ -54,12 +54,21 @@ def hub():
     return render_template("planificacion/hub.html")
 
 
+def _extender_series() -> None:
+    """Las tareas repetitivas sin fin se programan solas: completa las que falten antes de mostrar."""
+    try:
+        ps.extender_series()
+    except Exception:
+        db.session.rollback()
+
+
 @bp.get("/tabla")
 @login_required
 def tabla():
     u, redir = _require_view()
     if redir is not None:
         return redir
+    _extender_series()
     f = ps.parse_filtros_from_request(request.args)
     rows = ps.list_actividades(f)
     ids = [int(r.id) for r in rows]
@@ -88,6 +97,7 @@ def gantt():
     u, redir = _require_view()
     if redir is not None:
         return redir
+    _extender_series()
     f = ps.parse_filtros_from_request(request.args)
     rows = ps.list_actividades(f)
     ids = [int(r.id) for r in rows]
@@ -114,6 +124,7 @@ def api_tareas():
     u, redir = _require_view()
     if redir is not None:
         return jsonify({"error": "forbidden"}), 403
+    _extender_series()
     f = ps.parse_filtros_from_request(request.args)
     rows = ps.list_actividades(f)
     ids = [int(r.id) for r in rows]
@@ -163,6 +174,7 @@ def _render_form_error(
         deps_actuales=deps_actuales,
         picker_options_json=_picker_json(exclude_id),
         serie_total=ps.contar_serie(row.serie_id) if row is not None else 0,
+        serie_regla=ps.describir_serie(row.serie_id) if row is not None else "",
         **ps.labels_context(),
     )
 
@@ -219,7 +231,7 @@ def nueva():
         db.session.add(row)
         copias: list = []
         if fechas:
-            copias, err_rep = ps.crear_repeticiones(row, fechas)
+            copias, err_rep = ps.crear_repeticiones(row, fechas, rep)
             if err_rep:
                 db.session.rollback()
                 flash(err_rep, "danger")
@@ -248,10 +260,12 @@ def nueva():
                 exclude_id=None,
             )
         db.session.commit()
-        if copias:
+        if fechas:
+            ultima = copias[-1].fecha_inicio if copias else row.fecha_inicio
             flash(
-                f"Actividad creada con {len(copias) + 1} repeticiones "
-                f"(del {row.fecha_inicio.strftime('%d/%m/%Y')} al {copias[-1].fecha_inicio.strftime('%d/%m/%Y')}).",
+                f"Tarea repetitiva creada ({ps.describir_serie(row.serie_id)}): {len(copias) + 1} fecha(s) programadas "
+                f"del {row.fecha_inicio.strftime('%d/%m/%Y')} al {ultima.strftime('%d/%m/%Y')}."
+                + (" Se siguen programando solas hacia adelante." if rep is not None and rep.sin_fin else ""),
                 "success",
             )
         else:
@@ -346,6 +360,7 @@ def editar(actividad_id: int):
         deps_actuales=deps_db,
         picker_options_json=_picker_json(int(row.id)),
         serie_total=ps.contar_serie(row.serie_id),
+        serie_regla=ps.describir_serie(row.serie_id),
         **ps.labels_context(),
     )
 
@@ -384,10 +399,11 @@ def eliminar_serie(actividad_id: int):
         flash("Actividad no encontrada.", "danger")
         return redirect(url_for("planificacion.tabla"))
     rows = ps.serie_restantes(row)
+    ps.detener_serie(row.serie_id)
     for x in rows:
         db.session.delete(x)
     db.session.commit()
-    flash(f"Se eliminaron {len(rows)} actividad(es) de la serie.", "success")
+    flash(f"Se eliminaron {len(rows)} actividad(es) de la serie y la repetición quedó detenida.", "success")
     return redirect(url_for("planificacion.tabla"))
 
 

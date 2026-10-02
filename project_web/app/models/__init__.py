@@ -28,7 +28,7 @@ from app.models.domain import (
 )
 from app.models.shift import ShiftHandover, ShiftHandoverWarningAction, ShiftSession
 from app.models.lab_reagent import LaboratoryReagent, LaboratoryReagentUsage
-from app.models.planificacion import PlanificacionActividad, PlanificacionDependencia
+from app.models.planificacion import PlanificacionActividad, PlanificacionDependencia, PlanificacionSerie
 from app.models.objetivos import Objetivo, ObjetivoCambio, ObjetivoMes, ObjetivoPrograma
 from app.models.fichas_proceso import FichaProceso, FichaProcesoCambio
 from app.models.parametro import AppParametro
@@ -116,6 +116,7 @@ __all__ = [
     "LaboratoryReagent",
     "LaboratoryReagentUsage",
     "PlanificacionActividad",
+    "PlanificacionSerie",
     "ObjetivoPrograma",
     "Objetivo",
     "ObjetivoMes",

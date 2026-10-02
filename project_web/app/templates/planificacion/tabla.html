@@ -11,6 +11,7 @@
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.gantt', **request.args) }}"><i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>Gantt</a>
     {% if page_can_edit_current %}
     <a class="btn btn-primary btn-sm" href="{{ url_for('planificacion.nueva') }}"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nueva actividad</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.nueva', repetir=1) }}"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Tarea repetitiva</a>
     {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.export_csv', **request.args) }}"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV (Excel)</a>
   </div>
@@ -123,7 +124,7 @@
         <tr class="{% if atrasada %}table-warning{% elif r.estado == 'demorada' %}table-danger{% elif anal.get('bloquea_inicio') and r.estado == 'pendiente' %}table-secondary{% endif %}">
           <td class="text-nowrap fw-semibold">{{ planificacion_display_codigo(r) }}</td>
           <td>
-            <div class="fw-semibold">{{ r.titulo }}{% if r.serie_id %} <span class="badge text-bg-light border fw-normal" title="Actividad repetitiva">↻ se repite</span>{% endif %}</div>
+            <div class="fw-semibold">{{ r.titulo }}{% if r.serie_id %} <span class="badge text-bg-light border fw-normal" title="{{ planificacion_describir_serie(r.serie_id) }}">↻ se repite</span>{% endif %}</div>
             {% if r.descripcion %}<div class="small app-text-secondary text-truncate" style="max-width:28rem;">{{ r.descripcion }}</div>{% endif %}
             {% if atrasada and r.estado not in ('finalizada','cancelada') %}
             <div class="small text-danger fw-semibold">Vencida / atrasada (fecha fin anterior a hoy)</div>

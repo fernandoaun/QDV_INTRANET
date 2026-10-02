@@ -32,6 +32,9 @@
   <div class="app-page-actions d-flex flex-wrap gap-2 justify-content-end">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}">← Hub</a>
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.tabla', **request.args) }}"><i class="bi bi-table me-1" aria-hidden="true"></i>Tabla</a>
+    {% if page_can_edit_current %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.nueva', repetir=1) }}"><i class="bi bi-arrow-repeat me-1" aria-hidden="true"></i>Tarea repetitiva</a>
+    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.export_csv', **request.args) }}"><i class="bi bi-download me-1" aria-hidden="true"></i>CSV</a>
   </div>
 </div>

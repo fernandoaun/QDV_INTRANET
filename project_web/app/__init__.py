@@ -480,6 +480,7 @@ def create_app() -> Flask:
             "user_role_label": lambda u=None: role_label(getattr(u, "rol", None) if u is not None else None),
             "planificacion_display_codigo": _planificacion_service.actividad_display_codigo,
             "planificacion_is_atrasada": _planificacion_service.is_atrasada,
+            "planificacion_describir_serie": _planificacion_service.describir_serie,
             "planificacion_resumen_predecesoras": lambda dlist: _planificacion_service.resumen_predecesoras_texto(dlist or []),
             "personal_entregas_pendientes": personal_entregas_pendientes,
             "personal_vacaciones_pendientes": personal_vacaciones_pendientes,
