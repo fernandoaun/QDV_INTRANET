@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Stock de ropa y EPP · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Stock de ropa y EPP</h1>
+    <div class="text-muted small">Cada entrega registrada descuenta sola. Las compras se cargan como ingreso y los conteos corrigen la diferencia. Ropa, calzado y guantes se cuentan por talle.</div>
+  </div>
+  <div class="app-page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_entregas') }}">Entregas EPP</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_pedidos') }}">Pedidos</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Existencias</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0 align-middle">
+      <thead><tr><th>Elemento</th><th class="text-end">Total</th><th>Por talle</th><th class="text-end">Mínimo</th><th></th></tr></thead>
+      <tbody>
+        {% for r in resumen %}
+        <tr class="{% if r.negativo %}table-danger{% elif r.bajo_minimo %}table-warning{% endif %}">
+          <td class="fw-semibold">{{ r.item.nombre }}</td>
+          <td class="text-end fs-6 fw-semibold">{{ r.total }}</td>
+          <td>
+            {% for t, q in r.talles %}<span class="badge {% if q < 0 %}text-bg-danger{% elif q == 0 %}text-bg-light border text-muted{% else %}text-bg-secondary{% endif %} me-1">{{ t }}: {{ q }}</span>{% endfor %}
+            {% if r.item.stock_por_talle and not r.talles %}<span class="small text-muted">sin cargar</span>{% endif %}
+            {% if r.item.stock_por_talle and r.sin_talle_cargado %}<span class="badge text-bg-warning">sin talle: {{ r.sin_talle_cargado }}</span>{% endif %}
+          </td>
+          <td class="text-end">{{ r.item.stock_minimo if r.item.stock_minimo is not none else '—' }}</td>
+          <td class="small">{% if r.negativo %}<span class="text-danger fw-semibold">Revisar: negativo</span>{% elif r.bajo_minimo %}<span class="text-warning-emphasis fw-semibold">Bajo mínimo</span>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted text-center py-4">No hay elementos activos en el catálogo de EPP.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if puede_cargar %}
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="app-card h-100">
+      <div class="app-card-header">Ingreso (compra)</div>
+      <div class="app-card-body">
+        <form method="post" class="row g-2 epp-stock-form">
+          {% include "_csrf.html" %}
+          <input type="hidden" name="accion" value="ingreso">
+          <div class="col-md-6"><label class="form-label small mb-0">Elemento *</label>
+            <select class="form-select epp-item" name="item_id" required><option value="">Elegí…</option>
+              {% for it in items %}<option value="{{ it.id }}" data-por-talle="{{ '1' if it.stock_por_talle else '' }}">{{ it.nombre }}</option>{% endfor %}</select></div>
+          <div class="col-6 col-md-3 epp-talle-box"><label class="form-label small mb-0">Talle *</label><input class="form-control" name="talle" maxlength="32"></div>
+          <div class="col-6 col-md-3"><label class="form-label small mb-0">Cantidad *</label><input class="form-control" type="number" name="cantidad" min="1" max="10000" required></div>
+          <div class="col-6 col-md-4"><label class="form-label small mb-0">Fecha</label><input class="form-control" type="date" name="fecha" value="{{ fecha_hoy }}"></div>
+          <div class="col-6 col-md-4"><label class="form-label small mb-0">Proveedor</label><input class="form-control" name="proveedor" maxlength="256"></div>
+          <div class="col-md-4"><label class="form-label small mb-0">Marca</label><input class="form-control" name="marca" maxlength="128"></div>
+          <div class="col-md-9"><label class="form-label small mb-0">Observaciones</label><input class="form-control" name="observaciones" maxlength="1000"></div>
+          <div class="col-md-3 d-flex align-items-end"><button class="btn btn-primary w-100">Registrar ingreso</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="app-card h-100">
+      <div class="app-card-header">Conteo físico</div>
+      <div class="app-card-body">
+        <p class="small text-muted mb-2">Cargá lo que contaste en el depósito: el sistema registra la diferencia como ajuste. Para arrancar, contá todo y cargalo acá.</p>
+        <form method="post" class="row g-2 epp-stock-form">
+          {% include "_csrf.html" %}
+          <input type="hidden" name="accion" value="conteo">
+          <div class="col-md-6"><label class="form-label small mb-0">Elemento *</label>
+            <select class="form-select epp-item" name="item_id" required><option value="">Elegí…</option>
+              {% for it in items %}<option value="{{ it.id }}" data-por-talle="{{ '1' if it.stock_por_talle else '' }}">{{ it.nombre }}</option>{% endfor %}</select></div>
+          <div class="col-6 col-md-3 epp-talle-box"><label class="form-label small mb-0">Talle *</label><input class="form-control" name="talle" maxlength="32"></div>
+          <div class="col-6 col-md-3"><label class="form-label small mb-0">Contado *</label><input class="form-control" type="number" name="contado" min="0" max="100000" required></div>
+          <div class="col-6 col-md-4"><label class="form-label small mb-0">Fecha</label><input class="form-control" type="date" name="fecha" value="{{ fecha_hoy }}"></div>
+          <div class="col-md-5"><label class="form-label small mb-0">Observaciones</label><input class="form-control" name="observaciones" maxlength="1000"></div>
+          <div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary w-100">Registrar conteo</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<details class="app-card mb-3" id="config">
+  <summary class="app-card-header" style="cursor:pointer">Configuración: por talle y stock mínimo</summary>
+  <div class="app-card-body">
+    <form method="post">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="accion" value="config">
+      <table class="table table-sm align-middle mb-2" style="max-width:40rem">
+        <thead><tr><th>Elemento</th><th class="text-center">Se cuenta por talle</th><th>Stock mínimo</th></tr></thead>
+        <tbody>
+          {% for it in items %}
+          <tr>
+            <td>{{ it.nombre }}</td>
+            <td class="text-center"><input class="form-check-input" type="checkbox" name="talle_{{ it.id }}" value="1" {% if it.stock_por_talle %}checked{% endif %} aria-label="{{ it.nombre }} por talle"></td>
+            <td><input class="form-control form-control-sm" style="width:7rem" type="number" min="0" name="min_{{ it.id }}" value="{{ it.stock_minimo if it.stock_minimo is not none else '' }}" aria-label="Mínimo de {{ it.nombre }}"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="small text-muted mb-2">Cambiar «por talle» no mueve lo ya cargado: conviene definirlo antes del conteo inicial.</div>
+      <button class="btn btn-sm btn-primary">Guardar configuración</button>
+    </form>
+  </div>
+</details>
+{% endif %}
+
+<div class="app-card">
+  <div class="app-card-header">Últimos movimientos</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Tipo</th><th>Elemento</th><th>Talle</th><th class="text-end">Cantidad</th><th>Detalle</th><th>Cargó</th></tr></thead>
+      <tbody>
+        {% for m in movimientos %}
+        <tr>
+          <td class="text-nowrap small">{{ m.fecha.strftime('%d/%m/%Y') }}</td>
+          <td class="small">{{ tipo_labels.get(m.tipo, m.tipo) }}</td>
+          <td>{{ m.item.nombre }}</td>
+          <td>{{ m.talle or '—' }}</td>
+          <td class="text-end fw-semibold {% if m.cantidad < 0 %}text-danger{% else %}text-success{% endif %}">{{ '%+d'|format(m.cantidad) }}</td>
+          <td class="small text-muted">{{ [m.proveedor, m.marca, m.observaciones]|select|join(' · ') }}</td>
+          <td class="small text-muted">{{ m.user.username if m.user else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted text-center py-4">Todavía no hay movimientos. Empezá con el conteo inicial.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  document.querySelectorAll(".epp-stock-form").forEach(function (f) {
+    var sel = f.querySelector(".epp-item"), box = f.querySelector(".epp-talle-box"), inp = box && box.querySelector("input");
+    if (!sel || !box) return;
+    function refresh() {
+      var opt = sel.options[sel.selectedIndex];
+      var porTalle = !!(opt && opt.dataset.porTalle);
+      box.hidden = !porTalle;
+      inp.required = porTalle;
+      if (!porTalle) inp.value = "";
+    }
+    sel.addEventListener("change", refresh);
+    refresh();
+  });
+})();
+</script>
+{% endblock %}

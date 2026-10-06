@@ -52,6 +52,12 @@
       <p>Alta de productos, stock mínimo de alerta y revisión del maestro.</p>
     </a>
     {% endif %}
+    {% if user_can_stock_hub %}
+    <a class="app-module-card" href="{{ url_for('personal.epp_stock_vista') }}">
+      <h2>Ropa y EPP</h2>
+      <p>Existencias por elemento y talle; cada entrega descuenta sola. Ingresos y conteos.</p>
+    </a>
+    {% endif %}
   </div>
   {% if user_can_stock_historial %}
   <div class="app-card mt-3">

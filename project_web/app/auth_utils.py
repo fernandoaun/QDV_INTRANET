@@ -632,6 +632,10 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         return user is not None and not user_is_global_read_only(user)
     if ep in ("personal.epp_entregas", "personal.epp_pedidos", "personal.epp_constancia"):
         return user_can_register_entregas_personal(user)
+    if ep == "personal.epp_stock_vista":
+        from app.services.epp_stock_service import puede_cargar
+
+        return puede_cargar(user)
     if ep.startswith("personal."):
         return user_can_manage_personal(user)
     if ep.startswith("sgi."):

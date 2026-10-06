@@ -9,6 +9,7 @@
   </div>
   <div class="app-page-actions d-flex gap-2">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_entregas') }}">Entregas EPP</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_stock_vista') }}">Stock</a>
     {% if puede_personal %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Personal</a>{% endif %}
   </div>
 </div>
@@ -22,7 +23,8 @@
         <tr id="pedido-{{ p.id }}">
           <td class="text-nowrap small">{{ fecha_local_pedido(p.created_at) }}</td>
           <td>{{ p.empleado.nombre_completo }}</td>
-          <td>{{ p.item.nombre }}{% if p.talle %} · talle {{ p.talle }}{% endif %} · {{ p.cantidad }}</td>
+          <td>{{ p.item.nombre }}{% if p.talle %} · talle {{ p.talle }}{% endif %} · {{ p.cantidad }}
+            {% if p.estado == 'pendiente' %}{% set st = stock_de(p.item, p.talle) %}{% if st is not none %}<div class="small {% if st < p.cantidad %}text-danger{% else %}text-muted{% endif %}">En stock: {{ st }}</div>{% endif %}{% endif %}</td>
           <td class="small">{{ motivos_pedido_epp.get(p.motivo, p.motivo) }}{% if p.comentario %}<div class="text-muted">{{ p.comentario }}</div>{% endif %}</td>
           <td>
             <span class="badge {% if p.estado == 'pendiente' %}text-bg-warning{% elif p.estado == 'entregada' %}text-bg-success{% elif p.estado == 'rechazada' %}text-bg-danger{% else %}text-bg-secondary{% endif %}">{{ estados_pedido_epp.get(p.estado, p.estado) }}</span>

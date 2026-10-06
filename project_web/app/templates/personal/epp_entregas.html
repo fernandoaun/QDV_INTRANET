@@ -4,6 +4,7 @@
 <div class="app-page-head">
   <h1 class="app-page-title">Entregas ropa / EPP</h1>
   <div class="app-page-actions d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.epp_stock_vista') }}">Stock</a>
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('personal.epp_pedidos') }}">Pedidos{% if pedidos_pendientes %} <span class="badge text-bg-warning">{{ pedidos_pendientes }}</span>{% endif %}</a>
     {% if user_can_access_personal() %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('personal.hub') }}">Volver</a>{% endif %}
   </div>

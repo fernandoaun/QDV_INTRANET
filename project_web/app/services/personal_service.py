@@ -1112,11 +1112,15 @@ def save_entrega_epp(
     )
     db.session.add(entrega)
     _aplicar_encabezado_constancia_epp(emp, encabezado)
+    db.session.flush()
     if (data.get("solicitud_id") or "").strip():
         from app.services import epp_pedidos_service
 
-        db.session.flush()
         epp_pedidos_service.marcar_entregada(data.get("solicitud_id"), entrega.id, emp.id, user_id)
+    # La entrega descuenta sola del stock de EPP (si no hay, se registra igual y se avisa).
+    from app.services import epp_stock_service
+
+    aviso_stock = epp_stock_service.descontar_entrega(entrega, user_id)
     try:
         db.session.commit()
     except Exception as exc:
@@ -1133,10 +1137,12 @@ def save_entrega_epp(
 
         mail_ok, mail_detail = maybe_notify_entrega_epp_pendiente(entrega)
         base_msg = "Entrega registrada. El empleado debe confirmarla desde su usuario."
+        if aviso_stock:
+            base_msg += f" {aviso_stock}"
         if not mail_ok and mail_detail:
             return True, f"{base_msg} Aviso por correo: {mail_detail}"
         return True, base_msg
-    return True, "Entrega registrada."
+    return True, "Entrega registrada." + (f" {aviso_stock}" if aviso_stock else "")
 
 
 def confirmar_entrega_epp(entrega_id: int, *, user_id: int) -> tuple[bool, str]:

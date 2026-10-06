@@ -21,6 +21,7 @@ from app.models import Operador, PersonalApercibimiento, PersonalCurso, User
 from app.services import archivo_service as avs
 from app.services import epp_constancia_service as epp_cs
 from app.services import epp_pedidos_service as epp_ped_svc
+from app.services import epp_stock_service as epp_stock
 from app.services import personal_service as ps
 
 bp = Blueprint("personal", __name__, url_prefix="/personal")
@@ -393,9 +394,52 @@ def epp_pedidos():
     return render_template(
         "personal/epp_pedidos.html",
         pedidos=epp_ped_svc.listar(),
+        stock_de=epp_stock.stock_de,
         puede_resolver=user_can_register_entregas_personal(u),
         puede_personal=user_can_access_personal(u),
         **epp_ped_svc.labels_context(),
+    )
+
+
+@bp.route("/epp/stock", methods=["GET", "POST"])
+@login_required
+def epp_stock_vista():
+    """Stock de ropa y EPP: existencias por ítem y talle, ingresos, conteos y movimientos."""
+    u = current_user()
+    if not epp_stock.puede_ver(u):
+        return _no_access()
+    if request.method == "POST":
+        if not epp_stock.puede_cargar(u):
+            flash("Solo la responsable de laboratorio y el administrador cargan el stock de EPP.", "warning")
+            return redirect(url_for("personal.epp_stock_vista"))
+        accion = (request.form.get("accion") or "").strip()
+        if accion == "ingreso":
+            err = epp_stock.registrar_ingreso(request.form, u.id)
+            msg = "Ingreso registrado."
+        elif accion == "conteo":
+            err, dif = epp_stock.registrar_conteo(request.form, u.id)
+            msg = "Conteo registrado: el stock coincidía." if dif == 0 else f"Conteo registrado: ajuste de {dif:+d}."
+        elif accion == "config":
+            epp_stock.guardar_config(request.form)
+            err, msg = None, "Configuración guardada."
+        else:
+            err, msg = "Acción no reconocida.", ""
+        if err:
+            db.session.rollback()
+            flash(err, "danger")
+        else:
+            db.session.commit()
+            flash(msg, "success")
+        return redirect(url_for("personal.epp_stock_vista") + ("#config" if accion == "config" else ""))
+    return render_template(
+        "personal/epp_stock.html",
+        resumen=epp_stock.resumen(),
+        movimientos=epp_stock.movimientos(),
+        items=ps.list_epp_items(solo_activos=True),
+        puede_cargar=epp_stock.puede_cargar(u),
+        tipo_labels=epp_stock.TIPO_LABELS,
+        fecha_local=epp_stock.fecha_local,
+        fecha_hoy=epp_stock._hoy().isoformat(),
     )
 
 

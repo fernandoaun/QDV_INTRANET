@@ -69,6 +69,9 @@ class PersonalEppItem(db.Model):
     requiere_talle = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
     activo = db.Column(db.Boolean, nullable=False, default=True, server_default="1")
     orden = db.Column(db.Integer, nullable=False, default=0, server_default="0")
+    # Stock de EPP: se cuenta por talle (ropa, calzado, guantes) o solo el total; mínimo para alertar.
+    stock_por_talle = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    stock_minimo = db.Column(db.Integer, nullable=True)
 
     entregas = db.relationship("PersonalEntregaEpp", back_populates="item", lazy="dynamic")
 
@@ -154,6 +157,30 @@ class PersonalSolicitudEpp(db.Model):
     empleado = db.relationship("EmpleadoPersonal", lazy="joined")
     item = db.relationship("PersonalEppItem", lazy="joined")
     resuelta_by = db.relationship("User", foreign_keys=[resuelta_by_user_id], lazy="joined")
+
+
+class PersonalEppMovimiento(db.Model):
+    """Movimiento de stock de ropa/EPP: ingreso (+), entrega (−) o ajuste por conteo (±)."""
+
+    __tablename__ = "personal_epp_movimientos"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    item_id = db.Column(db.Integer, db.ForeignKey("personal_epp_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    talle = db.Column(db.String(32), nullable=False, default="", server_default="")
+    tipo = db.Column(db.String(16), nullable=False, index=True)  # ingreso | entrega | ajuste
+    cantidad = db.Column(db.Integer, nullable=False)  # con signo
+    fecha = db.Column(db.Date, nullable=False, index=True)
+    proveedor = db.Column(db.String(256), nullable=False, default="", server_default="")
+    marca = db.Column(db.String(128), nullable=False, default="", server_default="")
+    observaciones = db.Column(db.String(1000), nullable=False, default="", server_default="")
+    entrega_id = db.Column(
+        db.Integer, db.ForeignKey("personal_entregas_epp.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now, index=True)
+
+    item = db.relationship("PersonalEppItem", lazy="joined")
+    user = db.relationship("User", lazy="joined")
 
 class PersonalCurso(db.Model):
     __tablename__ = "personal_cursos"
