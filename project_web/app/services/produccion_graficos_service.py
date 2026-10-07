@@ -14,6 +14,7 @@ from app.models import (
     ReactorRegistro,
     SalmueraRegistro,
 )
+from app.utils.fechas import fecha_ar
 from app.web.modules.produccion.operativa_context import now_local
 
 HIPO_OPTIONS: list[dict[str, str]] = [
@@ -108,13 +109,13 @@ def _parse_vars_selection(
 
 
 def _ts_pretty(fecha_iso: str, hora_hm: str, created_at_iso: str) -> str:
-    f = (fecha_iso or "").strip()
+    f = fecha_ar((fecha_iso or "").strip())
     h = (hora_hm or "").strip()
     if f and h:
         return f"{f} {h}"
     if f:
         return f
-    return (created_at_iso or "")[:16].replace("T", " ")
+    return fecha_ar((created_at_iso or "")[:16])
 
 
 def _color_for_producto(

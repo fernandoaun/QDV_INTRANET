@@ -12,6 +12,7 @@ from app.extensions import db
 from app.models import PlantStopAlertEmail, PlantStopEvent, User
 from app.services.deadline_alert_email_service import normalize_validate_email
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
+from app.utils.fechas import fecha_ar
 
 log = logging.getLogger(__name__)
 
@@ -256,7 +257,7 @@ def _send_stop_mail(app: Any, ev: PlantStopEvent) -> None:
     cuerpo_texto = (
         f"Parada de planta en {label}.\n"
         f"Operador: {ev.operador or '—'}\n"
-        f"Inicio: {ev.started_at_iso}{obs_txt}"
+        f"Inicio: {fecha_ar(ev.started_at_iso)}{obs_txt}"
     )
     enviar_mail(
         app,
@@ -302,7 +303,7 @@ def _send_resume_mail(app: Any, ev: PlantStopEvent, *, operador: str | None = No
         f"Reanudación de análisis en {label} (fin de parada de planta).\n"
         f"Operador (reanudación): {op_resume}\n"
         f"Operador (parada): {op_stop}\n"
-        f"Inicio parada: {ev.started_at_iso}\n"
+        f"Inicio parada: {fecha_ar(ev.started_at_iso)}\n"
         f"Fin parada: {ended}{obs_txt}"
     )
     enviar_mail(

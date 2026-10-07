@@ -828,5 +828,6 @@
 {% endif %}
 {% endif %}
 {% block scripts %}{% endblock %}
+<script src="{{ url_for('static', filename='js/fechas_ar.js') }}?v={{ app_release_version|default('1') }}"></script>
 </body>
 </html>

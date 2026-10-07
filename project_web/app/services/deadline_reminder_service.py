@@ -23,6 +23,7 @@ from app.services.deadline_alert_email_service import merged_recipient_addresses
 from app.services.mail_service import enviar_mail_texto_plano
 from app.services.planificacion_service import actividad_display_codigo
 from app.utils.datetime_operacion import now_operacion_naive_local
+from app.utils.fechas import fecha_ar
 
 DOMAIN_PLANIFICACION = "planificacion"
 DOMAIN_MANTENIMIENTO_ORDER = "mantenimiento_order"
@@ -160,7 +161,7 @@ def _build_body(plans: list[PlanReminderItem], orders: list[OrderReminderItem], 
         lines.append("Planificación (fecha de fin de actividad)")
         lines.append("-" * 40)
         for p in plans:
-            lines.append(f"  • [{p.codigo}] {p.titulo} — fin: {p.fecha_fin.isoformat()}")
+            lines.append(f"  • [{p.codigo}] {p.titulo} — fin: {fecha_ar(p.fecha_fin)}")
         lines.append("")
     else:
         lines.append("(No hay actividades de planificación en ventana de aviso pendientes de notificar.)")
@@ -172,7 +173,7 @@ def _build_body(plans: list[PlanReminderItem], orders: list[OrderReminderItem], 
         for o in orders:
             lines.append(
                 f"  • Orden #{o.id} — {o.equipo_nombre} — {o.tipo_mantenimiento} — "
-                f"programada: {o.fecha_programada.isoformat()} — estado: {o.estado}"
+                f"programada: {fecha_ar(o.fecha_programada)} — estado: {o.estado}"
             )
         lines.append("")
     else:
@@ -219,7 +220,7 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
         return result
 
     body = _build_body(plans, orders, days_before)
-    subject = f"QDV — Avisos planificación/mantenimiento ({today.isoformat()})"
+    subject = f"QDV — Avisos planificación/mantenimiento ({fecha_ar(today)})"
 
     if dry_run:
         result["message"] = "Dry-run: no se envió correo ni se guardó registro."

@@ -45,6 +45,9 @@ def es_hipoclorito_entrega_filter(value: Any) -> bool:
 
 
 def register_template_filters(app) -> None:
+    from app.utils.fechas import fecha_ar
+
+    app.jinja_env.filters["fecha"] = fecha_ar
     app.jinja_env.filters["voltajes_display_items"] = voltajes_display_items
     app.jinja_env.filters["shift_operator_display"] = shift_operator_display_filter
     app.jinja_env.filters["es_hipoclorito_entrega"] = es_hipoclorito_entrega_filter

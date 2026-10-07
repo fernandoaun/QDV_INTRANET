@@ -24,6 +24,7 @@ from app.services.mail_link_service import public_abs_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
 from app.services import vencimiento_service as vs
 from app.utils.datetime_operacion import now_operacion_naive_local
+from app.utils.fechas import fecha_ar
 
 log = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
     plain_lines = [
         f"Vencimiento: {v.nombre}",
         f"Sector: {sector_nombre}",
-        f"Fecha de vencimiento: {v.fecha_vencimiento.isoformat()}",
+        f"Fecha de vencimiento: {fecha_ar(v.fecha_vencimiento)}",
         f"Días restantes: {dias}",
         f"Responsable: {v.responsable or '—'}",
         f"Observaciones: {(v.observaciones or '').strip() or '—'}",
@@ -55,7 +56,7 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
         for k, val in (
             ("Nombre del vencimiento", v.nombre),
             ("Sector", sector_nombre),
-            ("Fecha de vencimiento", v.fecha_vencimiento.isoformat()),
+            ("Fecha de vencimiento", fecha_ar(v.fecha_vencimiento)),
             ("Días restantes", str(dias)),
             ("Responsable", v.responsable or "—"),
             ("Observaciones", (v.observaciones or "").strip() or "—"),

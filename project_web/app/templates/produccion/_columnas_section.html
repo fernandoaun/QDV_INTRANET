@@ -40,7 +40,7 @@
           </select></div>
         <div class="col-md-2">
           <label class="form-label">Fecha reg. (dd/mm/yyyy)</label>
-          <input class="form-control" value="{{ columnas_reg_fecha }}" readonly aria-readonly="true">
+          <input class="form-control" value="{{ columnas_reg_fecha|fecha }}" readonly aria-readonly="true">
           <input type="hidden" name="fecha_regeneracion" value="{{ columnas_reg_fecha }}">
         </div>
         <div class="col-md-2">
