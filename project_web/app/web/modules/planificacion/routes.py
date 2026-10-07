@@ -224,6 +224,7 @@ def _render_form_error(
         picker_options_json=_picker_json(exclude_id),
         serie_total=ps.contar_serie(row.serie_id) if row is not None else 0,
         serie_regla=ps.describir_serie(row.serie_id) if row is not None else "",
+        rep_pref=ps.repeticion_form_defaults(ps.regla_serie(row.serie_id)) if row is not None else {},
         volver_url=_safe_next(),
         **ps.labels_context(),
     )
@@ -355,6 +356,9 @@ def editar(actividad_id: int):
         r = _require_edit(u)
         if r is not None:
             return r
+        inicio_original = row.fecha_inicio
+        era_serie = bool(row.serie_id)
+        aplicar_siguientes = era_serie and request.form.get("aplicar") == "siguientes"
         pairs, perrs = ps.parse_dependencias_form(request.form, int(row.id))
         if perrs:
             for e in perrs:
@@ -396,9 +400,45 @@ def editar(actividad_id: int):
                 deps_actuales=deps_db,
                 exclude_id=int(row.id),
             )
+        msg = "Cambios guardados."
+        err_rep: str | None = None
+        if aplicar_siguientes or (not era_serie and request.form.get("repetir")):
+            rep, rep_errs = ps.parse_repeticion_form(request.form, updated.fecha_inicio)
+            if rep_errs:
+                err_rep = " ".join(rep_errs)
+            elif aplicar_siguientes:
+                borradas, creadas, err_rep = ps.reprogramar_serie_desde(updated, inicio_original, rep)
+                if not err_rep:
+                    msg = (
+                        f"Cambios aplicados desde el {updated.fecha_inicio.strftime('%d/%m/%Y')}: "
+                        + (
+                            f"se reprogramaron las fechas siguientes ({ps.describir_serie(updated.serie_id)})."
+                            if rep is not None
+                            else f"la tarea deja de repetirse ({borradas} fecha(s) siguientes eliminadas)."
+                        )
+                    )
+            elif rep is not None:
+                fechas, err_rep = ps.fechas_repeticion(updated.fecha_inicio, updated.fecha_fin, rep)
+                if not err_rep:
+                    copias, err_rep = ps.crear_repeticiones(updated, fechas, rep)
+                    if not err_rep:
+                        msg = f"La actividad ahora se repite ({ps.describir_serie(updated.serie_id)}): {len(copias) + 1} fecha(s) programadas."
+        if err_rep:
+            db.session.rollback()
+            db.session.refresh(row)
+            flash(err_rep, "danger")
+            return _render_form_error(
+                mode="editar",
+                row=row,
+                form=request.form,
+                default_fecha_inicio=default_fecha_inicio,
+                default_fecha_fin=default_fecha_fin,
+                deps_actuales=deps_db,
+                exclude_id=int(row.id),
+            )
         db.session.add(updated)
         db.session.commit()
-        flash("Cambios guardados.", "success")
+        flash(msg, "success")
         return redirect(_safe_next())
     return render_template(
         "planificacion/form.html",
@@ -412,6 +452,7 @@ def editar(actividad_id: int):
         picker_options_json=_picker_json(int(row.id)),
         serie_total=ps.contar_serie(row.serie_id),
         serie_regla=ps.describir_serie(row.serie_id),
+        rep_pref=ps.repeticion_form_defaults(ps.regla_serie(row.serie_id)),
         volver_url=_safe_next(),
         **ps.labels_context(),
     )

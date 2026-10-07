@@ -684,6 +684,9 @@ from app.services.planificacion_series_service import (  # noqa: E402
     extender_series,
     fechas_repeticion,
     parse_repeticion_form,
+    regla_serie,
+    repeticion_form_defaults,
+    reprogramar_serie_desde,
     serie_restantes,
 )
 

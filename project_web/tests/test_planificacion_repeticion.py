@@ -106,7 +106,7 @@ def test_crear_actividad_repetitiva_y_eliminar_siguientes(planif_client, app):
 
     ed = planif_client.get(f"/planificacion/editar/{rows[3][0]}")
     assert ed.status_code == 200
-    assert "hay 6 fecha(s) programadas" in ed.get_data(as_text=True)
+    assert "con 6 fecha(s) programadas" in ed.get_data(as_text=True)
     assert "se repite" in planif_client.get("/planificacion/tabla").get_data(as_text=True)
 
     # Desde la 4.ª en adelante: quedan las 3 primeras.

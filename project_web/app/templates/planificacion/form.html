@@ -99,17 +99,35 @@
                value="{{ (form.linked_entity_id if form else ((row.linked_entity_id|string) if row and row.linked_entity_id else ''))|e }}">
       </div>
 
-      {% if mode == 'nueva' %}
-      {% set rep_on = (form.repetir if form else request.args.get('repetir')) %}
-      {% set rep_modo = (form.rep_modo if form and form.rep_modo else 'dias_semana') %}
-      {% set rep_fin = (form.rep_fin if form and form.rep_fin else 'sin_fin') %}
-      {% set dias_sel = (form.getlist('rep_dias_semana') if form else []) %}
-      {% set meses_sel = (form.getlist('rep_meses') if form else []) %}
+      {% set es_serie = mode == 'editar' and row and row.serie_id %}
+      {% set aplicar = (form.aplicar if form and form.aplicar else 'esta') %}
+      {% if es_serie %}
       <div class="col-12">
+        <div class="border border-primary rounded p-3">
+          <div class="mb-2">Esta actividad es parte de una tarea repetitiva{% if serie_regla %} (<strong>{{ serie_regla }}</strong>){% endif %}, con {{ serie_total }} fecha(s) programadas. ¿A qué fechas aplicás los cambios?</div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="aplicar" id="aplicarEsta" value="esta" {% if aplicar != 'siguientes' %}checked{% endif %}>
+            <label class="form-check-label" for="aplicarEsta">Solo a esta fecha ({{ row.fecha_inicio.strftime('%d/%m/%Y') }})</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="aplicar" id="aplicarSiguientes" value="siguientes" {% if aplicar == 'siguientes' %}checked{% endif %}>
+            <label class="form-check-label" for="aplicarSiguientes">A esta y a todas las siguientes (podés cambiar también la frecuencia)</label>
+          </div>
+          <div class="form-text">Las fechas siguientes que estén pendientes se vuelven a programar con los datos nuevos. Las anteriores y las ya cumplidas no se tocan.</div>
+        </div>
+      </div>
+      {% endif %}
+      {% set rp = rep_pref or {} %}
+      {% set rep_on = (form.repetir if form else (request.args.get('repetir') if mode == 'nueva' else rp.get('on'))) %}
+      {% set rep_modo = (form.rep_modo if form and form.rep_modo else rp.get('modo', 'dias_semana')) %}
+      {% set rep_fin = (form.rep_fin if form and form.rep_fin else rp.get('fin', 'sin_fin')) %}
+      {% set dias_sel = (form.getlist('rep_dias_semana') if form else rp.get('dias_semana', [])) %}
+      {% set meses_sel = (form.getlist('rep_meses') if form else rp.get('meses', [])) %}
+      <div class="col-12" id="planifRepWrap" {% if es_serie and aplicar != 'siguientes' %}hidden{% endif %}>
         <div class="border rounded p-3 bg-body-tertiary bg-opacity-25" id="planifRepBox">
           <div class="form-check form-switch mb-0">
             <input class="form-check-input" type="checkbox" role="switch" id="repetir" name="repetir" value="1" {% if rep_on %}checked{% endif %}>
-            <label class="form-check-label fw-semibold" for="repetir">Tarea repetitiva</label>
+            <label class="form-check-label fw-semibold" for="repetir">{% if es_serie %}Se repite (sacale la tilde para que deje de repetirse desde esta fecha){% else %}Tarea repetitiva{% endif %}</label>
           </div>
           <div id="planifRepFields" class="mt-2" {% if not rep_on %}hidden{% endif %}>
             <div class="d-flex flex-wrap gap-1 mb-3" role="group" aria-label="Atajos de frecuencia">
@@ -135,11 +153,11 @@
               <div class="col-5 col-md-2">
                 <label class="form-label small mb-0" for="rep_intervalo">Cada</label>
                 <input class="form-control" type="number" min="1" max="100" id="rep_intervalo" name="rep_intervalo"
-                       value="{{ (form.rep_intervalo if form and form.rep_intervalo else '1')|e }}">
+                       value="{{ (form.rep_intervalo if form and form.rep_intervalo else rp.get('intervalo', '1'))|e }}">
               </div>
               <div class="col-7 col-md-3">
                 <label class="form-label small mb-0" for="rep_unidad">&nbsp;</label>
-                {% set ucur = (form.rep_unidad if form and form.rep_unidad else 'semanas') %}
+                {% set ucur = (form.rep_unidad if form and form.rep_unidad else rp.get('unidad', 'semanas')) %}
                 <select class="form-select rep-solo-intervalo" id="rep_unidad" name="rep_unidad">
                   {% for un in repeticion_unidades %}<option value="{{ un }}" {% if ucur == un %}selected{% endif %}>{{ repeticion_unidad_labels[un] }}</option>{% endfor %}
                 </select>
@@ -161,7 +179,7 @@
             <div class="mt-2 rep-bloque" data-modo="dias_mes">
               <label class="form-label small mb-0" for="rep_dias_mes">Días del mes (separados por coma)</label>
               <input class="form-control" style="max-width:16rem" id="rep_dias_mes" name="rep_dias_mes" placeholder="ej. 1, 15"
-                     value="{{ (form.rep_dias_mes if form and form.rep_dias_mes else '')|e }}">
+                     value="{{ (form.rep_dias_mes if form and form.rep_dias_mes else rp.get('dias_mes', ''))|e }}">
               <div class="form-text">Si el mes no tiene ese día (31, 30, 29) se usa el último.</div>
             </div>
             <div class="mt-2 rep-bloque" data-modo="meses_anio">
@@ -188,27 +206,20 @@
                   <label class="form-check-label" for="rep_fin_veces">después de</label>
                 </div>
                 <input class="form-control" style="width:6rem" type="number" min="2" max="{{ repeticion_max }}" id="rep_veces" name="rep_veces"
-                       value="{{ (form.rep_veces if form and form.rep_veces else '12')|e }}" aria-label="Cantidad de veces">
+                       value="{{ (form.rep_veces if form and form.rep_veces else rp.get('veces', '12'))|e }}" aria-label="Cantidad de veces">
                 <span class="small">veces</span>
                 <div class="form-check mb-0 ms-md-2">
                   <input class="form-check-input" type="radio" name="rep_fin" id="rep_fin_hasta" value="hasta" {% if rep_fin == 'hasta' %}checked{% endif %}>
                   <label class="form-check-label" for="rep_fin_hasta">el</label>
                 </div>
                 <input class="form-control" style="width:11rem" type="date" id="rep_hasta" name="rep_hasta"
-                       value="{{ (form.rep_hasta if form and form.rep_hasta else '')|e }}" aria-label="Repetir hasta">
+                       value="{{ (form.rep_hasta if form and form.rep_hasta else rp.get('hasta', ''))|e }}" aria-label="Repetir hasta">
               </div>
             </div>
             <div class="small app-text-secondary mt-2" id="planifRepPreview" aria-live="polite"></div>
           </div>
         </div>
       </div>
-      {% elif row and row.serie_id %}
-      <div class="col-12">
-        <div class="alert alert-info mb-0 py-2 small">
-          Esta actividad es parte de una tarea repetitiva{% if serie_regla %} (<strong>{{ serie_regla }}</strong>){% endif %}: hay {{ serie_total }} fecha(s) programadas. Los cambios que guardes acá afectan solo a esta. Para cambiar la frecuencia, eliminá esta y las siguientes y creala de nuevo.
-        </div>
-      </div>
-      {% endif %}
 
       <div class="col-12">
         <div class="border rounded p-3 bg-body-tertiary bg-opacity-25">
@@ -321,6 +332,12 @@
   if (fi) fi.addEventListener("change", refresh);
   if (ff) ff.addEventListener("change", refresh);
   refresh();
+})();
+(function () {
+  var wrap = document.getElementById("planifRepWrap");
+  document.querySelectorAll('input[name="aplicar"]').forEach(function (r) {
+    r.addEventListener("change", function () { wrap.hidden = !document.getElementById("aplicarSiguientes").checked; });
+  });
 })();
 (function () {
   var sw = document.getElementById("repetir");

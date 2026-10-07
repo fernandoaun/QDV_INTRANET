@@ -363,6 +363,99 @@ def extender_series(hoy: date | None = None) -> int:
     return creadas
 
 
+def regla_serie(serie_id: str | None) -> Repeticion | None:
+    s = db.session.get(PlanificacionSerie, serie_id) if serie_id else None
+    return Repeticion.from_json(s.regla_json) if s is not None else None
+
+
+def repeticion_form_defaults(rep: Repeticion | None) -> dict[str, Any]:
+    """Valores para precargar el formulario de repetición con la regla actual de una serie."""
+    if rep is None:
+        return {}
+    fin = "sin_fin" if rep.sin_fin else ("veces" if rep.veces else ("hasta" if rep.hasta else "sin_fin"))
+    return {
+        "on": True,
+        "modo": rep.modo,
+        "intervalo": str(rep.intervalo or 1),
+        "unidad": rep.unidad,
+        "dias_semana": [str(d) for d in rep.dias_semana],
+        "dias_mes": ", ".join(str(d) for d in rep.dias_mes),
+        "meses": [str(m) for m in rep.meses],
+        "fin": fin,
+        "veces": str(rep.veces or 12),
+        "hasta": rep.hasta.isoformat() if rep.hasta else "",
+    }
+
+
+def reprogramar_serie_desde(
+    row: PlanificacionActividad, inicio_original: date, rep: Repeticion | None
+) -> tuple[int, int, str | None]:
+    """Aplica a esta actividad y a las siguientes de su serie los datos ya cargados en `row` y la regla `rep`.
+
+    Las fechas siguientes que siguen pendientes se borran y se vuelven a programar con la regla nueva (las que
+    ya están en curso, cumplidas o canceladas se conservan). Con `rep=None` la tarea deja de repetirse desde acá.
+    Las fechas anteriores quedan como historial. Devuelve (borradas, creadas, error). No hace commit.
+    """
+    serie = db.session.get(PlanificacionSerie, row.serie_id) if row.serie_id else None
+    if serie is None:
+        return 0, 0, "La actividad no pertenece a una tarea repetitiva."
+    siguientes = db.session.scalars(
+        select(PlanificacionActividad).where(
+            PlanificacionActividad.serie_id == serie.id,
+            PlanificacionActividad.id != row.id,
+            PlanificacionActividad.fecha_inicio > inicio_original,
+            PlanificacionActividad.estado == "pendiente",
+        )
+    ).all()
+    for x in siguientes:
+        db.session.delete(x)
+    db.session.flush()
+
+    serie.titulo = row.titulo
+    serie.descripcion = row.descripcion
+    serie.responsable_user_id = row.responsable_user_id
+    serie.categoria = row.categoria
+    serie.prioridad = row.prioridad
+    serie.observaciones = row.observaciones
+    serie.duracion_dias = row.duracion_dias
+
+    if rep is None:
+        serie.activa = False
+        serie.generada_hasta = row.fecha_inicio
+        return len(siguientes), 0, None
+
+    fechas, err = fechas_repeticion(row.fecha_inicio, row.fecha_fin, rep)
+    if err:
+        return 0, 0, err
+    ocupadas = set(
+        db.session.scalars(
+            select(PlanificacionActividad.fecha_inicio).where(
+                PlanificacionActividad.serie_id == serie.id, PlanificacionActividad.id != row.id
+            )
+        )
+    )
+    if fechas[0][0] in ocupadas:
+        return 0, 0, (
+            f"La tarea ya tiene otra fecha el {fechas[0][0].strftime('%d/%m/%Y')}. "
+            "Elegí otra fecha de inicio para la nueva frecuencia."
+        )
+    row.fecha_inicio, row.fecha_fin = fechas[0]
+    serie.regla_json = rep.to_json()
+    serie.ancla = fechas[0][0]
+    serie.activa = bool(rep.sin_fin)
+    serie.generada_hasta = horizonte() if rep.sin_fin else fechas[-1][0]
+    creadas = 0
+    for ini, _fin in fechas[1:]:
+        if ini in ocupadas:
+            continue
+        serie.ocurrencias_generadas += 1
+        c = _nueva_ocurrencia(serie, ini, _codigo(serie.codigo_base, serie.ocurrencias_generadas, None))
+        c.linked_entity_type, c.linked_entity_id = row.linked_entity_type, row.linked_entity_id
+        db.session.add(c)
+        creadas += 1
+    return len(siguientes), creadas, None
+
+
 def serie_restantes(row: PlanificacionActividad) -> list[PlanificacionActividad]:
     """Esta actividad y las siguientes de su serie (por fecha de inicio)."""
     if not row.serie_id:
