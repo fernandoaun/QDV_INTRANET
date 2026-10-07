@@ -1,0 +1,18 @@
+{# Tarjeta de una actividad en el almanaque. Requiere `r`, `today`, `aqui`; `chip_fecha` opcional. #}
+{% set atrasada = planificacion_is_atrasada(r, today) %}
+<div class="planif-chip estado-{{ r.estado }}{% if atrasada %} is-atrasada{% endif %}"
+     data-id="{{ r.id }}" data-titulo="{{ r.titulo }}"
+     data-url="{{ url_for('planificacion.cambiar_estado', actividad_id=r.id) }}"
+     title="{{ r.titulo }}{% if r.responsable %} · {{ r.responsable.nombre_completo or r.responsable.username }}{% endif %} · {{ categoria_labels.get(r.categoria, r.categoria) }}{% if r.descripcion %} — {{ r.descripcion }}{% endif %}">
+  {% if page_can_edit_current and r.estado != 'cancelada' %}
+  <form method="post" action="{{ url_for('planificacion.cambiar_estado', actividad_id=r.id, next=aqui) }}" class="m-0">
+    {% include "_csrf.html" %}
+    <input type="hidden" name="estado" value="{{ 'pendiente' if r.estado == 'finalizada' else 'finalizada' }}">
+    <button type="submit" class="planif-check" title="{{ 'Cumplida (tocá para deshacer)' if r.estado == 'finalizada' else 'Marcar como cumplida' }}" aria-label="Cumplida: {{ r.titulo }}">✓</button>
+  </form>
+  {% endif %}
+  <a href="{{ url_for('planificacion.editar', actividad_id=r.id, next=aqui) }}">
+    {% if chip_fecha %}<span class="fw-semibold">{{ chip_fecha }}</span> · {% endif %}{{ r.titulo }}
+    <span class="planif-chip-estado">{% if r.estado == 'finalizada' %}✓ Finalizada{% elif atrasada %}Vencida{% endif %}</span>
+  </a>
+</div>

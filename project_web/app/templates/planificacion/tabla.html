@@ -7,7 +7,7 @@
     <p class="app-intro mb-0">Listado operativo de actividades. Los filtros se aplican por URL y se reutilizan en el Gantt.</p>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2 justify-content-end">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}">← Hub</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Almanaque</a>
     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('planificacion.gantt', **request.args) }}"><i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>Gantt</a>
     {% if page_can_edit_current %}
     <a class="btn btn-primary btn-sm" href="{{ url_for('planificacion.nueva') }}"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Nueva actividad</a>
@@ -92,6 +92,15 @@
   </div>
 </div>
 
+{% if ventana_default %}
+<div class="alert alert-info py-2 small">
+  Se muestra del {{ filtros.fecha_desde.strftime('%d/%m') }} al {{ filtros.fecha_hasta.strftime('%d/%m/%Y') }}. Para ver otro período cambiá «Desde» y «Hasta».
+  {% if atrasadas_previas %}
+  <a class="fw-semibold text-danger ms-1" href="{{ url_for('planificacion.tabla', fecha_desde='2000-01-01', fecha_hasta=(filtros.fecha_desde - timedelta_1d).isoformat()) }}">Hay {{ atrasadas_previas }} pendiente(s) de meses anteriores.</a>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="app-card">
   <div class="app-card-header app-card-header--split">
     <span>Actividades</span>
@@ -121,7 +130,7 @@
         {% set dlist = deps_map.get(r.id, []) %}
         {% set anal = anal_por_id.get(r.id, {}) %}
         {% set succ_n = (succ_map.get(r.id, [])|length) %}
-        <tr class="{% if atrasada %}table-warning{% elif r.estado == 'demorada' %}table-danger{% elif anal.get('bloquea_inicio') and r.estado == 'pendiente' %}table-secondary{% endif %}">
+        <tr class="{% if r.estado == 'finalizada' %}table-success{% elif atrasada %}table-warning{% elif r.estado == 'demorada' %}table-danger{% elif anal.get('bloquea_inicio') and r.estado == 'pendiente' %}table-secondary{% endif %}">
           <td class="text-nowrap fw-semibold">{{ planificacion_display_codigo(r) }}</td>
           <td>
             <div class="fw-semibold">{{ r.titulo }}{% if r.serie_id %} <span class="badge text-bg-light border fw-normal" title="{{ planificacion_describir_serie(r.serie_id) }}">↻ se repite</span>{% endif %}</div>
@@ -168,7 +177,7 @@
             {% if page_can_edit_current %}
             <form method="post" action="{{ url_for('planificacion.cambiar_estado', actividad_id=r.id) }}" class="d-flex gap-1 align-items-center">
               {% include "_csrf.html" %}
-              <select class="form-select form-select-sm" name="estado" aria-label="Estado fila {{ r.id }}">
+              <select class="form-select form-select-sm" style="min-width:8.5rem" name="estado" aria-label="Estado fila {{ r.id }}">
                 {% for s in estados %}
                 <option value="{{ s }}" {% if r.estado == s %}selected{% endif %}>{{ estado_labels[s] }}</option>
                 {% endfor %}

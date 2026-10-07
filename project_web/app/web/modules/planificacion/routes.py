@@ -40,18 +40,17 @@ def _require_edit(u):
     return None
 
 
+def _safe_next(default_endpoint: str = "planificacion.tabla") -> str:
+    """Vuelve a la pantalla de origen (almanaque o tabla) si `next` es una ruta propia del módulo."""
+    nxt = (request.values.get("next") or "").strip()
+    if nxt.startswith("/planificacion") and "//" not in nxt and "\\" not in nxt:
+        return nxt
+    return url_for(default_endpoint)
+
+
 def _picker_json(exclude_id: int | None) -> list[dict[str, str | int]]:
     rows = ps.list_actividades_for_pred_picker(exclude_id)
     return [{"id": r.id, "label": f"{ps.actividad_display_codigo(r)} — {r.titulo[:60]}"} for r in rows]
-
-
-@bp.get("/")
-@login_required
-def hub():
-    u, redir = _require_view()
-    if redir is not None:
-        return redir
-    return render_template("planificacion/hub.html")
 
 
 def _extender_series() -> None:
@@ -62,6 +61,46 @@ def _extender_series() -> None:
         db.session.rollback()
 
 
+@bp.get("/")
+@login_required
+def hub():
+    """Pantalla principal: almanaque del mes (más la primera semana del siguiente al cierre del mes)."""
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    _extender_series()
+    today = ps._today()
+    mes = ps.parse_mes(request.args.get("mes"))
+    desde, hasta = ps.ventana_mes(today, mes)
+    f = ps.parse_filtros_from_request(request.args)
+    f.estado = None
+    f.fecha_desde, f.fecha_hasta = desde, hasta
+    rows = ps.list_actividades(f)
+    es_mes_actual = desde == today.replace(day=1)
+    atrasadas = ps.list_atrasadas_antes_de(desde, f) if es_mes_actual else []
+    mes_anterior = (desde - timedelta(days=1)).replace(day=1)
+    mes_siguiente = (ps._ultimo_dia_mes(desde) + timedelta(days=1))
+    filtros_extra = {k: v for k, v in request.args.items() if k in ("responsable_user_id", "categoria") and v}
+    return render_template(
+        "planificacion/almanaque.html",
+        semanas=ps.almanaque_semanas(desde, hasta, rows, today),
+        atrasadas=atrasadas,
+        desde=desde,
+        hasta=hasta,
+        today=today,
+        es_mes_actual=es_mes_actual,
+        titulo_mes=f"{ps.MESES_LABELS[desde.month - 1]} {desde.year}",
+        titulo_mes_siguiente=ps.MESES_LABELS[mes_siguiente.month - 1].lower(),
+        mes_anterior=mes_anterior.strftime("%Y-%m"),
+        mes_siguiente=mes_siguiente.strftime("%Y-%m"),
+        filtros=f,
+        filtros_extra=filtros_extra,
+        dias_semana=ps.DIAS_SEMANA_CORTOS,
+        users=ps.list_users_for_responsable(),
+        **ps.labels_context(),
+    )
+
+
 @bp.get("/tabla")
 @login_required
 def tabla():
@@ -70,6 +109,13 @@ def tabla():
         return redir
     _extender_series()
     f = ps.parse_filtros_from_request(request.args)
+    today = ps._today()
+    # Sin fechas en la URL se muestra el mes en curso: las tareas repetitivas llegan a un año adelante.
+    ventana_default = f.fecha_desde is None and f.fecha_hasta is None
+    atrasadas_previas = 0
+    if ventana_default:
+        f.fecha_desde, f.fecha_hasta = ps.ventana_mes(today)
+        atrasadas_previas = len(ps.list_atrasadas_antes_de(f.fecha_desde, f))
     rows = ps.list_actividades(f)
     ids = [int(r.id) for r in rows]
     deps_map = ps.dependencias_entrantes_por_sucesora(ids)
@@ -83,7 +129,10 @@ def tabla():
         rows=rows,
         filtros=f,
         users=ps.list_users_for_responsable(),
-        today=ps._today(),
+        today=today,
+        ventana_default=ventana_default,
+        timedelta_1d=timedelta(days=1),
+        atrasadas_previas=atrasadas_previas,
         deps_map=deps_map,
         succ_map=succ_map,
         anal_por_id=anal_por_id,
@@ -175,6 +224,7 @@ def _render_form_error(
         picker_options_json=_picker_json(exclude_id),
         serie_total=ps.contar_serie(row.serie_id) if row is not None else 0,
         serie_regla=ps.describir_serie(row.serie_id) if row is not None else "",
+        volver_url=_safe_next(),
         **ps.labels_context(),
     )
 
@@ -270,7 +320,7 @@ def nueva():
             )
         else:
             flash("Actividad creada.", "success")
-        return redirect(url_for("planificacion.tabla"))
+        return redirect(_safe_next())
     return render_template(
         "planificacion/form.html",
         mode="nueva",
@@ -281,6 +331,7 @@ def nueva():
         default_fecha_fin=default_fecha_fin,
         deps_actuales=[],
         picker_options_json=_picker_json(None),
+        volver_url=_safe_next(),
         **ps.labels_context(),
     )
 
@@ -348,7 +399,7 @@ def editar(actividad_id: int):
         db.session.add(updated)
         db.session.commit()
         flash("Cambios guardados.", "success")
-        return redirect(url_for("planificacion.tabla"))
+        return redirect(_safe_next())
     return render_template(
         "planificacion/form.html",
         mode="editar",
@@ -361,6 +412,7 @@ def editar(actividad_id: int):
         picker_options_json=_picker_json(int(row.id)),
         serie_total=ps.contar_serie(row.serie_id),
         serie_regla=ps.describir_serie(row.serie_id),
+        volver_url=_safe_next(),
         **ps.labels_context(),
     )
 
@@ -381,7 +433,7 @@ def eliminar(actividad_id: int):
     db.session.delete(row)
     db.session.commit()
     flash("Actividad eliminada.", "success")
-    return redirect(url_for("planificacion.tabla"))
+    return redirect(_safe_next())
 
 
 @bp.post("/eliminar-serie/<int:actividad_id>")
@@ -416,22 +468,31 @@ def cambiar_estado(actividad_id: int):
     r = _require_edit(u)
     if r is not None:
         return r
+    # Desde el almanaque el cambio se hace sin recargar: responde JSON.
+    quiere_json = request.headers.get("X-Requested-With") == "fetch"
+    volver = _safe_next()
+
+    def _error(msg: str, status: int = 400):
+        if quiere_json:
+            return jsonify({"ok": False, "error": msg}), status
+        flash(msg, "danger")
+        return redirect(volver)
+
     row = ps.get_actividad_or_none(actividad_id)
     if row is None:
-        flash("Actividad no encontrada.", "danger")
-        return redirect(url_for("planificacion.tabla"))
+        return _error("Actividad no encontrada.", 404)
     nuevo = (request.form.get("estado") or "").strip()
     if nuevo not in ps.ESTADOS:
-        flash("Estado inválido.", "warning")
-        return redirect(url_for("planificacion.tabla"))
+        return _error("Estado inválido.")
     prev = row.estado
     deps = ps.dependencias_entrantes_por_sucesora([int(row.id)]).get(int(row.id), [])
     v = ps.validate_estado_con_dependencias(row, prev, nuevo, deps)
     if v:
-        flash(v, "danger")
-        return redirect(url_for("planificacion.tabla"))
+        return _error(v)
     row.estado = nuevo
     db.session.add(row)
     db.session.commit()
+    if quiere_json:
+        return jsonify({"ok": True, "estado": nuevo, "estado_label": ps.ESTADO_LABELS[nuevo]})
     flash("Estado actualizado.", "success")
-    return redirect(url_for("planificacion.tabla"))
+    return redirect(volver)

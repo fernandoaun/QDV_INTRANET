@@ -119,6 +119,84 @@ def is_atrasada(row: PlanificacionActividad, today: date | None = None) -> bool:
     return row.fecha_fin < t
 
 
+MESES_LABELS: tuple[str, ...] = (
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+)
+DIAS_SEMANA_CORTOS: tuple[str, ...] = ("Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom")
+# En la última semana del mes en curso se suma la primera semana del mes siguiente.
+DIAS_ANTICIPO_MES_SIGUIENTE = 7
+
+
+def _ultimo_dia_mes(d: date) -> date:
+    primero_siguiente = (d.replace(day=1) + timedelta(days=32)).replace(day=1)
+    return primero_siguiente - timedelta(days=1)
+
+
+def parse_mes(raw: str | None) -> date | None:
+    """`YYYY-MM` → primer día de ese mes (None si no es válido)."""
+    s = (raw or "").strip()
+    try:
+        return date.fromisoformat(f"{s}-01") if len(s) == 7 else None
+    except ValueError:
+        return None
+
+
+def ventana_mes(today: date, mes: date | None = None) -> tuple[date, date]:
+    """Rango visible por defecto: el mes pedido (o el actual); si es el mes en curso y falta menos de
+    una semana para que termine, se agrega la primera semana del mes siguiente."""
+    desde = (mes or today).replace(day=1)
+    ultimo = _ultimo_dia_mes(desde)
+    hasta = ultimo
+    if desde == today.replace(day=1) and (ultimo - today).days < DIAS_ANTICIPO_MES_SIGUIENTE:
+        hasta = ultimo + timedelta(days=DIAS_ANTICIPO_MES_SIGUIENTE)
+    return desde, hasta
+
+
+def almanaque_semanas(
+    desde: date, hasta: date, rows: Iterable[PlanificacionActividad], today: date
+) -> list[list[dict[str, Any]]]:
+    """Grilla lunes a domingo que cubre [desde, hasta]; cada día trae sus actividades (las de varios días
+    aparecen en cada día que abarcan). Los días de relleno fuera del rango van vacíos."""
+    por_dia: dict[date, list[PlanificacionActividad]] = defaultdict(list)
+    for r in rows:
+        d = max(r.fecha_inicio, desde)
+        fin = min(r.fecha_fin, hasta)
+        while d <= fin:
+            por_dia[d].append(r)
+            d += timedelta(days=1)
+    inicio = desde - timedelta(days=desde.weekday())
+    fin_grilla = hasta + timedelta(days=6 - hasta.weekday())
+    semanas: list[list[dict[str, Any]]] = []
+    d = inicio
+    while d <= fin_grilla:
+        semana = []
+        for _ in range(7):
+            en_rango = desde <= d <= hasta
+            acts = sorted(
+                por_dia.get(d, []) if en_rango else [],
+                key=lambda r: (r.estado == "finalizada", _PRIOR_ORDER.get(r.prioridad, 9), r.titulo.lower(), r.id),
+            )
+            semana.append({"fecha": d, "en_rango": en_rango, "es_hoy": d == today, "actividades": acts})
+            d += timedelta(days=1)
+        semanas.append(semana)
+    return semanas
+
+
+def list_atrasadas_antes_de(desde: date, f: ActividadFiltros | None = None) -> list[PlanificacionActividad]:
+    """Actividades abiertas que vencieron antes de `desde` (no se ven en la ventana del mes)."""
+    base = f or ActividadFiltros()
+    filtros = ActividadFiltros(responsable_user_id=base.responsable_user_id, categoria=base.categoria)
+    stmt = select(PlanificacionActividad).options(joinedload(PlanificacionActividad.responsable))
+    stmt = _apply_filtros(stmt, filtros).where(
+        PlanificacionActividad.fecha_fin < desde,
+        PlanificacionActividad.estado.notin_(("finalizada", "cancelada")),
+    )
+    rows = list(db.session.scalars(stmt).unique().all())
+    rows.sort(key=lambda r: (r.fecha_fin, r.titulo.lower(), r.id))
+    return rows
+
+
 def _pred_terminada(p: PlanificacionActividad) -> bool:
     return p.estado in ("finalizada", "cancelada")
 

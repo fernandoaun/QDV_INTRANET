@@ -7,7 +7,7 @@
     <p class="app-intro mb-0">Título y fechas obligatorias; fin no puede ser anterior al inicio. Podés definir predecesoras con tipo FS, SS, FF o SF (con validación de ciclos y de estados).</p>
   </div>
   <div class="app-page-actions">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.tabla') }}">← Tabla</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ volver_url or url_for('planificacion.tabla') }}">← Volver</a>
   </div>
 </div>
 
@@ -258,7 +258,7 @@
       {% if page_can_edit_current %}
       <div class="col-12 d-flex gap-2">
         <button type="submit" class="btn btn-primary">Guardar</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('planificacion.tabla') }}">Cancelar</a>
+        <a class="btn btn-outline-secondary" href="{{ volver_url or url_for('planificacion.tabla') }}">Cancelar</a>
       </div>
       {% endif %}
     </form>
