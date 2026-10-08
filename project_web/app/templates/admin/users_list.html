@@ -70,6 +70,16 @@
 <div class="alert alert-info mb-3" role="status">Modo solo lectura: podés ver la lista de usuarios; solo un administrador puede crear o modificar cuentas.</div>
 {% endif %}
 <div class="app-card mt-3">
+  {% if cantidad_inactivos %}
+  <div class="app-card-header app-card-header--split">
+    <span>{% if ver_inactivos %}Todos los usuarios{% else %}Usuarios activos{% endif %}</span>
+    {% if ver_inactivos %}
+    <a class="small" href="{{ url_for('admin_users.list_users') }}">Ver solo activos</a>
+    {% else %}
+    <a class="small" href="{{ url_for('admin_users.list_users', inactivos=1) }}">Ver también desactivados ({{ cantidad_inactivos }})</a>
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="app-card-body--flush table-responsive app-table-scroll">
     <table class="table table-app table-compact mb-0">
       <thead><tr><th>ID</th><th>Usuario</th><th>Nombre</th><th>Perfil</th><th>Activo</th><th>Legajo RRHH</th><th></th></tr></thead>

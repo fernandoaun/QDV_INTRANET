@@ -54,11 +54,16 @@ def list_users():
     if u is None or not user_can_view_admin_configuration(u):
         flash("No tenés permiso para acceder a usuarios.", "warning")
         return redirect(url_for("main.dashboard"))
-    rows = db.session.scalars(select(User).order_by(User.username)).all()
+    todos = db.session.scalars(select(User).order_by(User.username)).all()
+    # Por defecto solo cuentas activas; las desactivadas (ex pasantes, bajas) se ven a pedido.
+    ver_inactivos = request.args.get("inactivos") == "1"
+    rows = todos if ver_inactivos else [x for x in todos if x.activo]
     personal_svc.sync_empleados_from_users()
     return render_template(
         "admin/users_list.html",
         users=rows,
+        ver_inactivos=ver_inactivos,
+        cantidad_inactivos=sum(1 for x in todos if not x.activo),
         legajo_status=personal_svc.legajo_status_by_user_id(sync_users=False),
         user_requires_legajo=personal_svc.user_requires_legajo,
         viewer_may_manage_users=bool(u.is_admin),

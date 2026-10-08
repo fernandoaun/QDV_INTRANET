@@ -25,7 +25,7 @@
       <div class="col-md-3">
         <label class="form-label">Estado</label>
         <select class="form-select" name="estado">
-          <option value="">Todos</option>
+          <option value="todos" {% if filtros.estado == 'todos' %}selected{% endif %}>Todos</option>
           {% for k, lbl in estado_labels.items() %}
           <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lbl }}</option>
           {% endfor %}

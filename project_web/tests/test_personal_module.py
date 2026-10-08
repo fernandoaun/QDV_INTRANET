@@ -1375,3 +1375,24 @@ def test_legajo_tab_procedimientos_aprobados_asignados(auth_client, app):
     assert f"/sgi/pg/procedimientos/{doc_ok_id}/revision/{rev_ok_id}/export/pdf" in html
     assert f"/archivo/procedimientos/{doc_ok_id}/registros/{registro_id}" in html
 
+
+
+def test_listas_muestran_solo_activos_por_defecto(auth_client, app):
+    from werkzeug.security import generate_password_hash
+
+    from app.extensions import db
+    from app.models import User
+
+    with app.app_context():
+        db.session.add_all([
+            User(username="pt_pasante_baja", password_hash=generate_password_hash("x"), is_admin=False, activo=False, rol="laboratorista"),
+            User(username="pt_operador_activo", password_hash=generate_password_hash("x"), is_admin=False, activo=True, rol="operaciones"),
+        ])
+        db.session.commit()
+    html = auth_client.get("/admin/usuarios").get_data(as_text=True)
+    assert "pt_operador_activo" in html and "pt_pasante_baja" not in html
+    assert "Ver también desactivados" in html
+    assert "pt_pasante_baja" in auth_client.get("/admin/usuarios?inactivos=1").get_data(as_text=True)
+    legajos = auth_client.get("/personal/legajos").get_data(as_text=True)
+    assert "pt_operador_activo" in legajos and "pt_pasante_baja" not in legajos
+    assert "pt_pasante_baja" in auth_client.get("/personal/legajos?estado=todos").get_data(as_text=True)

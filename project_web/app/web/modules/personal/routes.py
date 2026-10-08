@@ -100,11 +100,13 @@ def legajos():
     u, redir = _require_view()
     if redir is not None:
         return redir
+    # Sin filtro elegido se listan solo los activos; «Todos» incluye las bajas.
+    estado = request.args.get("estado", "activo")
     return render_template(
         "personal/legajos.html",
-        empleados=ps.list_empleados(q=request.args.get("q", ""), estado=request.args.get("estado", "")),
+        empleados=ps.list_empleados(q=request.args.get("q", ""), estado=estado),
         legajo_status=ps.legajo_status_by_empleado_id(sync_users=False),
-        filtros={"q": request.args.get("q", ""), "estado": request.args.get("estado", "")},
+        filtros={"q": request.args.get("q", ""), "estado": estado},
         estado_labels=ps.ESTADO_EMPLEADO_LABELS,
         puede_gestionar=user_can_manage_personal(u),
     )
