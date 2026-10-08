@@ -391,6 +391,9 @@
             <li><a class="dropdown-item" href="{{ url_for('admin_users.deadline_alert_emails') }}"><i class="bi bi-envelope-at me-2" aria-hidden="true"></i>Avisos por correo</a></li>
             {% endif %}
             <li><hr class="dropdown-divider"></li>
+            {% if user_can_force_close_shift(nav_user) %}
+            <li><a class="dropdown-item" href="{{ url_for('shift.force_close_shift') }}"><i class="bi bi-door-closed me-2 opacity-50" aria-hidden="true"></i>Cerrar turno olvidado</a></li>
+            {% endif %}
             {% if user_can_production_hub %}
             <li><a class="dropdown-item" href="{{ url_for('shift.historial') }}"><i class="bi bi-clipboard-data me-2 opacity-50" aria-hidden="true"></i>Cambio de turno (historial)</a></li>
             <li><hr class="dropdown-divider"></li>

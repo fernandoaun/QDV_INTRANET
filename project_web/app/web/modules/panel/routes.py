@@ -46,8 +46,13 @@ def index():
 @bp.get("/dashboard")
 @login_required
 def dashboard():
-    ctx = dashboard_service.build_dashboard_template_context(current_user())
+    u = current_user()
+    ctx = dashboard_service.build_dashboard_template_context(u)
     ctx["dashboard_tab"] = "resumen"
+    from app.services import shift_handover_service as sh
+
+    # Responsable de laboratorio / admin: aviso para cerrar un turno que quedó abierto.
+    ctx["turno_abierto_cerrable"] = sh.get_open_shift_session() if sh.user_can_force_close_shift(u) else None
     return render_template("dashboard.html", **ctx)
 
 

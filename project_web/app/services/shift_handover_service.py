@@ -519,6 +519,59 @@ def persist_handover_submission(
     db.session.commit()
 
 
+def user_can_force_close_shift(user: User | None) -> bool:
+    """Responsable de laboratorio y administrador pueden cerrar el turno que un operador dejó abierto."""
+    if user is None:
+        return False
+    return bool(user.is_admin) or user_is_responsable_laboratorio(user)
+
+
+def persist_forced_handover(form: Any, actor: User, sess: ShiftSession, now_iso: str) -> ShiftHandover:
+    """Cierra el turno de un operador que se fue sin entregarlo: deja una entrega a su nombre, pendiente de
+    recepción, con el stock medido y quién la cerró. El operador siguiente la recepciona como siempre."""
+    if sess.status != STATUS_OPEN:
+        raise ValueError("Ese turno ya no está abierto.")
+    if get_pending_handover() is not None:
+        raise ValueError("Ya hay una entrega de turno pendiente de recepción.")
+    raw_stock = (form.get("hypochlorite_stock_liters") or "").strip().replace(",", ".")
+    if raw_stock == "":
+        raise ValueError("Indicá el stock de hipoclorito en tanques (litros) medido ahora.")
+    try:
+        stock_l = float(raw_stock)
+    except ValueError:
+        raise ValueError("Stock de hipoclorito inválido.") from None
+    if stock_l < 0 or not math.isfinite(stock_l):
+        raise ValueError("Stock de hipoclorito inválido.")
+    motivo = (form.get("motivo") or "").strip()
+    if not motivo:
+        raise ValueError("Indicá el motivo del cierre.")
+    if (form.get("confirmar") or "").strip() != "1":
+        raise ValueError("Confirmá que querés cerrar el turno del operador.")
+    operador = format_shift_operator_display(sess)
+    quien = user_display_name(actor) or (actor.username or "").strip()
+    ho = ShiftHandover(
+        shift_session_id=sess.id,
+        outgoing_user_id=sess.user_id,
+        incoming_user_id=None,
+        shift_started_at_iso=sess.started_at_iso,
+        handed_over_at_iso=now_iso,
+        received_at_iso=None,
+        hypochlorite_stock_liters=stock_l,
+        closing_notes=f"Turno cerrado por {quien} porque {operador} no lo entregó. Motivo: {motivo}"[:4000],
+        reception_status=None,
+        reception_notes=None,
+        status=HANDOVER_PENDING,
+        created_at_iso=now_iso,
+        updated_at_iso=now_iso,
+    )
+    db.session.add(ho)
+    sess.status = STATUS_CLOSED
+    sess.ended_at_iso = now_iso
+    sess.updated_at_iso = now_iso
+    db.session.commit()
+    return ho
+
+
 def persist_handover_reception(
     form: Any,
     user: User,

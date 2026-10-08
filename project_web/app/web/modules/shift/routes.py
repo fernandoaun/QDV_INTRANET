@@ -324,6 +324,44 @@ def receive_handover(handover_id: int):
     )
 
 
+@bp.route("/cerrar-olvidado", methods=["GET", "POST"])
+@login_required
+def force_close_shift():
+    """Lucía (responsable de laboratorio) o el administrador cierran el turno que un operador dejó abierto."""
+    u = current_user()
+    assert u is not None
+    if not sh.user_can_force_close_shift(u):
+        flash("Solo la responsable de laboratorio o el administrador pueden cerrar el turno de otro operador.", "warning")
+        return redirect(url_for("main.dashboard"))
+    sess = sh.get_open_shift_session()
+    if sess is None:
+        flash("No hay ningún turno abierto.", "info")
+        return redirect(url_for("main.dashboard"))
+    now_iso = sh.now_local_iso()
+    if request.method == "POST":
+        try:
+            sh.persist_forced_handover(request.form, u, sess, now_iso)
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), "danger")
+        else:
+            flash(
+                f"Turno de {sh.format_shift_operator_display(sess)} cerrado. "
+                "El próximo operador lo recepciona al tomar el turno.",
+                "success",
+            )
+            return redirect(url_for("main.dashboard"))
+    from app.services import plant_stop_service as plant_stop_svc
+
+    return render_template(
+        "shift/force_close.html",
+        shift_session=sess,
+        operador=sh.format_shift_operator_display(sess),
+        consumos=sh.consumos_en_intervalo(sess.started_at_iso, now_iso),
+        plant_stops=plant_stop_svc.list_stops_in_interval(sess.started_at_iso, now_iso),
+    )
+
+
 @bp.route("/salir-pregunta", methods=["GET", "POST"])
 @login_required
 @_shift_eligible_required

@@ -395,6 +395,7 @@ def create_app() -> Flask:
         from app.constants import MODULE_LABELS
         from app.services import planificacion_service as _planificacion_service
         from app.services import personal_service as _personal_service
+        from app.services import shift_handover_service as _shift_handover_service
         from app.services.entregas_service import entrega_pendiente_logistica as _entrega_pendiente_logistica
         from app.user_roles import (
             ROLE_LABELS,
@@ -480,6 +481,7 @@ def create_app() -> Flask:
             "user_role_label": lambda u=None: role_label(getattr(u, "rol", None) if u is not None else None),
             "planificacion_display_codigo": _planificacion_service.actividad_display_codigo,
             "planificacion_is_atrasada": _planificacion_service.is_atrasada,
+            "user_can_force_close_shift": _shift_handover_service.user_can_force_close_shift,
             "planificacion_describir_serie": _planificacion_service.describir_serie,
             "planificacion_resumen_predecesoras": lambda dlist: _planificacion_service.resumen_predecesoras_texto(dlist or []),
             "personal_entregas_pendientes": personal_entregas_pendientes,

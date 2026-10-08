@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Cerrar turno olvidado · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Cerrar turno olvidado</h1>
+    <p class="app-intro mb-0">Para cuando un operador se fue sin entregar el turno. Queda registrada la entrega a su nombre, aclarando que la cerraste vos, y el próximo operador la recepciona como siempre.</p>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">← Panel</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <div class="row g-2">
+      <div class="col-md-6"><span class="app-text-secondary">Operador:</span> <strong>{{ operador }}</strong></div>
+      <div class="col-md-6"><span class="app-text-secondary">Turno abierto desde:</span> <strong>{{ shift_session.started_at_iso }}</strong></div>
+    </div>
+  </div>
+</div>
+
+{% if plant_stops %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Paradas de planta en el turno</div>
+  <div class="app-card-body">
+    <ul class="mb-0 ps-3">
+      {% for p in plant_stops %}
+      <li><strong>{{ p.circuit_label }}</strong> · {{ p.started_at_iso }}{% if p.ended_at_iso %} → {{ p.ended_at_iso }}{% else %} <span class="badge text-bg-warning">En curso</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Consumos registrados en el turno ({{ consumos|length }})</div>
+  <div class="app-card-body--flush table-responsive app-table-scroll" style="max-height:16rem">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha / hora</th><th>Producto</th><th>Cantidad</th><th>Operador</th></tr></thead>
+      <tbody>
+        {% for c in consumos %}
+        <tr><td>{{ c.created_at_iso }}</td><td>{{ c.producto }}</td><td>{{ c.cantidad }} {{ c.unidad or '' }}</td><td>{{ c.operador }}</td></tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">Sin consumos en el turno.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" class="app-card">
+  {% include "_csrf.html" %}
+  <div class="app-card-header">Cierre</div>
+  <div class="app-card-body row g-3">
+    <div class="col-md-4">
+      <label class="form-label" for="stockL">Stock de hipoclorito en tanques ahora (L) <span class="text-danger">*</span></label>
+      <input class="form-control" id="stockL" name="hypochlorite_stock_liters" type="text" inputmode="decimal" required placeholder="litros"
+             value="{{ request.form.get('hypochlorite_stock_liters', '') }}">
+      <div class="form-text">Medí el tanque: con este dato se calcula la producción del turno.</div>
+    </div>
+    <div class="col-md-8">
+      <label class="form-label" for="motivo">Motivo <span class="text-danger">*</span></label>
+      <input class="form-control" id="motivo" name="motivo" required maxlength="1000"
+             value="{{ request.form.get('motivo', 'El operador se retiró sin entregar el turno.') }}">
+    </div>
+    <div class="col-12">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="confirmar" name="confirmar" value="1" required>
+        <label class="form-check-label" for="confirmar">Confirmo que {{ operador }} ya no está en planta y cierro su turno.</label>
+      </div>
+    </div>
+    <div class="col-12">
+      <button type="submit" class="btn btn-danger">Cerrar el turno</button>
+    </div>
+  </div>
+</form>
+{% endblock %}
