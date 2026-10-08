@@ -1,4 +1,9 @@
 <div class="sgi-proc-sheet">
+  {% if rev.estado == 'obsoleto' %}
+  <div class="sgi-proc-obsoleto-marca" role="note" style="border:2px solid #b02a37;color:#b02a37;font-weight:700;text-align:center;padding:6px 10px;margin-bottom:12px;letter-spacing:.02em;">
+    DOCUMENTO OBSOLETO — solo para consulta.{% if reemplazada_por is defined and reemplazada_por %} Reemplazado por la {{ reemplazada_por.revision_label }}{% if reemplazada_por.fecha_aprobacion %} el {{ reemplazada_por.fecha_aprobacion.strftime('%d/%m/%Y') }}{% endif %}.{% endif %}
+  </div>
+  {% endif %}
   <section class="sgi-proc-caratula">
     <div class="sgi-proc-cover-logo-wrap">
       {% include "sgi/_procedure_logo.html" %}

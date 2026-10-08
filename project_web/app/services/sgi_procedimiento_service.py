@@ -513,6 +513,44 @@ def sql_tiene_version_vigente():
     )
 
 
+def revision_que_reemplaza(rev: SgiProcedimientoRevision) -> SgiProcedimientoRevision | None:
+    """Para una revisión obsoleta: la revisión aprobada siguiente, que la dejó sin efecto."""
+    if rev.estado != ESTADO_OBSOLETO:
+        return None
+    return db.session.scalar(
+        select(SgiProcedimientoRevision)
+        .where(
+            SgiProcedimientoRevision.documento_id == rev.documento_id,
+            SgiProcedimientoRevision.numero_revision > rev.numero_revision,
+            SgiProcedimientoRevision.estado.in_((ESTADO_APROBADO, ESTADO_VIGENTE, ESTADO_OBSOLETO)),
+        )
+        .order_by(SgiProcedimientoRevision.numero_revision.asc())
+        .limit(1)
+    )
+
+
+def list_revisiones_reemplazadas(tipo: str) -> list[dict[str, Any]]:
+    """Revisiones obsoletas de procedimientos que siguen en uso (el documento no está dado de baja)."""
+    revs = db.session.scalars(
+        select(SgiProcedimientoRevision)
+        .join(SgiDocumento, SgiDocumento.id == SgiProcedimientoRevision.documento_id)
+        .where(
+            SgiProcedimientoRevision.estado == ESTADO_OBSOLETO,
+            SgiDocumento.tipo == (tipo or "").upper(),
+            SgiDocumento.deleted_at.is_(None),
+            SgiDocumento.estado != ESTADO_OBSOLETO,
+            SgiDocumento.es_procedimiento_visual.is_(True),
+        )
+        .order_by(SgiDocumento.codigo.asc(), SgiProcedimientoRevision.numero_revision.desc())
+    ).all()
+    out: list[dict[str, Any]] = []
+    for r in revs:
+        nueva = revision_que_reemplaza(r)
+        out.append({"doc": r.documento, "rev": r, "reemplazada_por": nueva,
+                    "fecha_baja": nueva.fecha_aprobacion if nueva is not None else None})
+    return out
+
+
 def revision_en_trabajo(doc: SgiDocumento) -> SgiProcedimientoRevision | None:
     return (
         doc.revisiones_proc.filter(

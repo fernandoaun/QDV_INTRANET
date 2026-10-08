@@ -483,3 +483,39 @@ def test_msgi_workflow_firma_gerente_solo_tras_aprobar(auth_client, app, sgi_edi
         r_pg = auth_client.get(f"/sgi/pg/procedimientos/{doc_pg.id}/vista/{rev_pg.id}")
         assert r_pg.status_code == 200
         assert 'class="sgi-proc-firma-gerente"' not in r_pg.get_data(as_text=True)
+
+
+def _aprobar_completo(rev_id, editor_id):
+    for paso in (proc_svc.enviar_a_revision, proc_svc.marcar_como_revisado, proc_svc.aprobar_revision):
+        ok, msg = paso(rev_id, editor_id, "Tester")
+        assert ok, msg
+
+
+def test_revision_reemplazada_queda_en_obsoletos(auth_client, app, sgi_editor):
+    """Al aprobar la Rev. 01, la Rev. 00 pasa a obsoleta, aparece en Obsoletos y se ve marcada."""
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
+    with app.app_context():
+        doc, rev0, err = proc_svc.create_procedimiento_visual("PO", sgi_editor, "Tester", titulo="REEMPLAZO TEST")
+        assert err is None
+        rev0.reviso, rev0.revisor_correo = "Revisor Test", "revisor@example.com"
+        rev0.aprobo, rev0.aprobador_correo = "Aprobador Test", "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+        _aprobar_completo(rev0.id, sgi_editor)
+        rev1, err = proc_svc.crear_nueva_revision(doc.id, sgi_editor, "Tester")
+        assert err is None
+        _aprobar_completo(rev1.id, sgi_editor)
+        db.session.refresh(rev0)
+        assert rev0.estado == "obsoleto"
+        items = proc_svc.list_revisiones_reemplazadas("PO")
+        it = next(i for i in items if i["rev"].id == rev0.id)
+        assert it["reemplazada_por"].id == rev1.id
+        doc_id, r0, r1 = doc.id, rev0.id, rev1.id
+
+    html = auth_client.get("/sgi/po/procedimientos/obsoletos/").get_data(as_text=True)
+    assert "REEMPLAZO TEST" in html and f"/procedimientos/{doc_id}/vista/{r0}" in html
+    vista = auth_client.get(f"/sgi/po/procedimientos/{doc_id}/vista/{r0}").get_data(as_text=True)
+    assert "DOCUMENTO OBSOLETO" in vista and "Rev. 01" in vista
+    vigente = auth_client.get(f"/sgi/po/procedimientos/{doc_id}/vista/{r1}").get_data(as_text=True)
+    assert "DOCUMENTO OBSOLETO" not in vigente

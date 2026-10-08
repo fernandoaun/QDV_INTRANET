@@ -95,7 +95,10 @@ def _procedure_render_kwargs(**extra: object) -> dict:
         out["firma_gerente_url"] = proc_svc.firma_gerente_url_for_document(doc)
     rev = extra.get("rev")
     if isinstance(rev, SgiProcedimientoRevision):
-        out["doc_aprobado"] = rev.estado in ("aprobado", "vigente")
+        # Una revisión obsoleta fue aprobada en su momento: conserva sus firmas, con la marca de obsoleta.
+        out["doc_aprobado"] = rev.estado in ("aprobado", "vigente", "obsoleto")
+        if rev.estado == "obsoleto":
+            out["reemplazada_por"] = proc_svc.revision_que_reemplaza(rev)
         out.setdefault("puestos_ids", proc_svc.get_revision_puesto_ids(rev))
     if "puestos_workflow" not in out:
         out["puestos_workflow"] = anexo_svc.organigrama_puestos_workflow_opciones()
@@ -258,6 +261,7 @@ def listado_obsoletos(slug: str):
         tipo=tipo,
         tipo_label=TIPO_LABELS.get(tipo or "", tipo or ""),
         rows=rows,
+        revisiones=proc_svc.list_revisiones_reemplazadas(tipo or ""),
         filtros=args,
         estados_labels=ESTADO_LABELS,
     )
@@ -482,10 +486,11 @@ def procedimiento_vista(slug: str, doc_id: int, rev_id: int | None = None):
         rev = proc_svc.revision_vigente_aprobada(doc) or proc_svc.revision_actual(doc)
     if rev is None or rev.documento_id != doc.id:
         abort(404)
-    if not puede_editar and rev.estado not in ("aprobado", "vigente"):
+    ve_obsoleta = rev.estado == "obsoleto" and user_can_view_sgi_obsoletos(u)
+    if not puede_editar and not ve_obsoleta and rev.estado not in ("aprobado", "vigente"):
         flash("No tenés permiso para ver esta versión.", "warning")
         return redirect(url_for("main.dashboard"))
-    if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
+    if not puede_editar and not ve_obsoleta and not proc_svc.documento_accesible_por_perfil(u, doc):
         flash("Este procedimiento no está asignado a tu perfil.", "warning")
         return redirect(url_for("main.dashboard"))
 
@@ -891,9 +896,10 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
         return redir
 
     puede_editar = user_can_edit_sgi_documentos(u)
-    if rev.estado not in ("aprobado", "vigente") and not puede_editar:
+    ve_obsoleta = rev.estado == "obsoleto" and user_can_view_sgi_obsoletos(u)
+    if rev.estado not in ("aprobado", "vigente") and not puede_editar and not ve_obsoleta:
         abort(403)
-    if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
+    if not puede_editar and not ve_obsoleta and not proc_svc.documento_accesible_por_perfil(u, doc):
         from app.auth_utils import user_can_access_personal
 
         if not (user_can_access_personal(u) and proc_svc.tiene_version_vigente(doc)):

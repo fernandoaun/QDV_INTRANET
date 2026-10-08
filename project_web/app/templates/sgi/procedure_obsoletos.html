@@ -27,4 +27,34 @@
     </table>
   </div>
 </div>
+
+<h2 class="h6 text-uppercase mt-4 mb-2">Revisiones reemplazadas</h2>
+<p class="small app-text-secondary">Versiones anteriores de procedimientos que siguen vigentes con una revisión más nueva. Se conservan solo para consulta.</p>
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app mb-0">
+      <thead>
+        <tr><th>Código</th><th>Título</th><th>Revisión</th><th>F. aprobación</th><th>Reemplazada por</th><th>Dejó de regir</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for it in revisiones %}
+        <tr class="sgi-row-obsoleto">
+          <td>{{ it.doc.codigo }}</td>
+          <td>{{ it.doc.titulo }}</td>
+          <td>{{ it.rev.revision_label }}</td>
+          <td>{{ it.rev.fecha_aprobacion.strftime('%d/%m/%Y') if it.rev.fecha_aprobacion else '—' }}</td>
+          <td>{{ it.reemplazada_por.revision_label if it.reemplazada_por else '—' }}</td>
+          <td>{{ it.fecha_baja.strftime('%d/%m/%Y') if it.fecha_baja else '—' }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=it.doc.id, rev_id=it.rev.id) }}">Ver</a>
+            <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=it.doc.id, rev_id=it.rev.id, fmt='pdf') }}" target="_blank">PDF</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay revisiones reemplazadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
