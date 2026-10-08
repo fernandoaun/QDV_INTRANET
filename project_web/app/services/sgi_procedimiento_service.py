@@ -492,6 +492,27 @@ def revision_vigente_aprobada(doc: SgiDocumento) -> SgiProcedimientoRevision | N
     )
 
 
+def tiene_version_vigente(doc: SgiDocumento) -> bool:
+    """Publicado para la planta: tiene una revisión aprobada vigente, aunque haya otra nueva en trabajo
+    (al abrir Rev. 01 el documento pasa a borrador, pero la Rev. 00 aprobada sigue rigiendo)."""
+    if doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+        return True
+    return doc.es_procedimiento_visual and revision_vigente_aprobada(doc) is not None
+
+
+def sql_tiene_version_vigente():
+    """Condición SQL equivalente a `tiene_version_vigente` para filtrar consultas de SgiDocumento."""
+    return or_(
+        SgiDocumento.estado.in_((ESTADO_APROBADO, ESTADO_VIGENTE)),
+        select(SgiProcedimientoRevision.id)
+        .where(
+            SgiProcedimientoRevision.documento_id == SgiDocumento.id,
+            SgiProcedimientoRevision.estado.in_((ESTADO_APROBADO, ESTADO_VIGENTE)),
+        )
+        .exists(),
+    )
+
+
 def revision_en_trabajo(doc: SgiDocumento) -> SgiProcedimientoRevision | None:
     return (
         doc.revisiones_proc.filter(
@@ -777,7 +798,7 @@ def user_participates_workflow(user: User | None, rev: SgiProcedimientoRevision)
 
 
 def documento_accesible_por_perfil(user: User, doc: SgiDocumento) -> bool:
-    if doc.estado not in (ESTADO_APROBADO, ESTADO_VIGENTE):
+    if not tiene_version_vigente(doc):
         return False
     return perfil_svc.user_perfil_aplica_documento(user, doc.id)
 
@@ -789,14 +810,13 @@ def puede_ver_documento(doc: SgiDocumento, *, puede_editar: bool, user: User | N
         return True
     if user and documento_accesible_por_perfil(user, doc):
         return True
-    if user and user_can_access_sgi(user) and doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
+    if user and user_can_access_sgi(user) and tiene_version_vigente(doc):
         return True
     if doc.es_procedimiento_visual and user:
         rev_trabajo = revision_en_trabajo(doc)
         if rev_trabajo and user_participates_workflow(user, rev_trabajo):
             return True
-        if doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE):
-            return revision_vigente_aprobada(doc) is not None
+        return revision_vigente_aprobada(doc) is not None
     return False
 
 
@@ -1045,6 +1065,26 @@ def revision_to_payload(rev: SgiProcedimientoRevision) -> dict[str, Any]:
     else:
         base["perfiles_aplica"] = []
     return base
+
+
+def payload_completo_revision(rev: SgiProcedimientoRevision) -> dict[str, Any]:
+    """Contenido + carátula (firmas, correos, puestos y fechas) listo para `save_revision_content`, para
+    modificar una revisión por código sin perder lo que no se toca."""
+    payload = revision_to_payload(rev)
+    payload.update(get_revision_puesto_ids(rev))
+    payload.update(
+        {
+            "elaboro": rev.elaboro,
+            "reviso": rev.reviso,
+            "revisor_correo": rev.revisor_correo,
+            "aprobo": rev.aprobo,
+            "aprobador_correo": rev.aprobador_correo,
+            "fecha_elaboracion": rev.fecha_elaboracion.isoformat() if rev.fecha_elaboracion else "",
+            "fecha_revision": rev.fecha_revision.isoformat() if rev.fecha_revision else "",
+            "fecha_vigencia": rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else "",
+        }
+    )
+    return payload
 
 
 def create_procedimiento_visual(

@@ -57,3 +57,24 @@ def test_build_control_cambios_dos_revisiones(app):
         assert rows[0]["revision_ref"] == "00"
         assert rows[1]["revision_ref"] == "01"
         assert "OBJETO" in rows[1]["descripcion"].upper() or "actualización" in rows[1]["descripcion"].lower()
+
+
+def test_payload_completo_revision_conserva_caratula(auth_client, app):
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PO", 1, "tester", titulo="CARATULA INTACTA")
+        assert err is None
+        payload = proc_svc.payload_completo_revision(rev)
+        payload.update({"elaboro": "RESPONSABLE SGC", "reviso": "GERENCIA GENERAL", "revisor_correo": "r@example.com",
+                        "fecha_elaboracion": "2026-10-06"})
+        ok, msg, _ = proc_svc.save_revision_content(rev.id, payload, 1, "tester")
+        assert ok, msg
+        payload = proc_svc.payload_completo_revision(proc_svc.get_revision(rev.id))
+        payload["secciones"]["objeto"] = "Objeto modificado."
+        ok, msg, _ = proc_svc.save_revision_content(rev.id, payload, 1, "tester")
+        assert ok, msg
+        r = proc_svc.get_revision(rev.id)
+        assert r.elaboro == "RESPONSABLE SGC" and r.reviso == "GERENCIA GENERAL" and r.revisor_correo == "r@example.com"
+        assert r.fecha_elaboracion.isoformat() == "2026-10-06"
+        assert "Objeto modificado." in proc_svc.revision_to_payload(r)["secciones"]["objeto"]

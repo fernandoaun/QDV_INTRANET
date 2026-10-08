@@ -21,6 +21,7 @@ from app.models.user import User
 from app.services.deadline_alert_email_service import normalize_validate_email
 from app.services.mail_link_service import public_abs_url
 from app.services.mail_service import enviar_mail, is_mail_fully_configured
+from app.services import sgi_procedimiento_service as proc_svc
 from app.services.personal_epp_reminder_service import resolve_empleado_email
 from app.services.sgi_documento_perfil_service import (
     user_alcanzado_por_documento,
@@ -77,7 +78,7 @@ def documentos_vigentes_para_usuario(user: User) -> list[tuple[SgiDocumento, Sgi
         .filter(
             SgiDocumento.deleted_at.is_(None),
             SgiDocumento.es_procedimiento_visual.is_(True),
-            SgiDocumento.estado.in_((ESTADO_APROBADO, ESTADO_VIGENTE)),
+            proc_svc.sql_tiene_version_vigente(),
         )
         .order_by(SgiDocumento.codigo, SgiDocumento.id)
         .all()

@@ -75,7 +75,7 @@
         <td>{{ r.responsable_revision or '—' }}</td>
         <td>{{ r.responsable_aprobacion or '—' }}</td>
         <td class="text-end text-nowrap">
-          {% if r.estado in ('aprobado', 'vigente') or puede_editar %}
+          {% if puede_editar or row_meta.get(r.id, {}).get('vigente') %}
           <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=r.id) }}">Ver</a>
           {% endif %}
           {% if puede_editar %}

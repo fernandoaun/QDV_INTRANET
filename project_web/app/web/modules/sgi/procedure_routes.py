@@ -50,7 +50,6 @@ def _sgi_record_static_version() -> str:
 def _require_procedure_read(doc: SgiDocumento | None = None):
     """Acceso al módulo SGC o lectura de un procedimiento aprobado asignado al perfil del usuario."""
     from app.auth_utils import user_can_access_personal
-    from app.models.sgi import ESTADO_APROBADO, ESTADO_VIGENTE
 
     u = current_user()
     if u is None:
@@ -62,7 +61,7 @@ def _require_procedure_read(doc: SgiDocumento | None = None):
     if (
         doc is not None
         and user_can_access_personal(u)
-        and doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE)
+        and proc_svc.tiene_version_vigente(doc)
     ):
         return u, None
     return None, _no_access()
@@ -189,6 +188,7 @@ def listado_procedimientos(slug: str):
             "tiene_archivo": bool(r.archivo_path),
             "archivo_nombre": proc_svc.anexo_archivo_nombre(r.archivo_path),
             "puede_eliminar": proc_svc.puede_eliminar_procedimiento(r),
+            "vigente": proc_svc.tiene_version_vigente(r),
             "registros": [],
         }
 
@@ -895,9 +895,8 @@ def procedimiento_export(slug: str, doc_id: int, rev_id: int, fmt: str):
         abort(403)
     if not puede_editar and not proc_svc.documento_accesible_por_perfil(u, doc):
         from app.auth_utils import user_can_access_personal
-        from app.models.sgi import ESTADO_APROBADO, ESTADO_VIGENTE
 
-        if not (user_can_access_personal(u) and doc.estado in (ESTADO_APROBADO, ESTADO_VIGENTE)):
+        if not (user_can_access_personal(u) and proc_svc.tiene_version_vigente(doc)):
             abort(403)
 
     if anexo_svc.documento_es_especial(doc):

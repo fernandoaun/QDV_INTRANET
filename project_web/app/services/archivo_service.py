@@ -14,9 +14,7 @@ from werkzeug.utils import secure_filename
 from app.extensions import db
 from app.models.archivo import KIND_REGISTRO, ArchivoCarga, ArchivoSubmodulo
 from app.models.sgi import (
-    ESTADO_APROBADO,
     ESTADO_OBSOLETO,
-    ESTADO_VIGENTE,
     TIPO_PG,
     TIPO_PO,
     TIPO_SLUGS,
@@ -108,7 +106,7 @@ def list_procedimientos(*, solo_aprobados: bool = False) -> list[SgiDocumento]:
         .order_by(SgiDocumento.tipo.asc(), SgiDocumento.codigo.asc(), SgiDocumento.titulo.asc())
     )
     if solo_aprobados:
-        q = q.where(SgiDocumento.estado.in_((ESTADO_APROBADO, ESTADO_VIGENTE)))
+        q = q.where(proc_svc.sql_tiene_version_vigente())
     return list(db.session.scalars(q).all())
 
 

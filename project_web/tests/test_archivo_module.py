@@ -176,3 +176,26 @@ def test_archivo_lists_sgi_procedure_and_upload(auth_client, app):
     hub_html = hub.get_data(as_text=True)
     assert "Marzo" in hub_html
     assert "planilla.pdf" in hub_html
+
+
+def test_procedimiento_aprobado_sigue_visible_con_nueva_revision_en_trabajo(auth_client, app):
+    """Al abrir la Rev. 01 de un procedimiento aprobado, la planta sigue viendo la Rev. 00 hasta que se apruebe."""
+    from app.extensions import db
+    from app.models.sgi import SgiDocumento
+    from app.services import sgi_procedimiento_service as proc_svc
+
+    with app.app_context():
+        d1, r1, _reg = _proc_con_registro(proc_svc, "PROCEDIMIENTO CON REV 01", "Registro vigente")
+        _aprobar(d1, r1)
+        rev1, err = proc_svc.crear_nueva_revision(d1, 1, "tester")
+        assert err is None and rev1.revision_label == "Rev. 01"
+        doc = db.session.get(SgiDocumento, d1)
+        assert doc.estado == "borrador"
+        assert proc_svc.tiene_version_vigente(doc)
+        from app.services import archivo_service
+
+        assert d1 in [d.id for d in archivo_service.list_procedimientos(solo_aprobados=True)]
+
+    html = auth_client.get("/archivo/").get_data(as_text=True)
+    assert "PROCEDIMIENTO CON REV 01" in html
+    assert f"/procedimientos/{d1}/vista/{r1}" in html
