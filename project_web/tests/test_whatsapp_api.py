@@ -177,3 +177,31 @@ def test_openapi_documents_whatsapp_routes(client):
     assert "/api/v1/me" in spec["paths"]
     assert "/api/v1/intents/preview" in spec["paths"]
     assert "WhatsAppIdentity" in spec["components"]["securitySchemes"]
+
+
+def test_whatsapp_allowlist_desde_usuarios_y_legajos(app, client):
+    from app.models import EmpleadoPersonal
+
+    with app.app_context():
+        _add_user(username="wa_admin", rol="administrador", wa=WA_ADMIN, is_admin=True)
+        _add_user(username="wa_lab", rol=ROLE_LABORATORISTA, wa=WA_LAB)
+        uid_leg = _add_user(username="wa_legajo", rol=ROLE_OPERACIONES, wa=None)
+        db.session.add(EmpleadoPersonal(user_id=uid_leg, legajo="WA-1", apellido="Op", nombre="Uno", telefono="3834 15-123456"))
+        uid_baja = _add_user(username="wa_baja", rol=ROLE_OPERACIONES, wa="+5491110000005")
+        db.session.get(User, uid_baja).activo = False
+        db.session.commit()
+    app.config["API_BEARER_TOKEN"] = TOKEN
+    app.config["API_BEARER_USER_ID"] = None
+    r = client.get("/api/v1/whatsapp/allowlist", headers=_headers(None))
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["numeros"] == ["+5491110000001", "+5493834123456"]
+
+
+def test_whatsapp_allowlist_exige_token(app, client):
+    app.config["API_BEARER_TOKEN"] = TOKEN
+    app.config["API_BEARER_USER_ID"] = None
+    assert client.get("/api/v1/whatsapp/allowlist").status_code == 401
+    r = client.get("/api/v1/whatsapp/allowlist", headers={"Authorization": "Bearer otro-token"})
+    assert r.status_code == 401
+    app.config["API_BEARER_TOKEN"] = ""
+    assert client.get("/api/v1/whatsapp/allowlist", headers=_headers(None)).status_code == 401

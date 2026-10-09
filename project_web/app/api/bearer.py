@@ -42,6 +42,11 @@ def register_api_bearer(bp: Blueprint) -> None:
         if not secrets.compare_digest(raw, token_cfg):
             return jsonify({"error": "unauthorized", "message": "Token inválido."}), 401
 
+        if request.endpoint == "api_v1.api_whatsapp_allowlist":
+            # Llamada de servicio del gateway de WhatsApp: solo token, sin usuario.
+            g._qdv_api_service = True
+            return None
+
         whatsapp_raw = (request.headers.get("X-QDV-WhatsApp") or "").strip()
         if whatsapp_raw:
             user = find_user_by_whatsapp(whatsapp_raw)

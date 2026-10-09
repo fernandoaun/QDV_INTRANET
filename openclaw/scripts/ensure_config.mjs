@@ -177,7 +177,29 @@ function mergeConfig(existing, allowFrom) {
   return existing;
 }
 
-function main() {
+// Números habilitados según QDV (usuarios activos: WhatsApp del usuario o teléfono del legajo).
+// Si QDV no responde, devuelve [] y queda el allowFrom que ya tenía la config.
+async function fetchAllowFromQdv() {
+  const base = (process.env.QDV_API_BASE_URL || "").trim().replace(/\/$/, "");
+  const token = (process.env.QDV_API_BEARER_TOKEN || "").trim();
+  if (!base || !token) return [];
+  try {
+    const r = await fetch(`${base}/api/v1/whatsapp/allowlist`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    const numeros = Array.isArray(data.numeros) ? data.numeros : [];
+    console.log(`QDV: ${numeros.length} números habilitados para WhatsApp.`);
+    return numeros;
+  } catch (err) {
+    console.warn(`No pude traer los números de QDV (${err.message}); sigo con los que había.`);
+    return [];
+  }
+}
+
+async function main() {
   if ((process.env.DATABASE_URL || "").trim()) {
     console.error("ADVERTENCIA — aislamiento de base local");
     console.error("OpenClaw no debe tener DATABASE_URL. Quitá esa variable y usá /api/v1.");
@@ -187,7 +209,9 @@ function main() {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   syncWorkspaceSeed();
 
-  const allowFrom = parseAllowFrom(process.env.QDV_WHATSAPP_ALLOW_FROM);
+  const allowFrom = Array.from(
+    new Set([...parseAllowFrom(process.env.QDV_WHATSAPP_ALLOW_FROM), ...(await fetchAllowFromQdv())]),
+  );
   let cfg;
   if (fs.existsSync(CONFIG_PATH)) {
     const raw = fs.readFileSync(CONFIG_PATH, "utf8");
@@ -205,9 +229,9 @@ function main() {
   fs.writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`, "utf8");
   console.log(`OpenClaw config lista: ${CONFIG_PATH}`);
   if (!allowFrom.length) {
-    console.warn("QDV_WHATSAPP_ALLOW_FROM vacío: el bot no responderá DMs hasta cargar números E.164.");
-    console.warn("Esos números también tienen que existir en un usuario QDV (identidad; no alcanza la allowlist).");
+    console.warn("Sin números habilitados: el bot no responderá DMs.");
+    console.warn("Cargá el celular en el legajo (o en Admin → Usuarios → WhatsApp) y reiniciá OpenClaw.");
   }
 }
 
-main();
+await main();

@@ -57,6 +57,25 @@ def normalize_whatsapp_e164(raw: str | None) -> str:
     return ""
 
 
+def whatsapp_numeros_habilitados() -> list[str]:
+    """Números E.164 que pueden escribirle al bot: usuarios activos que operan por WhatsApp.
+
+    Sale del usuario (whatsapp_e164) o, si no tiene, del teléfono de su legajo activo.
+    """
+    numeros: set[str] = set()
+    for user in db.session.scalars(select(User).where(User.activo.is_(True))).all():
+        if whatsapp_user_blocked_reason(user):
+            continue
+        e164 = normalize_whatsapp_e164(user.whatsapp_e164)
+        if not e164:
+            emp = getattr(user, "empleado_personal", None)
+            if emp is not None and (emp.estado or "activo") == "activo":
+                e164 = normalize_whatsapp_e164(emp.telefono)
+        if e164:
+            numeros.add(e164)
+    return sorted(numeros)
+
+
 def find_user_by_whatsapp(raw: str | None) -> User | None:
     e164 = normalize_whatsapp_e164(raw)
     if not e164:
