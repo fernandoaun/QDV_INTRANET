@@ -22,6 +22,30 @@ def test_normalize_whatsapp_e164():
     assert normalize_whatsapp_e164("12") == ""
 
 
+def test_normalize_whatsapp_e164_formatos_de_legajo():
+    # Celulares argentinos como se cargan a mano -> como los manda WhatsApp (+549…).
+    assert normalize_whatsapp_e164("3834 15-123456") == "+5493834123456"
+    assert normalize_whatsapp_e164("03834 15 123456") == "+5493834123456"
+    assert normalize_whatsapp_e164("(0351) 15-1234567") == "+5493511234567"
+    assert normalize_whatsapp_e164("11 1000-0001") == "+5491110000001"
+    assert normalize_whatsapp_e164("3834123456") == "+5493834123456"
+    assert normalize_whatsapp_e164("+54 3834 123456") == "+5493834123456"
+    assert normalize_whatsapp_e164("543834123456") == "+5493834123456"
+    assert normalize_whatsapp_e164("0054 9 3834 123456") == "+5493834123456"
+    assert normalize_whatsapp_e164("+1 415 555 0100") == "+14155550100"
+    assert normalize_whatsapp_e164("123456") == ""
+
+
+def test_whatsapp_numero_guardado_sin_9(app, client):
+    with app.app_context():
+        uid = _add_user(username="wa_sin9", rol="administrador", wa="+541110000009", is_admin=True)
+    app.config["API_BEARER_TOKEN"] = TOKEN
+    app.config["API_BEARER_USER_ID"] = None
+    r = client.get("/api/v1/me", headers=_headers("+5491110000009"))
+    assert r.status_code == 200, r.get_json()
+    assert r.get_json()["id"] == uid
+
+
 def _add_user(*, username: str, rol: str, wa: str, is_admin: bool = False) -> int:
     u = User(
         username=username,

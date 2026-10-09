@@ -11,8 +11,25 @@ from app.models import EmpleadoPersonal, User
 from app.user_roles import ROLE_LABORATORISTA, normalize_stored_rol
 
 
+def _ar_nacional(digits: str) -> str:
+    """Número argentino sin 54/9 ni 0 de larga distancia -> 10 dígitos (área + abonado), o ''.
+
+    Saca el 15 de celular cargado a la vieja ("3834 15-123456" -> "3834123456").
+    """
+    d = digits.lstrip("0")
+    if len(d) == 12:
+        for area in (2, 3, 4):
+            if d[area : area + 2] == "15":
+                d = d[:area] + d[area + 2 :]
+                break
+    return d if len(d) == 10 else ""
+
+
 def normalize_whatsapp_e164(raw: str | None) -> str:
-    """Devuelve E.164 (+54911…) o cadena vacía si no se puede interpretar."""
+    """Devuelve E.164 (+54911…) o cadena vacía si no se puede interpretar.
+
+    Los celulares argentinos quedan como los manda WhatsApp: +549 + área + abonado.
+    """
     s = (raw or "").strip()
     if not s:
         return ""
@@ -21,25 +38,23 @@ def normalize_whatsapp_e164(raw: str | None) -> str:
         s = s.split(":", 1)[1]
     if "@" in s:
         s = s.split("@", 1)[0]
-    s = s.replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
-    if s.startswith("00"):
-        s = "+" + s[2:]
-    if s.startswith("+"):
-        digits = "+" + re.sub(r"\D", "", s[1:])
-    else:
-        digits = re.sub(r"\D", "", s)
+    s = s.replace(" ", "").replace("-", "").replace("(", "").replace(")", "").replace(".", "")
+    internacional = s.startswith("+") or s.startswith("00")
+    digits = re.sub(r"\D", "", s[2:] if s.startswith("00") else s)
+    if internacional or (digits.startswith("54") and len(digits) >= 12):
         if digits.startswith("54"):
-            digits = "+" + digits
-        elif digits.startswith("9") and len(digits) == 10:
-            digits = "+54" + digits
-        elif 8 <= len(digits) <= 15:
-            digits = "+" + digits
-        else:
-            return ""
-    body = digits[1:]
-    if not (8 <= len(body) <= 15) or not body.isdigit():
-        return ""
-    return digits
+            resto = digits[2:]
+            if resto.startswith("9"):
+                resto = resto[1:]
+            nacional = _ar_nacional(resto)
+            return "+549" + nacional if nacional else ""
+        return "+" + digits if 8 <= len(digits) <= 15 else ""
+    nacional = _ar_nacional(digits)
+    if nacional:
+        return "+549" + nacional
+    if digits.startswith("9") and len(digits) == 11:
+        return "+54" + digits
+    return ""
 
 
 def find_user_by_whatsapp(raw: str | None) -> User | None:
@@ -49,6 +64,10 @@ def find_user_by_whatsapp(raw: str | None) -> User | None:
     user = db.session.scalar(select(User).where(User.whatsapp_e164 == e164))
     if user is not None:
         return user
+    # Números guardados con otra normalización (p. ej. +54 sin el 9 de celular).
+    for u in db.session.scalars(select(User).where(User.whatsapp_e164.is_not(None))).all():
+        if normalize_whatsapp_e164(u.whatsapp_e164) == e164:
+            return u
     empleados = db.session.scalars(select(EmpleadoPersonal).where(EmpleadoPersonal.user_id.is_not(None))).all()
     for emp in empleados:
         if normalize_whatsapp_e164(emp.telefono) == e164 and emp.user_id:
