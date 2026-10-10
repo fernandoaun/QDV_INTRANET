@@ -12,7 +12,9 @@ from app.auth_utils import (
     user_can_view_stock_historial,
 )
 from app.extensions import limiter
+from app.constants import HIPOCLORITO_PRODUCTO_TERMINADO_NOMBRE
 from app.services import stock_service
+from app.services.shift_hypochlorite_indicators_service import get_instant_stock
 
 
 @bp.get("/stock/existencias")
@@ -37,7 +39,36 @@ def api_stock_existencias():
     except Exception:
         items = []
 
+    if cat in ("todas", "producto_terminado"):
+        items = _hipoclorito_como_panel(items, con_categoria=(cat == "todas"))
     return jsonify({"categoria": cat, "items": items})
+
+
+def _es_hipoclorito_pt(it: dict) -> bool:
+    if it.get("categoria", "producto_terminado") != "producto_terminado":
+        return False
+    # Alias y variantes mal tipeadas en el ledger («Hipoclortito»): todas son el mismo producto.
+    return str(it.get("producto") or "").strip().lower().startswith("hipocl")
+
+
+def _hipoclorito_como_panel(items: list[dict], *, con_categoria: bool) -> list[dict]:
+    """Una sola línea de hipoclorito con el stock instantáneo operativo del Panel."""
+    out = [it for it in items if not _es_hipoclorito_pt(it)]
+    try:
+        litros = get_instant_stock()
+    except Exception:
+        litros = None
+    fila: dict = {
+        "producto": HIPOCLORITO_PRODUCTO_TERMINADO_NOMBRE,
+        "stock": float(litros) if litros is not None else None,
+        "is_stockable": True,
+        "fuente": "panel_stock_instantaneo",
+    }
+    if con_categoria:
+        fila = {"categoria": "producto_terminado", **fila}
+    out.append(fila)
+    out.sort(key=lambda x: (str(x.get("categoria", "")), str(x["producto"]).lower()))
+    return out
 
 
 def _parse_positive_int(raw: str | None, default: int) -> int:

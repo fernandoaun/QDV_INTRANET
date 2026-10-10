@@ -52,3 +52,20 @@ def test_api_docs_redirects_when_auth_required(client, app):
     r = client.get("/api/v1/docs", follow_redirects=False)
     assert r.status_code == 302
     assert r.headers.get("Location", "").startswith("/login")
+
+
+def test_stock_hipoclorito_una_linea_como_panel(monkeypatch):
+    from app.api.v1.routes import stock as stock_routes
+
+    monkeypatch.setattr(stock_routes, "get_instant_stock", lambda: 12345.0)
+    items = [
+        {"categoria": "materia_prima", "producto": "Sal", "stock": 10.0, "is_stockable": True},
+        {"categoria": "producto_terminado", "producto": "Hipoclorito", "stock": 0.0, "is_stockable": True},
+        {"categoria": "producto_terminado", "producto": "Hipoclorito de sodio", "stock": 130948.0, "is_stockable": True},
+        {"categoria": "producto_terminado", "producto": "Hipoclortito", "stock": 2750.0, "is_stockable": True},
+    ]
+    out = stock_routes._hipoclorito_como_panel(items, con_categoria=True)
+    hipo = [it for it in out if it["categoria"] == "producto_terminado"]
+    assert len(hipo) == 1
+    assert hipo[0]["stock"] == 12345.0
+    assert any(it["producto"] == "Sal" for it in out)
