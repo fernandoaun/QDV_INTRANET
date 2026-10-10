@@ -41,6 +41,8 @@ run_gateway() {
 }
 
 if [ "$#" -eq 0 ]; then
+  # Avisos del sistema por WhatsApp (copia de los mails), en segundo plano junto al gateway.
+  node --max-old-space-size=64 /opt/qdv/avisos_whatsapp.mjs &
   run_gateway
 fi
 

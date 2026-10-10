@@ -127,16 +127,19 @@ def enviar_mail(
             if user:
                 smtp.login(user, password)
             smtp.send_message(msg)
-        return
-
-    with smtplib.SMTP(host, port, timeout=60) as smtp:
-        smtp.ehlo()
-        if use_tls:
-            smtp.starttls()
+    else:
+        with smtplib.SMTP(host, port, timeout=60) as smtp:
             smtp.ehlo()
-        if user:
-            smtp.login(user, password)
-        smtp.send_message(msg)
+            if use_tls:
+                smtp.starttls()
+                smtp.ehlo()
+            if user:
+                smtp.login(user, password)
+            smtp.send_message(msg)
+
+    from app.services.whatsapp_avisos_service import encolar_desde_mail
+
+    encolar_desde_mail(app, to_norm + cc_norm, msg["Subject"], plain)
 
 
 def enviar_mail_texto_plano(app: Any, destinatarios: list[str], asunto: str, cuerpo: str, *, cc: list[str] | None = None) -> None:

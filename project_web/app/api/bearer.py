@@ -8,6 +8,15 @@ if TYPE_CHECKING:
 
 _bearer_hook_installed = False
 
+# Llamadas de servicio del gateway de WhatsApp: solo token, sin usuario.
+_ENDPOINTS_SERVICIO_WHATSAPP = frozenset(
+    {
+        "api_v1.api_whatsapp_allowlist",
+        "api_v1.api_whatsapp_avisos_pendientes",
+        "api_v1.api_whatsapp_aviso_resultado",
+    }
+)
+
 
 def register_api_bearer(bp: Blueprint) -> None:
     """Autenticación opcional Authorization: Bearer <token> en rutas /api/v1."""
@@ -42,8 +51,7 @@ def register_api_bearer(bp: Blueprint) -> None:
         if not secrets.compare_digest(raw, token_cfg):
             return jsonify({"error": "unauthorized", "message": "Token inválido."}), 401
 
-        if request.endpoint == "api_v1.api_whatsapp_allowlist":
-            # Llamada de servicio del gateway de WhatsApp: solo token, sin usuario.
+        if request.endpoint in _ENDPOINTS_SERVICIO_WHATSAPP:
             g._qdv_api_service = True
             return None
 

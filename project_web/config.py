@@ -224,6 +224,8 @@ def get_config_dict(base_dir: Path) -> dict:
     smtp_password = (os.environ.get("SMTP_PASSWORD") or "").strip()
     smtp_use_tls = (os.environ.get("SMTP_USE_TLS") or "true").strip().lower() in ("1", "true", "yes")
     mail_from = (os.environ.get("MAIL_FROM") or "").strip()
+    # Copia por WhatsApp (bot OpenClaw) de cada mail del sistema a destinatarios con legajo y celular.
+    whatsapp_avisos_enabled = (os.environ.get("WHATSAPP_AVISOS") or "true").strip().lower() in ("1", "true", "yes")
     deadline_mail_raw = (os.environ.get("DEADLINE_ALERT_EMAIL_TO") or "").strip()
     deadline_alert_email_to = [e.strip() for e in deadline_mail_raw.split(",") if e.strip()]
     sgi_revision_mail_raw = (os.environ.get("SGI_REVISION_MAIL_TO") or "").strip()
@@ -400,6 +402,7 @@ def get_config_dict(base_dir: Path) -> dict:
         "SMTP_PASSWORD": smtp_password,
         "SMTP_USE_TLS": smtp_use_tls,
         "MAIL_FROM": mail_from,
+        "WHATSAPP_AVISOS_ENABLED": whatsapp_avisos_enabled,
         "DEADLINE_ALERT_EMAIL_TO": deadline_alert_email_to,
         "SGI_REVISION_MAIL_TO": sgi_revision_mail_to,
         "SGI_APROBACION_MAIL_TO": sgi_aprobacion_mail_to,

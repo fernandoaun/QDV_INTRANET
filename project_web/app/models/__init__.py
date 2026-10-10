@@ -39,6 +39,7 @@ from app.models.stock_alert import StockAlertEmail, StockCriticalAlertSent
 from app.models.birthday_reminder_sent import BirthdayReminderSent
 from app.models.deadline_reminder_sent import DeadlineReminderSent
 from app.models.user import PermisoPuesto, PermisoRecursoConocido, PermisoUsuario, User
+from app.models.whatsapp_aviso import WhatsappAviso
 from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHistorial
 from app.models.personal import (
     EmpleadoPersonal,
@@ -80,6 +81,7 @@ from app.models.sgi import (
 __all__ = [
     "AppUploadedDocument",
     "User",
+    "WhatsappAviso",
     "PermisoUsuario",
     "PermisoPuesto",
     "PermisoRecursoConocido",

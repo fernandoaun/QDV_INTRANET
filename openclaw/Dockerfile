@@ -8,6 +8,7 @@ USER root
 COPY --chown=node:node scripts/ensure_config.mjs /opt/qdv/ensure_config.mjs
 COPY --chown=node:node docker-entrypoint.sh /opt/qdv/docker-entrypoint.sh
 COPY --chown=node:node scripts/patch_baileys.sh /opt/qdv/patch_baileys.sh
+COPY --chown=node:node scripts/avisos_whatsapp.mjs /opt/qdv/avisos_whatsapp.mjs
 COPY --chown=node:node workspace /opt/qdv/workspace-seed
 RUN chmod 0755 /opt/qdv/docker-entrypoint.sh /opt/qdv/patch_baileys.sh \
     && /opt/qdv/patch_baileys.sh \
