@@ -35,6 +35,9 @@ def test_critical_transition_sends_mail_once(app):
     from app.services import stock_service
     from app.services.stock_alert_email_service import add_email
 
+    # El aviso exige SMTP configurado; el envío real se reemplaza por _fake_mail.
+    app.config["SMTP_HOST"] = "smtp.test"
+    app.config["MAIL_FROM"] = "avisos@test.com"
     with app.app_context():
         add_email("critico@test.com")
         stock_service.ensure_producto(

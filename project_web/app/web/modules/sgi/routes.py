@@ -120,6 +120,7 @@ def export_xlsx(slug: str):
         bio,
         as_attachment=True,
         download_name=f"sgi_{slug}_{ts}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         max_age=0,
     )
 

@@ -466,7 +466,7 @@ def test_user_create_generates_legajo(auth_client, app):
     from app.extensions import db
     from app.models import EmpleadoPersonal, User
 
-    lg = auth_client.get("/login")
+    lg = auth_client.get("/admin/usuarios")
     html = lg.get_data(as_text=True)
     import re
 
@@ -610,7 +610,7 @@ def test_sgi_user_sin_legajo(auth_client, app):
     from app.models import EmpleadoPersonal, User
     from app.user_roles import ROLE_SGI
 
-    lg = auth_client.get("/login")
+    lg = auth_client.get("/admin/usuarios")
     html = lg.get_data(as_text=True)
     import re
 
