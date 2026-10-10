@@ -22,6 +22,7 @@ if [ "$(id -u)" = "0" ]; then
 fi
 
 node /opt/qdv/ensure_config.mjs
+/opt/qdv/patch_baileys.sh || true
 
 run_gateway() {
   # --port $PORT: Render detecta el puerto del proceso, no el EXPOSE del Dockerfile.
