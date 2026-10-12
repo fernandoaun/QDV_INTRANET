@@ -32,6 +32,12 @@
   .scada-panel { position:fixed; top:0; right:0; height:100%; width:min(420px, 100%); background:#0f1626; color:#e8ecf4;
     border-left:2px solid #3a4766; z-index:1050; transform:translateX(100%); transition:transform .2s; overflow-y:auto; padding:16px; }
   .scada-panel.open { transform:none; }
+  .scada-panel.form { width:min(820px, 100%); background:#fff; color:#212529; }
+  .scada-panel .sc-form-wrap { display:none; }
+  .scada-panel.form .sc-form-wrap { display:block; }
+  .scada-panel.form .sc-detalle { display:none; }
+  .scada-panel.form #sc-p-close { color:#333; border-color:#999; }
+  .scada-panel iframe { width:100%; height:calc(100vh - 90px); border:0; border-radius:6px; background:#fff; }
   .scada-panel table { width:100%; font-size:.88rem; }
   .scada-panel td { padding:3px 4px; border-bottom:1px solid #22304d; }
   .scada-panel td.v { text-align:right; font-family: Consolas, monospace; color:#7CFC00; }
@@ -45,7 +51,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Planta en vivo</h1>
-    <div class="text-muted small">Se arma con lo que se carga en el sistema y se actualiza solo cada 20 segundos. Tocá un equipo para ver el detalle y cargar.</div>
+    <div class="text-muted small">Se arma con lo que se carga en el sistema y se actualiza solo cada 20 segundos. Tocá un equipo para ver el detalle y cargar datos sin salir de esta pantalla.</div>
   </div>
   <div class="app-page-actions"><span class="badge text-bg-secondary">Vista de prueba · solo administrador</span></div>
 </div>
@@ -208,10 +214,19 @@
     <h2 class="h5 mb-0" id="sc-p-title">—</h2>
     <button type="button" class="btn btn-sm btn-outline-light" id="sc-p-close">Cerrar</button>
   </div>
-  <div class="small text-secondary mb-2" id="sc-p-sub"></div>
-  <div id="sc-p-avisos"></div>
-  <table><tbody id="sc-p-body"></tbody></table>
-  <div class="d-grid gap-2 mt-3" id="sc-p-actions"></div>
+  <div class="sc-detalle">
+    <div class="small text-secondary mb-2" id="sc-p-sub"></div>
+    <div id="sc-p-avisos"></div>
+    <table><tbody id="sc-p-body"></tbody></table>
+    <div class="d-grid gap-2 mt-3" id="sc-p-actions"></div>
+  </div>
+  <div class="sc-form-wrap">
+    <div class="d-flex gap-2 mb-2">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="sc-f-back">← Volver al detalle</button>
+      <a class="btn btn-sm btn-outline-secondary ms-auto" id="sc-f-full" href="#">Abrir en pantalla completa</a>
+    </div>
+    <iframe id="sc-f-frame" title="Carga de datos"></iframe>
+  </div>
 </aside>
 {% endblock %}
 
@@ -417,11 +432,41 @@
   function filas(rows) {
     return rows.filter((x) => x).map(([k, v, cls]) => `<tr><td>${k}</td><td class="v ${cls || ""}">${v}</td></tr>`).join("");
   }
+  // Cargar = el formulario de siempre dentro del panel (mismos permisos, turno y validaciones).
   function boton(href, text, primary) {
-    return `<a class="btn btn-sm ${primary ? "btn-success" : "btn-outline-light"}" href="${href}">${text}</a>`;
+    return `<a class="btn btn-sm ${primary ? "btn-success" : "btn-outline-light"}" href="${href}" data-form="1">${text}</a>`;
   }
+  const frame = $("sc-f-frame");
+  let frameLoads = 0;
+  function abrirForm(href, titulo) {
+    frameLoads = 0;
+    $("sc-p-title").textContent = titulo;
+    $("sc-f-full").href = href;
+    frame.src = href;
+    panel.classList.add("open", "form");
+  }
+  frame.addEventListener("load", () => {
+    frameLoads += 1;
+    if (frameLoads > 1) cargar();  // se guardó o se navegó adentro: refrescar la planta
+  });
+  $("sc-p-actions").addEventListener("click", (ev) => {
+    const a = ev.target.closest("a[data-form]"); if (!a) return;
+    ev.preventDefault();
+    abrirForm(a.getAttribute("href"), a.textContent);
+  });
+  function cerrarPanel() {
+    panel.classList.remove("open", "form");
+    if (frame.getAttribute("src")) { frame.removeAttribute("src"); cargar(); }
+  }
+  $("sc-f-back").addEventListener("click", () => {
+    panel.classList.remove("form"); frame.removeAttribute("src"); cargar();
+    if (ultimoEq) abrir(ultimoEq.eq, ultimoEq.extra);
+  });
+  let ultimoEq = null;
   function abrir(eq, extra) {
     if (!S) return;
+    ultimoEq = { eq, extra };
+    panel.classList.remove("form");
     let title = "", sub = "", rows = [], avisos = [], actions = [];
     const SA = S.salmuera || {};
     if (eq === "e2" || eq === "e3") {
@@ -492,8 +537,8 @@
     const g = ev.target.closest(".eq"); if (!g) return;
     abrir(g.dataset.eq, g.dataset.mp);
   });
-  $("sc-p-close").addEventListener("click", () => panel.classList.remove("open"));
-  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") panel.classList.remove("open"); });
+  $("sc-p-close").addEventListener("click", cerrarPanel);
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") cerrarPanel(); });
 
   cargar();
   setInterval(cargar, 20000);
