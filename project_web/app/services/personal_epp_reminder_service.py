@@ -24,10 +24,12 @@ def resolve_empleado_email(emp: EmpleadoPersonal | None) -> str | None:
     return normalize_validate_email((emp.email or "").strip())
 
 
-def _mis_entregas_url(app: Any) -> str:
+def _confirmar_url(app: Any, empleado: EmpleadoPersonal, entregas: list[PersonalEntregaEpp]) -> str:
+    """Link firmado: confirma desde el celular sin entrar con usuario."""
+    from app.services.epp_confirmacion_link_service import crear_token
     from app.services.mail_link_service import public_abs_url
 
-    return public_abs_url(app, "personal.mis_entregas_epp")
+    return public_abs_url(app, "personal.epp_confirmar_link", token=crear_token(app, empleado, entregas))
 
 
 def _format_entrega_line(en: PersonalEntregaEpp) -> str:
@@ -57,12 +59,12 @@ def _build_mail_bodies(
         asunto = f"QDV — Confirmá tu entrega de {item_nombre}"
         intro = (
             "RRHH registró una entrega de ropa/EPP a tu nombre. "
-            "Ingresá al sistema y confirmá la recepción desde tu usuario."
+            "Tocá el link y confirmá que la recibiste (no hace falta usuario ni contraseña)."
         )
         if es_recordatorio:
             intro = (
                 "Tenés una entrega de ropa/EPP pendiente de confirmación. "
-                "Ingresá al sistema para confirmar la recepción."
+                "Tocá el link y confirmá que la recibiste (no hace falta usuario ni contraseña)."
             )
         detalle = _format_entrega_line(en)
         devolucion = ""
@@ -77,13 +79,13 @@ def _build_mail_bodies(
             f"Hola {nombre},\n\n"
             f"{intro}{devolucion}\n\n"
             f"Detalle: {detalle}\n\n"
-            f"Confirmar en el sistema: {link}\n"
+            f"Confirmar: {link}\n"
         )
         html_body = (
             f"<p>Hola <strong>{esc(nombre)}</strong>,</p>"
             f"<p>{esc(intro)}{esc(devolucion)}</p>"
             f"<p><strong>Detalle:</strong> {esc(detalle)}</p>"
-            f'<p><a href="{esc(link)}">Confirmar entrega en el sistema</a></p>'
+            f'<p><a href="{esc(link)}">Confirmar que la recibí</a></p>'
             f'<p style="color:#666;font-size:12px">No responder a este mensaje.</p>'
         )
         return asunto, plain, html_body
@@ -91,7 +93,7 @@ def _build_mail_bodies(
     asunto = f"QDV — {len(entregas)} entregas de ropa/EPP pendientes de confirmación"
     intro = (
         f"Tenés {len(entregas)} entregas de ropa/EPP pendientes de confirmación. "
-        "Ingresá al sistema y confirmá la recepción desde tu usuario."
+        "Tocá el link y confirmá que las recibiste (no hace falta usuario ni contraseña)."
     )
     lines = [_format_entrega_line(en) for en in entregas]
     plain = f"Hola {nombre},\n\n{intro}\n\n" + "\n".join(f"- {ln}" for ln in lines) + f"\n\nConfirmar: {link}\n"
@@ -100,7 +102,7 @@ def _build_mail_bodies(
         f"<p>Hola <strong>{esc(nombre)}</strong>,</p>"
         f"<p>{esc(intro)}</p>"
         f"<ul>{items_html}</ul>"
-        f'<p><a href="{esc(link)}">Confirmar entregas en el sistema</a></p>'
+        f'<p><a href="{esc(link)}">Confirmar que las recibí</a></p>'
         f'<p style="color:#666;font-size:12px">No responder a este mensaje.</p>'
     )
     return asunto, plain, html_body
@@ -128,7 +130,7 @@ def _send_to_empleado(
     if not is_mail_fully_configured(app):
         return False, "SMTP no configurado (SMTP_HOST / MAIL_FROM)."
 
-    link = _mis_entregas_url(app)
+    link = _confirmar_url(app, empleado, entregas)
     ok_link, link_detail = require_absolute_mail_url(app, link, context="entrega EPP/ropa")
     if not ok_link:
         return False, link_detail

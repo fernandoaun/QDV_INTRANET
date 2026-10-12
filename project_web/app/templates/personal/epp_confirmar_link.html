@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Confirmar entrega de ropa / EPP · QDV{% endblock %}
+{% block content %}
+<div class="app-login-page">
+  <div class="app-login-card">
+    <h1 class="h5 mb-3">Entrega de ropa / EPP</h1>
+    {% if error %}
+    <div class="alert alert-danger mb-0">{{ error }}</div>
+    {% else %}
+    {% set pendientes = filas|selectattr(1, 'equalto', '')|list %}
+    <p class="mb-3">Hola <strong>{{ empleado.nombre_completo }}</strong>.</p>
+    {% if confirmadas %}
+    <div class="alert alert-success">¡Listo! Quedó registrado que {% if confirmadas > 1 %}las{% else %}la{% endif %} recibiste. Ya podés cerrar esta página.</div>
+    {% endif %}
+    <ul class="list-unstyled mb-3">
+      {% for en, motivo in filas %}
+      <li class="border rounded p-2 mb-2">
+        <div class="fw-semibold">{{ en.item.nombre if en.item else '—' }}</div>
+        <div class="small text-muted">
+          {{ en.fecha.strftime('%d/%m/%Y') }}{% if en.talle %} · Talle {{ en.talle }}{% endif %}{% if en.cantidad and en.cantidad > 1 %} · Cant. {{ en.cantidad }}{% endif %}
+        </div>
+        {% if motivo %}
+        <div class="small mt-1 {% if en.estado == 'confirmada' %}text-success{% else %}text-warning-emphasis{% endif %}">{{ motivo }}</div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% if pendientes %}
+    <form method="post">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-success btn-lg w-100">Sí, la{% if pendientes|length > 1 %}s{% endif %} recibí</button>
+    </form>
+    <p class="small app-text-secondary mt-2 mb-0">Al tocar el botón confirmás que recibiste {% if pendientes|length > 1 %}estas prendas{% else %}esta prenda{% endif %}{% if pendientes|selectattr('0.prenda_anterior_entrega_id')|list %} y que devolviste la anterior{% endif %}.</p>
+    {% elif not confirmadas %}
+    <div class="alert alert-info mb-0">No hay nada para confirmar en este link.</div>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

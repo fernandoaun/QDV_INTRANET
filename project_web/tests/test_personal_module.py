@@ -347,21 +347,23 @@ def test_entrega_epp_envia_aviso_mail_al_registrar(auth_client, app, monkeypatch
     assert sent[0]["destinatarios"] == ["empleado@test.example"]
     assert "Casco test mail" in sent[0]["asunto"]
     body = (sent[0].get("cuerpo_texto") or "") + (sent[0].get("cuerpo_html") or "")
-    assert "https://intranet.test.example/personal/mis-entregas-epp" in body
-    assert "mis-entregas-epp" in body
+    assert "https://intranet.test.example/personal/epp/confirmar/" in body
 
 
 def test_entrega_epp_mail_link_usa_render_external_url(app, monkeypatch):
-    from app.services.personal_epp_reminder_service import _mis_entregas_url
+    from datetime import date
 
-    monkeypatch.setitem(app.config, "APP_PUBLIC_BASE_URL", "")
-    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://qdv-demo.onrender.com")
-    # Recargar config no es necesario: probamos el helper con base vacía simulando Render.
+    from app.extensions import db
+    from app.models import EmpleadoPersonal
+    from app.services.personal_epp_reminder_service import _confirmar_url
+
     with app.app_context():
         app.config["APP_PUBLIC_BASE_URL"] = "https://qdv-demo.onrender.com"
-        link = _mis_entregas_url(app)
-    assert link.startswith("https://qdv-demo.onrender.com/personal/mis-entregas-epp")
-    assert "mis-entregas-epp" in link
+        emp = EmpleadoPersonal(legajo="LNK-0", apellido="Link", nombre="Test", fecha_ingreso=date(2026, 1, 1))
+        db.session.add(emp)
+        db.session.commit()
+        link = _confirmar_url(app, emp, [])
+    assert link.startswith("https://qdv-demo.onrender.com/personal/epp/confirmar/")
 
 
 def test_run_entrega_epp_reminders_agrupa_por_empleado(app, monkeypatch):

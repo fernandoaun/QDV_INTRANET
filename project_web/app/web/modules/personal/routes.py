@@ -16,7 +16,7 @@ from app.auth_utils import (
     user_can_solicitar_vacaciones,
     user_display_name,
 )
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models import Operador, PersonalApercibimiento, PersonalCurso, User
 from app.services import archivo_service as avs
 from app.services import epp_constancia_service as epp_cs
@@ -479,6 +479,25 @@ def epp_constancia(empleado_id: int):
         puede_editar=user_can_register_entregas_personal(u),
         items=ps.list_epp_items(solo_activos=True),
         **epp_cs.contexto(emp),
+    )
+
+
+@bp.route("/epp/confirmar/<token>", methods=["GET", "POST"])
+@limiter.limit("30 per minute")
+def epp_confirmar_link(token: str):
+    """Confirmación de entregas EPP desde el link del aviso (mail/WhatsApp), sin login."""
+    from app.services import epp_confirmacion_link_service as link_svc
+
+    emp, entregas, error = link_svc.leer_token(token)
+    confirmadas = None
+    if emp is not None and request.method == "POST":
+        confirmadas = link_svc.confirmar(emp, entregas)
+    return render_template(
+        "personal/epp_confirmar_link.html",
+        empleado=emp,
+        error=error,
+        filas=[(en, link_svc.motivo_no_confirmable(en)) for en in entregas],
+        confirmadas=confirmadas,
     )
 
 
