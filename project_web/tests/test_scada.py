@@ -1,4 +1,4 @@
-"""Vista de planta tipo SCADA: solo administrador por ahora."""
+"""Vista de planta tipo SCADA: mismo acceso que Producción."""
 from __future__ import annotations
 
 
@@ -14,22 +14,36 @@ def test_scada_admin_ve_la_planta_y_el_estado(auth_client):
         assert not (isinstance(data[clave], dict) and data[clave].get("error")), clave
 
 
-def test_scada_no_admin_no_entra(app, client):
+def _login(app, client, username, rol):
+    import re
+
     from werkzeug.security import generate_password_hash
 
     from app.extensions import db
     from app.models import User
 
     with app.app_context():
-        db.session.add(User(username="op_scada", password_hash=generate_password_hash("x1"), is_admin=False, activo=True, rol="operaciones"))
+        db.session.add(User(username=username, password_hash=generate_password_hash("x1"), is_admin=False, activo=True, rol=rol))
         db.session.commit()
-    import re
-
     page = client.get("/login").get_data(as_text=True)
     tok = re.search(r'name="csrf_token"\s+value="([^"]+)"', page)
-    client.post("/login", data={"username": "op_scada", "password": "x1", **({"csrf_token": tok.group(1)} if tok else {})})
+    client.post("/login", data={"username": username, "password": "x1", **({"csrf_token": tok.group(1)} if tok else {})})
+
+
+def test_scada_lo_ven_los_de_produccion(app, client):
+    _login(app, client, "op_scada", "operaciones")
+    assert client.get("/scada/").status_code == 200
+    assert client.get("/scada/estado.json").status_code == 200
+    assert "/scada/" in client.get("/dashboard").get_data(as_text=True)
+
+
+def test_scada_no_lo_ve_quien_no_tiene_produccion(app, client):
+    _login(app, client, "sin_prod", "operaciones")
+    with client.session_transaction() as sess:
+        sess["perms"] = ["sgi"]  # perfil sin ningún permiso de Producción
     assert client.get("/scada/").status_code in (302, 303)
     assert client.get("/scada/estado.json").status_code in (302, 303)
+    assert "/scada/" not in client.get("/dashboard").get_data(as_text=True)
 
 
 def test_scada_va_entre_panel_y_produccion(auth_client):

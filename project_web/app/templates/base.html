@@ -48,7 +48,7 @@
           <a href="{{ url_for('main.dashboard') }}" class="app-sidenav-link {% if ep in ('main.dashboard', 'main.dashboard_operadores') %}is-active{% endif %}"
              data-filter-text="panel dashboard operadores" title="Panel"><i class="bi bi-speedometer2" aria-hidden="true"></i></a>
         </li>
-        {% if nav_user and nav_user.is_admin %}
+        {% if user_can_production_hub %}
         <li>
           <a href="{{ url_for('scada.planta') }}" class="app-sidenav-link {% if ep and ep.startswith('scada.') %}is-active{% endif %}"
              data-filter-text="scada planta diagrama proceso en vivo" title="Planta en vivo (SCADA)"><i class="bi bi-diagram-3" aria-hidden="true"></i></a>
