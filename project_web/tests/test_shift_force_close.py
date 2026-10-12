@@ -106,3 +106,69 @@ def test_el_siguiente_operador_recepciona_el_turno_cerrado(app, client, turno_ab
     with app.app_context():
         nuevo = sh.get_open_shift_session()
         assert nuevo is not None and nuevo.user.username == "pt_op_sig"
+
+
+def _handover_pendiente(app, turno_abierto, stock: str) -> int:
+    from app.extensions import db
+    from app.models import ShiftSession, User
+    from app.services import shift_handover_service as sh
+
+    with app.app_context():
+        lab = db.session.query(User).filter_by(username="pt_lucia").one()
+        s = db.session.get(ShiftSession, turno_abierto["session_id"])
+        return int(sh.persist_forced_handover({"hypochlorite_stock_liters": stock, "motivo": "x", "confirmar": "1"}, lab, s, "2026-10-08T07:00:00").id)
+
+
+def test_el_entrante_corrige_el_stock_al_recibir(app, client, turno_abierto):
+    from app.extensions import db
+    from app.models import ShiftHandover
+
+    hid = _handover_pendiente(app, turno_abierto, "1700")
+    _login(client, "pt_op_sig", "x2")
+    page = client.get(f"/operacion/turno/recibir/{hid}")
+    assert "stock_corregido" in page.get_data(as_text=True)
+    r = client.post(f"/operacion/turno/recibir/{hid}", data={
+        "csrf_token": _csrf(page.get_data(as_text=True)), "confirm_read": "1",
+        "reception_mode": "accepted", "with_laboratorist": "no", "stock_corregido": "17.000",
+    })
+    assert r.status_code in (302, 303)
+    with app.app_context():
+        ho = db.session.get(ShiftHandover, hid)
+        assert ho.status == "received"
+        assert ho.hypochlorite_stock_liters == 17000
+        assert ho.hypochlorite_stock_liters_informado == 1700
+        assert ho.reception_status == "accepted_with_observations"
+        assert "informado 1.700 L, real 17.000 L" in ho.reception_notes
+    detalle = client.get(f"/operacion/turno/historial/{hid}")
+    assert detalle.status_code == 200
+    assert "el saliente informó 1700" in detalle.get_data(as_text=True)
+
+
+def test_recibir_sin_corregir_no_toca_el_stock(app, client, turno_abierto):
+    from app.extensions import db
+    from app.models import ShiftHandover
+
+    hid = _handover_pendiente(app, turno_abierto, "9000")
+    _login(client, "pt_op_sig", "x2")
+    page = client.get(f"/operacion/turno/recibir/{hid}")
+    client.post(f"/operacion/turno/recibir/{hid}", data={
+        "csrf_token": _csrf(page.get_data(as_text=True)), "confirm_read": "1",
+        "reception_mode": "accepted", "with_laboratorist": "no", "stock_corregido": "",
+    })
+    with app.app_context():
+        ho = db.session.get(ShiftHandover, hid)
+        assert ho.status == "received" and ho.reception_status == "accepted"
+        assert ho.hypochlorite_stock_liters == 9000 and ho.hypochlorite_stock_liters_informado is None
+
+
+def test_parse_stock_corregido():
+    from app.services.shift_handover_service import _parse_stock_corregido as p
+
+    assert p("", 100) is None
+    assert p("100", 100) is None
+    assert p("17.000", 1700) == 17000
+    assert p("17000", 1700) == 17000
+    assert p("15.500,5", 0) == 15500.5
+    assert p("12.5", 0) == 12.5
+    with pytest.raises(ValueError):
+        p("mucho", 0)

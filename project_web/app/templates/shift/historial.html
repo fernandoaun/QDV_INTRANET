@@ -36,7 +36,7 @@
           <td>{{ r.outgoing }}</td>
           <td>{{ r.incoming }}</td>
           <td>{{ r.status }}</td>
-          <td>{{ r.hypochlorite_stock_liters }}</td>
+          <td>{{ r.hypochlorite_stock_liters }}{% if r.hypochlorite_stock_liters_informado is not none %} <span class="small text-muted" title="Corregido al recibir">(informado {{ r.hypochlorite_stock_liters_informado }})</span>{% endif %}</td>
           <td>{{ r.reception_status or '—' }}</td>
           <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('shift.historial_detalle', hid=r.id) }}">Detalle</a></td>
         </tr>

@@ -38,6 +38,8 @@ class ShiftHandover(db.Model):
     received_at_iso = db.Column(db.String(32), nullable=True)
 
     hypochlorite_stock_liters = db.Column(db.Float, nullable=False)
+    # Lo que informó el saliente, solo si el entrante corrigió el stock al recibir.
+    hypochlorite_stock_liters_informado = db.Column(db.Float, nullable=True)
     closing_notes = db.Column(db.Text, nullable=True)
 
     reception_status = db.Column(db.String(64), nullable=True)

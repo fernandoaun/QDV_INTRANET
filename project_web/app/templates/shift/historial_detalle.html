@@ -16,7 +16,11 @@
     <div class="col-md-6"><strong>Entrega:</strong> {{ detail.handed_over_at_iso }}</div>
     <div class="col-md-6"><strong>Recepción:</strong> {{ detail.received_at_iso or '—' }}</div>
     <div class="col-md-6"><strong>Estado:</strong> {{ detail.status }}</div>
+    {% if detail.hypochlorite_stock_liters_informado is not none %}
+    <div class="col-md-6"><strong>Hipoclorito (L):</strong> {{ detail.hypochlorite_stock_liters }} <span class="small text-muted">— corregido al recibir; el saliente informó {{ detail.hypochlorite_stock_liters_informado }}</span></div>
+    {% else %}
     <div class="col-md-6"><strong>Hipoclorito informado (L):</strong> {{ detail.hypochlorite_stock_liters }}</div>
+    {% endif %}
     <div class="col-md-6"><strong>Tipo recepción:</strong> {{ detail.reception_status or '—' }}</div>
     {% if detail.closing_notes %}
     <div class="col-12"><strong>Obs. cierre:</strong> {{ detail.closing_notes }}</div>

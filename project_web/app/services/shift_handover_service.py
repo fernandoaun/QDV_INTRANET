@@ -412,6 +412,7 @@ def handover_to_detail_dict(h: ShiftHandover) -> dict[str, Any]:
         "handed_over_at_iso": h.handed_over_at_iso,
         "received_at_iso": h.received_at_iso,
         "hypochlorite_stock_liters": h.hypochlorite_stock_liters,
+        "hypochlorite_stock_liters_informado": h.hypochlorite_stock_liters_informado,
         "closing_notes": h.closing_notes or "",
         "reception_status": h.reception_status,
         "reception_notes": h.reception_notes or "",
@@ -572,6 +573,30 @@ def persist_forced_handover(form: Any, actor: User, sess: ShiftSession, now_iso:
     return ho
 
 
+def _litros(v: float | None) -> str:
+    return f"{float(v or 0):,.0f}".replace(",", ".")
+
+
+def _parse_stock_corregido(raw: Any, informado: float | None) -> float | None:
+    """Stock real que pone el entrante; None si no corrige (vacío o igual al informado)."""
+    txt = str(raw or "").strip().replace(" ", "")
+    if not txt:
+        return None
+    if "," in txt:  # 17.000,5 → 17000.5
+        txt = txt.replace(".", "").replace(",", ".")
+    elif txt.count(".") > 1 or (txt.count(".") == 1 and len(txt.split(".")[1]) == 3):
+        txt = txt.replace(".", "")  # 17.000 → 17000 (separador de miles)
+    try:
+        val = float(txt)
+    except ValueError as exc:
+        raise ValueError("El stock corregido tiene que ser un número de litros.") from exc
+    if val < 0 or not math.isfinite(val):
+        raise ValueError("Stock corregido inválido.")
+    if informado is not None and abs(val - float(informado)) < 0.5:
+        return None
+    return val
+
+
 def persist_handover_reception(
     form: Any,
     user: User,
@@ -584,6 +609,15 @@ def persist_handover_reception(
     if mode not in (RECEPTION_ACCEPTED, RECEPTION_WITH_OBS):
         raise ValueError("Elegí cómo recepcionás el turno.")
     notes = (form.get("reception_notes") or "").strip()
+    stock_corregido = _parse_stock_corregido(form.get("stock_corregido"), ho.hypochlorite_stock_liters)
+    if stock_corregido is not None:
+        # Corregir el stock es recibir con observaciones: queda escrito qué se cambió.
+        mode = RECEPTION_WITH_OBS
+        nota = (
+            f"Stock de hipoclorito corregido al recibir: informado {_litros(ho.hypochlorite_stock_liters)} L, "
+            f"real {_litros(stock_corregido)} L."
+        )
+        notes = f"{nota}\n{notes}" if notes else nota
     if mode == RECEPTION_WITH_OBS and not notes:
         raise ValueError("Las observaciones son obligatorias si elegís «Leí con observaciones».")
     lab_id, lab_err = resolve_laboratorist_from_form(
@@ -599,6 +633,10 @@ def persist_handover_reception(
     ho.reception_notes = notes if mode == RECEPTION_WITH_OBS else None
     ho.status = HANDOVER_RECEIVED
     ho.updated_at_iso = now_iso
+    if stock_corregido is not None:
+        if ho.hypochlorite_stock_liters_informado is None:
+            ho.hypochlorite_stock_liters_informado = ho.hypochlorite_stock_liters
+        ho.hypochlorite_stock_liters = stock_corregido
     eff = normalize_stored_rol(user.rol)
     new_sess = ShiftSession(
         user_id=user.id,
@@ -718,6 +756,7 @@ def summarize_handovers_for_history_view(limit: int = 200) -> list[dict[str, Any
                 "incoming": user_display_name(in_u) or (in_u.username if in_u else "—"),
                 "status": h.status,
                 "hypochlorite_stock_liters": h.hypochlorite_stock_liters,
+                "hypochlorite_stock_liters_informado": h.hypochlorite_stock_liters_informado,
                 "reception_status": h.reception_status,
             }
         )
