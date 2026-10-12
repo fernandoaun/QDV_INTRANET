@@ -107,6 +107,12 @@
              title="Personal / RRHH"><i class="bi bi-people" aria-hidden="true"></i></a>
         </li>
         {% endif %}
+        {% if nav_user and nav_user.is_admin %}
+        <li>
+          <a href="{{ url_for('scada.planta') }}" class="app-sidenav-link {% if ep and ep.startswith('scada.') %}is-active{% endif %}"
+             data-filter-text="scada planta diagrama proceso en vivo" title="Planta en vivo (SCADA)"><i class="bi bi-diagram-3" aria-hidden="true"></i></a>
+        </li>
+        {% endif %}
         {% if user_can_view_admin_configuration() %}
         <li>
           <a href="{{ url_for('admin_users.perfiles_recursos') }}" class="app-sidenav-link {% if ep and ep.startswith('admin_users.perfiles') %}is-active{% endif %}"

@@ -250,6 +250,7 @@ def create_app() -> Flask:
     from app.web.modules.archivo import bp as archivo_bp
     from app.web.modules.personal import bp as personal_bp
     from app.web.modules.chat import bp as chat_bp
+    from app.web.modules.scada import bp as scada_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -267,6 +268,7 @@ def create_app() -> Flask:
     app.register_blueprint(archivo_bp)
     app.register_blueprint(personal_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(scada_bp)
 
     @app.before_request
     def _session_inactivity_touch():

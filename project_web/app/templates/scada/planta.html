@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+{% block title %}Planta en vivo · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  .scada-wrap { background:#1d2740; border-radius:12px; padding:10px; color:#e8ecf4; position:relative; }
+  .scada-top { display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .scada-top .chip { background:#0d1322; border:1px solid #3a4766; border-radius:6px; padding:3px 10px; font-size:.82rem; }
+  .scada-top .chip b { color:#ffd84d; }
+  .scada-svg { width:100%; height:auto; display:block; }
+  .scada-svg text { font-family: "Segoe UI", Arial, sans-serif; fill:#e8ecf4; }
+  .scada-svg .lbl { font-size:13px; font-weight:700; letter-spacing:.04em; fill:#cfd6e6; }
+  .scada-svg .sub { font-size:11px; fill:#9fb0cf; }
+  .scada-svg .val { font-size:13px; font-weight:700; fill:#7CFC00; font-family: Consolas, "Courier New", monospace; }
+  .scada-svg .val.warn { fill:#ffb020; }
+  .scada-svg .val.bad { fill:#ff4d4d; }
+  .scada-svg .box { fill:#0b0f1a; stroke:#3a4766; stroke-width:1; }
+  .scada-svg .eq { cursor:pointer; }
+  .scada-svg .eq:hover .shell { stroke:#ffd84d; stroke-width:3; }
+  .scada-svg .shell { fill:url(#metal); stroke:#8b97ad; stroke-width:1.5; }
+  .scada-svg .pipe { fill:none; stroke:#5d6b86; stroke-width:7; stroke-linecap:round; stroke-linejoin:round; }
+  .scada-svg .pipe.on { stroke:#36c95f; }
+  .scada-svg .pipe.off { stroke:#c0392b; }
+  .scada-svg .flow { fill:none; stroke:#bfffd0; stroke-width:2; stroke-dasharray:6 14; opacity:0; }
+  .scada-svg .flow.on { opacity:.85; animation: scadaflow 1.2s linear infinite; }
+  @keyframes scadaflow { to { stroke-dashoffset:-20; } }
+  .scada-svg .led { stroke:#0b0f1a; stroke-width:2; }
+  .scada-svg .led.on { fill:#36c95f; } .scada-svg .led.off { fill:#e74c3c; } .scada-svg .led.na { fill:#6b7790; }
+  .scada-svg .led.blink { animation: scadablink 1s steps(2) infinite; }
+  @keyframes scadablink { 50% { opacity:.25; } }
+  .scada-svg .lvl { fill:#2f8fd8; opacity:.85; }
+  .scada-svg .lvl.limite { fill:#ffb020; } .scada-svg .lvl.critico { fill:#e74c3c; }
+  .scada-panel { position:fixed; top:0; right:0; height:100%; width:min(420px, 100%); background:#0f1626; color:#e8ecf4;
+    border-left:2px solid #3a4766; z-index:1050; transform:translateX(100%); transition:transform .2s; overflow-y:auto; padding:16px; }
+  .scada-panel.open { transform:none; }
+  .scada-panel table { width:100%; font-size:.88rem; }
+  .scada-panel td { padding:3px 4px; border-bottom:1px solid #22304d; }
+  .scada-panel td.v { text-align:right; font-family: Consolas, monospace; color:#7CFC00; }
+  .scada-panel td.v.warn { color:#ffb020; } .scada-panel td.v.bad { color:#ff4d4d; }
+  .scada-panel .aviso { color:#ffb020; font-size:.85rem; }
+  .scada-legend { font-size:.78rem; color:#9fb0cf; display:flex; flex-wrap:wrap; gap:14px; margin-top:6px; }
+  .scada-legend i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Planta en vivo</h1>
+    <div class="text-muted small">Se arma con lo que se carga en el sistema y se actualiza solo cada 20 segundos. Tocá un equipo para ver el detalle y cargar.</div>
+  </div>
+  <div class="app-page-actions"><span class="badge text-bg-secondary">Vista de prueba · solo administrador</span></div>
+</div>
+
+<div class="scada-wrap">
+  <div class="scada-top">
+    <div class="chip">Turno: <b id="sc-turno">—</b></div>
+    <div class="chip" id="sc-recep" style="display:none"><b>Hay una entrega de turno sin recibir</b></div>
+    <div class="chip">Actualizado: <b id="sc-hora">—</b></div>
+  </div>
+
+  <svg class="scada-svg" viewBox="0 0 1400 800" role="img" aria-label="Diagrama de planta">
+    <defs>
+      <linearGradient id="metal" x1="0" x2="1">
+        <stop offset="0" stop-color="#7d8799"/><stop offset=".35" stop-color="#e3e8f0"/><stop offset=".6" stop-color="#b9c1cf"/><stop offset="1" stop-color="#6f798b"/>
+      </linearGradient>
+      <linearGradient id="hipo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9f27a"/><stop offset="1" stop-color="#9cc41f"/></linearGradient>
+    </defs>
+
+    <!-- ===== Cañerías (id = circuito) ===== -->
+    <g id="pipes">
+      <!-- agua de red → ablandadores → agua blanda -->
+      <path class="pipe" data-c="agua" d="M40 120 H130"/><path class="flow" data-c="agua" d="M40 120 H130"/>
+      <path class="pipe" data-c="agua" d="M300 120 H760 V190"/><path class="flow" data-c="agua" d="M300 120 H760 V190"/>
+      <path class="pipe" data-c="agua" d="M760 120 V100 H1000 V410"/><path class="flow" data-c="agua" d="M760 100 H1000 V410"/>
+      <path class="pipe" data-c="agua" d="M215 200 V330"/><path class="flow" data-c="agua" d="M215 200 V330"/>
+      <!-- salmuera: disolvedor → reactor → filtro → resina → electrolizadores -->
+      <path class="pipe" data-c="reactor" d="M255 380 H330"/><path class="flow" data-c="reactor" d="M255 380 H330"/>
+      <path class="pipe" data-c="reactor" d="M445 380 H515"/><path class="flow" data-c="reactor" d="M445 380 H515"/>
+      <path class="pipe" data-c="filtro" d="M575 380 H630"/><path class="flow" data-c="filtro" d="M575 380 H630"/>
+      <path class="pipe" data-c="reactor" d="M690 380 H730 V250 H790"/><path class="flow" data-c="salmuera_e2" d="M690 380 H730 V250 H790"/>
+      <path class="pipe" data-c="reactor" d="M730 380 V500 H790"/><path class="flow" data-c="salmuera_e3" d="M730 380 V500 H790"/>
+      <!-- hipoclorito → tanques → despacho -->
+      <path class="pipe" data-c="salmuera_e2" d="M1010 250 H1080 V360 H1120"/><path class="flow" data-c="salmuera_e2" d="M1010 250 H1080 V360 H1120"/>
+      <path class="pipe" data-c="salmuera_e3" d="M1010 500 H1080 V400 H1120"/><path class="flow" data-c="salmuera_e3" d="M1010 500 H1080 V400 H1120"/>
+      <path class="pipe" d="M1250 470 V560 H1290"/>
+      <!-- dosificación química al reactor -->
+      <path class="pipe" style="stroke-width:4" d="M360 300 V335"/><path class="pipe" style="stroke-width:4" d="M420 300 V335"/>
+    </g>
+
+    <!-- ===== Agua: ablandadores ===== -->
+    <text x="40" y="105" class="sub">Agua de red</text>
+    <g class="eq" data-eq="agua" transform="translate(130,60)">
+      <rect class="shell" x="0" y="0" width="70" height="140" rx="30"/>
+      <rect class="shell" x="100" y="0" width="70" height="140" rx="30"/>
+      <text x="35" y="78" text-anchor="middle" class="lbl" style="fill:#1d2740" id="sc-col1">C1</text>
+      <text x="135" y="78" text-anchor="middle" class="lbl" style="fill:#1d2740" id="sc-col2">C2</text>
+      <circle class="led na" id="led-agua" cx="85" cy="-10" r="7"/>
+      <text x="85" y="-24" text-anchor="middle" class="lbl">ABLANDADORES</text>
+    </g>
+    <g transform="translate(310,40)">
+      <rect class="box" width="190" height="62" rx="4"/>
+      <text x="8" y="18" class="sub">Dureza</text><text x="182" y="18" text-anchor="end" class="val" id="v-agua-dureza">—</text>
+      <text x="8" y="36" class="sub">Temperatura</text><text x="182" y="36" text-anchor="end" class="val" id="v-agua-temp">—</text>
+      <text x="8" y="54" class="sub">Columna en uso</text><text x="182" y="54" text-anchor="end" class="val" id="v-agua-col">—</text>
+    </g>
+
+    <!-- ===== Sal + disolvedor ===== -->
+    <g class="eq" data-eq="bolson" transform="translate(60,280)">
+      <path class="shell" d="M0 0 H90 V70 L60 110 H30 L0 70 Z"/>
+      <text x="45" y="45" text-anchor="middle" class="lbl" style="fill:#1d2740">SAL</text>
+      <text x="45" y="-8" text-anchor="middle" class="sub" id="v-bolson">Último bolsón —</text>
+    </g>
+    <path class="pipe" style="stroke-width:5" d="M105 390 H175"/>
+    <g class="eq" data-eq="reactor" transform="translate(175,330)">
+      <rect class="shell" x="0" y="0" width="80" height="110" rx="10"/>
+      <text x="40" y="60" text-anchor="middle" class="lbl" style="fill:#1d2740">DISOLV.</text>
+    </g>
+
+    <!-- ===== Reactor de salmuera (purificación) ===== -->
+    <g transform="translate(335,250)">
+      <rect class="shell" x="10" y="0" width="40" height="50" rx="6"/><text x="30" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">NaOH</text>
+      <rect class="shell" x="70" y="0" width="40" height="50" rx="6"/><text x="90" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">Na₂CO₃</text>
+    </g>
+    <g class="eq" data-eq="reactor" transform="translate(330,335)">
+      <rect class="shell" x="0" y="0" width="115" height="120" rx="14"/>
+      <text x="57" y="55" text-anchor="middle" class="lbl" style="fill:#1d2740">REACTOR</text>
+      <text x="57" y="72" text-anchor="middle" class="sub" style="fill:#1d2740">purificación</text>
+      <circle class="led na" id="led-reactor" cx="57" cy="-8" r="7"/>
+    </g>
+    <g transform="translate(300,470)">
+      <rect class="box" width="210" height="116" rx="4"/>
+      <text x="8" y="18" class="sub">Conc. salmuera</text><text x="202" y="18" text-anchor="end" class="val" id="v-r-conc">—</text>
+      <text x="8" y="36" class="sub">pH</text><text x="202" y="36" text-anchor="end" class="val" id="v-r-ph">—</text>
+      <text x="8" y="54" class="sub">Temperatura</text><text x="202" y="54" text-anchor="end" class="val" id="v-r-temp">—</text>
+      <text x="8" y="72" class="sub">Exceso NaOH</text><text x="202" y="72" text-anchor="end" class="val" id="v-r-naoh">—</text>
+      <text x="8" y="90" class="sub">Exceso Na₂CO₃</text><text x="202" y="90" text-anchor="end" class="val" id="v-r-co3">—</text>
+      <text x="8" y="108" class="sub">Densidad</text><text x="202" y="108" text-anchor="end" class="val" id="v-r-dens">—</text>
+    </g>
+
+    <!-- ===== Filtro + resina ===== -->
+    <g class="eq" data-eq="filtro" transform="translate(515,335)">
+      <rect class="shell" x="0" y="0" width="60" height="95" rx="24"/>
+      <text x="30" y="52" text-anchor="middle" class="lbl" style="fill:#1d2740">FILTRO</text>
+      <circle class="led na" id="led-filtro" cx="30" cy="-8" r="7"/>
+      <text x="30" y="112" text-anchor="middle" class="sub" id="v-filtro">Lavado —</text>
+    </g>
+    <g class="eq" data-eq="resina" transform="translate(630,335)">
+      <rect class="shell" x="0" y="0" width="60" height="95" rx="24"/>
+      <text x="30" y="47" text-anchor="middle" class="lbl" style="fill:#1d2740">RESINA</text>
+      <text x="30" y="62" text-anchor="middle" class="sub" style="fill:#1d2740">pulido</text>
+    </g>
+    <g transform="translate(560,470)">
+      <rect class="box" width="160" height="62" rx="4"/>
+      <text x="8" y="18" class="sub">Análisis 8 hs</text><text x="152" y="18" text-anchor="end" class="sub" id="v-a8-cuando">—</text>
+      <text x="8" y="36" class="sub">Dureza</text><text x="152" y="36" text-anchor="end" class="val" id="v-a8-dureza">—</text>
+      <text x="8" y="54" class="sub">Cloro libre</text><text x="152" y="54" text-anchor="end" class="val" id="v-a8-cl">—</text>
+    </g>
+
+    <!-- ===== Electrolizadores (se dibujan desde JS) ===== -->
+    <g id="elec-2" class="eq" data-eq="e2" transform="translate(790,170)"></g>
+    <g id="elec-3" class="eq" data-eq="e3" transform="translate(790,420)"></g>
+
+    <!-- ===== Tanques de hipoclorito ===== -->
+    <g class="eq" data-eq="hipo" transform="translate(1120,300)">
+      <rect class="shell" x="0" y="0" width="130" height="170" rx="16"/>
+      <rect x="10" y="20" width="110" height="140" rx="8" fill="url(#hipo)" opacity=".9"/>
+      <text x="65" y="70" text-anchor="middle" class="lbl" style="fill:#1d2740">HIPOCLORITO</text>
+      <text x="65" y="98" text-anchor="middle" class="val" style="fill:#0b0f1a;font-size:20px" id="v-hipo-stock">—</text>
+      <text x="65" y="118" text-anchor="middle" class="sub" style="fill:#1d2740">litros en tanques</text>
+    </g>
+    <g transform="translate(1120,215)">
+      <rect class="box" width="200" height="62" rx="4"/>
+      <text x="8" y="18" class="sub">Disponible para carga</text><text x="192" y="18" text-anchor="end" class="val" id="v-hipo-carga">—</text>
+      <text x="8" y="36" class="sub">Programado</text><text x="192" y="36" text-anchor="end" class="val" id="v-hipo-prog">—</text>
+      <text x="8" y="54" class="sub">Cargado hoy</text><text x="192" y="54" text-anchor="end" class="val" id="v-hipo-hoy">—</text>
+    </g>
+
+    <!-- ===== Despacho ===== -->
+    <g class="eq" data-eq="despacho" transform="translate(1290,520)">
+      <rect class="shell" x="0" y="0" width="80" height="44" rx="6"/>
+      <rect class="shell" x="-26" y="14" width="26" height="30" rx="4"/>
+      <circle cx="0" cy="50" r="9" fill="#0b0f1a"/><circle cx="60" cy="50" r="9" fill="#0b0f1a"/>
+      <text x="40" y="27" text-anchor="middle" class="sub" style="fill:#1d2740">DESPACHO</text>
+    </g>
+    <text x="1290" y="595" class="sub" id="v-desp">—</text>
+
+    <!-- ===== Materias primas ===== -->
+    <text x="40" y="640" class="lbl">MATERIAS PRIMAS</text>
+    <g id="mp"></g>
+
+    <!-- ===== Cronómetros ===== -->
+    <g transform="translate(1060,600)">
+      <rect class="box" width="320" height="180" rx="6"/>
+      <text x="10" y="20" class="lbl">PRÓXIMO ANÁLISIS</text>
+      <g id="timers" transform="translate(0,30)"></g>
+    </g>
+  </svg>
+
+  <div class="scada-legend">
+    <span><i style="background:#36c95f"></i>En marcha</span>
+    <span><i style="background:#e74c3c"></i>Parado</span>
+    <span><i style="background:#ffb020"></i>Fuera de rango / análisis vencido</span>
+    <span><i style="background:#6b7790"></i>Sin datos</span>
+  </div>
+</div>
+
+<aside class="scada-panel" id="sc-panel" aria-live="polite">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="h5 mb-0" id="sc-p-title">—</h2>
+    <button type="button" class="btn btn-sm btn-outline-light" id="sc-p-close">Cerrar</button>
+  </div>
+  <div class="small text-secondary mb-2" id="sc-p-sub"></div>
+  <div id="sc-p-avisos"></div>
+  <table><tbody id="sc-p-body"></tbody></table>
+  <div class="d-grid gap-2 mt-3" id="sc-p-actions"></div>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const URL_ESTADO = {{ url_for('scada.estado')|tojson }};
+  const LINKS = {
+    salmuera: {{ url_for('produccion.salmuera')|tojson }},
+    salmuera_hist: {{ url_for('produccion.salmuera_historial')|tojson }},
+    reactor: {{ url_for('produccion.reactor')|tojson }},
+    reactor_hist: {{ url_for('produccion.reactor_historial')|tojson }},
+    a8_hist: {{ url_for('produccion.salmuera_analisis_8hs_historial')|tojson }},
+    agua: {{ url_for('produccion.agua')|tojson }},
+    agua_hist: {{ url_for('produccion.agua_historial')|tojson }},
+    columnas: {{ url_for('produccion.columnas')|tojson }},
+    bolson: {{ url_for('produccion.bolson')|tojson }},
+    consumo: {{ url_for('produccion.stock_consumo')|tojson }},
+    ingreso: {{ url_for('produccion.stock_ingreso')|tojson }},
+    stock: {{ url_for('produccion.stock_ver')|tojson }},
+    entregas: {{ url_for('entregas.hub')|tojson }},
+    turno: {{ url_for('shift.historial')|tojson }},
+  };
+  const SVGNS = "http://www.w3.org/2000/svg";
+  let S = null;
+  let timerBase = 0;
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (v, d = 1) => (v === null || v === undefined || v === "" || isNaN(v)) ? "—"
+    : Number(v).toLocaleString("es-AR", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const litros = (v) => (v === null || v === undefined) ? "—" : Number(v).toLocaleString("es-AR", { maximumFractionDigits: 0 }) + " L";
+  function setVal(id, text, cls) {
+    const el = $(id); if (!el) return;
+    el.textContent = text;
+    el.classList.remove("warn", "bad"); if (cls) el.classList.add(cls);
+  }
+  function el(tag, attrs, text) {
+    const n = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+  function circuitoOn(parada, hayDatos) { return parada ? "off" : (hayDatos ? "on" : ""); }
+  function setCircuit(key, state) {
+    document.querySelectorAll(`[data-c="${key}"]`).forEach((p) => {
+      p.classList.remove("on", "off"); if (state) p.classList.add(state);
+    });
+  }
+  function setLed(id, state, blink) {
+    const l = $(id); if (!l) return;
+    l.classList.remove("on", "off", "na", "blink");
+    l.classList.add(state || "na"); if (blink) l.classList.add("blink");
+  }
+  function timerOf(key) { return (S && Array.isArray(S.cronometros)) ? S.cronometros.find((t) => t.key === key) : null; }
+
+  // ----- Electrolizadores -----
+  function drawElec(e) {
+    const g = $("elec-" + e.id); if (!g) return;
+    g.replaceChildren();
+    const r = e.registro;
+    const t = timerOf(e.parada ? "" : "salmuera_e" + e.id);
+    const state = e.parada ? "off" : (r ? "on" : "na");
+    // rectificador
+    g.appendChild(el("rect", { class: "shell", x: 0, y: -46, width: 70, height: 36, rx: 4 }));
+    g.appendChild(el("text", { x: 35, y: -24, "text-anchor": "middle", class: "sub", style: "fill:#1d2740" }, "RECTIF."));
+    g.appendChild(el("path", { class: "pipe " + (state === "on" ? "on" : ""), d: "M35 -10 V0", style: "stroke-width:4" }));
+    // celdas
+    g.appendChild(el("rect", { class: "shell", x: 0, y: 0, width: 220, height: 110, rx: 8 }));
+    const v = (r && r.voltajes) || [];
+    const n = Math.max(v.length, 1), w = 200 / n;
+    v.forEach((vv, i) => {
+      const h = Math.max(4, Math.min(80, (vv / 4.5) * 80));
+      g.appendChild(el("rect", { x: 10 + i * w + 1, y: 95 - h, width: Math.max(w - 2, 2), height: h, fill: "#36c95f", opacity: .9 }));
+    });
+    g.appendChild(el("text", { x: 110, y: 18, "text-anchor": "middle", class: "lbl", style: "fill:#1d2740" }, e.nombre.toUpperCase()));
+    const led = el("circle", { class: "led " + state, cx: 228, cy: -30, r: 8 });
+    if (t && t.overdue) led.classList.add("blink");
+    g.appendChild(led);
+    // valores
+    const box = el("g", { transform: "translate(-10,118)" });
+    box.appendChild(el("rect", { class: "box", width: 240, height: 62, rx: 4 }));
+    const avisos = (r && r.avisos) || [];
+    const rows = [
+      ["Amperaje", r ? fmt(r.amperaje, 0) + " A" : "—", "", "V celdas", r ? fmt(r.voltaje_total, 1) + " V" : "—", ""],
+      ["Hipo conc", r ? fmt(r.hipo_conc, 1) : "—", "", "Exc. soda", r ? fmt(r.hipo_exceso_soda, 1) : "—", r && r.hipo_exceso_soda > 9 ? "warn" : ""],
+      ["Salm. conc", r ? fmt(r.sal_conc, 0) : "—", r && r.sal_conc < 260 ? "warn" : "", "pH decl.", r ? fmt(r.declor_ph, 2) : "—", r && r.declor_ph > 1.9 ? "warn" : ""],
+    ];
+    rows.forEach((row, i) => {
+      const y = 18 + i * 18;
+      box.appendChild(el("text", { x: 6, y, class: "sub" }, row[0]));
+      box.appendChild(el("text", { x: 116, y, "text-anchor": "end", class: "val " + row[2] }, row[1]));
+      box.appendChild(el("text", { x: 126, y, class: "sub" }, row[3]));
+      box.appendChild(el("text", { x: 234, y, "text-anchor": "end", class: "val " + row[5] }, row[4]));
+    });
+    g.appendChild(box);
+    if (e.parada) g.appendChild(el("text", { x: 110, y: 60, "text-anchor": "middle", class: "lbl", style: "fill:#e74c3c;font-size:18px" }, "PARADO"));
+    else if (avisos.length) g.appendChild(el("text", { x: 110, y: 60, "text-anchor": "middle", class: "sub", style: "fill:#b35c00;font-weight:700" }, "⚠ " + avisos[0]));
+  }
+
+  // ----- Materias primas -----
+  function drawMP(list) {
+    const g = $("mp"); g.replaceChildren();
+    (list || []).forEach((m, i) => {
+      const x = 40 + i * 165, y = 655;
+      const grp = el("g", { class: "eq", "data-eq": "mp", "data-mp": String(i), transform: `translate(${x},${y})` });
+      grp.appendChild(el("rect", { class: "shell", width: 60, height: 110, rx: 10 }));
+      const ref = m.minimo ? m.minimo * 4 : null;
+      const frac = ref ? Math.max(0.03, Math.min(1, m.stock / ref)) : 0;
+      if (ref) grp.appendChild(el("rect", { class: "lvl " + (m.nivel !== "ok" ? m.nivel : ""), x: 6, y: 6 + (98 * (1 - frac)), width: 48, height: 98 * frac, rx: 6 }));
+      grp.appendChild(el("text", { x: 70, y: 20, class: "lbl" }, m.etiqueta));
+      grp.appendChild(el("text", { x: 70, y: 42, class: "val " + (m.nivel === "critico" ? "bad" : (m.nivel === "limite" ? "warn" : "")) },
+        Number(m.stock).toLocaleString("es-AR", { maximumFractionDigits: 1 })));
+      grp.appendChild(el("text", { x: 70, y: 58, class: "sub" }, m.unidad));
+      if (m.minimo) grp.appendChild(el("text", { x: 70, y: 76, class: "sub" }, "mín. " + Number(m.minimo).toLocaleString("es-AR")));
+      g.appendChild(grp);
+    });
+  }
+
+  // ----- Cronómetros -----
+  function mmss(sec) {
+    const neg = sec < 0; sec = Math.abs(Math.round(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    const t = (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(s).padStart(2, "0");
+    return neg ? "−" + t : t;
+  }
+  function drawTimers() {
+    const g = $("timers"); if (!g || !S || !Array.isArray(S.cronometros)) return;
+    g.replaceChildren();
+    const elapsed = (Date.now() - timerBase) / 1000;
+    S.cronometros.forEach((t, i) => {
+      const y = i * 24 + 12;
+      const rem = t.paused ? t.remaining : t.remaining - elapsed;
+      const cls = t.paused ? "" : (rem < 0 ? "bad" : (rem < 900 ? "warn" : ""));
+      g.appendChild(el("text", { x: 12, y, class: "sub" }, t.label));
+      g.appendChild(el("text", { x: 308, y, "text-anchor": "end", class: "val " + cls },
+        t.paused ? "en pausa" : (t.last_created_at_iso ? (rem < 0 ? "vencido " + mmss(rem) : mmss(rem)) : "sin registro")));
+    });
+  }
+
+  // ----- Render -----
+  function render() {
+    if (!S) return;
+    const T = S.turno || {};
+    $("sc-turno").textContent = T.abierto ? (T.operador + " · desde " + T.desde.slice(11)) : "sin turno abierto";
+    $("sc-recep").style.display = T.pendiente_recepcion ? "" : "none";
+    $("sc-hora").textContent = S.generado || "—";
+
+    const A = S.agua || {}, ar = A.registro;
+    setCircuit("agua", circuitoOn(A.parada, !!ar));
+    setLed("led-agua", A.parada ? "off" : (ar ? "on" : "na"), (timerOf("agua") || {}).overdue);
+    setVal("v-agua-dureza", ar ? fmt(ar.dureza, 2) + " ppm" : "—", ar && ar.dureza > 1 ? "warn" : "");
+    setVal("v-agua-temp", ar ? fmt(ar.temperatura, 1) + " °C" : "—");
+    setVal("v-agua-col", ar ? "C" + ar.columna : "—");
+    (A.columnas || []).forEach((c) => { const t = $("sc-col" + c.numero); if (t) t.textContent = "C" + c.numero; });
+
+    const SA = S.salmuera || {}, r = SA.reactor;
+    setCircuit("reactor", circuitoOn(SA.parada, !!r));
+    setCircuit("filtro", SA.parada_filtro ? "off" : (SA.parada ? "off" : (r ? "on" : "")));
+    setLed("led-reactor", SA.parada ? "off" : (r ? "on" : "na"), (timerOf("reactor") || {}).overdue);
+    setLed("led-filtro", SA.parada_filtro ? "off" : (SA.filtro ? "on" : "na"), (timerOf("filtro") || {}).overdue);
+    setVal("v-r-conc", r ? fmt(r.concentracion, 0) + " g/L" : "—", r && r.concentracion < 300 ? "warn" : "");
+    setVal("v-r-ph", r ? fmt(r.ph, 2) : "—");
+    setVal("v-r-temp", r ? fmt(r.temperatura, 1) + " °C" : "—");
+    setVal("v-r-naoh", r ? fmt(r.exceso_naoh, 2) : "—", r && r.exceso_naoh > 0.16 ? "warn" : "");
+    setVal("v-r-co3", r ? fmt(r.exceso_na2co3, 2) : "—", r && r.exceso_na2co3 > 0.45 ? "warn" : "");
+    setVal("v-r-dens", r ? fmt(r.densidad, 3) : "—");
+    const a8 = SA.analisis_8hs;
+    setVal("v-a8-cuando", a8 ? a8.cuando.slice(-5) : "—");
+    setVal("v-a8-dureza", a8 ? fmt(a8.dureza, 2) : "—");
+    setVal("v-a8-cl", a8 ? fmt(a8.cloro_libre, 2) : "—");
+    $("v-filtro").textContent = "Lavado " + (SA.filtro ? SA.filtro.cuando : "—");
+    $("v-bolson").textContent = "Último bolsón " + (SA.bolson ? SA.bolson.cuando : "—");
+
+    (S.electrolizadores || []).forEach((e) => {
+      setCircuit("salmuera_e" + e.id, circuitoOn(e.parada, !!e.registro));
+      drawElec(e);
+    });
+
+    const H = S.hipoclorito || {};
+    $("v-hipo-stock").textContent = H.stock === null || H.stock === undefined ? "—" : Number(H.stock).toLocaleString("es-AR", { maximumFractionDigits: 0 });
+    setVal("v-hipo-carga", litros(H.para_carga));
+    setVal("v-hipo-prog", litros(H.programadas_litros));
+    setVal("v-hipo-hoy", (H.cargadas_hoy || 0) + " · " + litros(H.cargadas_hoy_litros));
+    $("v-desp").textContent = (H.programadas || []).length ? (H.programadas.length + " camión(es) programado(s)") : "Sin camiones programados";
+
+    drawMP(S.materias_primas);
+    drawTimers();
+  }
+
+  async function cargar() {
+    try {
+      const resp = await fetch(URL_ESTADO, { headers: { Accept: "application/json" }, credentials: "same-origin" });
+      if (!resp.ok) throw new Error(resp.status);
+      S = await resp.json(); timerBase = Date.now();
+      render();
+    } catch (err) {
+      $("sc-hora").textContent = "sin conexión — reintentando";
+    }
+  }
+
+  // ----- Panel de detalle -----
+  const panel = $("sc-panel");
+  function filas(rows) {
+    return rows.filter((x) => x).map(([k, v, cls]) => `<tr><td>${k}</td><td class="v ${cls || ""}">${v}</td></tr>`).join("");
+  }
+  function boton(href, text, primary) {
+    return `<a class="btn btn-sm ${primary ? "btn-success" : "btn-outline-light"}" href="${href}">${text}</a>`;
+  }
+  function abrir(eq, extra) {
+    if (!S) return;
+    let title = "", sub = "", rows = [], avisos = [], actions = [];
+    const SA = S.salmuera || {};
+    if (eq === "e2" || eq === "e3") {
+      const e = (S.electrolizadores || []).find((x) => "e" + x.id === eq) || {}; const r = e.registro;
+      title = e.nombre; sub = r ? `${r.cuando} · ${r.operador}${r.lote ? " · lote " + r.lote : ""}` : "Sin registros";
+      if (e.parada) avisos.push("Parado desde " + String(e.parada.started_at_iso || "").slice(0, 16).replace(/^(\d{4})-(\d{2})-(\d{2})T/, "$3/$2/$1 "));
+      if (r) {
+        avisos = avisos.concat(r.avisos || []);
+        rows = [["Amperaje", fmt(r.amperaje, 0) + " A"], ["V Σ celdas", fmt(r.voltaje_total, 2) + " V"], ["V trafo", fmt(r.voltaje_trafo, 1) + " V"],
+          ["Celdas", r.celdas], ["Caudal agua", fmt(r.caudal_agua, 0) + " L/h"], ["Caudal salmuera", fmt(r.caudal_salmuera, 0) + " L/h"],
+          ["Hipo conc", fmt(r.hipo_conc, 1)], ["Exceso soda", fmt(r.hipo_exceso_soda, 1), r.hipo_exceso_soda > 9 ? "warn" : ""],
+          ["Temp. salmuera", fmt(r.sal_temp, 1) + " °C"], ["Conc. salmuera", fmt(r.sal_conc, 0), r.sal_conc < 260 ? "warn" : ""],
+          ["pH salmuera", fmt(r.sal_ph, 2), r.sal_ph > 5 ? "warn" : ""], ["Conc. soda", fmt(r.soda_conc, 1)],
+          ["pH declorador", fmt(r.declor_ph, 2), r.declor_ph > 1.9 ? "warn" : ""], r.orp != null ? ["ORP", fmt(r.orp, 0) + " mV"] : null];
+        (r.voltajes || []).forEach((v, i) => rows.push(["Celda " + (i + 1), fmt(v, 2) + " V"]));
+        if (r.observaciones) rows.push(["Obs.", r.observaciones]);
+      }
+      actions = [boton(LINKS.salmuera, "Cargar registro", true), boton(LINKS.salmuera_hist, "Ver historial")];
+    } else if (eq === "reactor") {
+      const r = SA.reactor; title = "Circuito de salmuera"; sub = r ? `${r.cuando} · ${r.operador} · lote ${r.lote}` : "Sin registros";
+      if (SA.parada) avisos.push("Circuito parado");
+      if (r) {
+        avisos = avisos.concat(r.avisos || []);
+        rows = [["Conc. salmuera", fmt(r.concentracion, 0) + " g/L", r.concentracion < 300 ? "warn" : ""], ["pH", fmt(r.ph, 2)], ["Temperatura", fmt(r.temperatura, 1) + " °C"],
+          ["Densidad", fmt(r.densidad, 3)], ["Exceso NaOH", fmt(r.exceso_naoh, 2), r.exceso_naoh > 0.16 ? "warn" : ""],
+          ["Exceso Na₂CO₃", fmt(r.exceso_na2co3, 2), r.exceso_na2co3 > 0.45 ? "warn" : ""], r.orp != null ? ["ORP", fmt(r.orp, 0) + " mV"] : null,
+          ["Salmuera a E2", `${fmt(r.e2.temperatura, 1)} °C · ${fmt(r.e2.densidad, 3)} · ${fmt(r.e2.concentracion, 0)}`],
+          ["Salmuera a E3", `${fmt(r.e3.temperatura, 1)} °C · ${fmt(r.e3.densidad, 3)} · ${fmt(r.e3.concentracion, 0)}`],
+          r.observaciones ? ["Obs.", r.observaciones] : null];
+      }
+      actions = [boton(LINKS.reactor, "Cargar registro", true), boton(LINKS.reactor_hist, "Ver historial")];
+    } else if (eq === "filtro") {
+      title = "Filtro"; sub = SA.filtro ? `Último lavado y enjuague: ${SA.filtro.cuando} · ${SA.filtro.operador}` : "Sin registros";
+      if (SA.parada_filtro) avisos.push("Filtro parado");
+      actions = [boton(LINKS.salmuera, "Registrar lavado (pantalla Hipoclorito)", true)];
+    } else if (eq === "resina") {
+      const a = SA.analisis_8hs; title = "Pulido / análisis 8 hs"; sub = a ? `${a.cuando} · ${a.operador}` : "Sin registros";
+      if (a) rows = [["Dureza salmuera", fmt(a.dureza, 2)], ["Cloro libre", fmt(a.cloro_libre, 2)]];
+      actions = [boton(LINKS.reactor, "Cargar análisis 8 hs", true), boton(LINKS.a8_hist, "Ver historial")];
+    } else if (eq === "agua") {
+      const A = S.agua || {}, r = A.registro; title = "Agua (ablandadores)"; sub = r ? `${r.cuando} · ${r.operador}` : "Sin registros";
+      if (A.parada) avisos.push("Circuito de agua parado");
+      if (r) { avisos = avisos.concat(r.avisos || []); rows = [["Columna", "C" + r.columna], ["Dureza", fmt(r.dureza, 2) + " ppm", r.dureza > 1 ? "warn" : ""], ["Temperatura", fmt(r.temperatura, 1) + " °C"]]; }
+      (A.columnas || []).forEach((c) => rows.push(["Columna " + c.numero, c.estado + (c.regeneracion ? " · regen. " + c.regeneracion : "")]));
+      actions = [boton(LINKS.agua, "Cargar registro", true), boton(LINKS.columnas, "Columnas"), boton(LINKS.agua_hist, "Ver historial")];
+    } else if (eq === "bolson") {
+      title = "Sal al disolvedor"; sub = SA.bolson ? "Último bolsón cargado: " + SA.bolson.cuando : "Sin registros";
+      actions = [boton(LINKS.bolson, "Registrar bolsón", true)];
+    } else if (eq === "hipo" || eq === "despacho") {
+      const H = S.hipoclorito || {}; title = eq === "hipo" ? "Hipoclorito en tanques" : "Despacho";
+      rows = [["Stock (Panel)", litros(H.stock)], ["Disponible para carga", litros(H.para_carga)], ["Programado", litros(H.programadas_litros)],
+        ["Cargado hoy", (H.cargadas_hoy || 0) + " camión(es) · " + litros(H.cargadas_hoy_litros)]];
+      (H.programadas || []).forEach((p) => rows.push([p.fecha + " · " + p.cliente, litros(p.litros)]));
+      actions = [boton(LINKS.entregas, "Entregas", true), boton(LINKS.turno, "Historial de turnos")];
+    } else if (eq === "mp") {
+      const m = (S.materias_primas || [])[Number(extra)] || {}; title = m.producto || "Materia prima";
+      rows = [["Stock", Number(m.stock || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " " + (m.unidad || ""), m.nivel === "critico" ? "bad" : (m.nivel === "limite" ? "warn" : "")],
+        m.minimo ? ["Mínimo de alerta", Number(m.minimo).toLocaleString("es-AR")] : null];
+      actions = [boton(LINKS.consumo, "Cargar consumo", true), boton(LINKS.ingreso, "Cargar ingreso"), boton(LINKS.stock, "Ver stock")];
+    } else return;
+    $("sc-p-title").textContent = title; $("sc-p-sub").textContent = sub;
+    $("sc-p-avisos").innerHTML = avisos.map((a) => `<div class="aviso">⚠ ${String(a).replace(/</g, "&lt;")}</div>`).join("");
+    $("sc-p-body").innerHTML = filas(rows.map((x) => x && [x[0], String(x[1]).replace(/</g, "&lt;"), x[2]]));
+    $("sc-p-actions").innerHTML = actions.join("");
+    panel.classList.add("open");
+  }
+  document.querySelector(".scada-svg").addEventListener("click", (ev) => {
+    const g = ev.target.closest(".eq"); if (!g) return;
+    abrir(g.dataset.eq, g.dataset.mp);
+  });
+  $("sc-p-close").addEventListener("click", () => panel.classList.remove("open"));
+  document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") panel.classList.remove("open"); });
+
+  cargar();
+  setInterval(cargar, 20000);
+  setInterval(drawTimers, 1000);
+})();
+</script>
+{% endblock %}
