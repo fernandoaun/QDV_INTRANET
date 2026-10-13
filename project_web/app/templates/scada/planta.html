@@ -31,7 +31,7 @@
   .scada-svg .lvl { fill:#2f8fd8; opacity:.85; }
   .scada-svg .lvl.limite { fill:#ffb020; } .scada-svg .lvl.critico { fill:#e74c3c; }
   .scada-panel { position:fixed; top:0; right:0; height:100%; width:min(420px, 100%); background:#0f1626; color:#e8ecf4;
-    border-left:2px solid #3a4766; z-index:1050; transform:translateX(100%); transition:transform .2s; overflow-y:auto; padding:16px; }
+    border-left:2px solid #3a4766; z-index:1060; transform:translateX(100%); transition:transform .2s; overflow-y:auto; padding:16px; }
   .scada-panel.open { transform:none; }
   .scada-panel.form { width:min(820px, 100%); background:#fff; color:#212529; }
   .scada-panel .sc-form-wrap { display:none; }
@@ -461,6 +461,8 @@
 
   // ----- Panel de detalle -----
   const panel = $("sc-panel");
+  // Al body: si queda dentro del contenido, la barra superior (sticky) lo tapa y no se puede tocar "Cerrar".
+  document.body.appendChild(panel);
   function filas(rows) {
     return rows.filter((x) => x).map(([k, v, cls]) => `<tr><td>${k}</td><td class="v ${cls || ""}">${v}</td></tr>`).join("");
   }
