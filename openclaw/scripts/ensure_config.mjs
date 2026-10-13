@@ -119,7 +119,8 @@ function defaultConfig(allowFrom) {
         },
       },
     },
-    session: { scope: "per-sender" },
+    // Cada persona su propia conversación (por defecto todos los DM comparten una sola).
+    session: { scope: "per-sender", dmScope: "per-channel-peer" },
   };
   if (token) cfg.gateway.auth.token = token;
   if (model) cfg.agents.defaults.model = { primary: model };
@@ -151,6 +152,9 @@ function mergeConfig(existing, allowFrom) {
   existing.channels.whatsapp.groups = existing.channels.whatsapp.groups || {
     "*": { requireMention: true },
   };
+
+  existing.session = existing.session || { scope: "per-sender" };
+  existing.session.dmScope = "per-channel-peer";
 
   existing.agents = existing.agents || {};
   existing.agents.defaults = existing.agents.defaults || {};
