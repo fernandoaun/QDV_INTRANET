@@ -75,7 +75,7 @@
     <g id="pipes">
       <!-- agua de red → ablandadores → agua blanda -->
       <path class="pipe" data-c="agua" d="M40 120 H130"/><path class="flow" data-c="agua" d="M40 120 H130"/>
-      <path class="pipe" data-c="agua" d="M300 120 H760 V190"/><path class="flow" data-c="agua" d="M300 120 H760 V190"/>
+      <path class="pipe" data-c="agua" d="M300 120 H760"/><path class="flow" data-c="agua" d="M300 120 H760"/>
       <path class="pipe" data-c="agua" d="M760 120 V100 H1000 V410"/><path class="flow" data-c="agua" d="M760 100 H1000 V410"/>
       <path class="pipe" data-c="agua" d="M215 200 V330"/><path class="flow" data-c="agua" d="M215 200 V330"/>
       <!-- salmuera: disolvedor → reactor → filtro → electrolizadores -->
@@ -85,7 +85,8 @@
       <path class="pipe" data-c="reactor" d="M730 380 V250 H790"/><path class="flow" data-c="salmuera_e2" d="M730 380 V250 H790"/>
       <path class="pipe" data-c="reactor" d="M730 380 V500 H790"/><path class="flow" data-c="salmuera_e3" d="M730 380 V500 H790"/>
       <!-- salmuera agotada: electrolizadores → declorinador → disolvedor -->
-      <path class="pipe" data-c="salmuera_e2" d="M790 195 H660"/><path class="flow" data-c="salmuera_e2" d="M790 195 H660"/>
+      <path class="pipe" data-c="salmuera_e2" d="M790 195 H750"/><path class="flow" data-c="salmuera_e2" d="M790 195 H750"/>
+      <path class="pipe" data-c="declor" d="M750 195 H660"/><path class="flow" data-c="declor" d="M750 195 H660"/>
       <path class="pipe" data-c="salmuera_e3" d="M790 445 H750 V195"/><path class="flow" data-c="salmuera_e3" d="M790 445 H750 V195"/>
       <path class="pipe" data-c="declor" d="M590 225 H235 V330"/><path class="flow" data-c="declor" d="M590 225 H235 V330"/>
       <!-- hipoclorito → tanques → despacho -->
