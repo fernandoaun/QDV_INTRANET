@@ -27,6 +27,7 @@
   .scada-svg .led.on { fill:#36c95f; } .scada-svg .led.off { fill:#e74c3c; } .scada-svg .led.na { fill:#6b7790; }
   .scada-svg .led.blink { animation: scadablink 1s steps(2) infinite; }
   @keyframes scadablink { 50% { opacity:.25; } }
+  .scada-svg .col-st { fill:#6b7790; opacity:.9; } .scada-svg .col-st.on { fill:#36c95f; } .scada-svg .col-st.off { fill:#e74c3c; }
   .scada-svg .lvl { fill:#2f8fd8; opacity:.85; }
   .scada-svg .lvl.limite { fill:#ffb020; } .scada-svg .lvl.critico { fill:#e74c3c; }
   .scada-panel { position:fixed; top:0; right:0; height:100%; width:min(420px, 100%); background:#0f1626; color:#e8ecf4;
@@ -77,12 +78,16 @@
       <path class="pipe" data-c="agua" d="M300 120 H760 V190"/><path class="flow" data-c="agua" d="M300 120 H760 V190"/>
       <path class="pipe" data-c="agua" d="M760 120 V100 H1000 V410"/><path class="flow" data-c="agua" d="M760 100 H1000 V410"/>
       <path class="pipe" data-c="agua" d="M215 200 V330"/><path class="flow" data-c="agua" d="M215 200 V330"/>
-      <!-- salmuera: disolvedor → reactor → filtro → resina → electrolizadores -->
+      <!-- salmuera: disolvedor → reactor → filtro → electrolizadores -->
       <path class="pipe" data-c="reactor" d="M255 380 H330"/><path class="flow" data-c="reactor" d="M255 380 H330"/>
       <path class="pipe" data-c="reactor" d="M445 380 H515"/><path class="flow" data-c="reactor" d="M445 380 H515"/>
-      <path class="pipe" data-c="filtro" d="M575 380 H630"/><path class="flow" data-c="filtro" d="M575 380 H630"/>
-      <path class="pipe" data-c="reactor" d="M690 380 H730 V250 H790"/><path class="flow" data-c="salmuera_e2" d="M690 380 H730 V250 H790"/>
+      <path class="pipe" data-c="filtro" d="M575 380 H730"/><path class="flow" data-c="filtro" d="M575 380 H730"/>
+      <path class="pipe" data-c="reactor" d="M730 380 V250 H790"/><path class="flow" data-c="salmuera_e2" d="M730 380 V250 H790"/>
       <path class="pipe" data-c="reactor" d="M730 380 V500 H790"/><path class="flow" data-c="salmuera_e3" d="M730 380 V500 H790"/>
+      <!-- salmuera agotada: electrolizadores → declorinador → disolvedor -->
+      <path class="pipe" data-c="salmuera_e2" d="M790 195 H660"/><path class="flow" data-c="salmuera_e2" d="M790 195 H660"/>
+      <path class="pipe" data-c="salmuera_e3" d="M790 445 H750 V195"/><path class="flow" data-c="salmuera_e3" d="M790 445 H750 V195"/>
+      <path class="pipe" data-c="declor" d="M590 225 H235 V330"/><path class="flow" data-c="declor" d="M590 225 H235 V330"/>
       <!-- hipoclorito → tanques → despacho -->
       <path class="pipe" data-c="salmuera_e2" d="M1010 250 H1080 V360 H1120"/><path class="flow" data-c="salmuera_e2" d="M1010 250 H1080 V360 H1120"/>
       <path class="pipe" data-c="salmuera_e3" d="M1010 500 H1080 V400 H1120"/><path class="flow" data-c="salmuera_e3" d="M1010 500 H1080 V400 H1120"/>
@@ -94,10 +99,15 @@
     <!-- ===== Agua: ablandadores ===== -->
     <text x="40" y="105" class="sub">Agua de red</text>
     <g class="eq" data-eq="agua" transform="translate(130,60)">
-      <rect class="shell" x="0" y="0" width="70" height="140" rx="30"/>
-      <rect class="shell" x="100" y="0" width="70" height="140" rx="30"/>
-      <text x="35" y="78" text-anchor="middle" class="lbl" style="fill:#1d2740" id="sc-col1">C1</text>
-      <text x="135" y="78" text-anchor="middle" class="lbl" style="fill:#1d2740" id="sc-col2">C2</text>
+      <rect class="shell" x="0" y="0" width="50" height="140" rx="22"/>
+      <rect class="shell" x="60" y="0" width="50" height="140" rx="22"/>
+      <rect class="shell" x="120" y="0" width="50" height="140" rx="22"/>
+      <rect class="col-st" id="col-st1" x="7" y="18" width="36" height="104" rx="14"/>
+      <rect class="col-st" id="col-st2" x="67" y="18" width="36" height="104" rx="14"/>
+      <rect class="col-st" id="col-st3" x="127" y="18" width="36" height="104" rx="14"/>
+      <text x="25" y="76" text-anchor="middle" class="lbl" style="fill:#0b0f1a">C1</text>
+      <text x="85" y="76" text-anchor="middle" class="lbl" style="fill:#0b0f1a">C2</text>
+      <text x="145" y="76" text-anchor="middle" class="lbl" style="fill:#0b0f1a">C3</text>
       <circle class="led na" id="led-agua" cx="85" cy="-10" r="7"/>
       <text x="85" y="-24" text-anchor="middle" class="lbl">ABLANDADORES</text>
     </g>
@@ -141,23 +151,32 @@
       <text x="8" y="108" class="sub">Densidad</text><text x="202" y="108" text-anchor="end" class="val" id="v-r-dens">—</text>
     </g>
 
-    <!-- ===== Filtro + resina ===== -->
+    <!-- ===== Filtro ===== -->
     <g class="eq" data-eq="filtro" transform="translate(515,335)">
       <rect class="shell" x="0" y="0" width="60" height="95" rx="24"/>
       <text x="30" y="52" text-anchor="middle" class="lbl" style="fill:#1d2740">FILTRO</text>
       <circle class="led na" id="led-filtro" cx="30" cy="-8" r="7"/>
       <text x="30" y="112" text-anchor="middle" class="sub" id="v-filtro">Lavado —</text>
     </g>
-    <g class="eq" data-eq="resina" transform="translate(630,335)">
-      <rect class="shell" x="0" y="0" width="60" height="95" rx="24"/>
-      <text x="30" y="47" text-anchor="middle" class="lbl" style="fill:#1d2740">RESINA</text>
-      <text x="30" y="62" text-anchor="middle" class="sub" style="fill:#1d2740">pulido</text>
-    </g>
-    <g transform="translate(560,470)">
+    <g class="eq" data-eq="a8" transform="translate(560,470)">
       <rect class="box" width="160" height="62" rx="4"/>
       <text x="8" y="18" class="sub">Análisis 8 hs</text><text x="152" y="18" text-anchor="end" class="sub" id="v-a8-cuando">—</text>
       <text x="8" y="36" class="sub">Dureza</text><text x="152" y="36" text-anchor="end" class="val" id="v-a8-dureza">—</text>
       <text x="8" y="54" class="sub">Cloro libre</text><text x="152" y="54" text-anchor="end" class="val" id="v-a8-cl">—</text>
+    </g>
+
+    <!-- ===== Declorinador (salmuera agotada → disolvedor) ===== -->
+    <g class="eq" data-eq="declor" transform="translate(590,160)">
+      <rect class="shell" x="0" y="0" width="70" height="90" rx="10"/>
+      <text x="35" y="44" text-anchor="middle" class="lbl" style="fill:#1d2740">DECLOR.</text>
+      <text x="35" y="60" text-anchor="middle" class="sub" style="fill:#1d2740">a disolvedor</text>
+      <circle class="led na" id="led-declor" cx="35" cy="-8" r="7"/>
+    </g>
+    <g class="eq" data-eq="declor" transform="translate(460,140)">
+      <rect class="box" width="120" height="62" rx="4"/>
+      <text x="8" y="18" class="sub">pH E2</text><text x="112" y="18" text-anchor="end" class="val" id="v-declor-ph2">—</text>
+      <text x="8" y="36" class="sub">pH E3</text><text x="112" y="36" text-anchor="end" class="val" id="v-declor-ph3">—</text>
+      <text x="8" y="54" class="sub">ORP</text><text x="112" y="54" text-anchor="end" class="val" id="v-declor-orp">—</text>
     </g>
 
     <!-- ===== Electrolizadores (se dibujan desde JS) ===== -->
@@ -379,7 +398,13 @@
     setVal("v-agua-dureza", ar ? fmt(ar.dureza, 2) + " ppm" : "—", ar && ar.dureza > 1 ? "warn" : "");
     setVal("v-agua-temp", ar ? fmt(ar.temperatura, 1) + " °C" : "—");
     setVal("v-agua-col", ar ? "C" + ar.columna : "—");
-    (A.columnas || []).forEach((c) => { const t = $("sc-col" + c.numero); if (t) t.textContent = "C" + c.numero; });
+    // ablandadores: verde en funcionamiento, rojo parado (o circuito de agua parado)
+    [1, 2, 3].forEach((n) => {
+      const c = (A.columnas || []).find((x) => x.numero === n), st = $("col-st" + n); if (!st) return;
+      st.classList.remove("on", "off");
+      if (A.parada) st.classList.add("off");
+      else if (c) st.classList.add(c.estado === "En operación" ? "on" : "off");
+    });
 
     const SA = S.salmuera || {}, r = SA.reactor;
     setCircuit("reactor", circuitoOn(SA.parada, !!r));
@@ -403,6 +428,14 @@
       setCircuit("salmuera_e" + e.id, circuitoOn(e.parada, !!e.registro));
       drawElec(e);
     });
+    const EL = S.electrolizadores || [], elec = (id) => EL.find((x) => x.id === id) || {};
+    const anyOn = EL.some((e) => !e.parada && e.registro), allOff = EL.length && EL.every((e) => e.parada);
+    setCircuit("declor", allOff ? "off" : (anyOn ? "on" : ""));
+    setLed("led-declor", allOff ? "off" : (anyOn ? "on" : "na"));
+    [2, 3].forEach((id) => { const r = elec(id).registro;
+      setVal("v-declor-ph" + id, r ? fmt(r.declor_ph, 2) : "—", r && r.declor_ph > 1.9 ? "warn" : ""); });
+    const orpReg = EL.map((e) => e.registro).find((r) => r && r.orp != null);
+    setVal("v-declor-orp", orpReg ? fmt(orpReg.orp, 0) + " mV" : "—");
 
     const H = S.hipoclorito || {};
     $("v-hipo-stock").textContent = H.stock === null || H.stock === undefined ? "—" : Number(H.stock).toLocaleString("es-AR", { maximumFractionDigits: 0 });
@@ -501,8 +534,20 @@
       title = "Filtro"; sub = SA.filtro ? `Último lavado y enjuague: ${SA.filtro.cuando} · ${SA.filtro.operador}` : "Sin registros";
       if (SA.parada_filtro) avisos.push("Filtro parado");
       actions = [boton(LINKS.salmuera, "Registrar lavado (pantalla Hipoclorito)", true)];
-    } else if (eq === "resina") {
-      const a = SA.analisis_8hs; title = "Pulido / análisis 8 hs"; sub = a ? `${a.cuando} · ${a.operador}` : "Sin registros";
+    } else if (eq === "declor") {
+      title = "Declorinador"; sub = "Salmuera agotada de los electrolizadores, vuelve al disolvedor";
+      (S.electrolizadores || []).forEach((e) => {
+        const r = e.registro;
+        rows.push(["E" + e.id + (e.parada ? " (parado)" : ""), r ? r.cuando + " · " + r.operador : "Sin registros"]);
+        if (r) {
+          rows.push(["pH declor E" + e.id, fmt(r.declor_ph, 2), r.declor_ph > 1.9 ? "warn" : ""]);
+          if (r.orp != null) rows.push(["ORP E" + e.id, fmt(r.orp, 0) + " mV"]);
+          if (r.declor_ph > 1.9) avisos.push("pH de declorinación E" + e.id + " mayor a 1,9");
+        }
+      });
+      actions = [boton(LINKS.salmuera, "Cargar registro", true), boton(LINKS.salmuera_hist, "Ver historial")];
+    } else if (eq === "a8") {
+      const a = SA.analisis_8hs; title = "Análisis 8 hs (salmuera)"; sub = a ? `${a.cuando} · ${a.operador}` : "Sin registros";
       if (a) rows = [["Dureza salmuera", fmt(a.dureza, 2)], ["Cloro libre", fmt(a.cloro_libre, 2)]];
       actions = [boton(LINKS.reactor, "Cargar análisis 8 hs", true), boton(LINKS.a8_hist, "Ver historial")];
     } else if (eq === "agua") {
