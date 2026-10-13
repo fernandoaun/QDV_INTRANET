@@ -181,7 +181,7 @@
     </g>
 
     <!-- ===== Después del filtro: portafiltro de papel · tolva · portafiltro de papel (antes de la bifurcación) ===== -->
-    <g class="eq" data-eq="mp" data-mp="5" transform="translate(586,358)">
+    <g class="eq" data-eq="mp" data-mp="5" data-pf="izq" transform="translate(586,358)">
       <rect class="shell" x="0" y="0" width="22" height="44" rx="5"/><rect class="shell" x="-3" y="-5" width="28" height="8" rx="2"/>
       <text x="11" y="58" text-anchor="middle" class="sub">papel</text>
     </g>
@@ -189,7 +189,7 @@
       <path class="shell" d="M0 0 H52 L36 46 H16 Z"/>
       <text x="26" y="-6" text-anchor="middle" class="sub">Tolva</text>
     </g>
-    <g class="eq" data-eq="mp" data-mp="5" transform="translate(692,358)">
+    <g class="eq" data-eq="mp" data-mp="5" data-pf="der" transform="translate(692,358)">
       <rect class="shell" x="0" y="0" width="22" height="44" rx="5"/><rect class="shell" x="-3" y="-5" width="28" height="8" rx="2"/>
       <text x="11" y="58" text-anchor="middle" class="sub">papel</text>
     </g>
@@ -277,6 +277,7 @@
   const URL_ESTADO = {{ url_for('scada.estado')|tojson }};
   const URL_PARADA = {{ url_for('produccion.parada_planta_toggle')|tojson }};
   const PUEDE_PARAR = {{ puede_parar|tojson }};
+  const PORTAFILTROS = {{ portafiltros|tojson }};
   const LINKS = {
     salmuera: {{ url_for('produccion.salmuera')|tojson }},
     salmuera_hist: {{ url_for('produccion.salmuera_historial')|tojson }},
@@ -497,7 +498,8 @@
   }
   // Cargar = el formulario de siempre dentro del panel (mismos permisos, turno y validaciones).
   // Consumo con el producto ya elegido en el formulario.
-  const consumoDe = (producto) => LINKS.consumo + "?categoria=materia_prima&producto=" + encodeURIComponent(producto || "");
+  const consumoDe = (producto, equipoId) => LINKS.consumo + "?categoria=materia_prima&producto=" + encodeURIComponent(producto || "")
+    + (equipoId ? "&equipo_id=" + encodeURIComponent(equipoId) : "");
   function boton(href, text, primary) {
     return `<a class="btn btn-sm ${primary ? "btn-success" : "btn-outline-light"}" href="${href}" data-form="1">${text}</a>`;
   }
@@ -525,12 +527,12 @@
   }
   $("sc-f-back").addEventListener("click", () => {
     panel.classList.remove("form"); frame.removeAttribute("src"); cargar();
-    if (ultimoEq) abrir(ultimoEq.eq, ultimoEq.extra);
+    if (ultimoEq) abrir(ultimoEq.eq, ultimoEq.extra, ultimoEq.pf);
   });
   let ultimoEq = null;
-  function abrir(eq, extra) {
+  function abrir(eq, extra, pf) {
     if (!S) return;
-    ultimoEq = { eq, extra };
+    ultimoEq = { eq, extra, pf };
     panel.classList.remove("form");
     let title = "", sub = "", rows = [], avisos = [], actions = [];
     const SA = S.salmuera || {};
@@ -600,9 +602,11 @@
       actions = [boton(LINKS.entregas, "Entregas", true), boton(LINKS.turno, "Historial de turnos")];
     } else if (eq === "mp") {
       const m = (S.materias_primas || [])[Number(extra)] || {}; title = m.producto || "Materia prima";
+      const pfNombre = { izq: "Tanque Salmuera Clarificada", der: "Tolva UltraPura" }[pf];
+      if (pfNombre) { title = "Portafiltro de papel"; sub = "Equipo: " + pfNombre; }
       rows = [["Stock", Number(m.stock || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " " + (m.unidad || ""), m.nivel === "critico" ? "bad" : (m.nivel === "limite" ? "warn" : "")],
         m.minimo ? ["Mínimo de alerta", Number(m.minimo).toLocaleString("es-AR")] : null];
-      actions = [boton(consumoDe(m.producto), "Cargar consumo de " + (m.etiqueta || "materia prima"), true), boton(LINKS.ingreso, "Cargar ingreso"), boton(LINKS.stock, "Ver stock")];
+      actions = [boton(consumoDe(m.producto, pf && PORTAFILTROS[pf]), "Cargar consumo de " + (m.etiqueta || "materia prima"), true), boton(LINKS.ingreso, "Cargar ingreso"), boton(LINKS.stock, "Ver stock")];
     } else return;
     $("sc-p-title").textContent = title; $("sc-p-sub").textContent = sub;
     $("sc-p-avisos").innerHTML = avisos.map((a) => `<div class="aviso">⚠ ${String(a).replace(/</g, "&lt;")}</div>`).join("");
@@ -650,7 +654,7 @@
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok || !data.ok) throw new Error(data.error || ("Error " + resp.status));
       await cargar();
-      if (ultimoEq) abrir(ultimoEq.eq, ultimoEq.extra);
+      if (ultimoEq) abrir(ultimoEq.eq, ultimoEq.extra, ultimoEq.pf);
     } catch (err) {
       alert("No se pudo: " + err.message);
       b.disabled = false;
@@ -658,7 +662,7 @@
   });
   document.querySelector(".scada-svg").addEventListener("click", (ev) => {
     const g = ev.target.closest(".eq"); if (!g) return;
-    abrir(g.dataset.eq, g.dataset.mp);
+    abrir(g.dataset.eq, g.dataset.mp, g.dataset.pf);
   });
   $("sc-p-close").addEventListener("click", cerrarPanel);
   document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") cerrarPanel(); });

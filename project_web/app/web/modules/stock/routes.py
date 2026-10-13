@@ -134,6 +134,8 @@ def register_stock_routes(bp: Blueprint) -> None:
             username=current_user().username if current_user() else "",
             producto_requiere_equipo=data["producto_requiere_equipo"],
             producto_es_stockeable=data["producto_es_stockeable"],
+            # Equipo sugerido por el link (p. ej. el portafiltro tocado en Planta en vivo).
+            equipo_sel=(request.args.get("equipo_id") or "").strip(),
         )
 
     @bp.route("/stock/ajustes", methods=["GET", "POST"])

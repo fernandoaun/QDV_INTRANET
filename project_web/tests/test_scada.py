@@ -76,3 +76,9 @@ def test_scada_parar_y_poner_en_marcha(auth_client):
     assert r.get_json()["ok"]
     e2 = next(e for e in auth_client.get("/scada/estado.json").get_json()["electrolizadores"] if e["id"] == 2)
     assert e2["parada"] is None
+
+
+def test_consumo_con_equipo_sugerido_desde_la_planta(auth_client):
+    r = auth_client.get("/produccion/stock/consumo?categoria=materia_prima&equipo_id=999")
+    assert r.status_code == 200
+    assert "PORTAFILTROS" in auth_client.get("/scada/").get_data(as_text=True)

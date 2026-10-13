@@ -97,11 +97,11 @@
         <div class="col-md-4"><label class="form-label">Operador</label>
           <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true">
           <input type="hidden" name="operador" value="{{ operador_sugerido or username }}"></div>
-        <div class="col-md-4 {% if not producto_requiere_equipo %}d-none{% endif %}" id="equipoFieldWrap">
+        <div class="col-md-4 {% if not producto_requiere_equipo and not equipo_sel %}d-none{% endif %}" id="equipoFieldWrap">
           <label class="form-label">Equipo {% if producto_requiere_equipo %}<span class="text-danger">*</span>{% endif %}</label>
           <select class="form-select" name="equipo_id" id="equipoField" {% if producto_requiere_equipo %}required{% endif %}>
             <option value="">— Elegir equipo —</option>
-            {% for e in equipos %}<option value="{{ e.id }}">{{ e.nombre_equipo }}</option>{% endfor %}
+            {% for e in equipos %}<option value="{{ e.id }}" {% if e.id|string == equipo_sel %}selected{% endif %}>{{ e.nombre_equipo }}</option>{% endfor %}
           </select>
         </div>
         <div class="col-12"><label class="form-label">Observaciones</label><input class="form-control" name="observaciones"></div>
@@ -161,7 +161,7 @@
   if (!form || !requiresFlag || !equipoWrap || !equipoField || !stockableFlag || !marcaSelectWrap || !marcaInputWrap) return;
   const requiereEquipo = requiresFlag.value === "1";
   const isStockable = stockableFlag.value === "1";
-  equipoWrap.classList.toggle("d-none", !requiereEquipo);
+  equipoWrap.classList.toggle("d-none", !requiereEquipo && !equipoField.value);
   equipoField.required = requiereEquipo;
   marcaSelectWrap.classList.toggle("d-none", !isStockable);
   marcaInputWrap.classList.toggle("d-none", isStockable);
