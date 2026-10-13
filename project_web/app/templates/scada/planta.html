@@ -82,8 +82,8 @@
       <path class="pipe" data-c="reactor" d="M255 380 H330"/><path class="flow" data-c="reactor" d="M255 380 H330"/>
       <path class="pipe" data-c="reactor" d="M445 380 H515"/><path class="flow" data-c="reactor" d="M445 380 H515"/>
       <path class="pipe" data-c="filtro" d="M575 380 H730"/><path class="flow" data-c="filtro" d="M575 380 H730"/>
-      <path class="pipe" data-c="reactor" d="M730 380 V250 H790"/><path class="flow" data-c="salmuera_e2" d="M730 380 V250 H790"/>
-      <path class="pipe" data-c="reactor" d="M730 380 V500 H790"/><path class="flow" data-c="salmuera_e3" d="M730 380 V500 H790"/>
+      <path class="pipe" data-c="rama_e2" d="M730 380 V250 H790"/><path class="flow" data-c="rama_e2" d="M730 380 V250 H790"/>
+      <path class="pipe" data-c="rama_e3" d="M730 380 V500 H790"/><path class="flow" data-c="rama_e3" d="M730 380 V500 H790"/>
       <!-- salmuera agotada: electrolizadores → declorinador → disolvedor -->
       <path class="pipe" data-c="salmuera_e2" d="M790 195 H750"/><path class="flow" data-c="salmuera_e2" d="M790 195 H750"/>
       <path class="pipe" data-c="declor" d="M750 195 H660"/><path class="flow" data-c="declor" d="M750 195 H660"/>
@@ -430,12 +430,16 @@
 
     (S.electrolizadores || []).forEach((e) => {
       setCircuit("salmuera_e" + e.id, circuitoOn(e.parada, !!e.registro));
+      // rama filtro → electrolizador: sin flujo si está parado el electrolizador, el circuito de salmuera o el filtro
+      setCircuit("rama_e" + e.id, (e.parada || SA.parada || SA.parada_filtro) ? "off" : (e.registro ? "on" : ""));
       drawElec(e);
     });
     const EL = S.electrolizadores || [], elec = (id) => EL.find((x) => x.id === id) || {};
     const anyOn = EL.some((e) => !e.parada && e.registro), allOff = EL.length && EL.every((e) => e.parada);
     setCircuit("declor", allOff ? "off" : (anyOn ? "on" : ""));
-    setLed("led-declor", allOff ? "off" : (anyOn ? "on" : "na"));
+    // el pH de declor se mide en el registro de cada electrolizador: titila si alguno en marcha está vencido
+    setLed("led-declor", allOff ? "off" : (anyOn ? "on" : "na"),
+      EL.some((e) => !e.parada && (timerOf("salmuera_e" + e.id) || {}).overdue));
     [2, 3].forEach((id) => { const r = elec(id).registro;
       setVal("v-declor-ph" + id, r ? fmt(r.declor_ph, 2) : "—", r && r.declor_ph > 1.9 ? "warn" : ""); });
     const orpReg = EL.map((e) => e.registro).find((r) => r && r.orp != null);
