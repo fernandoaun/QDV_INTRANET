@@ -59,3 +59,20 @@ def test_paginas_de_carga_se_pueden_embeber_en_la_planta(auth_client):
     assert "data-form" in r.get_data(as_text=True)
     page = auth_client.get("/dashboard")
     assert "app-embedded" in page.get_data(as_text=True)
+
+
+def test_scada_parar_y_poner_en_marcha(auth_client):
+    import re
+
+    page = auth_client.get("/scada/").get_data(as_text=True)
+    assert '"salmuera_e2": true' in page
+    tok = re.search(r'name="csrf-token" content="([^"]+)"', page)
+    h = {"X-CSRFToken": tok.group(1)} if tok else {}
+    r = auth_client.post("/produccion/parada-planta", json={"circuit_key": "salmuera_e2", "action": "start", "observaciones": "prueba"}, headers=h)
+    assert r.get_json()["ok"]
+    e2 = next(e for e in auth_client.get("/scada/estado.json").get_json()["electrolizadores"] if e["id"] == 2)
+    assert e2["parada"]["motivo"] == "prueba"
+    r = auth_client.post("/produccion/parada-planta", json={"circuit_key": "salmuera_e2", "action": "end"}, headers=h)
+    assert r.get_json()["ok"]
+    e2 = next(e for e in auth_client.get("/scada/estado.json").get_json()["electrolizadores"] if e["id"] == 2)
+    assert e2["parada"] is None

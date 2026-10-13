@@ -237,6 +237,7 @@
     <div id="sc-p-avisos"></div>
     <table><tbody id="sc-p-body"></tbody></table>
     <div class="d-grid gap-2 mt-3" id="sc-p-actions"></div>
+    <div class="mt-4 pt-3 border-top border-secondary" id="sc-p-parada"></div>
   </div>
   <div class="sc-form-wrap">
     <div class="d-flex gap-2 mb-2">
@@ -252,6 +253,8 @@
 <script>
 (function () {
   const URL_ESTADO = {{ url_for('scada.estado')|tojson }};
+  const URL_PARADA = {{ url_for('produccion.parada_planta_toggle')|tojson }};
+  const PUEDE_PARAR = {{ puede_parar|tojson }};
   const LINKS = {
     salmuera: {{ url_for('produccion.salmuera')|tojson }},
     salmuera_hist: {{ url_for('produccion.salmuera_historial')|tojson }},
@@ -577,8 +580,54 @@
     $("sc-p-avisos").innerHTML = avisos.map((a) => `<div class="aviso">⚠ ${String(a).replace(/</g, "&lt;")}</div>`).join("");
     $("sc-p-body").innerHTML = filas(rows.map((x) => x && [x[0], String(x[1]).replace(/</g, "&lt;"), x[2]]));
     $("sc-p-actions").innerHTML = actions.join("");
+    $("sc-p-parada").innerHTML = controlParada(eq);
     panel.classList.add("open");
   }
+
+  // ----- Parar / poner en marcha (la misma parada de planta de Producción) -----
+  function circuitoDe(eq) {
+    const SA = S.salmuera || {}, elec = (id) => (S.electrolizadores || []).find((x) => x.id === id) || {};
+    if (eq === "e2" || eq === "e3") { const e = elec(Number(eq.slice(1))); return { key: "salmuera_e" + e.id, nombre: e.nombre, parada: e.parada }; }
+    if (eq === "reactor") return { key: "reactor", nombre: "Circuito de salmuera", parada: SA.parada };
+    if (eq === "filtro") return { key: "filtro", nombre: "Filtro", parada: SA.parada_filtro };
+    if (eq === "agua") return { key: "agua", nombre: "Circuito de agua", parada: (S.agua || {}).parada };
+    return null;
+  }
+  const esc = (t) => String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+  function controlParada(eq) {
+    const c = circuitoDe(eq);
+    if (!c || !PUEDE_PARAR[c.key]) return "";
+    if (c.parada) {
+      const desde = String(c.parada.started_at_iso || "").slice(0, 16).replace(/^(\d{4})-(\d{2})-(\d{2})T/, "$3/$2/$1 ");
+      return `<div class="small mb-2"><b class="text-danger">PARADO</b> desde ${esc(desde)} · ${esc(c.parada.operador)}` +
+        (c.parada.motivo ? `<br>Motivo: ${esc(c.parada.motivo)}` : "") + `</div>` +
+        `<button type="button" class="btn btn-success w-100" data-parada="end" data-c="${c.key}" data-n="${esc(c.nombre)}">▶ Poner en marcha</button>`;
+    }
+    return `<label class="form-label small mb-1" for="sc-motivo">Motivo de la parada (opcional)</label>` +
+      `<input class="form-control form-control-sm mb-2" id="sc-motivo" maxlength="500">` +
+      `<button type="button" class="btn btn-danger w-100" data-parada="start" data-c="${c.key}" data-n="${esc(c.nombre)}">■ Parar</button>`;
+  }
+  $("sc-p-parada").addEventListener("click", async (ev) => {
+    const b = ev.target.closest("button[data-parada]"); if (!b) return;
+    const start = b.dataset.parada === "start";
+    if (!confirm((start ? "¿Parar " : "¿Poner en marcha ") + b.dataset.n + "?")) return;
+    b.disabled = true;
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    const body = { circuit_key: b.dataset.c, action: start ? "start" : "end" };
+    const motivo = ($("sc-motivo") || {}).value; if (start && motivo) body.observaciones = motivo.trim();
+    try {
+      const resp = await fetch(URL_PARADA, { method: "POST", credentials: "same-origin",
+        headers: { "Content-Type": "application/json", Accept: "application/json", "X-CSRFToken": meta ? meta.content : "" },
+        body: JSON.stringify(body) });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.error || ("Error " + resp.status));
+      await cargar();
+      if (ultimoEq) abrir(ultimoEq.eq, ultimoEq.extra);
+    } catch (err) {
+      alert("No se pudo: " + err.message);
+      b.disabled = false;
+    }
+  });
   document.querySelector(".scada-svg").addEventListener("click", (ev) => {
     const g = ev.target.closest(".eq"); if (!g) return;
     abrir(g.dataset.eq, g.dataset.mp);
