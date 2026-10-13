@@ -41,7 +41,10 @@ node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX preview agua '{"numero_
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX confirm TOKEN_DEL_PREVIEW
 ```
 
-Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo`.
+Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion`.
+Carga de camión (`carga_camion`, choferes y operaciones; no pide turno):
+- Primero mirá `entregas`: si hay una entrega `programada` de hoy para ese chofer (`chofer_previsto`), ofrecésela y cargá con `{"entrega_id":N,"litros":X}` (litros reales cargados).
+- Si no hay programada (o dice que es otra), carga directa: `{"litros":X}`; el chofer sale de su usuario (o pasá `"chofer":"Rafa"`). Logística asigna el destino después.
 En `stock_consumo`, los filtros de papel llevan `"equipo"`: "Tanque Salmuera Clarificada" o "Tolva UltraPura" (preguntá cuál si no lo dice).
 Si `me.cargas.<modulo>` es false, no insistas: falta permiso o turno de planta (igual que en la web).
 

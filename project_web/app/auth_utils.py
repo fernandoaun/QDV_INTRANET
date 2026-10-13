@@ -310,9 +310,11 @@ def user_can_entregas_programar_effective(user: User | None) -> bool:
 
 
 def user_can_entregas_cargar_effective(user: User | None) -> bool:
-    """Carga en camión: permiso entregas_cargar (operaciones). Logística no lo incluye en plantilla."""
+    """Carga en camión: permiso entregas_cargar (operaciones) y logística (los choferes cargan su camión)."""
     if user is None:
         return False
+    if _user_has_logistica_role(user):
+        return True
     return user_can_edit(user, "entregas_cargar")
 
 

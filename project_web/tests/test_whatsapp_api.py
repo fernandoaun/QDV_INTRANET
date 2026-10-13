@@ -205,3 +205,47 @@ def test_whatsapp_allowlist_exige_token(app, client):
     assert r.status_code == 401
     app.config["API_BEARER_TOKEN"] = ""
     assert client.get("/api/v1/whatsapp/allowlist", headers=_headers(None)).status_code == 401
+
+
+def test_chofer_carga_camion_por_whatsapp(app, client, monkeypatch):
+    """Rafa (logística) carga su camión por el bot: carga directa y entrega programada."""
+    from app.models import ChoferEntrega, Entrega, ProductoTerminado
+    from app.services import operational_informed_stock
+    from app.user_roles import ROLE_LOGISTICA
+
+    monkeypatch.setattr(operational_informed_stock, "get_instant_stock", lambda: 99999.0)
+    monkeypatch.setattr(operational_informed_stock, "get_carga_available", lambda: 99999.0)
+    wa = "+5491110000011"
+    now = "2026-10-13T10:00:00"
+    with app.app_context():
+        uid = _add_user(username="rafael", rol=ROLE_LOGISTICA, wa=wa)
+        db.session.get(User, uid).nombre_completo = "Torres, Rafael"
+        pt = ProductoTerminado(nombre="Hipoclorito Pytest", stock_producto="Hipoclorito", activo=True, created_at_iso=now, updated_at_iso=now)
+        db.session.add_all([pt, ChoferEntrega(nombre="Mauri", activo=True, created_at_iso=now, updated_at_iso=now),
+                            ChoferEntrega(nombre="Rafa", activo=True, created_at_iso=now, updated_at_iso=now)])
+        db.session.flush()
+        prog = Entrega(cliente="Cliente X", lugar_entrega="Planta X", producto="Hipoclorito", cantidad=10000, cantidad_programada=10000,
+                       fecha_prevista="2026-10-13", estado="programada", created_at_iso=now, updated_at_iso=now, producto_terminado_id=int(pt.id))
+        db.session.add(prog)
+        db.session.commit()
+        prog_id = int(prog.id)
+    app.config["API_BEARER_TOKEN"] = TOKEN
+    app.config["API_BEARER_USER_ID"] = None
+    assert client.get("/api/v1/me", headers=_headers(wa)).get_json()["cargas"]["carga_camion"] is True
+
+    def cargar(payload):
+        p = client.post("/api/v1/intents/preview", headers=_headers(wa), json={"module": "carga_camion", "payload": payload})
+        assert p.status_code == 200, p.get_json()
+        c = client.post("/api/v1/intents/confirm", headers=_headers(wa), json={"confirm_token": p.get_json()["confirm_token"]})
+        assert c.status_code == 200, c.get_json()
+        return p.get_json()["resumen"], c.get_json()
+
+    resumen, _ = cargar({"litros": 15000})
+    assert "chofer Rafa" in resumen
+    resumen, _ = cargar({"litros": 9800, "entrega_id": prog_id})
+    assert f"#{prog_id}" in resumen
+    with app.app_context():
+        directa = db.session.query(Entrega).filter_by(chofer_previsto="Rafa").one()
+        assert directa.estado == "cargada" and directa.cantidad_real_cargada == 15000.0
+        e = db.session.get(Entrega, prog_id)
+        assert e.estado == "cargada" and e.cantidad_real_cargada == 9800.0 and e.cargada_by_user_id == uid

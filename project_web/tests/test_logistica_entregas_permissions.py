@@ -41,7 +41,7 @@ def test_logistica_can_operate_entregas_even_with_stale_session(app):
 
         assert user_can_access_entregas_hub(user)
         assert user_can_entregas_programar_effective(user)
-        assert not user_can_entregas_cargar_effective(user)
+        assert user_can_entregas_cargar_effective(user)  # los choferes cargan su camión (13/10/2026)
         assert user_can_entregas_entregar_effective(user)
         assert user_can_edit_entregas_any_action(user)
 

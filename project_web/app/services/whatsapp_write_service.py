@@ -38,7 +38,7 @@ from app.services.hipoclorito_warnings import (
     evaluate_hipoclorito_operational_warnings,
 )
 
-WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo"})
+WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion"})
 OPERATIONAL_WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo"})
 INTENT_MAX_AGE_SEC = 600
 _SALT = "qdv-whatsapp-intent-v1"
@@ -74,6 +74,11 @@ def assert_can_write(user: User, module: str) -> None:
     elif module == "stock_consumo":
         if not user_can_edit_stock_consumos(user):
             raise PermissionError("Tu perfil no puede cargar consumos de stock.")
+    elif module == "carga_camion":
+        from app.auth_utils import user_can_entregas_cargar_effective
+
+        if not user_can_entregas_cargar_effective(user):
+            raise PermissionError("Tu perfil no puede cargar camiones.")
     else:
         perm = _perm_for_module(module)
         if not user_can_edit(user, perm):
@@ -164,6 +169,8 @@ def _validate(user: User, module: str, payload: dict[str, Any]) -> tuple[str, di
         row = _stock_ingreso_fields(user, payload)
         resumen = f"Ingreso {row['categoria']} {row['producto']} {row['marca']} · {row['cantidad']} · lote {row['lote']}"
         return resumen, row
+    if module == "carga_camion":
+        return _carga_camion_preview(user, payload)
     if module == "stock_consumo":
         row = _stock_consumo_fields(payload)
         _equipo_id_por_nombre(row["equipo"])
@@ -265,7 +272,102 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
             equipo_id=_equipo_id_por_nombre(fields.get("equipo") or ""),
         )
         return {"id": None, "message": "Consumo de stock guardado.", "registro": fields}
+    if module == "carga_camion":
+        return _carga_camion_execute(user, payload)
     raise ValueError("Módulo desconocido.")
+
+
+# ----- Carga de camión (choferes / operaciones): entrega programada o carga directa -----
+
+
+def _chofer_para(user: User, nombre: str) -> Any:
+    """Chofer del catálogo: el indicado, o el que coincide con el nombre del usuario (Rafa ↔ Rafael)."""
+    from app.services import entregas_catalog_service as cat
+
+    choferes = cat.choferes_activos()
+    n = (nombre or "").strip().lower()
+    if n:
+        for ch in choferes:
+            if (ch.nombre or "").strip().lower() == n:
+                return ch
+        raise ValueError(f"No existe el chofer «{nombre}». Choferes: {', '.join(c.nombre for c in choferes)}.")
+    full = (user.nombre_completo or "").strip()
+    pila = (full.split(",", 1)[1] if "," in full else full).strip().split(" ")[0].lower()
+    candidatos = {pila, (user.username or "").strip().lower()} - {""}
+    for ch in choferes:
+        c = (ch.nombre or "").strip().lower()
+        if c and any(x.startswith(c) for x in candidatos):
+            return ch
+    raise ValueError(f"Indicá el chofer: {', '.join(c.nombre for c in choferes)}.")
+
+
+def _carga_camion_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    eid = str(payload.get("entrega_id") or "").strip().lstrip("#")
+    return {
+        "litros": _float(payload, "litros", "Litros cargados"),
+        "entrega_id": int(eid) if eid.isdigit() else None,
+        "chofer": str(payload.get("chofer") or "").strip(),
+    }
+
+
+def _carga_camion_preview(user: User, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    from app.models import Entrega
+    from app.services import entregas_service
+    from app.services.operational_informed_stock import raise_if_carga_qty_exceeds_instant
+
+    row = _carga_camion_fields(payload)
+    if row["litros"] <= 0:
+        raise ValueError("Los litros cargados tienen que ser más que cero.")
+    if row["entrega_id"] is not None:
+        ent = db.session.get(Entrega, row["entrega_id"])
+        if ent is None:
+            raise ValueError(f"No existe la entrega #{row['entrega_id']}.")
+        if not entregas_service.puede_marcar_cargada(ent):
+            raise ValueError(f"La entrega #{ent.id} no está programada (estado: {ent.estado}).")
+        prog = entregas_service.cantidad_programada_operativa(ent)
+        if stock_service.producto_entrega_es_stock_hipoclorito(str(ent.producto or "")):
+            raise_if_carga_qty_exceeds_instant(row["litros"])
+        resumen = (
+            f"Cargar entrega #{ent.id} · {ent.cliente} · {ent.lugar_entrega} · "
+            f"{row['litros']:g} L (programado {prog:g} L)"
+        )
+        aviso = entregas_service.cantidad_real_warning(prog, row["litros"])
+        if aviso:
+            resumen += f" · ⚠ {aviso}"
+        return resumen, row
+    ch = _chofer_para(user, row["chofer"])
+    row["chofer"] = ch.nombre
+    raise_if_carga_qty_exceeds_instant(row["litros"])
+    return f"Camión cargado {row['litros']:g} L · chofer {ch.nombre} · logística asigna el destino", row
+
+
+def _carga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]:
+    from app.models import Entrega
+    from app.services import entregas_service
+    from app.services import entregas_web_service as ews
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    row = _carga_camion_fields(payload)
+    try:
+        if row["entrega_id"] is not None:
+            ent = db.session.get(Entrega, row["entrega_id"])
+            if ent is None:
+                raise ValueError(f"No existe la entrega #{row['entrega_id']}.")
+            stock_mut = entregas_service.ejecutar_cargada(ent, user, now_operacion_naive_local(), row["litros"])
+            msg = f"Entrega #{ent.id} marcada como cargada."
+        else:
+            ch = _chofer_para(user, row["chofer"])
+            ent, stock_mut = ews.create_carga_camion_from_form(
+                {"chofer_entrega_id": str(ch.id), "cantidad": str(row["litros"])}, user
+            )
+            msg = "Camión cargado. Logística asigna el destino."
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    if stock_mut is not None:
+        stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
+    return {"id": int(ent.id), "message": msg, "registro": entregas_service.entrega_to_api_dict(ent)}
 
 
 def _reactor_fields(payload: dict[str, Any]) -> dict[str, Any]:
