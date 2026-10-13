@@ -133,7 +133,7 @@
 
     <!-- ===== Reactor de salmuera (purificación) ===== -->
     <g transform="translate(335,250)">
-      <g class="eq" data-eq="mp" data-mp="2"><rect class="shell" x="10" y="0" width="40" height="50" rx="6"/><text x="30" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">NaOH</text></g>
+      <rect class="shell" x="10" y="0" width="40" height="50" rx="6"/><text x="30" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">NaOH</text>
       <g class="eq" data-eq="mp" data-mp="1"><rect class="shell" x="70" y="0" width="40" height="50" rx="6"/><text x="90" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">Na₂CO₃</text></g>
     </g>
     <g class="eq" data-eq="reactor" transform="translate(330,335)">
@@ -178,6 +178,13 @@
       <text x="8" y="18" class="sub">pH E2</text><text x="112" y="18" text-anchor="end" class="val" id="v-declor-ph2">—</text>
       <text x="8" y="36" class="sub">pH E3</text><text x="112" y="36" text-anchor="end" class="val" id="v-declor-ph3">—</text>
       <text x="8" y="54" class="sub">ORP</text><text x="112" y="54" text-anchor="end" class="val" id="v-declor-orp">—</text>
+    </g>
+
+    <!-- ===== Sulfito: se agrega a la salida del declorinador, antes del disolvedor ===== -->
+    <path class="pipe" style="stroke-width:4" d="M400 205 V225"/>
+    <g class="eq" data-eq="mp" data-mp="4" transform="translate(375,155)">
+      <rect class="shell" x="0" y="0" width="50" height="50" rx="6"/>
+      <text x="25" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">Sulfito</text>
     </g>
 
     <!-- ===== Electrolizadores (se dibujan desde JS) ===== -->
@@ -557,9 +564,7 @@
           if (r.declor_ph > 1.9) avisos.push("pH de declorinación E" + e.id + " mayor a 1,9");
         }
       });
-      const sulf = (S.materias_primas || []).find((m) => m.producto === "Sulfito de Sodio");
-      if (sulf) rows.push(["Stock sulfito", Number(sulf.stock || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " " + sulf.unidad, sulf.nivel === "critico" ? "bad" : (sulf.nivel === "limite" ? "warn" : "")]);
-      actions = [boton(LINKS.salmuera, "Cargar registro", true), boton(consumoDe("Sulfito de Sodio"), "Cargar bolsa de sulfito"), boton(LINKS.salmuera_hist, "Ver historial")];
+      actions = [boton(LINKS.salmuera, "Cargar registro", true), boton(LINKS.salmuera_hist, "Ver historial")];
     } else if (eq === "a8") {
       const a = SA.analisis_8hs; title = "Análisis 8 hs (salmuera)"; sub = a ? `${a.cuando} · ${a.operador}` : "Sin registros";
       if (a) rows = [["Dureza salmuera", fmt(a.dureza, 2)], ["Cloro libre", fmt(a.cloro_libre, 2)]];
