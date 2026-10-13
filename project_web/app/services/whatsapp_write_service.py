@@ -166,7 +166,10 @@ def _validate(user: User, module: str, payload: dict[str, Any]) -> tuple[str, di
         return resumen, row
     if module == "stock_consumo":
         row = _stock_consumo_fields(payload)
+        _equipo_id_por_nombre(row["equipo"])
         resumen = f"Consumo {row['categoria']} {row['producto']} {row['marca']} · {row['cantidad']}"
+        if row["equipo"]:
+            resumen += f" · equipo {row['equipo']}"
         return resumen, row
     raise ValueError("Módulo desconocido.")
 
@@ -259,6 +262,7 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
             float(fields["cantidad"]),
             op,
             observaciones=fields.get("observaciones") or "",
+            equipo_id=_equipo_id_por_nombre(fields.get("equipo") or ""),
         )
         return {"id": None, "message": "Consumo de stock guardado.", "registro": fields}
     raise ValueError("Módulo desconocido.")
@@ -388,7 +392,21 @@ def _stock_consumo_fields(payload: dict[str, Any]) -> dict[str, Any]:
         "marca": str(payload.get("marca") or "").strip(),
         "cantidad": _float(payload, "cantidad", "Cantidad"),
         "observaciones": str(payload.get("observaciones") or "").strip(),
+        "equipo": str(payload.get("equipo") or "").strip(),
     }
+
+
+def _equipo_id_por_nombre(nombre: str) -> int | None:
+    """Equipo activo por nombre (sin distinguir mayúsculas). None si no se indicó."""
+    from app.models import Equipo
+
+    n = (nombre or "").strip().lower()
+    if not n:
+        return None
+    for e in db.session.query(Equipo).filter(Equipo.activo.is_(True)):
+        if (e.nombre_equipo or "").strip().lower() == n:
+            return int(e.id)
+    raise ValueError(f"No existe el equipo «{nombre}».")
 
 
 def capabilities(user: User) -> dict[str, Any]:

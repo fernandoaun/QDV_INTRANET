@@ -42,6 +42,7 @@ node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX confirm TOKEN_DEL_PREVI
 ```
 
 Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo`.
+En `stock_consumo`, los filtros de papel llevan `"equipo"`: "Tanque Salmuera Clarificada" o "Tolva UltraPura" (preguntá cuál si no lo dice).
 Si `me.cargas.<modulo>` es false, no insistas: falta permiso o turno de planta (igual que en la web).
 
 ## Reglas
