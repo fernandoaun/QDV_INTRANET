@@ -133,8 +133,8 @@
 
     <!-- ===== Reactor de salmuera (purificación) ===== -->
     <g transform="translate(335,250)">
-      <rect class="shell" x="10" y="0" width="40" height="50" rx="6"/><text x="30" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">NaOH</text>
-      <rect class="shell" x="70" y="0" width="40" height="50" rx="6"/><text x="90" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">Na₂CO₃</text>
+      <g class="eq" data-eq="mp" data-mp="2"><rect class="shell" x="10" y="0" width="40" height="50" rx="6"/><text x="30" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">NaOH</text></g>
+      <g class="eq" data-eq="mp" data-mp="1"><rect class="shell" x="70" y="0" width="40" height="50" rx="6"/><text x="90" y="30" text-anchor="middle" class="sub" style="fill:#1d2740">Na₂CO₃</text></g>
     </g>
     <g class="eq" data-eq="reactor" transform="translate(330,335)">
       <rect class="shell" x="0" y="0" width="115" height="120" rx="14"/>
@@ -475,6 +475,8 @@
     return rows.filter((x) => x).map(([k, v, cls]) => `<tr><td>${k}</td><td class="v ${cls || ""}">${v}</td></tr>`).join("");
   }
   // Cargar = el formulario de siempre dentro del panel (mismos permisos, turno y validaciones).
+  // Consumo con el producto ya elegido en el formulario.
+  const consumoDe = (producto) => LINKS.consumo + "?categoria=materia_prima&producto=" + encodeURIComponent(producto || "");
   function boton(href, text, primary) {
     return `<a class="btn btn-sm ${primary ? "btn-success" : "btn-outline-light"}" href="${href}" data-form="1">${text}</a>`;
   }
@@ -555,7 +557,9 @@
           if (r.declor_ph > 1.9) avisos.push("pH de declorinación E" + e.id + " mayor a 1,9");
         }
       });
-      actions = [boton(LINKS.salmuera, "Cargar registro", true), boton(LINKS.salmuera_hist, "Ver historial")];
+      const sulf = (S.materias_primas || []).find((m) => m.producto === "Sulfito de Sodio");
+      if (sulf) rows.push(["Stock sulfito", Number(sulf.stock || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " " + sulf.unidad, sulf.nivel === "critico" ? "bad" : (sulf.nivel === "limite" ? "warn" : "")]);
+      actions = [boton(LINKS.salmuera, "Cargar registro", true), boton(consumoDe("Sulfito de Sodio"), "Cargar bolsa de sulfito"), boton(LINKS.salmuera_hist, "Ver historial")];
     } else if (eq === "a8") {
       const a = SA.analisis_8hs; title = "Análisis 8 hs (salmuera)"; sub = a ? `${a.cuando} · ${a.operador}` : "Sin registros";
       if (a) rows = [["Dureza salmuera", fmt(a.dureza, 2)], ["Cloro libre", fmt(a.cloro_libre, 2)]];
@@ -579,7 +583,7 @@
       const m = (S.materias_primas || [])[Number(extra)] || {}; title = m.producto || "Materia prima";
       rows = [["Stock", Number(m.stock || 0).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " " + (m.unidad || ""), m.nivel === "critico" ? "bad" : (m.nivel === "limite" ? "warn" : "")],
         m.minimo ? ["Mínimo de alerta", Number(m.minimo).toLocaleString("es-AR")] : null];
-      actions = [boton(LINKS.consumo, "Cargar consumo", true), boton(LINKS.ingreso, "Cargar ingreso"), boton(LINKS.stock, "Ver stock")];
+      actions = [boton(consumoDe(m.producto), "Cargar consumo de " + (m.etiqueta || "materia prima"), true), boton(LINKS.ingreso, "Cargar ingreso"), boton(LINKS.stock, "Ver stock")];
     } else return;
     $("sc-p-title").textContent = title; $("sc-p-sub").textContent = sub;
     $("sc-p-avisos").innerHTML = avisos.map((a) => `<div class="aviso">⚠ ${String(a).replace(/</g, "&lt;")}</div>`).join("");
