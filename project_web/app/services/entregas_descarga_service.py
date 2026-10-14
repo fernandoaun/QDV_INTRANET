@@ -28,11 +28,14 @@ def litros_descargados(origen: Entrega) -> float:
 
 
 def litros_restantes(entrega: Entrega) -> float:
-    """Litros que quedan en el camión de esa carga (0 si todavía no se cargó)."""
+    """Litros que quedan en el camión de esa carga (0 si todavía no se cargó).
+
+    Si llevó agua, se cuenta en el camión: el chofer informa lo que descarga (mezcla incluida)."""
     origen = es.origen_carga_de(entrega)
     if origen.cantidad_real_cargada is None:
         return 0.0
-    return max(0.0, float(origen.cantidad_real_cargada) - litros_descargados(origen))
+    total = float(origen.cantidad_real_cargada) + float(origen.agua_litros or 0)
+    return max(0.0, total - litros_descargados(origen))
 
 
 def destinos_activos() -> list[tuple[LugarEntrega, ClienteEntrega]]:

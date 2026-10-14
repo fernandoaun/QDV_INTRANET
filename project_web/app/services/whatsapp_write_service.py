@@ -323,8 +323,11 @@ def _carga_camion_fields(payload: dict[str, Any]) -> dict[str, Any]:
     agua = _float(payload, "agua_litros", "Litros de agua") if payload.get("agua_litros") not in (None, "") else 0.0
     if agua < 0:
         raise ValueError("Los litros de agua no pueden ser negativos.")
+    # Agua informada después de registrar la carga: {"entrega_id": N, "agua_litros": Y} sin litros.
+    solo_agua = eid.isdigit() and agua > 0 and (bool(payload.get("solo_agua")) or payload.get("litros") in (None, ""))
     return {
-        "litros": _float(payload, "litros", "Litros cargados"),
+        "litros": 0.0 if solo_agua else _float(payload, "litros", "Litros cargados"),
+        "solo_agua": solo_agua,
         "agua_litros": agua,
         "entrega_id": int(eid) if eid.isdigit() else None,
         "chofer": str(payload.get("chofer") or payload.get("chofer_nombre") or "").strip(),
@@ -341,6 +344,9 @@ def _carga_camion_preview(user: User, payload: dict[str, Any]) -> tuple[str, dic
     from app.services.operational_informed_stock import raise_if_carga_qty_exceeds_instant
 
     row = _carga_camion_fields(payload)
+    if row["solo_agua"]:
+        ent = _carga_ya_registrada(row["entrega_id"])
+        return f"Agregar {row['agua_litros']:g} L de agua a la carga #{ent.id} ({ent.cantidad_real_cargada:g} L de hipoclorito)", row
     if row["litros"] <= 0:
         raise ValueError("Los litros cargados tienen que ser más que cero.")
     if row["entrega_id"] is not None:
@@ -367,6 +373,17 @@ def _carga_camion_preview(user: User, payload: dict[str, Any]) -> tuple[str, dic
     return _con_agua(resumen, row["agua_litros"]), row
 
 
+def _carga_ya_registrada(entrega_id: int) -> Any:
+    from app.models import Entrega
+
+    ent = db.session.get(Entrega, entrega_id)
+    if ent is None:
+        raise ValueError(f"No existe la entrega #{entrega_id}.")
+    if ent.cantidad_real_cargada is None or ent.carga_origen_entrega_id:
+        raise ValueError(f"La #{ent.id} no es una carga de camión registrada.")
+    return ent
+
+
 def _carga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]:
     from app.models import Entrega
     from app.services import entregas_service
@@ -374,6 +391,11 @@ def _carga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]
     from app.utils.datetime_operacion import now_operacion_naive_local
 
     row = _carga_camion_fields(payload)
+    if row["solo_agua"]:
+        ent = _carga_ya_registrada(row["entrega_id"])
+        ent.agua_litros = row["agua_litros"]
+        db.session.commit()
+        return {"id": int(ent.id), "message": f"Agua anotada en la carga #{ent.id}.", "registro": entregas_service.entrega_to_api_dict(ent)}
     try:
         if row["entrega_id"] is not None:
             ent = db.session.get(Entrega, row["entrega_id"])

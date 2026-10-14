@@ -321,6 +321,18 @@ def test_chofer_descarga_en_varios_puntos_por_whatsapp(app, client, monkeypatch)
         ]
         assert filas[1].carga_origen_entrega_id == filas[0].id and filas[0].cantidad_real_cargada == 7000.0
 
+    # Caso Mauri (14/10/2026): 4000 L de hipoclorito, después avisa 1000 L de agua mezclada y descarga la mezcla.
+    _, out = hacer("carga_camion", {"litros": 4000})
+    carga_id = out["id"]
+    resumen, _ = hacer("carga_camion", {"entrega_id": carga_id, "agua_litros": 1000})
+    assert f"1000 L de agua a la carga #{carga_id}" in resumen
+    _, out = hacer("descarga_camion", {"litros": 800, "destino": "Centenario"})
+    _, out = hacer("descarga_camion", {"litros": 4000, "destino": "Cutral Co"})
+    assert "Quedan 200 L" in out["message"]
+    with app.app_context():
+        c = db.session.get(Entrega, carga_id)
+        assert c.cantidad_real_cargada == 4000.0 and c.agua_litros == 1000.0
+
 
 def test_descarga_web_sobre_destino_ya_asignado(app, auth_client, monkeypatch):
     """Si logística ya asignó ese destino, la descarga marca esa entrega (no crea otra)."""
