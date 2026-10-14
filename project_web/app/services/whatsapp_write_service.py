@@ -38,7 +38,7 @@ from app.services.hipoclorito_warnings import (
     evaluate_hipoclorito_operational_warnings,
 )
 
-WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion"})
+WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion", "descarga_camion"})
 OPERATIONAL_WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo"})
 INTENT_MAX_AGE_SEC = 600
 _SALT = "qdv-whatsapp-intent-v1"
@@ -79,6 +79,11 @@ def assert_can_write(user: User, module: str) -> None:
 
         if not user_can_entregas_cargar_effective(user):
             raise PermissionError("Tu perfil no puede cargar camiones.")
+    elif module == "descarga_camion":
+        from app.auth_utils import user_can_entregas_entregar_effective
+
+        if not user_can_entregas_entregar_effective(user):
+            raise PermissionError("Tu perfil no puede registrar descargas.")
     else:
         perm = _perm_for_module(module)
         if not user_can_edit(user, perm):
@@ -171,6 +176,8 @@ def _validate(user: User, module: str, payload: dict[str, Any]) -> tuple[str, di
         return resumen, row
     if module == "carga_camion":
         return _carga_camion_preview(user, payload)
+    if module == "descarga_camion":
+        return _descarga_camion_preview(user, payload)
     if module == "stock_consumo":
         row = _stock_consumo_fields(payload)
         _equipo_id_por_nombre(row["equipo"])
@@ -274,6 +281,8 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
         return {"id": None, "message": "Consumo de stock guardado.", "registro": fields}
     if module == "carga_camion":
         return _carga_camion_execute(user, payload)
+    if module == "descarga_camion":
+        return _descarga_camion_execute(user, payload)
     raise ValueError("Módulo desconocido.")
 
 
@@ -540,3 +549,67 @@ def capabilities(user: User) -> dict[str, Any]:
         "cargas": cargas,
         "may_write_operational": bool(may_op),
     }
+
+
+# ----- Descarga del camión (chofer): destino y litros en cada punto -----
+
+
+def _descarga_camion_resolver(user: User, payload: dict[str, Any]) -> dict[str, Any]:
+    from app.models import Entrega
+    from app.services import entregas_descarga_service as ds
+    from app.services import entregas_service
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    payload = dict(payload)
+    for k in ("litros_descargados", "cantidad", "cantidad_litros"):
+        if payload.get("litros") in (None, "") and payload.get(k) not in (None, ""):
+            payload["litros"] = payload[k]
+    litros = _float(payload, "litros", "Litros descargados")
+    lugar_id = str(payload.get("lugar_entrega_id") or "").strip()
+    texto = str(payload.get("destino") or payload.get("lugar") or "").strip()
+    lug, cli = ds.destino_por_id(int(lugar_id)) if lugar_id.isdigit() else ds.buscar_destino(texto)
+    eid = str(payload.get("entrega_id") or "").strip().lstrip("#")
+    if eid.isdigit():
+        ent = db.session.get(Entrega, int(eid))
+        if ent is None:
+            raise ValueError(f"No existe la entrega #{eid}.")
+        origen = entregas_service.origen_carga_de(ent)
+    else:
+        ch = _chofer_para(user, str(payload.get("chofer") or payload.get("chofer_nombre") or ""))
+        origen = ds.carga_abierta_del_chofer(ch.nombre, now_operacion_naive_local())
+    restante = ds.validar_descarga(origen, litros)
+    return {"litros": litros, "lugar_entrega_id": int(lug.id), "entrega_id": int(origen.id), "_lug": lug, "_cli": cli, "_restante": restante}
+
+
+def _descarga_camion_preview(user: User, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    from app.services import entregas_descarga_service as ds
+
+    r = _descarga_camion_resolver(user, payload)
+    queda = max(0.0, r["_restante"] - r["litros"])
+    resumen = (
+        f"Descarga de la carga #{r['entrega_id']} · {ds.nombre_destino(r['_lug'], r['_cli'])} · "
+        f"{r['litros']:g} L · quedan {queda:g} L en el camión"
+    )
+    return resumen, {k: v for k, v in r.items() if not k.startswith("_")}
+
+
+def _descarga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]:
+    from app.models import Entrega
+    from app.services import entregas_descarga_service as ds
+    from app.services import entregas_service
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    try:
+        origen = db.session.get(Entrega, int(payload["entrega_id"]))
+        if origen is None:
+            raise ValueError("La carga ya no existe.")
+        lug, cli = ds.destino_por_id(int(payload["lugar_entrega_id"]))
+        ent, queda = ds.registrar_descarga(origen, lug, cli, float(payload["litros"]), user, now_operacion_naive_local())
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    msg = f"Descarga registrada en {ds.nombre_destino(lug, cli)}. " + (
+        f"Quedan {queda:g} L en el camión." if queda > 0 else "Camión vacío: carga completa."
+    )
+    return {"id": int(ent.id), "message": msg, "registro": entregas_service.entrega_to_api_dict(ent)}

@@ -41,10 +41,15 @@ node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX preview agua '{"numero_
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX confirm TOKEN_DEL_PREVIEW
 ```
 
-Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion`.
+Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion` | `descarga_camion`.
 Carga de camión (`carga_camion`, choferes y operaciones; no pide turno):
 - Primero mirá `entregas`: si hay una entrega `programada` de hoy para ese chofer (`chofer_previsto`), ofrecésela y cargá con `{"entrega_id":N,"litros":X}` (litros reales cargados).
-- Si no hay programada (o dice que es otra), carga directa: `{"litros":X}`; el chofer sale de su usuario (o pasá `"chofer":"Rafa"`). Logística asigna el destino después.
+- Si no hay programada (o dice que es otra), carga directa: `{"litros":X}`; el chofer sale de su usuario (o pasá `"chofer":"Rafa"`).
+- Los campos son exactamente `litros`, `entrega_id`, `chofer`. No inventes otros.
+Descarga del camión (`descarga_camion`, choferes; una por cada punto donde descargan):
+- `{"destino":"<texto como lo dijo el chofer>","litros":X}`. Usa la última carga del chofer que todavía tiene litros; si dice otra, agregá `"entrega_id":N`.
+- Si el sistema responde que hay varios destinos («¿Cuál?»), preguntale al chofer cuál de esas opciones y reenviá con ese texto. Si el destino no existe, decile que logística lo tiene que dar de alta.
+- Después de confirmar, decile cuántos litros le quedan en el camión (viene en la respuesta).
 En `stock_consumo`, los filtros de papel llevan `"equipo"`: "Tanque Salmuera Clarificada" o "Tolva UltraPura" (preguntá cuál si no lo dice).
 Si `me.cargas.<modulo>` es false, no insistas: falta permiso o turno de planta (igual que en la web).
 

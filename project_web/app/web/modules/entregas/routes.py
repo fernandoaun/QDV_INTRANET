@@ -192,8 +192,33 @@ def gestion():
                 flash(str(ex) or "No se pudo registrar la entrega.", "danger")
             return redirect(url_for("entregas.gestion"))
 
+        if act == "descargar":
+            if not user_can_entregas_entregar_effective(u):
+                return _no_edit()
+            try:
+                from app.services import entregas_descarga_service as ds
+
+                lugar_id = ews.parse_entrega_positive_int(request.form.get("lugar_entrega_id"))
+                if not lugar_id:
+                    raise ValueError("Elegí el destino de la descarga.")
+                lug, cli = ds.destino_por_id(lugar_id)
+                litros = entregas_service.validate_cantidad_real(request.form.get("cantidad_real"), "Los litros descargados")
+                _, queda = ds.registrar_descarga(ent, lug, cli, litros, u, now_operacion_naive_local())
+                db.session.commit()
+                flash(
+                    f"Descarga registrada en {ds.nombre_destino(lug, cli)}. "
+                    + (f"Quedan {queda:g} L en el camión." if queda > 0 else "Camión vacío: carga completa."),
+                    "success",
+                )
+            except Exception as ex:  # noqa: BLE001
+                db.session.rollback()
+                flash(str(ex) or "No se pudo registrar la descarga.", "danger")
+            return redirect(url_for("entregas.gestion"))
+
         flash("Acción no reconocida.", "warning")
         return redirect(url_for("entregas.gestion"))
+
+    from app.services import entregas_descarga_service as ds
 
     rows = entregas_service.listar_entregas()
     entregas_kpis = entregas_service.entregas_kpis_rolling()
@@ -210,6 +235,8 @@ def gestion():
         quick_producto_terminado_id=int(pt_default.id) if pt_default else None,
         quick_chofer_entrega_id=ews.parse_entrega_positive_int(request.args.get("quick_chofer_entrega_id")),
         entrega_lugares_api_prefix=_entrega_lugares_api_prefix(),
+        litros_restantes_camion=ds.litros_restantes,
+        destinos_descarga=[(lug.id, ds.nombre_destino(lug, cli)) for lug, cli in ds.destinos_activos()],
         **catalog_bundle,
         **ews.gestion_constants_context(),
     )

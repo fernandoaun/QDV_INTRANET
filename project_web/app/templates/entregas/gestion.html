@@ -463,6 +463,9 @@
             <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalEntregar{{ e.id }}">Entregado</button>
               {% endif %}
             {% endif %}
+            {% if user_can_entregas_entregar() and not e.carga_origen_entrega_id and e.cantidad_real_cargada is not none and litros_restantes_camion(e) > 0 %}
+            <button type="button" class="btn btn-sm btn-outline-success" data-bs-toggle="modal" data-bs-target="#modalDescargar{{ e.id }}">Descarga</button>
+            {% endif %}
           </td>
         </tr>
         {% else %}
@@ -556,6 +559,48 @@
   </div>
 </div>
   {% endif %}
+{% endif %}
+{% if user_can_entregas_entregar() and not e.carga_origen_entrega_id and e.cantidad_real_cargada is not none %}
+{% set queda = litros_restantes_camion(e) %}
+{% if queda > 0 %}
+<div class="modal fade" id="modalDescargar{{ e.id }}" tabindex="-1" aria-labelledby="md{{ e.id }}" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('entregas.gestion') }}">
+      {% include "_csrf.html" %}
+        <input type="hidden" name="action" value="descargar">
+        <input type="hidden" name="entrega_id" value="{{ e.id }}">
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="md{{ e.id }}">Descarga · carga #{{ e.id }}{% if e.chofer_previsto %} ({{ e.chofer_previsto }}){% endif %}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small app-text-secondary mb-3">Quedan <strong>{{ '%g'|format(queda) }} L</strong> en el camión. Registrá cada punto de descarga por separado.</p>
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-sm-7">
+            <label class="form-label small mb-1" for="destDescargar{{ e.id }}">Destino</label>
+            <select class="form-select" id="destDescargar{{ e.id }}" name="lugar_entrega_id" required>
+              <option value="">Elegí…</option>
+              {% for lid, nombre in destinos_descarga %}
+              <option value="{{ lid }}" {% if e.lugar_entrega_id == lid and (e.estado or '') == 'cargada' %}selected{% endif %}>{{ nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-sm-5">
+            <label class="form-label small mb-1" for="litrosDescargar{{ e.id }}">Litros descargados</label>
+            <input class="form-control text-end" id="litrosDescargar{{ e.id }}" name="cantidad_real" type="number" step="any" min="0" value="{{ '%g'|format(queda) }}" required inputmode="decimal" autocomplete="off">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-success">Registrar descarga</button>
+      </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endif %}
 {% endfor %}
 {% endblock %}

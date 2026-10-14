@@ -252,3 +252,105 @@ def test_chofer_carga_camion_por_whatsapp(app, client, monkeypatch):
         assert [(d.estado, d.cantidad_real_cargada) for d in directas] == [("cargada", 15000.0), ("cargada", 7000.0)]
         e = db.session.get(Entrega, prog_id)
         assert e.estado == "cargada" and e.cantidad_real_cargada == 9800.0 and e.cargada_by_user_id == uid
+
+
+def test_chofer_descarga_en_varios_puntos_por_whatsapp(app, client, monkeypatch):
+    """Rafa carga 7000 L sin destino y los descarga en dos puntos; el sistema lleva lo que queda en el camión."""
+    from app.models import ChoferEntrega, ClienteEntrega, Entrega, LugarEntrega, ProductoTerminado
+    from app.services import operational_informed_stock
+    from app.user_roles import ROLE_LOGISTICA
+
+    monkeypatch.setattr(operational_informed_stock, "get_instant_stock", lambda: 99999.0)
+    monkeypatch.setattr(operational_informed_stock, "get_carga_available", lambda: 99999.0)
+    wa = "+5491110000012"
+    now = "2026-10-14T10:00:00"
+    with app.app_context():
+        uid = _add_user(username="rafael", rol=ROLE_LOGISTICA, wa=wa)
+        db.session.get(User, uid).nombre_completo = "Torres, Rafael"
+        db.session.add_all([
+            ProductoTerminado(nombre="Hipoclorito Pytest", stock_producto="Hipoclorito", activo=True, created_at_iso=now, updated_at_iso=now),
+            ChoferEntrega(nombre="Rafa", activo=True, created_at_iso=now, updated_at_iso=now),
+        ])
+        aguas = ClienteEntrega(nombre="Aguas", activo=True, created_at_iso=now, updated_at_iso=now)
+        epas = ClienteEntrega(nombre="Epas Buena Esperanza", activo=True, created_at_iso=now, updated_at_iso=now)
+        db.session.add_all([aguas, epas])
+        db.session.flush()
+        db.session.add_all([
+            LugarEntrega(nombre="Buena Esperanza", cliente_id=aguas.id, activo=True, created_at_iso=now, updated_at_iso=now),
+            LugarEntrega(nombre="Centenario", cliente_id=aguas.id, activo=True, created_at_iso=now, updated_at_iso=now),
+            LugarEntrega(nombre="Cutral Co", cliente_id=epas.id, activo=True, created_at_iso=now, updated_at_iso=now),
+        ])
+        db.session.commit()
+    app.config["API_BEARER_TOKEN"] = TOKEN
+    app.config["API_BEARER_USER_ID"] = None
+    assert client.get("/api/v1/me", headers=_headers(wa)).get_json()["cargas"]["descarga_camion"] is True
+
+    def preview(module, payload):
+        return client.post("/api/v1/intents/preview", headers=_headers(wa), json={"module": module, "payload": payload})
+
+    def hacer(module, payload):
+        p = preview(module, payload)
+        assert p.status_code == 200, p.get_json()
+        c = client.post("/api/v1/intents/confirm", headers=_headers(wa), json={"confirm_token": p.get_json()["confirm_token"]})
+        assert c.status_code == 200, c.get_json()
+        return p.get_json()["resumen"], c.get_json()
+
+    hacer("carga_camion", {"litros": 7000})
+    # «Buena Esperanza» es ambiguo (lugar de Aguas y cliente Epas Buena Esperanza): pregunta cuál.
+    amb = preview("descarga_camion", {"litros": 4000, "destino": "Buena Esperanza Cutral"})
+    assert amb.status_code == 200  # con más palabras queda uno solo
+    amb = preview("descarga_camion", {"litros": 4000, "destino": "Buena Esperanza"})
+    assert amb.status_code == 400 and "¿Cuál?" in amb.get_json()["message"]
+
+    resumen, out = hacer("descarga_camion", {"litros": 4000, "destino": "aguas buena esperanza"})
+    assert "quedan 3000 L" in resumen and "Quedan 3000 L" in out["message"]
+    exceso = preview("descarga_camion", {"litros": 3500, "destino": "Centenario"})
+    assert exceso.status_code == 400 and "quedan 3000 L" in exceso.get_json()["message"]
+    _, out = hacer("descarga_camion", {"litros_descargados": 3000, "destino": "Centenario"})
+    assert "Camión vacío" in out["message"]
+    assert preview("descarga_camion", {"litros": 100, "destino": "Centenario"}).status_code == 400
+
+    with app.app_context():
+        filas = db.session.query(Entrega).order_by(Entrega.id).all()
+        assert [(e.lugar_entrega, e.estado, e.cantidad_real_entregada) for e in filas] == [
+            ("Buena Esperanza", "entregada", 4000.0),
+            ("Centenario", "entregada", 3000.0),
+        ]
+        assert filas[1].carga_origen_entrega_id == filas[0].id and filas[0].cantidad_real_cargada == 7000.0
+
+
+def test_descarga_web_sobre_destino_ya_asignado(app, auth_client, monkeypatch):
+    """Si logística ya asignó ese destino, la descarga marca esa entrega (no crea otra)."""
+    import re
+
+    from app.models import ChoferEntrega, ClienteEntrega, Entrega, LugarEntrega, ProductoTerminado
+    from app.services import operational_informed_stock
+
+    monkeypatch.setattr(operational_informed_stock, "get_instant_stock", lambda: 99999.0)
+    monkeypatch.setattr(operational_informed_stock, "get_carga_available", lambda: 99999.0)
+    now = "2026-10-14T10:00:00"
+    with app.app_context():
+        pt = ProductoTerminado(nombre="Hipoclorito Pytest", stock_producto="Hipoclorito", activo=True, created_at_iso=now, updated_at_iso=now)
+        ch = ChoferEntrega(nombre="Mauri", activo=True, created_at_iso=now, updated_at_iso=now)
+        cli = ClienteEntrega(nombre="EPAS", activo=True, created_at_iso=now, updated_at_iso=now)
+        db.session.add_all([pt, ch, cli])
+        db.session.flush()
+        lug = LugarEntrega(nombre="Chos Malal", cliente_id=cli.id, activo=True, created_at_iso=now, updated_at_iso=now)
+        db.session.add(lug)
+        db.session.flush()
+        e = Entrega(cliente="EPAS", lugar_entrega="Chos Malal", cliente_id=cli.id, lugar_entrega_id=lug.id, producto="Hipoclorito",
+                    cantidad=5000, cantidad_programada=5000, cantidad_real_cargada=5000, fecha_prevista="2026-10-14", estado="cargada",
+                    chofer_previsto="Mauri", chofer_entrega_id=ch.id, producto_terminado_id=pt.id, cargada_at_iso=now,
+                    created_at_iso=now, updated_at_iso=now)
+        db.session.add(e)
+        db.session.commit()
+        eid, lid = e.id, lug.id
+    html = auth_client.get("/entregas/gestion").get_data(as_text=True)
+    assert f'id="modalDescargar{eid}"' in html
+    token = re.search(r'name="csrf_token"\s+value="([^"]+)"', html).group(1)
+    r = auth_client.post("/entregas/gestion", data={"csrf_token": token, "action": "descargar", "entrega_id": eid,
+                                                    "lugar_entrega_id": lid, "cantidad_real": "4950"})
+    assert r.status_code in (302, 303)
+    with app.app_context():
+        filas = db.session.query(Entrega).all()
+        assert len(filas) == 1 and filas[0].estado == "entregada" and filas[0].cantidad_real_entregada == 4950.0
