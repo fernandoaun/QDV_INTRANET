@@ -242,10 +242,13 @@ def test_chofer_carga_camion_por_whatsapp(app, client, monkeypatch):
 
     resumen, _ = cargar({"litros": 15000})
     assert "chofer Rafa" in resumen
+    # Nombres de campo inventados por el modelo (caso real de Rafa, 13/10/2026).
+    resumen, _ = cargar({"litros_carga_camion": 7000, "chofer_nombre": "Rafa", "camion": "17-280"})
+    assert "7000 L" in resumen and "chofer Rafa" in resumen
     resumen, _ = cargar({"litros": 9800, "entrega_id": prog_id})
     assert f"#{prog_id}" in resumen
     with app.app_context():
-        directa = db.session.query(Entrega).filter_by(chofer_previsto="Rafa").one()
-        assert directa.estado == "cargada" and directa.cantidad_real_cargada == 15000.0
+        directas = db.session.query(Entrega).filter_by(chofer_previsto="Rafa").order_by(Entrega.id).all()
+        assert [(d.estado, d.cantidad_real_cargada) for d in directas] == [("cargada", 15000.0), ("cargada", 7000.0)]
         e = db.session.get(Entrega, prog_id)
         assert e.estado == "cargada" and e.cantidad_real_cargada == 9800.0 and e.cargada_by_user_id == uid

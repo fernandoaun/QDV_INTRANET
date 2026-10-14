@@ -302,11 +302,16 @@ def _chofer_para(user: User, nombre: str) -> Any:
 
 
 def _carga_camion_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    # El modelo a veces inventa nombres de campo (litros_cargados, chofer_nombre): se aceptan.
+    payload = dict(payload)
+    for k in ("litros_cargados", "litros_carga_camion", "cantidad", "cantidad_litros"):
+        if payload.get("litros") in (None, "") and payload.get(k) not in (None, ""):
+            payload["litros"] = payload[k]
     eid = str(payload.get("entrega_id") or "").strip().lstrip("#")
     return {
         "litros": _float(payload, "litros", "Litros cargados"),
         "entrega_id": int(eid) if eid.isdigit() else None,
-        "chofer": str(payload.get("chofer") or "").strip(),
+        "chofer": str(payload.get("chofer") or payload.get("chofer_nombre") or "").strip(),
     }
 
 
