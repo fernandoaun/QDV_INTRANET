@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 from app.extensions import db
 from app.models.sgi import (
     ESTADO_BORRADOR,
+    ESTADO_VIGENTE,
     ESTADO_LABELS,
     ESTADOS_DOCUMENTO,
     SLUG_TO_TIPO,

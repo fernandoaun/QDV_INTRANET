@@ -75,7 +75,7 @@ def parse_anexo_contenido(anexo: SgiProcedimientoAnexo) -> dict[str, Any]:
     return data
 
 
-def documento_payload_for_view(anexo: SgiProcedimientoAnexo) -> dict[str, Any]:
+def anexo_payload_for_view(anexo: SgiProcedimientoAnexo) -> dict[str, Any]:
     data = parse_anexo_contenido(anexo)
     return {
         "titulo": data.get("titulo") or anexo.nombre,

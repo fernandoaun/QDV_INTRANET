@@ -1558,3 +1558,29 @@ def test_msgi_anexo_view_and_download(auth_client, app):
     r_vista = auth_client.get(f"/sgi/msgc/procedimientos/{doc_id}/vista/{rev_id}")
     assert r_vista.status_code == 200
     assert b"sgi-anexo-preview-img" in r_vista.data
+
+
+def test_listado_sgi_con_documentos_aprobados_y_vigentes(app, auth_client):
+    """Regresión: el listado se caía (NameError ESTADO_VIGENTE) apenas había un documento aprobado."""
+    from app.extensions import db
+    from app.models import SgiDocumento
+
+    with app.app_context():
+        db.session.add_all([
+            SgiDocumento(tipo="MSGC", codigo="QDV-MSGC-90", titulo="APROBADO", estado="aprobado"),
+            SgiDocumento(tipo="MSGC", codigo="QDV-MSGC-91", titulo="VIGENTE", estado="vigente"),
+        ])
+        db.session.commit()
+    r = auth_client.get("/sgi/msgc/")
+    assert r.status_code == 200
+    assert "sgi-row-vigente" in r.get_data(as_text=True)
+
+
+def test_anexo_payload_no_pisa_payload_de_documento():
+    """Regresión: había dos documento_payload_for_view y la segunda pisaba la de anexos (TypeError al ver un anexo)."""
+    import inspect
+
+    from app.services import sgi_anexo_service as anexo_svc
+
+    assert list(inspect.signature(anexo_svc.anexo_payload_for_view).parameters) == ["anexo"]
+    assert list(inspect.signature(anexo_svc.documento_payload_for_view).parameters) == ["doc", "rev"]
