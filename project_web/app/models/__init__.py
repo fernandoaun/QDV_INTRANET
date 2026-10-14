@@ -40,7 +40,7 @@ from app.models.birthday_reminder_sent import BirthdayReminderSent
 from app.models.deadline_reminder_sent import DeadlineReminderSent
 from app.models.user import PermisoPuesto, PermisoRecursoConocido, PermisoUsuario, User
 from app.models.whatsapp_aviso import WhatsappAviso
-from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoHistorial
+from app.models.vencimiento import SectorVencimiento, Vencimiento, VencimientoAvisoWhatsapp, VencimientoHistorial
 from app.models.personal import (
     EmpleadoPersonal,
     PersonalApercibimiento,
@@ -139,6 +139,7 @@ __all__ = [
     "SectorVencimiento",
     "Vencimiento",
     "VencimientoHistorial",
+    "VencimientoAvisoWhatsapp",
     "SgiDocumento",
     "SgiDocumentoHistorial",
     "SgiDocumentoPerfil",

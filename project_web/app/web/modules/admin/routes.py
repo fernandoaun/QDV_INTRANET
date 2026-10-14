@@ -34,6 +34,7 @@ from app.services import stock_alert_email_service as stock_alert_svc
 from app.services import sgi_anexo_service as anexo_svc
 from app.services.mail_service import enviar_mail, is_mail_fully_configured, smtp_diagnostic_summary
 from app.services.personal_epp_reminder_service import run_entrega_epp_reminders
+from app.services import vencimiento_reminder_service as venc_rem
 from app.services.vencimiento_reminder_service import run_vencimiento_reminders
 from app.utils.datetime_operacion import now_operacion_local_iso_seconds
 from app.user_roles import (
@@ -798,7 +799,28 @@ def deadline_alert_emails():
         stock_critical_db_rows=stock_alert_svc.list_emails_ordered() if u.is_admin else [],
         stock_critical_merged=stock_alert_svc.merged_recipient_addresses(current_app) if u.is_admin else [],
         stock_critical_env_addresses=stock_critical_env if u.is_admin else [],
+        venc_wa_candidatos=_venc_wa_candidatos(),
+        venc_wa_elegidos={x.id for x in venc_rem.usuarios_aviso_whatsapp()},
     )
+
+
+def _venc_wa_candidatos() -> list[User]:
+    """Usuarios activos con celular (propio o del legajo) para elegir quién recibe los vencimientos por WhatsApp."""
+    from sqlalchemy import select
+
+    usuarios = db.session.scalars(select(User).where(User.activo.is_(True)).order_by(User.nombre_completo, User.username)).all()
+    return [x for x in usuarios if venc_rem._telefono_usuario(x)]
+
+
+@bp.post("/avisos-correo/vencimientos-whatsapp")
+@login_required
+@admin_required
+def vencimientos_whatsapp_guardar():
+    ids = [int(x) for x in request.form.getlist("user_id") if str(x).isdigit()]
+    validos = {x.id for x in _venc_wa_candidatos()}
+    venc_rem.guardar_usuarios_aviso_whatsapp([i for i in ids if i in validos])
+    flash("Guardado: quiénes reciben los vencimientos por WhatsApp.", "success")
+    return redirect(url_for("admin_users.deadline_alert_emails"))
 
 
 @bp.post("/avisos-correo/enviar-vencimientos")

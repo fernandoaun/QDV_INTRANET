@@ -5,6 +5,7 @@ Por defecto se avisa cuando faltan hasta 30 días para el vencimiento (variable
 `DEADLINE_REMINDER_DAYS_BEFORE`), una vez por registro, al correo del ítem (`email_aviso`).
 
 Usa la misma configuración SMTP que el panel «Avisos por correo» (variables SMTP_* / MAIL_FROM).
+Por WhatsApp llega además al responsable (por nombre) y a los usuarios marcados en ese panel.
 Ejecutar una vez al día: `python -m flask --app run send-deadline-reminders`
 (o el botón «Enviar avisos de vencimientos» en Administración → Avisos por correo).
 """
@@ -13,6 +14,8 @@ from __future__ import annotations
 
 import html as html_lib
 import logging
+import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 
@@ -70,6 +73,96 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
         f"{link_html}<p style=\"color:#666;font-size:12px\">No responder a este mensaje.</p>"
     )
     return plain, html_body
+
+
+def _sin_acentos(s: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", (s or "").lower()) if unicodedata.category(c) != "Mn")
+
+
+def _palabras(s: str) -> set[str]:
+    return {w for w in re.split(r"[^a-z0-9]+", _sin_acentos(s)) if len(w) > 1}
+
+
+def _telefono_usuario(u: Any) -> str:
+    """WhatsApp del usuario o, si no tiene, el teléfono de su legajo activo."""
+    from app.services.whatsapp_identity import normalize_whatsapp_e164
+
+    if u is None or not u.activo:
+        return ""
+    e164 = normalize_whatsapp_e164(u.whatsapp_e164)
+    emp = getattr(u, "empleado_personal", None)
+    if not e164 and emp is not None and (emp.estado or "activo") == "activo":
+        e164 = normalize_whatsapp_e164(emp.telefono)
+    return e164
+
+
+def telefono_responsable(responsable: str) -> str:
+    """Celular del responsable (texto libre, p. ej. «Mauricio Lavin»): usuario o legajo con ese nombre y apellido."""
+    from sqlalchemy import select
+
+    from app.models import EmpleadoPersonal, User
+    from app.services.whatsapp_identity import normalize_whatsapp_e164
+
+    buscado = _palabras(responsable)
+    if len(buscado) < 2:
+        return ""
+    for u in db.session.scalars(select(User).where(User.activo.is_(True))).all():
+        if buscado <= _palabras(u.nombre_completo or "") and (tel := _telefono_usuario(u)):
+            return tel
+    for emp in db.session.scalars(select(EmpleadoPersonal)).all():
+        if (emp.estado or "activo") != "activo":
+            continue
+        if buscado <= _palabras(f"{emp.apellido} {emp.nombre}"):
+            tel = normalize_whatsapp_e164(emp.telefono)
+            if not tel and emp.user_id:
+                tel = _telefono_usuario(db.session.get(User, int(emp.user_id)))
+            if tel:
+                return tel
+    return ""
+
+
+def usuarios_aviso_whatsapp() -> list[Any]:
+    from sqlalchemy import select
+
+    from app.models import User, VencimientoAvisoWhatsapp
+
+    return list(
+        db.session.scalars(
+            select(User).join(VencimientoAvisoWhatsapp, VencimientoAvisoWhatsapp.user_id == User.id).order_by(User.nombre_completo)
+        ).all()
+    )
+
+
+def guardar_usuarios_aviso_whatsapp(user_ids: list[int]) -> None:
+    from sqlalchemy import delete
+
+    from app.models import VencimientoAvisoWhatsapp
+
+    db.session.execute(delete(VencimientoAvisoWhatsapp))
+    for uid in sorted(set(int(x) for x in user_ids)):
+        db.session.add(VencimientoAvisoWhatsapp(user_id=uid))
+    db.session.commit()
+
+
+def encolar_whatsapp_extra(v: Any, asunto: str, plain: str, ya_avisados: list[str]) -> int:
+    """WhatsApp al responsable del ítem y a los usuarios elegidos en el panel, sin repetir a quien ya le llegó por el mail."""
+    from app.models import WhatsappAviso
+    from app.services.whatsapp_avisos_service import armar_texto, telefonos_por_email
+
+    try:
+        ya = set(telefonos_por_email(ya_avisados).values())
+        tels = [telefono_responsable(v.responsable or "")] + [_telefono_usuario(u) for u in usuarios_aviso_whatsapp()]
+        nuevos = sorted({t for t in tels if t} - ya)
+        if not nuevos:
+            return 0
+        texto = armar_texto(asunto, plain)
+        db.session.add_all(WhatsappAviso(telefono_e164=t, texto=texto) for t in nuevos)
+        db.session.commit()
+        return len(nuevos)
+    except Exception:
+        db.session.rollback()
+        log.exception("No se pudo encolar el WhatsApp extra del vencimiento id=%s", getattr(v, "id", None))
+        return 0
 
 
 def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]:
@@ -145,6 +238,7 @@ def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, A
             )
             db.session.commit()
             result["emails_sent"] += 1
+            encolar_whatsapp_extra(v, subject, plain, [to_addr, *cc_use])
         except Exception as exc:
             db.session.rollback()
             err_txt = str(exc)[:2000]

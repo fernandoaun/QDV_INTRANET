@@ -57,3 +57,13 @@ class VencimientoHistorial(db.Model):
     usuario = db.Column(db.String(256), nullable=False, default="", server_default="")
     accion = db.Column(db.String(64), nullable=False, index=True)
     detalle = db.Column(db.String(8000), nullable=False, default="", server_default="")
+
+
+class VencimientoAvisoWhatsapp(db.Model):
+    """Usuarios que reciben por WhatsApp todos los avisos de vencimientos (además del correo del ítem y el responsable)."""
+
+    __tablename__ = "vencimiento_aviso_whatsapp"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)

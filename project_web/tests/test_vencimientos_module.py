@@ -182,3 +182,52 @@ def test_candidatos_aviso_mail_fuera_de_ventana(app):
         )
         db.session.commit()
         assert vs.candidatos_aviso_mail(today=today, days_before=30) == []
+
+
+def test_aviso_vencimiento_por_whatsapp_a_responsable_y_elegidos(app, auth_client, monkeypatch):
+    """El aviso llega por WhatsApp al responsable (por nombre) y a los usuarios marcados en el panel, sin repetir."""
+    from datetime import timedelta
+
+    from app.extensions import db
+    from app.models import SectorVencimiento, User, Vencimiento, WhatsappAviso
+    from app.services import vencimiento_reminder_service as vr
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    monkeypatch.setattr(vr, "enviar_mail", lambda *a, **k: None)
+    monkeypatch.setattr(vr, "is_mail_fully_configured", lambda _app: True)
+    app.config["VENCIMIENTO_MAIL_CC_PANEL"] = False
+
+    def user(username, nombre, wa):
+        u = User(username=username, nombre_completo=nombre, password_hash="x", activo=True, rol="logistica", whatsapp_e164=wa)
+        db.session.add(u)
+        db.session.flush()
+        return u
+
+    with app.app_context():
+        user("pt_mauri", "Lavín, Mauricio Damián", "+5492990000001")
+        p1 = user("pt_pacher1", "Pacher, Fernando", "+5492990000002")
+        p2 = user("pt_pacher2", "Pacher, Silvano", "+5492990000003")
+        user("pt_otro", "Otro, Usuario", "+5492990000004")
+        sec = SectorVencimiento(nombre="Pytest")
+        db.session.add(sec)
+        db.session.flush()
+        db.session.add(
+            Vencimiento(
+                sector_id=sec.id,
+                nombre="Habilitación pytest",
+                fecha_vencimiento=now_operacion_naive_local().date() + timedelta(days=10),
+                responsable="Mauricio Lavin",
+                email_aviso="nadie@example.com",
+            )
+        )
+        db.session.commit()
+        vr.guardar_usuarios_aviso_whatsapp([p1.id, p2.id])
+
+        out = vr.run_vencimiento_reminders(app)
+        assert out["emails_sent"] == 1
+        tels = sorted(a.telefono_e164 for a in db.session.query(WhatsappAviso).all())
+        assert tels == ["+5492990000001", "+5492990000002", "+5492990000003"]
+        assert "Habilitación pytest" in db.session.query(WhatsappAviso).first().texto
+
+    html = auth_client.get("/admin/avisos-correo").get_data(as_text=True)
+    assert "Pacher, Silvano" in html and "checked" in html
