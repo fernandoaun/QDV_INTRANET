@@ -460,6 +460,8 @@ class Entrega(db.Model):
     cantidad_programada = db.Column(db.Float, nullable=True)
     cantidad_real_cargada = db.Column(db.Float, nullable=True)
     cantidad_real_entregada = db.Column(db.Float, nullable=True)
+    # Agua que va en el camión además del producto: solo informativa (no toca stock ni producción).
+    agua_litros = db.Column(db.Float, nullable=True)
     unidad = db.Column(db.String(64), nullable=True)
     fecha_prevista = db.Column(db.String(16), nullable=False, index=True)
     observaciones = db.Column(db.Text)

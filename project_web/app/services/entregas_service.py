@@ -661,6 +661,7 @@ def entrega_to_api_dict(e: Entrega) -> dict[str, Any]:
         "cantidad_programada": cantidad_programada_operativa(e),
         "cantidad_real_cargada": float(e.cantidad_real_cargada) if e.cantidad_real_cargada is not None else None,
         "cantidad_real_entregada": float(e.cantidad_real_entregada) if e.cantidad_real_entregada is not None else None,
+        "agua_litros": float(e.agua_litros) if e.agua_litros is not None else None,
         "cantidad_operativa_cargada": cantidad_cargada_operativa(e),
         "cantidad_operativa_entregada": cantidad_entregada_operativa(e),
         "unidad": ((e.unidad or "").strip() or None),

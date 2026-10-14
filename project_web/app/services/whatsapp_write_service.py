@@ -316,12 +316,23 @@ def _carga_camion_fields(payload: dict[str, Any]) -> dict[str, Any]:
     for k in ("litros_cargados", "litros_carga_camion", "cantidad", "cantidad_litros"):
         if payload.get("litros") in (None, "") and payload.get(k) not in (None, ""):
             payload["litros"] = payload[k]
+    for k in ("agua", "litros_agua", "agua_l"):
+        if payload.get("agua_litros") in (None, "") and payload.get(k) not in (None, ""):
+            payload["agua_litros"] = payload[k]
     eid = str(payload.get("entrega_id") or "").strip().lstrip("#")
+    agua = _float(payload, "agua_litros", "Litros de agua") if payload.get("agua_litros") not in (None, "") else 0.0
+    if agua < 0:
+        raise ValueError("Los litros de agua no pueden ser negativos.")
     return {
         "litros": _float(payload, "litros", "Litros cargados"),
+        "agua_litros": agua,
         "entrega_id": int(eid) if eid.isdigit() else None,
         "chofer": str(payload.get("chofer") or payload.get("chofer_nombre") or "").strip(),
     }
+
+
+def _con_agua(resumen: str, agua: float) -> str:
+    return resumen + (f" · + {agua:g} L de agua" if agua else " · sin agua")
 
 
 def _carga_camion_preview(user: User, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -348,11 +359,12 @@ def _carga_camion_preview(user: User, payload: dict[str, Any]) -> tuple[str, dic
         aviso = entregas_service.cantidad_real_warning(prog, row["litros"])
         if aviso:
             resumen += f" · ⚠ {aviso}"
-        return resumen, row
+        return _con_agua(resumen, row["agua_litros"]), row
     ch = _chofer_para(user, row["chofer"])
     row["chofer"] = ch.nombre
     raise_if_carga_qty_exceeds_instant(row["litros"])
-    return f"Camión cargado {row['litros']:g} L · chofer {ch.nombre} · logística asigna el destino", row
+    resumen = f"Camión cargado {row['litros']:g} L · chofer {ch.nombre} · logística asigna el destino"
+    return _con_agua(resumen, row["agua_litros"]), row
 
 
 def _carga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]:
@@ -375,6 +387,7 @@ def _carga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]
                 {"chofer_entrega_id": str(ch.id), "cantidad": str(row["litros"])}, user
             )
             msg = "Camión cargado. Logística asigna el destino."
+        ent.agua_litros = row["agua_litros"] or None
         db.session.commit()
     except Exception:
         db.session.rollback()

@@ -420,6 +420,9 @@
             {% elif cantidad_cargada is not none %}
             <div><span class="text-muted small">Cargado:</span> {{ cantidad_cargada }} L</div>
             {% endif %}
+            {% if e.agua_litros %}
+            <div><span class="text-muted small">Agua:</span> {{ e.agua_litros }} L</div>
+            {% endif %}
             <div><span class="text-muted small">A descargar:</span> {{ cantidad_programada }} L</div>
             {% if cantidad_entregada is not none %}
             <div><span class="fw-semibold">Entregado:</span> {{ cantidad_entregada }} L</div>

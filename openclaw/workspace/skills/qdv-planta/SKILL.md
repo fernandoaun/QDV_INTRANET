@@ -45,7 +45,8 @@ Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_co
 Carga de camión (`carga_camion`, choferes y operaciones; no pide turno):
 - Primero mirá `entregas`: si hay una entrega `programada` de hoy para ese chofer (`chofer_previsto`), ofrecésela y cargá con `{"entrega_id":N,"litros":X}` (litros reales cargados).
 - Si no hay programada (o dice que es otra), carga directa: `{"litros":X}`; el chofer sale de su usuario (o pasá `"chofer":"Rafa"`).
-- Los campos son exactamente `litros`, `entrega_id`, `chofer`. No inventes otros.
+- Si te dice solo los litros de hipoclorito, antes del preview preguntale: «¿Llevás agua también? ¿Cuántos litros?». Si lleva, mandá `"agua_litros":Y`; si no, no lo mandes. Si ya te dijo hipoclorito y agua juntos, no preguntes. El agua no toca stock ni producción: solo queda anotada en la carga.
+- Los campos son exactamente `litros` (hipoclorito), `agua_litros`, `entrega_id`, `chofer`. No inventes otros.
 Descarga del camión (`descarga_camion`, choferes; una por cada punto donde descargan):
 - `{"destino":"<texto como lo dijo el chofer>","litros":X}`. Usa la última carga del chofer que todavía tiene litros; si dice otra, agregá `"entrega_id":N`.
 - Si el sistema responde que hay varios destinos («¿Cuál?»), preguntale al chofer cuál de esas opciones y reenviá con ese texto. Si el destino no existe, decile que logística lo tiene que dar de alta.

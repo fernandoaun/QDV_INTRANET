@@ -24,6 +24,9 @@
     {% if entrega.cantidad_real_cargada is not none %}
     <div class="col-md-4"><span class="app-text-secondary">Cantidad real cargada</span><br><strong>{{ entrega.cantidad_real_cargada }} L</strong></div>
     {% endif %}
+    {% if entrega.agua_litros %}
+    <div class="col-md-4"><span class="app-text-secondary">Agua en el camión</span><br><strong>{{ entrega.agua_litros }} L</strong></div>
+    {% endif %}
     {% if entrega.cantidad_real_entregada is not none %}
     <div class="col-md-4"><span class="app-text-secondary">Cantidad real entregada</span><br><strong>{{ entrega.cantidad_real_entregada }} L</strong></div>
     {% endif %}
