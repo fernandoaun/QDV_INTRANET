@@ -113,7 +113,7 @@
         <td class="text-muted small ps-4">↳</td>
         <td colspan="7">
           <span class="text-muted small me-1">Registro · 7</span>
-          {% if rg.n_archivos %}
+          {% if rg.n_archivos and not rg.modulo and not rg.has_digital_record %}
           <a class="fw-semibold text-decoration-none" href="{{ rg.archivo_url }}">{{ rg.nombre }}</a>
           <span class="badge text-bg-secondary ms-1" title="Archivos cargados">{{ rg.n_archivos }} archivo{{ 's' if rg.n_archivos != 1 }}</span>
           {% else %}
@@ -136,7 +136,7 @@
           {% endif %}
         </td>
         <td class="text-end text-nowrap sgi-list-registro-acciones">
-          {% if rg.n_archivos %}
+          {% if rg.n_archivos and not rg.modulo and not rg.has_digital_record %}
           <a class="btn btn-sm btn-outline-primary me-1" href="{{ rg.archivo_url }}">Ver archivos ({{ rg.n_archivos }})</a>
           {% endif %}
           {% if rg.has_digital_record and rg.record_url %}

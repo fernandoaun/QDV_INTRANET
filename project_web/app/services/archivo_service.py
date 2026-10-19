@@ -260,8 +260,10 @@ def hub_tree(*, for_user: User | None = None, solo_aprobados: bool = False) -> l
         )
         regs = []
         for r in list_registros(doc, rev=rev if solo_aprobados else None):
-            cs = _cargas_of(doc, r)
-            regs.append({"row": r, "n_cargas": len(cs), "cargas": cs, **_destino_registro(r)})
+            destino = _destino_registro(r)
+            # Si el registro se lleva en un módulo o registro digital del SGC, los archivos sueltos no se listan.
+            cs = [] if destino["destino_url"] else _cargas_of(doc, r)
+            regs.append({"row": r, "n_cargas": len(cs), "cargas": cs, **destino})
         grouped.setdefault(doc.tipo, []).append(
             {
                 "doc": doc,
