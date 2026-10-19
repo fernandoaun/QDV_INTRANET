@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Perfiles de puesto · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Perfiles de puesto</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-05 · {{ perfiles|length }} perfil(es)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if es_admin %}<a class="btn btn-primary btn-sm" href="{{ url_for('perfiles_puesto.nuevo') }}"><i class="bi bi-plus-lg me-1"></i>Nuevo perfil</a>{% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th>Puesto</th><th>Proceso</th><th>Supervisor</th><th class="text-center">Tareas</th><th>Actualizado</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for p in perfiles %}
+        <tr>
+          <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('perfiles_puesto.ver', perfil_id=p.id) }}">{{ p.puesto }}</a></td>
+          <td class="small">{{ p.proceso or '—' }}</td>
+          <td class="small">{{ p.supervisor or '—' }}</td>
+          <td class="text-center small">{{ items(p.tareas)|length }}</td>
+          <td class="small text-nowrap">{{ p.fecha_actualizacion.strftime('%d/%m/%Y') if p.fecha_actualizacion else '—' }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('perfiles_puesto.ver', perfil_id=p.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('perfiles_puesto.ver', perfil_id=p.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay perfiles de puesto cargados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

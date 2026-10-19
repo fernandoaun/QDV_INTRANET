@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Perfil de puesto{% if perfil %} · {{ perfil.puesto }}{% elif blanco %} (en blanco){% else %} nuevo{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-05_01: misma estructura que el perfil en Word (siempre "papel"). */
+  .pp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .pp-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .82rem; }
+  .pp-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .pp-head td { border: 2px solid #000; vertical-align: middle; }
+  .pp-head .logo { width: 20%; text-align: center; }
+  .pp-head .logo img { max-height: 70px; }
+  .pp-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .pp-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .pp-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+  .pp-tabla td, .pp-tabla th { border: 1.5px solid #333; padding: 5px 8px; vertical-align: top; }
+  .pp-tabla th.sec { background: #d9d9d9; text-align: center; font-size: .9rem; letter-spacing: .02em; }
+  .pp-tabla th.sub { background: #f2f2f2; text-align: left; font-weight: 700; }
+  .pp-tabla td.rot { width: 28%; font-weight: 700; background: #fafafa; }
+  .pp-lista { margin: 0; padding: 0 0 0 18px; }
+  .pp-lista li { line-height: 1.3; margin-bottom: 1px; }
+  .pp-pie { margin-top: 4px; font-size: .9rem; }
+  .pp-sheet textarea, .pp-sheet input { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 4px 6px; }
+  .pp-sheet textarea { min-height: 70px; resize: vertical; }
+  .pp-sheet textarea.largo { min-height: 220px; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .pp-sheet, .pp-sheet * { visibility: visible; }
+    .pp-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro valor(clave, largo=False) -%}
+  {% if editar %}
+    {% if clave in ('puesto', 'proceso', 'supervisor', 'aprobado_por') %}
+    <input name="{{ clave }}" maxlength="160" value="{{ perfil[clave] if perfil else '' }}"{% if clave == 'puesto' %} required{% endif %} aria-label="{{ perfil_campo_labels[clave] }}">
+    {% else %}
+    <textarea name="{{ clave }}" class="{{ 'largo' if largo }}" aria-label="{{ perfil_campo_labels[clave] }} (un ítem por renglón)">{{ perfil[clave] if perfil else '' }}</textarea>
+    {% endif %}
+  {% elif perfil %}
+    {% if clave in ('puesto', 'proceso', 'supervisor', 'aprobado_por') %}{{ perfil[clave] }}
+    {% else %}
+      {% set its = items(perfil[clave]) %}
+      {% if its|length == 1 %}{{ its[0] }}{% elif its %}<ul class="pp-lista">{% for it in its %}<li>{{ it }}</li>{% endfor %}</ul>{% endif %}
+    {% endif %}
+  {% else %}<div style="min-height:{{ '160px' if largo else '28px' }}"></div>{% endif %}
+{%- endmacro %}
+{% macro fila(clave, largo=False) -%}
+<tr><td class="rot">{{ perfil_campo_labels[clave] }}:</td><td>{{ valor(clave, largo) }}</td></tr>
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Perfil de puesto{% if perfil %} — {{ perfil.puesto }}{% elif blanco %} — en blanco{% else %} — nuevo{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-05{% if editar %} · En las listas, escribí un ítem por renglón.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="ppForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('perfiles_puesto.ver', perfil_id=perfil.id) if perfil else url_for('perfiles_puesto.hub') }}">Cancelar</a>
+    {% else %}
+    {% if perfil and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('perfiles_puesto.ver', perfil_id=perfil.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if perfil %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('perfiles_puesto.ver', perfil_id=perfil.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('perfiles_puesto.hub') }}">Todos los perfiles</a>
+  </div>
+</div>
+
+<form id="ppForm" method="post" action="{{ url_for('perfiles_puesto.ver', perfil_id=perfil.id) if perfil else url_for('perfiles_puesto.nuevo') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="pp-scroll app-card p-0 mb-3">
+  <div class="pp-sheet">
+    <table class="pp-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ reg.fecha_vigencia.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="pp-tabla">
+      <tr><th class="sec" colspan="2">INFORMACIÓN PRINCIPAL</th></tr>
+      {{ fila('puesto') }}
+      {{ fila('proceso') }}
+      {{ fila('supervisor') }}
+      {{ fila('supervisa_a') }}
+      {{ fila('interactua_con') }}
+    </table>
+
+    <table class="pp-tabla">
+      <tr><th class="sec" colspan="2">DESCRIPCIÓN DEL CARGO</th></tr>
+      {{ fila('tareas', largo=True) }}
+    </table>
+
+    <table class="pp-tabla">
+      <tr><th class="sec" colspan="2">COMPETENCIAS</th></tr>
+      <tr><th class="sub" colspan="2">Competencias cognitivas</th></tr>
+      {{ fila('educacion') }}
+      {{ fila('formacion') }}
+      {{ fila('idiomas_otros') }}
+      <tr><th class="sub" colspan="2">Competencias funcionales</th></tr>
+      {{ fila('experiencia') }}
+      {{ fila('habilidades') }}
+      {{ fila('autoridad') }}
+      {{ fila('rendicion_cuentas') }}
+    </table>
+
+    <div class="pp-pie">
+      <div><b>Fecha de actualización:</b> {% if perfil and perfil.fecha_actualizacion %}{{ perfil.fecha_actualizacion.strftime('%d/%m/%Y') }}{% endif %}</div>
+      <div class="d-flex align-items-baseline gap-2"><b class="text-nowrap">Aprobado por:</b> {% if editar %}{{ valor('aprobado_por') }}{% elif perfil %}{{ perfil.aprobado_por }}{% endif %}</div>
+    </div>
+  </div>
+</div>
+</form>
+
+{% if perfil and editar and es_admin %}
+<form method="post" action="{{ url_for('perfiles_puesto.baja', perfil_id=perfil.id) }}" onsubmit="return confirm('¿Dar de baja este perfil? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja el perfil</button>
+</form>
+{% endif %}
+
+{% if historial is not none and historial is defined %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ perfil_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -31,6 +31,7 @@ from app.models.lab_reagent import LaboratoryReagent, LaboratoryReagentUsage
 from app.models.planificacion import PlanificacionActividad, PlanificacionDependencia, PlanificacionSerie
 from app.models.objetivos import Objetivo, ObjetivoCambio, ObjetivoMes, ObjetivoPrograma
 from app.models.fichas_proceso import FichaProceso, FichaProcesoCambio
+from app.models.perfiles_puesto import PerfilPuesto, PerfilPuestoCambio
 from app.models.parametro import AppParametro
 from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
@@ -126,6 +127,8 @@ __all__ = [
     "ObjetivoCambio",
     "FichaProceso",
     "FichaProcesoCambio",
+    "PerfilPuesto",
+    "PerfilPuestoCambio",
     "AppParametro",
     "PlanificacionDependencia",
     "SecurityAuditLog",
