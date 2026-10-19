@@ -168,6 +168,35 @@ def count_cargas_registro(doc_id: int, clave: str) -> int:
     )
 
 
+def conteo_cargas_registros(items: list[tuple[int, int, str]]) -> dict[tuple[int, int], int]:
+    """Archivos cargados por registro: {(doc_id, registro_id): n}. items = (doc_id, registro_id, nombre).
+
+    Mismo criterio que el hub: cuenta las cargas por id de registro o por nombre normalizado, sin duplicar.
+    """
+    doc_ids = {int(d) for d, _, _ in items}
+    if not doc_ids:
+        return {}
+    rows = db.session.execute(
+        select(ArchivoCarga.id, ArchivoCarga.sgi_documento_id, ArchivoCarga.sgi_registro_id, ArchivoCarga.registro_clave).where(
+            ArchivoCarga.deleted_at.is_(None),
+            ArchivoCarga.sgi_documento_id.in_(doc_ids),
+        )
+    ).all()
+    by_rid: dict[tuple[int, int], set[int]] = {}
+    by_key: dict[tuple[int, str], set[int]] = {}
+    for cid, did, rid, clave in rows:
+        if rid:
+            by_rid.setdefault((int(did), int(rid)), set()).add(int(cid))
+        if clave:
+            by_key.setdefault((int(did), clave), set()).add(int(cid))
+    out: dict[tuple[int, int], int] = {}
+    for did, rid, nombre in items:
+        ids = by_rid.get((int(did), int(rid)), set()) | by_key.get((int(did), registro_clave(nombre)), set())
+        if ids:
+            out[(int(did), int(rid))] = len(ids)
+    return out
+
+
 def counts_hub(*, solo_aprobados: bool = False) -> dict[str, int]:
     tree = hub_tree(solo_aprobados=solo_aprobados)
     n_proc = sum(len(sec["procedimientos"]) for sec in tree)

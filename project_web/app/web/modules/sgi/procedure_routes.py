@@ -27,6 +27,7 @@ from app.models.sgi import (
     SgiProcedimientoRevision,
     TIPO_MSGI,
 )
+from app.services import archivo_service as archivo_svc
 from app.services import sgi_anexo_service as anexo_svc
 from app.services import sgi_documento_perfil_service as perfil_svc
 from app.services import sgi_procedimiento_service as proc_svc
@@ -201,6 +202,15 @@ def listado_procedimientos(slug: str):
         rid = meta.get("rev_id")
         if rid:
             meta["registros"] = registros_por_rev.get(rid, [])
+
+    # Archivos subidos en Procedimientos y registros (Archivo) para cada registro del punto 7.
+    n_archivos = archivo_svc.conteo_cargas_registros(
+        [(doc_id, rg["id"], rg["nombre"]) for doc_id, meta in row_meta.items() for rg in meta["registros"]]
+    )
+    for doc_id, meta in row_meta.items():
+        for rg in meta["registros"]:
+            rg["n_archivos"] = n_archivos.get((int(doc_id), int(rg["id"])), 0)
+            rg["archivo_url"] = url_for("archivo.registro", doc_id=doc_id, registro_id=rg["id"])
 
     return render_template(
         "sgi/procedure_list.html",
