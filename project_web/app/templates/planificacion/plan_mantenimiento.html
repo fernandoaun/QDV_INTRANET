@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Plan de mantenimiento {{ anio }}{% if blanco %} (en blanco){% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  .pm-tabla { font-size: .85rem; }
+  .pm-tabla th, .pm-tabla td { vertical-align: middle; }
+  .pm-tabla th.pm-mes, .pm-tabla td.pm-mes { width: 3.2rem; min-width: 3.2rem; text-align: center; padding-left: 2px; padding-right: 2px; }
+  .pm-tabla .pm-actual { background: var(--bs-warning-bg-subtle, #fff3cd); }
+  .pm-chip { display: inline-block; min-width: 1.9rem; padding: 1px 4px; margin: 1px 0; border-radius: 4px; font-size: .75rem; font-weight: 600; line-height: 1.4; text-decoration: none; border: 1px solid transparent; }
+  .pm-hecho { background: var(--bs-success, #198754); color: #fff; }
+  .pm-vencido { background: var(--bs-danger, #dc3545); color: #fff; }
+  .pm-programado { background: var(--bs-primary, #0d6efd); color: #fff; }
+  .pm-previsto { background: transparent; color: var(--bs-primary, #0d6efd); border-color: var(--bs-primary, #0d6efd); border-style: dashed; }
+  .pm-leyenda .pm-chip { min-width: 1.4rem; }
+  .pm-activo { min-width: 12rem; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    .app-page-actions, .pm-no-print, .app-sidenav, .app-topbar { display: none !important; }
+    .pm-tabla { font-size: 7.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title text-uppercase">Plan de mantenimiento {{ anio }}{% if blanco %} — en blanco{% endif %}</h1>
+    <p class="app-intro mb-0">Registro SGI {{ reg_pm.codigo }} · procedimiento {{ reg_pm.procedimiento }}. {% if not blanco %}Se arma solo con los planes preventivos y las órdenes de trabajo del módulo Mantenimiento.{% endif %}</p>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2 justify-content-end">
+    {% if not blanco %}
+    <div class="btn-group btn-group-sm" role="group" aria-label="Año">
+      <a class="btn btn-outline-secondary" href="{{ url_for('planificacion.plan_mantenimiento', anio=anio - 1) }}" aria-label="Año anterior"><i class="bi bi-chevron-left" aria-hidden="true"></i></a>
+      <span class="btn btn-outline-secondary disabled fw-semibold">{{ anio }}</span>
+      <a class="btn btn-outline-secondary" href="{{ url_for('planificacion.plan_mantenimiento', anio=anio + 1) }}" aria-label="Año siguiente"><i class="bi bi-chevron-right" aria-hidden="true"></i></a>
+    </div>
+    {% if ver_mantenimiento %}<a class="btn btn-outline-primary btn-sm" href="{{ url_for('mantenimiento.preventivos') }}"><i class="bi bi-tools me-1" aria-hidden="true"></i>Planes en Mantenimiento</a>{% endif %}
+    {% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1" aria-hidden="true"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('planificacion.hub') }}"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i>Almanaque</a>
+  </div>
+</div>
+
+{% if not blanco %}
+<div class="pm-leyenda pm-no-print small text-muted mb-2 d-flex flex-wrap gap-3">
+  {% for k, (lbl, cls) in estados_marca.items() %}<span><span class="pm-chip {{ cls }}">&nbsp;</span> {{ lbl }}</span>{% endfor %}
+  <span>El número es el día. Tocá una fecha con orden para abrirla.</span>
+</div>
+{% endif %}
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app table-sm align-middle mb-0 pm-tabla">
+      <thead>
+        <tr>
+          <th class="pm-activo">Activo</th>
+          <th>Ubicación</th>
+          <th>Tipo</th>
+          <th>Frecuencia</th>
+          <th>Responsable</th>
+          {% for m in meses_cortos %}<th class="pm-mes{% if not blanco and anio == today.year and loop.index == today.month %} pm-actual{% endif %}">{{ m }}</th>{% endfor %}
+          <th>Registro asociado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in filas %}
+        <tr>
+          <td class="pm-activo">
+            <div class="fw-semibold">{{ f.activo }}</div>
+            <div class="small text-muted">{{ f.plan.nombre }}</div>
+          </td>
+          <td class="small">{{ f.ubicacion or '—' }}</td>
+          <td class="small">{{ f.tipo }}</td>
+          <td class="small">{{ f.frecuencia or '—' }}</td>
+          <td class="small">{{ f.responsable or '—' }}</td>
+          {% for marcas in f.meses %}
+          <td class="pm-mes{% if anio == today.year and loop.index == today.month %} pm-actual{% endif %}">
+            {% for mk in marcas %}
+            {% set lbl, cls = estados_marca[mk.estado] %}
+            {% if mk.order_id and ver_mantenimiento %}
+            <a class="pm-chip {{ cls }}" href="{{ url_for('mantenimiento.order_detail', order_id=mk.order_id) }}" title="{{ lbl }} · {{ mk.fecha.strftime('%d/%m/%Y') }}">{{ mk.fecha.day }}</a>
+            {% else %}
+            <span class="pm-chip {{ cls }}" title="{{ lbl }} · {{ mk.fecha.strftime('%d/%m/%Y') }}">{{ mk.fecha.day }}</span>
+            {% endif %}
+            {% endfor %}
+          </td>
+          {% endfor %}
+          <td class="small text-nowrap">
+            {% if ver_mantenimiento %}
+            <a class="text-decoration-none" href="{{ url_for('mantenimiento.ordenes', equipo_id=f.plan.equipo_id) }}">Órdenes de trabajo ({{ f.n_ordenes }})</a>
+            {% else %}Órdenes de trabajo ({{ f.n_ordenes }}){% endif %}
+          </td>
+        </tr>
+        {% else %}
+          {% if blanco %}
+            {% for _ in range(12) %}<tr>{% for _ in range(18) %}<td style="height:2rem"></td>{% endfor %}</tr>{% endfor %}
+          {% else %}
+          <tr><td colspan="18" class="text-center text-muted py-4">
+            Todavía no hay planes de mantenimiento activos.
+            {% if ver_mantenimiento %}Se cargan en <a href="{{ url_for('mantenimiento.preventivos') }}">Mantenimiento → Preventivos</a> y aparecen acá solos.{% endif %}
+          </td></tr>
+          {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -7,11 +7,13 @@ from flask import Blueprint, Response, flash, jsonify, redirect, render_template
 from app.auth_utils import (
     current_user,
     login_required,
+    user_can_access_mantenimiento,
     user_can_access_planificacion,
     user_can_edit,
 )
 from app.extensions import db
 from app.models import PlanificacionActividad
+from app.services import plan_mantenimiento_service as pms
 from app.services import planificacion_service as ps
 
 bp = Blueprint("planificacion", __name__, url_prefix="/planificacion")
@@ -164,6 +166,48 @@ def gantt():
         users=ps.list_users_for_responsable(),
         view_mode=view_mode,
         **ps.labels_context(),
+    )
+
+
+@bp.get("/plan-mantenimiento")
+@login_required
+def plan_mantenimiento():
+    """Registro QDV-RG-PO-01_01: plan anual que se arma con los planes y órdenes del módulo Mantenimiento."""
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    today = ps._today()
+    try:
+        anio = int(request.args.get("anio") or today.year)
+    except ValueError:
+        anio = today.year
+    anio = min(max(anio, 2020), today.year + 5)
+    return render_template(
+        "planificacion/plan_mantenimiento.html",
+        filas=pms.plan_anual(anio, today),
+        anio=anio,
+        today=today,
+        blanco=False,
+        ver_mantenimiento=user_can_access_mantenimiento(u),
+        **pms.labels_context(),
+    )
+
+
+@bp.get("/plan-mantenimiento/en-blanco")
+@login_required
+def plan_mantenimiento_en_blanco():
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    today = ps._today()
+    return render_template(
+        "planificacion/plan_mantenimiento.html",
+        filas=[],
+        anio=today.year,
+        today=today,
+        blanco=True,
+        ver_mantenimiento=False,
+        **pms.labels_context(),
     )
 
 
