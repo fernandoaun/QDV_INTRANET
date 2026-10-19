@@ -36,6 +36,14 @@ from app.services import sgi_service as doc_svc
 from app.web.modules.sgi.routes import _no_access, _no_mutate, _require_view, _resolve_tipo, bp
 
 
+def _static_mtime(rel: str) -> str:
+    """Cache-bust de un archivo estático (mtime)."""
+    try:
+        return str(int((Path(current_app.static_folder or "") / rel).stat().st_mtime))
+    except OSError:
+        return "1"
+
+
 def _sgi_record_static_version() -> str:
     """Cache-bust de CSS/JS de registros digitales (mtime)."""
     static = Path(current_app.static_folder or "")
@@ -456,6 +464,7 @@ def procedimiento_editor(slug: str, doc_id: int, rev_id: int | None = None):
             tipo_caratula=TIPO_CARATULA_LABELS.get(tipo or "", "PROCEDIMIENTO"),
             doc=doc,
             rev=rev,
+            proc_js_v=_static_mtime("js/sgi_procedure.js"),
             payload_json=json.dumps(payload, ensure_ascii=False),
             secciones=PROCEDIMIENTO_SECCIONES,
             estados_labels=ESTADO_LABELS,

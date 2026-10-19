@@ -735,7 +735,7 @@
     };
   }
 
-  function applyPuestoSelect(selectEl) {
+  function applyPuestoSelect(selectEl, inicial) {
     if (!selectEl) return;
     const opt = selectEl.options[selectEl.selectedIndex];
     const titulo = (opt?.dataset?.titulo || "").trim();
@@ -745,12 +745,18 @@
     const emailSel = selectEl.dataset.emailTarget;
     if (labelSel) {
       const labelEl = qs(labelSel);
-      if (labelEl && titulo) labelEl.value = titulo.toUpperCase();
+      // Al abrir no se pisa lo guardado (p. ej. el nombre de quien revisó o aprobó).
+      if (labelEl && titulo && !(inicial && labelEl.value.trim())) labelEl.value = titulo.toUpperCase();
       else if (labelEl && !selectEl.value) labelEl.value = labelEl.value;
     }
     if (emailSel) {
       const emailEl = qs(emailSel);
-      if (emailEl) emailEl.value = emails;
+      if (emailEl) {
+        if (emailEl.dataset.roOrig === undefined) emailEl.dataset.roOrig = emailEl.readOnly ? "1" : "0";
+        // Con mail en el legajo del titular, el correo es automático; si no, queda el cargado a mano.
+        if (emails) emailEl.value = emails;
+        emailEl.readOnly = !!emails || emailEl.dataset.roOrig === "1";
+      }
     }
     const hintId =
       selectEl.id === "procRevisoPuesto"
@@ -776,7 +782,7 @@
   function bindPuestoSelects() {
     qsa(".proc-puesto-select").forEach((sel) => {
       sel.addEventListener("change", () => applyPuestoSelect(sel));
-      if (sel.value) applyPuestoSelect(sel);
+      if (sel.value) applyPuestoSelect(sel, true);
     });
   }
 
@@ -798,13 +804,12 @@
   function addCambioRow(row) {
     const tbody = qs("#procCambiosBody");
     if (!tbody) return;
-    const ro = soloLectura || !!row?.readonly;
     const tr = document.createElement("tr");
     if (row?.auto_generado) tr.classList.add("sgi-cc-auto");
     tr.innerHTML = `
       <td><input type="text" class="cc-rev" value="${escapeHtml(row?.revision_ref || "")}" readonly tabindex="-1"></td>
       <td><textarea class="cc-desc" rows="2" readonly tabindex="-1">${escapeHtml(row?.descripcion || "")}</textarea></td>
-      <td><input type="date" class="cc-fecha" value="${escapeHtml(row?.fecha_aprobacion || "")}" ${ro ? "readonly" : ""} tabindex="-1"></td>
+      <td><input type="date" class="cc-fecha" value="${escapeHtml(row?.fecha_aprobacion || "")}" readonly tabindex="-1" title="Se completa al aprobar"></td>
     `;
     tbody.appendChild(tr);
   }

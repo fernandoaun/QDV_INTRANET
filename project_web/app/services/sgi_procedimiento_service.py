@@ -1217,11 +1217,13 @@ def save_revision_content(
         "secciones": secciones,
         "registros": registros,
         "anexos": payload.get("anexos") or [],
-        "fecha_aprobacion": payload.get("fecha_aprobacion"),
+        # Las fechas de elaboración / revisión / aprobación / vigencia las pone el circuito
+        # (enviar a revisión, marcar revisado, aprobar); la pantalla no las cambia.
+        "fecha_aprobacion": rev.fecha_aprobacion.isoformat() if rev.fecha_aprobacion else "",
     }
     contenido["control_cambios"] = build_control_cambios_automatico(doc, rev, contenido)
     rev.contenido_json = json.dumps(contenido, ensure_ascii=False)
-    rev.fecha_vigencia = doc_svc.parse_iso_date(payload.get("fecha_vigencia"))
+    reviso_firmado, aprobo_firmado = rev.reviso or "", rev.aprobo or ""
     rev.elaboro = doc_svc.normalize_persona_campo(payload.get("elaboro"))[:256]
     rev.reviso = doc_svc.normalize_persona_campo(payload.get("reviso"))[:256]
     rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
@@ -1239,9 +1241,11 @@ def save_revision_content(
         rev.revisor_correo = (payload.get("revisor_correo") or "").strip()[:256]
     if "aprobador_correo" in payload and (payload.get("aprobador_correo") or "").strip():
         rev.aprobador_correo = (payload.get("aprobador_correo") or "").strip()[:256]
-    rev.fecha_elaboracion = doc_svc.parse_iso_date(payload.get("fecha_elaboracion"))
-    rev.fecha_revision = doc_svc.parse_iso_date(payload.get("fecha_revision"))
-    rev.fecha_aprobacion = doc_svc.parse_iso_date(payload.get("fecha_aprobacion"))
+    # Lo que ya firmó el circuito no se pisa desde la carátula.
+    if rev.estado in (ESTADO_REVISADO, ESTADO_APROBADO, ESTADO_VIGENTE) and reviso_firmado:
+        rev.reviso = reviso_firmado
+    if rev.estado in (ESTADO_APROBADO, ESTADO_VIGENTE) and aprobo_firmado:
+        rev.aprobo = aprobo_firmado
     rev.updated_at = _utc_now()
     rev.updated_by_id = user_id
 
@@ -1428,6 +1432,7 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
             "o configurá SGI_REVISION_MAIL_TO en el servidor.",
         )
     rev.estado = ESTADO_EN_REVISION
+    rev.fecha_elaboracion = date.today()
     rev.updated_by_id = user_id
     doc.estado = ESTADO_EN_REVISION
     doc.updated_by_id = user_id
@@ -1439,16 +1444,25 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     return True, f"Documento enviado a revisión. {aviso}"
 
 
+def _firma_circuito(actor_label: str, puesto_id: str) -> str:
+    """Nombre de quien revisa / aprueba, con su puesto del organigrama si lo hay: «APELLIDO, NOMBRE (PUESTO)»."""
+    nombre = (actor_label or "").strip()
+    titulo = (_titulo_for_puesto(puesto_id) or "").strip() if puesto_id else ""
+    if titulo and titulo.upper() != nombre.upper():
+        nombre = f"{nombre} ({titulo})"
+    return doc_svc.normalize_persona_campo(nombre)[:256]
+
+
 def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[bool, str]:
     rev = get_revision(rev_id)
     if rev is None or rev.estado != ESTADO_EN_REVISION:
         return False, "Solo un documento en revisión puede marcarse como revisado."
     if not (rev.aprobo or "").strip():
-        correo_aprob = (rev.aprobador_correo or "").strip()
-        if correo_aprob:
-            rev.aprobo = correo_aprob[:256]
+        titulo_aprob = _titulo_for_puesto(get_revision_puesto_ids(rev)["aprobo_puesto_id"])
+        if titulo_aprob:
+            rev.aprobo = doc_svc.normalize_persona_campo(titulo_aprob)[:256]
         else:
-            return False, "Indicá quién aprueba (campo «Aprobó» en la carátula) antes de continuar."
+            return False, "Indicá quién aprueba (puesto «Aprobó» en la carátula) antes de continuar."
     app = current_app._get_current_object()
     recipients = workflow_svc.resolve_approval_recipients(app, rev)
     if not recipients:
@@ -1459,8 +1473,8 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
         )
     hoy = date.today()
     rev.estado = ESTADO_REVISADO
-    rev.fecha_revision = rev.fecha_revision or hoy
-    rev.reviso = doc_svc.normalize_persona_campo(rev.reviso or actor_label)
+    rev.fecha_revision = hoy
+    rev.reviso = _firma_circuito(actor_label, get_revision_puesto_ids(rev)["reviso_puesto_id"])
     rev.updated_by_id = user_id
     doc = rev.documento
     doc.estado = ESTADO_REVISADO
@@ -1663,10 +1677,9 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
         _log_aprobacion(p, ACCION_APROBAR, user_id, actor_label, "Obsoleto por nueva aprobación")
 
     rev.estado = ESTADO_APROBADO
-    rev.fecha_aprobacion = rev.fecha_aprobacion or hoy
-    if (doc.tipo_contenido or "").strip().lower() == ANEXO_TIPO_ORGANIGRAMA:
-        rev.fecha_vigencia = rev.fecha_vigencia or hoy
-    rev.aprobo = doc_svc.normalize_persona_campo(rev.aprobo or actor_label)
+    rev.fecha_aprobacion = hoy
+    rev.fecha_vigencia = hoy
+    rev.aprobo = _firma_circuito(actor_label, get_revision_puesto_ids(rev)["aprobo_puesto_id"])
     rev.updated_by_id = user_id
 
     doc.estado = ESTADO_APROBADO

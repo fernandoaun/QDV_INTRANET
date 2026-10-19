@@ -118,20 +118,20 @@
       <div class="col-md-6">
         <label class="form-label small mb-0">Fecha de vigencia / aprobación</label>
         <input type="date" class="form-control form-control-sm" id="procFechaVigencia"
-               value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}"
-               {% if solo_lectura|default(false) %}readonly{% endif %}>
+               value="{{ rev.fecha_vigencia.isoformat() if rev.fecha_vigencia else '' }}" readonly tabindex="-1">
       </div>
       <div class="col-md-6">
         <label class="form-label small mb-0">Fechas elaboración / revisión / aprobación</label>
         <div class="d-flex gap-1 flex-wrap">
           <input type="date" class="form-control form-control-sm" id="procFechaElab" title="Elaboración"
-                 value="{{ rev.fecha_elaboracion.isoformat() if rev.fecha_elaboracion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
+                 value="{{ rev.fecha_elaboracion.isoformat() if rev.fecha_elaboracion else '' }}" readonly tabindex="-1">
           <input type="date" class="form-control form-control-sm" id="procFechaRev" title="Revisión"
-                 value="{{ rev.fecha_revision.isoformat() if rev.fecha_revision else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
+                 value="{{ rev.fecha_revision.isoformat() if rev.fecha_revision else '' }}" readonly tabindex="-1">
           <input type="date" class="form-control form-control-sm" id="procFechaAprob" title="Aprobación"
-                 value="{{ rev.fecha_aprobacion.isoformat() if rev.fecha_aprobacion else '' }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
+                 value="{{ rev.fecha_aprobacion.isoformat() if rev.fecha_aprobacion else '' }}" readonly tabindex="-1">
         </div>
       </div>
+      <div class="col-12 form-text mt-0">Las fechas se completan solas: elaboración al enviar a revisión, revisión al marcar revisado, aprobación y vigencia al aprobar. «Revisó» y «Aprobó» quedan con el nombre de quien lo hizo.</div>
     </div>
 
     <p class="sgi-proc-section-label">Control de cambios</p>

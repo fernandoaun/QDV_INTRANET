@@ -519,3 +519,39 @@ def test_revision_reemplazada_queda_en_obsoletos(auth_client, app, sgi_editor):
     assert "DOCUMENTO OBSOLETO" in vista and "Rev. 01" in vista
     vigente = auth_client.get(f"/sgi/po/procedimientos/{doc_id}/vista/{r1}").get_data(as_text=True)
     assert "DOCUMENTO OBSOLETO" not in vigente
+
+
+def test_circuito_pone_fechas_y_nombres(app, sgi_editor):
+    """Elaboración/revisión/aprobación/vigencia y Revisó/Aprobó los completa el circuito, no la carátula."""
+    from datetime import date
+
+    from app.services import sgi_documento_perfil_service as perfil_svc
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="WF FECHAS")
+        assert err is None
+        rev.reviso = "PUESTO REVISOR"
+        rev.revisor_correo = "revisor@example.com"
+        rev.aprobo = "PUESTO APROBADOR"
+        rev.aprobador_correo = "aprobador@example.com"
+        perfil_svc.sync_perfiles_documento(doc.id, ["operaciones"])
+        db.session.commit()
+        # Fechas cargadas a mano en la carátula no se guardan.
+        payload = proc_svc.payload_completo_revision(rev)
+        payload.update({"fecha_elaboracion": "2020-01-01", "fecha_revision": "2020-01-02",
+                        "fecha_aprobacion": "2020-01-03", "fecha_vigencia": "2020-01-04"})
+        proc_svc.save_revision_content(rev.id, payload, sgi_editor, "Tester")
+        db.session.refresh(rev)
+        assert rev.fecha_elaboracion is None and rev.fecha_aprobacion is None and rev.fecha_vigencia is None
+
+        hoy = date.today()
+        ok, msg = proc_svc.enviar_a_revision(rev.id, sgi_editor, "Tester")
+        assert ok, msg
+        assert proc_svc.marcar_como_revisado(rev.id, sgi_editor, "Pérez, Ana")[0]
+        assert proc_svc.aprobar_revision(rev.id, sgi_editor, "Gómez, Luis")[0]
+        db.session.refresh(rev)
+        assert rev.fecha_elaboracion == hoy and rev.fecha_revision == hoy
+        assert rev.fecha_aprobacion == hoy and rev.fecha_vigencia == hoy
+        assert rev.reviso == "PÉREZ, ANA" and rev.aprobo == "GÓMEZ, LUIS"
+        cc = json.loads(rev.contenido_json)["control_cambios"]
+        assert cc[-1]["fecha_aprobacion"] == hoy.isoformat()

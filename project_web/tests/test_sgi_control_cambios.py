@@ -76,5 +76,5 @@ def test_payload_completo_revision_conserva_caratula(auth_client, app):
         assert ok, msg
         r = proc_svc.get_revision(rev.id)
         assert r.elaboro == "RESPONSABLE SGC" and r.reviso == "GERENCIA GENERAL" and r.revisor_correo == "r@example.com"
-        assert r.fecha_elaboracion.isoformat() == "2026-10-06"
+        assert r.fecha_elaboracion is None  # las fechas las pone el circuito, no la carátula
         assert "Objeto modificado." in proc_svc.revision_to_payload(r)["secciones"]["objeto"]

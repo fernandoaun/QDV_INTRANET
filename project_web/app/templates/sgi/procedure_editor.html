@@ -219,5 +219,5 @@
   };
 </script>
 <script src="{{ url_for('static', filename='js/sgi_record_wizard.js') }}"></script>
-<script src="{{ url_for('static', filename='js/sgi_procedure.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_procedure.js') }}?v={{ proc_js_v|default('1') }}"></script>
 {% endblock %}
