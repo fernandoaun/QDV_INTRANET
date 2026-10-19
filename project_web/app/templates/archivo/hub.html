@@ -4,17 +4,35 @@
 <style>
   .archivo-proc { border-bottom: 1px solid var(--bs-border-color, #e9ecef); }
   .archivo-proc:last-child { border-bottom: 0; }
-  .archivo-reg { list-style: none; margin: 0; padding: 0 0 0.75rem 1.1rem; }
-  .archivo-reg > li { margin-top: 0.35rem; }
-  .archivo-cargas { list-style: none; margin: 0.25rem 0 0; padding: 0 0 0 1.15rem; }
-  .archivo-cargas li { font-size: 0.875rem; }
+  .archivo-proc > summary, .archivo-proc-row { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.6rem 1rem; }
+  .archivo-proc > summary { cursor: pointer; list-style: none; }
+  .archivo-proc > summary::-webkit-details-marker, .archivo-reg-det > summary::-webkit-details-marker { display: none; }
+  .archivo-proc > summary:hover { background: var(--bs-tertiary-bg, #f8f9fa); }
+  .archivo-chev { flex: 0 0 1rem; color: var(--bs-secondary-color, #6c757d); transition: transform .15s; }
+  .archivo-chev::before { content: "\25B8"; }
+  details[open] > summary .archivo-chev { transform: rotate(90deg); }
+  .archivo-proc-row .archivo-chev::before { content: ""; }
+  .archivo-cod { flex: 0 0 7.5rem; color: var(--bs-secondary-color, #6c757d); font-variant-numeric: tabular-nums; }
+  .archivo-tit { flex: 1 1 auto; font-weight: 600; min-width: 0; }
+  .archivo-meta { flex: 0 0 auto; font-size: 0.8125rem; color: var(--bs-secondary-color, #6c757d); white-space: nowrap; }
+  .archivo-reg { list-style: none; margin: 0; padding: 0 1rem 0.75rem 2.5rem; }
+  .archivo-reg > li { padding: 0.3rem 0; border-top: 1px dashed var(--bs-border-color, #e9ecef); }
+  .archivo-reg-det > summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 0.4rem; }
+  .archivo-reg-row { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
+  .archivo-cargas { list-style: none; margin: 0.25rem 0 0.25rem; padding: 0 0 0 1.4rem; }
+  .archivo-cargas li { font-size: 0.875rem; padding: 0.1rem 0; }
+  @media (max-width: 575.98px) {
+    .archivo-cod { flex-basis: auto; }
+    .archivo-proc > summary, .archivo-proc-row { flex-wrap: wrap; }
+    .archivo-reg { padding-left: 1.5rem; }
+  }
 </style>
 {% endblock %}
 {% block content %}
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Procedimientos y registros</h1>
-    <div class="text-muted">Listado del SGC: procedimientos de gestión (PG) y operativos (PO). Debajo de cada uno, los registros y los archivos que se van cargando.</div>
+    <div class="text-muted">Listado del SGC: procedimientos de gestión (PG) y operativos (PO). Tocá un procedimiento para ver sus registros y los archivos cargados.</div>
   </div>
   <div class="app-page-actions">
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('main.dashboard') }}">Panel</a>
@@ -44,46 +62,70 @@
 
 {% for section in tree %}
 <div class="app-card mb-3">
-  <div class="app-card-header">{{ section.title }}</div>
+  <div class="app-card-header d-flex justify-content-between align-items-center">
+    <span>{{ section.title }}</span>
+    {% if section.procedimientos %}
+    <span class="small fw-normal">
+      <a href="#" class="text-decoration-none" data-archivo-toggle="1">Expandir todo</a> ·
+      <a href="#" class="text-decoration-none" data-archivo-toggle="0">Contraer todo</a>
+    </span>
+    {% endif %}
+  </div>
   <div class="app-card-body p-0">
     {% if section.procedimientos %}
       {% for it in section.procedimientos %}
-      <div class="archivo-proc px-3 pt-3">
-        <a class="fw-semibold text-decoration-none" href="{{ url_for('sgi.procedimiento_vista', slug=it.slug, doc_id=it.doc.id, rev_id=it.rev_id) if it.rev_id else url_for('archivo.procedimiento', doc_id=it.doc.id) }}">
-          {% if it.doc.codigo %}<span class="text-muted me-1">{{ it.doc.codigo }}</span>{% endif %}{{ it.doc.titulo }}
-        </a>
-        {% if it.registros %}
+      {% set proc_url = url_for('sgi.procedimiento_vista', slug=it.slug, doc_id=it.doc.id, rev_id=it.rev_id) if it.rev_id else url_for('archivo.procedimiento', doc_id=it.doc.id) %}
+      {% set ns = namespace(arch=0) %}
+      {% for rg in it.registros %}{% set ns.arch = ns.arch + (rg.n_cargas or 0) %}{% endfor %}
+      {% if it.registros %}
+      <details class="archivo-proc">
+        <summary>
+          <span class="archivo-chev" aria-hidden="true"></span>
+          <span class="archivo-cod">{{ it.doc.codigo or '' }}</span>
+          <span class="archivo-tit">{{ it.doc.titulo }}</span>
+          <span class="archivo-meta">{{ it.registros|length }} registro{{ 's' if it.registros|length != 1 }}{% if ns.arch %} · {{ ns.arch }} archivo{{ 's' if ns.arch != 1 }}{% endif %}</span>
+          <a class="small text-decoration-none" href="{{ proc_url }}" title="Abrir el procedimiento">Ver</a>
+        </summary>
         <ul class="archivo-reg">
           {% for rg in it.registros %}
+          {% set reg_url = rg.destino_url or url_for('archivo.registro', doc_id=it.doc.id, registro_id=rg.row.id) %}
           <li>
-            <a class="text-decoration-none" href="{{ rg.destino_url or url_for('archivo.registro', doc_id=it.doc.id, registro_id=rg.row.id) }}">{{ rg.row.nombre }}</a>
-            {% if rg.n_cargas %}
-            <span class="badge text-bg-secondary">{{ rg.n_cargas }}</span>
-            {% endif %}
             {% if rg.cargas %}
-            <ul class="archivo-cargas">
-              {% for c in rg.cargas %}
-              <li>
-                <a href="{{ url_for('archivo.carga_descargar', carga_id=c.id) }}">{{ c.titulo or c.original_filename }}</a>
-                <span class="text-muted">
-                  {% if c.fecha_documento %} · {{ c.fecha_documento.strftime('%d/%m/%Y') }}{% endif %}
-                  {% if c.original_filename %} · {{ c.original_filename }}{% endif %}
-                </span>
-              </li>
-              {% endfor %}
-            </ul>
-            {% elif rg.destino_label %}
-            <div class="text-muted small">Se lleva en el SGC: {{ rg.destino_label }}</div>
+            <details class="archivo-reg-det">
+              <summary>
+                <span class="archivo-chev" aria-hidden="true"></span>
+                <a class="text-decoration-none" href="{{ reg_url }}">{{ rg.row.nombre }}</a>
+                <span class="badge text-bg-secondary">{{ rg.n_cargas }}</span>
+              </summary>
+              <ul class="archivo-cargas">
+                {% for c in rg.cargas %}
+                {% set nombre_c = c.titulo or c.original_filename %}
+                <li>
+                  <a href="{{ url_for('archivo.carga_descargar', carga_id=c.id) }}">{{ nombre_c }}</a>
+                  <span class="text-muted">{% if c.fecha_documento %} · {{ c.fecha_documento.strftime('%d/%m/%Y') }}{% endif %}{% if c.original_filename and c.original_filename.rsplit('.', 1)[0].strip() != (nombre_c or '').strip() %} · {{ c.original_filename }}{% endif %}</span>
+                </li>
+                {% endfor %}
+              </ul>
+            </details>
             {% else %}
-            <div class="text-muted small">Todavía no hay archivos cargados.</div>
+            <div class="archivo-reg-row">
+              <span class="archivo-chev" aria-hidden="true"></span>
+              <a class="text-decoration-none" href="{{ reg_url }}">{{ rg.row.nombre }}</a>
+              <span class="text-muted small">· {% if rg.destino_label %}Se lleva en el SGC: {{ rg.destino_label }}{% else %}Sin archivos cargados{% endif %}</span>
+            </div>
             {% endif %}
           </li>
           {% endfor %}
         </ul>
-        {% else %}
-        <p class="text-muted small mt-1 mb-3">Este procedimiento todavía no tiene registros en el SGC (punto 7).</p>
-        {% endif %}
+      </details>
+      {% else %}
+      <div class="archivo-proc archivo-proc-row">
+        <span class="archivo-chev" aria-hidden="true"></span>
+        <span class="archivo-cod">{{ it.doc.codigo or '' }}</span>
+        <a class="archivo-tit text-decoration-none" href="{{ proc_url }}">{{ it.doc.titulo }}</a>
+        <span class="archivo-meta">Sin registros</span>
       </div>
+      {% endif %}
       {% endfor %}
     {% else %}
     <p class="text-muted p-3 mb-0">No hay {{ section.title | lower }} en el SGC para mostrar.</p>
@@ -91,4 +133,13 @@
   </div>
 </div>
 {% endfor %}
+<script>
+  document.querySelectorAll('[data-archivo-toggle]').forEach(function (a) {
+    a.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      var abrir = a.getAttribute('data-archivo-toggle') === '1';
+      a.closest('.app-card').querySelectorAll('details.archivo-proc').forEach(function (d) { d.open = abrir; });
+    });
+  });
+</script>
 {% endblock %}
