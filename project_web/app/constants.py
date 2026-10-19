@@ -127,6 +127,31 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "fichas.en_blanco",
         "filled_endpoint": "fichas.hub",
     },
+    "mant_ordenes": {
+        "label": "Órdenes de trabajo",
+        "blank_endpoint": "mantenimiento.ordenes",
+        "filled_endpoint": "mantenimiento.ordenes",
+    },
+    "mant_fallas": {
+        "label": "Reporte de fallas",
+        "blank_endpoint": "mantenimiento.reportar",
+        "filled_endpoint": "mantenimiento.correctivos",
+    },
+    "mant_equipos": {
+        "label": "Inventario de equipos",
+        "blank_endpoint": "mantenimiento.equipos",
+        "filled_endpoint": "mantenimiento.equipos",
+    },
+    "mant_recursos": {
+        "label": "Recursos y repuestos",
+        "blank_endpoint": "mantenimiento.recursos",
+        "filled_endpoint": "mantenimiento.recursos",
+    },
+    "mant_predictivo": {
+        "label": "Análisis predictivo",
+        "blank_endpoint": "mantenimiento.predictivo",
+        "filled_endpoint": "mantenimiento.predictivo",
+    },
     "plan_mantenimiento": {
         "label": "Plan de mantenimiento",
         "blank_endpoint": "planificacion.plan_mantenimiento_en_blanco",

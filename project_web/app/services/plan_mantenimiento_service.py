@@ -13,10 +13,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.extensions import db
-from app.models import MaintenancePlan
+from app.models import MaintenancePlan, SgiDocumento
 from app.services import mantenimiento_service as ms
 
 REGISTRO = {"codigo": "QDV-RG-PO-01_01", "titulo": "PLAN DE MANTENIMIENTO", "procedimiento": "PO-01"}
+PROCEDIMIENTO = "QDV-PO-01"
 
 MESES_CORTOS = ("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
 _MESES_PERIODO = {"mensual": 1, "trimestral": 3, "semestral": 6, "anual": 12}
@@ -141,5 +142,18 @@ def plan_anual(anio: int, today: date | None = None) -> list[FilaPlan]:
     return filas
 
 
+def registro_meta() -> dict[str, Any]:
+    """Encabezado del registro (QDV-PG-01, 5.5): rige desde la aprobación del PO-01; formulario Rev. 00."""
+    from app.services import sgi_procedimiento_service as proc
+
+    vigencia: date | None = None
+    doc = db.session.scalar(select(SgiDocumento).where(SgiDocumento.codigo == PROCEDIMIENTO).limit(1))
+    if doc is not None:
+        rev = proc.revision_vigente_aprobada(doc)
+        if rev is not None:
+            vigencia = rev.fecha_vigencia or rev.fecha_aprobacion
+    return {**REGISTRO, "fecha_vigencia": vigencia, "revision": "00", "cambios": [("00", "Confección del formulario", vigencia)]}
+
+
 def labels_context() -> dict[str, Any]:
-    return {"reg_pm": REGISTRO, "meses_cortos": MESES_CORTOS, "estados_marca": ESTADOS_MARCA}
+    return {"reg_pm": registro_meta(), "meses_cortos": MESES_CORTOS, "estados_marca": ESTADOS_MARCA}

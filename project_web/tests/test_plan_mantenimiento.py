@@ -61,10 +61,11 @@ def test_frecuencia_en_dias_y_fin_de_mes(app):
 def test_pantalla_y_en_blanco(app, planif_client):  # noqa: F811
     _plan(app, frecuencia_periodo="mensual", proxima_fecha=f"{date.today().year}-01-15")
     html = planif_client.get("/planificacion/plan-mantenimiento").get_data(as_text=True)
-    for txt in ("Plan de mantenimiento", "QDV-RG-PO-01_01", "Bomba Pytest", "Salmuera", "Mensual", "Registro asociado"):
+    for txt in ("Plan de mantenimiento", "QDV-RG-PO-01_01", "Bomba Pytest", "Salmuera", "Mensual", "Registro asociado",
+                "PLAN DE MANTENIMIENTO", "Fecha de vigencia", "Rev. 00", "Página 1 de 1", "Control de cambios", "Confección del formulario"):
         assert txt in html, txt
     blanco = planif_client.get("/planificacion/plan-mantenimiento/en-blanco").get_data(as_text=True)
-    assert "QDV-RG-PO-01_01" in blanco and "Bomba Pytest" not in blanco
+    assert "QDV-RG-PO-01_01" in blanco and "Confección del formulario" in blanco and "Bomba Pytest" not in blanco
     assert "Plan de mantenimiento" in planif_client.get("/planificacion/").get_data(as_text=True)
 
 
@@ -75,3 +76,13 @@ def test_registro_sgi(app):
         links = proc.registro_modulo_links("plan_mantenimiento")
     assert links == {"label": "Plan de mantenimiento", "blank_url": "/planificacion/plan-mantenimiento/en-blanco",
                      "filled_url": "/planificacion/plan-mantenimiento"}
+
+
+def test_registros_del_modulo_mantenimiento(app):
+    from app.services import sgi_procedimiento_service as proc
+
+    with app.app_context():
+        assert proc.registro_modulo_links("mant_fallas") == {
+            "label": "Reporte de fallas", "blank_url": "/mantenimiento/reportar-falla", "filled_url": "/mantenimiento/correctivos"}
+        for clave in ("mant_ordenes", "mant_equipos", "mant_recursos", "mant_predictivo"):
+            assert proc.registro_modulo_links(clave)["filled_url"].startswith("/mantenimiento/"), clave

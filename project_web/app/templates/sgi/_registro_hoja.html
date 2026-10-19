@@ -1,0 +1,42 @@
+{# Encabezado y pie de un registro del SGI según QDV-PG-01 (5.5): logo, título, código, vigencia, revisión,
+   página; al pie, la tabla de cambios del formulario. Uso: {% import "sgi/_registro_hoja.html" as hoja %} #}
+{% macro estilos() -%}
+<style>
+  .rg-hoja { background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+  .rg-head, .rg-pie { border-collapse: collapse; width: 100%; }
+  .rg-head { margin-bottom: 12px; }
+  .rg-head td { border: 2px solid #000; vertical-align: middle; }
+  .rg-head .logo { width: 17%; text-align: center; padding: 4px; }
+  .rg-head .logo img { max-height: 64px; max-width: 100%; }
+  .rg-head .titulo { text-align: center; font-weight: 700; font-size: 1.1rem; }
+  .rg-head .meta { width: 22%; text-align: center; font-weight: 700; font-size: .85rem; padding: 1px 6px; }
+  .rg-pie { margin-top: 12px; font-size: .8rem; }
+  .rg-pie th, .rg-pie td { border: 1.5px solid #000; padding: 2px 6px; }
+  .rg-pie th { background: #f2f2f2; text-align: center; }
+  .rg-pie td.c { text-align: center; width: 14%; }
+</style>
+{%- endmacro %}
+
+{% macro encabezado(reg) -%}
+<table class="rg-head">
+  <tr>
+    <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+    <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+    <td class="meta">{{ reg.codigo }}</td>
+  </tr>
+  <tr><td class="meta">Fecha de vigencia: {{ reg.fecha_vigencia.strftime('%d/%m/%Y') if reg.fecha_vigencia else '' }}</td></tr>
+  <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+  <tr><td class="meta">Página 1 de 1</td></tr>
+</table>
+{%- endmacro %}
+
+{% macro pie_cambios(reg) -%}
+<table class="rg-pie">
+  <thead><tr><th>Revisión</th><th>Control de cambios</th><th>Fecha</th></tr></thead>
+  <tbody>
+    {% for rev, desc, fecha in reg.cambios %}
+    <tr><td class="c">{{ rev }}</td><td>{{ desc }}</td><td class="c">{{ fecha.strftime('%d/%m/%Y') if fecha else '' }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{%- endmacro %}

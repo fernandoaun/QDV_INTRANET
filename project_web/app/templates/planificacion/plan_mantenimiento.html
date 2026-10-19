@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% import "sgi/_registro_hoja.html" as hoja %}
 {% block title %}Plan de mantenimiento {{ anio }}{% if blanco %} (en blanco){% endif %} · QDV{% endblock %}
 {% block extra_head %}
+{{ hoja.estilos() }}
 <style>
-  .pm-tabla { font-size: .85rem; }
+  .pm-tabla { font-size: .85rem; --bs-table-bg: #fff; --bs-table-color: #000; --bs-border-color: #333; }
+  .rg-hoja .text-muted { color: #555 !important; }
   .pm-tabla th, .pm-tabla td { vertical-align: middle; }
   .pm-tabla th.pm-mes, .pm-tabla td.pm-mes { width: 3.2rem; min-width: 3.2rem; text-align: center; padding-left: 2px; padding-right: 2px; }
   .pm-tabla .pm-actual { background: var(--bs-warning-bg-subtle, #fff3cd); }
@@ -48,9 +51,10 @@
 </div>
 {% endif %}
 
-<div class="app-card">
+<div class="app-card rg-hoja p-2 p-md-3">
+  {{ hoja.encabezado(reg_pm) }}
   <div class="table-responsive">
-    <table class="table table-app table-sm align-middle mb-0 pm-tabla">
+    <table class="table table-sm table-bordered align-middle mb-0 pm-tabla">
       <thead>
         <tr>
           <th class="pm-activo">Activo</th>
@@ -104,5 +108,6 @@
       </tbody>
     </table>
   </div>
+  {{ hoja.pie_cambios(reg_pm) }}
 </div>
 {% endblock %}
