@@ -38,7 +38,9 @@ from app.services.hipoclorito_warnings import (
     evaluate_hipoclorito_operational_warnings,
 )
 
-WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion", "descarga_camion"})
+WRITE_MODULES = frozenset(
+    {"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion", "descarga_camion", "vacaciones", "pedido_epp"}
+)
 OPERATIONAL_WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo"})
 INTENT_MAX_AGE_SEC = 600
 _SALT = "qdv-whatsapp-intent-v1"
@@ -84,6 +86,11 @@ def assert_can_write(user: User, module: str) -> None:
 
         if not user_can_entregas_entregar_effective(user):
             raise PermissionError("Tu perfil no puede registrar descargas.")
+    elif module in ("vacaciones", "pedido_epp"):
+        from app.auth_utils import user_can_solicitar_vacaciones
+
+        if not user_can_solicitar_vacaciones(user):
+            raise PermissionError("No tenés un legajo activo vinculado a tu usuario.")
     else:
         perm = _perm_for_module(module)
         if not user_can_edit(user, perm):
@@ -178,6 +185,10 @@ def _validate(user: User, module: str, payload: dict[str, Any]) -> tuple[str, di
         return _carga_camion_preview(user, payload)
     if module == "descarga_camion":
         return _descarga_camion_preview(user, payload)
+    if module == "vacaciones":
+        return _vacaciones_preview(user, payload)
+    if module == "pedido_epp":
+        return _pedido_epp_preview(user, payload)
     if module == "stock_consumo":
         row = _stock_consumo_fields(payload)
         _equipo_id_por_nombre(row["equipo"])
@@ -283,6 +294,10 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
         return _carga_camion_execute(user, payload)
     if module == "descarga_camion":
         return _descarga_camion_execute(user, payload)
+    if module == "vacaciones":
+        return _vacaciones_execute(user, payload)
+    if module == "pedido_epp":
+        return _pedido_epp_execute(user, payload)
     raise ValueError("Módulo desconocido.")
 
 
@@ -648,3 +663,123 @@ def _descarga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, A
         f"Quedan {queda:g} L en el camión." if queda > 0 else "Camión vacío: carga completa."
     )
     return {"id": int(ent.id), "message": msg, "registro": entregas_service.entrega_to_api_dict(ent)}
+
+
+# ----- Pedidos del personal: vacaciones y ropa/EPP (los mismos que «Mis vacaciones» / «Mis entregas EPP») -----
+
+
+def _empleado(user: User) -> Any:
+    from app.services import personal_service as ps
+
+    emp = ps.resolve_empleado_for_user(user, commit=False)
+    if emp is None:
+        raise PermissionError("No tenés un legajo activo vinculado a tu usuario.")
+    return emp
+
+
+def _vacaciones_preview(user: User, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    from datetime import date as _date
+
+    from app.services import personal_service as ps
+
+    emp = _empleado(user)
+    try:
+        desde = _date.fromisoformat(str(payload.get("desde") or "")[:10])
+        hasta = _date.fromisoformat(str(payload.get("hasta") or "")[:10])
+    except ValueError as exc:
+        raise ValueError("Indicá desde y hasta (AAAA-MM-DD).") from exc
+    if hasta < desde:
+        raise ValueError("La fecha hasta no puede ser anterior a la fecha desde.")
+    anio = int(payload.get("anio") or desde.year)
+    saldo = ps.saldo_vacacion_periodo(emp.id, anio)
+    dias = ps._dias_entre(desde, hasta)
+    if dias > saldo["disponibles"]:
+        raise ValueError(f"Pedís {dias} días pero tenés {saldo['disponibles']} disponibles en el período {anio}.")
+    obs = str(payload.get("observaciones") or "").strip()[:2000]
+    row = {"desde": desde.isoformat(), "hasta": hasta.isoformat(), "anio": anio, "observaciones": obs}
+    resumen = (
+        f"Vacaciones del {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')} ({dias} días, período {anio}). "
+        f"Te quedarían {saldo['disponibles'] - dias} días."
+    )
+    if obs:
+        resumen += f" Observaciones: {obs}"
+    return resumen, row
+
+
+def _vacaciones_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]:
+    from app.services import personal_service as ps
+    from app.services.personal_vacacion_mail_service import maybe_notify_solicitud_vacacion
+
+    emp = _empleado(user)
+    ok, msg, vac = ps.solicitar_vacacion(
+        emp.id,
+        user_id=int(user.id),
+        data={"fecha_desde": payload["desde"], "fecha_hasta": payload["hasta"], "anio": str(payload["anio"]),
+              "observaciones": payload.get("observaciones") or ""},
+    )
+    if not ok or vac is None:
+        raise ValueError(msg)
+    mail_ok, _ = maybe_notify_solicitud_vacacion(vac)
+    aviso = " Le avisamos al responsable." if mail_ok else " (No se pudo avisar al responsable; igual quedó registrada.)"
+    return {"id": vac.id, "message": f"Solicitud enviada.{aviso} Te llega la respuesta por acá."}
+
+
+def _item_epp(nombre: str) -> Any:
+    from app.services import personal_service as ps
+
+    n = (nombre or "").strip().lower()
+    if not n:
+        raise ValueError("Decí qué necesitás (por ejemplo: guantes, botines, pantalón).")
+    items = ps.list_epp_items(solo_activos=True)
+    exactos = [i for i in items if (i.nombre or "").strip().lower() == n]
+    if exactos:
+        return exactos[0]
+    parecidos = [i for i in items if n in (i.nombre or "").lower()]
+    if len(parecidos) == 1:
+        return parecidos[0]
+    opciones = parecidos or items
+    raise ValueError("¿Cuál? Opciones: " + ", ".join(sorted(i.nombre for i in opciones)[:25]))
+
+
+def _pedido_epp_preview(user: User, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    from app.services import epp_pedidos_service as epp_ped_svc
+
+    _empleado(user)
+    item = _item_epp(str(payload.get("item") or ""))
+    motivo = str(payload.get("motivo") or "").strip().lower()
+    if motivo not in epp_ped_svc.MOTIVOS:
+        raise ValueError("¿Por qué lo pedís? Opciones: " + ", ".join(f"{k} ({v})" for k, v in epp_ped_svc.MOTIVOS.items()))
+    try:
+        cantidad = int(payload.get("cantidad") or 1)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("La cantidad tiene que ser un número.") from exc
+    comentario = str(payload.get("comentario") or "").strip()[:1000]
+    if motivo == "otro" and not comentario:
+        raise ValueError("Contá brevemente el motivo.")
+    talle = str(payload.get("talle") or "").strip()[:32]
+    row = {"item_id": int(item.id), "cantidad": cantidad, "talle": talle, "motivo": motivo, "comentario": comentario}
+    resumen = f"Pedido de {item.nombre} · cantidad {cantidad}"
+    if talle:
+        resumen += f" · talle {talle}"
+    resumen += f" · motivo: {epp_ped_svc.MOTIVOS[motivo]}"
+    if comentario:
+        resumen += f" · {comentario}"
+    return resumen, row
+
+
+def _pedido_epp_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]:
+    from app.services import epp_pedidos_service as epp_ped_svc
+
+    emp = _empleado(user)
+    sol, err = epp_ped_svc.crear(
+        emp,
+        {k: str(v) for k, v in payload.items()},
+        int(user.id),
+    )
+    if err or sol is None:
+        db.session.rollback()
+        raise ValueError(err or "No se pudo registrar el pedido.")
+    db.session.commit()
+    mail_ok, _ = epp_ped_svc.avisar_nuevo_pedido(current_app._get_current_object(), sol)
+    aviso = " Le avisamos a la responsable." if mail_ok else " (No se pudo avisar por mail; igual quedó registrado.)"
+    return {"id": sol.id, "message": f"Pedido enviado.{aviso} Te llega la respuesta por acá."}

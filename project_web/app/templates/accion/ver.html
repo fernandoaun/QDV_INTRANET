@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Aviso · QDV{% endblock %}
+{% block content %}
+<div class="app-login-page">
+  <div class="app-login-card" style="max-width:34rem">
+    {% if error %}
+    <h1 class="h5 mb-3">Aviso QDV</h1>
+    <div class="alert alert-danger mb-0">{{ error }}</div>
+    {% else %}
+    {% if resultado %}
+    <div class="alert alert-{{ 'success' if resultado.ok else 'danger' }}">{{ resultado.msg }}{% if resultado.ok %} Ya podés cerrar esta página.{% endif %}</div>
+    {% endif %}
+
+    {# ------------------------------------------------------------ procedimientos #}
+    {% if tipo in ('sgi_revisar', 'sgi_aprobar') %}
+    {% set doc = ctx.doc %}{% set rev = ctx.rev %}
+    <h1 class="h5 mb-1">{{ 'Revisión' if ctx.revisar else 'Aprobación' }} de documento</h1>
+    <p class="mb-2"><strong>{{ doc.codigo }}</strong> — {{ doc.titulo }}<br>
+      <span class="small app-text-secondary">{{ rev.revision_label }} · {{ ctx.estado_label }}</span></p>
+    <a class="btn btn-outline-primary w-100 mb-3" href="{{ url_for('accion.documento_pdf', token=token) }}" target="_blank" rel="noopener">
+      <i class="bi bi-file-earmark-pdf me-1" aria-hidden="true"></i>Leer el documento (PDF)</a>
+    {% if ctx.sin_usuario %}
+    <div class="alert alert-warning mb-0">No encontramos un usuario del sistema con tu mail. Pedile a RRHH que lo vincule a tu legajo.</div>
+    {% elif ctx.puede %}
+    <form method="post" class="mb-2">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="accion" value="firmar">
+      <button type="submit" class="btn btn-success btn-lg w-100">{{ 'Marcar como revisado' if ctx.revisar else 'Aprobar documento' }}</button>
+    </form>
+    <p class="small app-text-secondary">Queda firmado a nombre de <strong>{{ nombre }}</strong> con la fecha de hoy.</p>
+    <details class="mt-2">
+      <summary class="fw-semibold">Devolver con observaciones</summary>
+      <form method="post" class="mt-2">
+        {% include "_csrf.html" %}
+        <input type="hidden" name="accion" value="devolver">
+        <textarea class="form-control mb-2" name="observaciones" rows="4" required placeholder="Qué hay que corregir"></textarea>
+        <button type="submit" class="btn btn-outline-danger w-100">Devolver a borrador</button>
+      </form>
+    </details>
+    {% elif not resultado %}
+    <div class="alert alert-info mb-0">Este documento ya no está pendiente de tu firma (estado: {{ ctx.estado_label }}).</div>
+    {% endif %}
+
+    {# ------------------------------------------------------------ vacaciones: responsable #}
+    {% elif tipo == 'vac_responsable' %}
+    {% set vac = ctx.vac %}
+    <h1 class="h5 mb-1">Solicitud de vacaciones</h1>
+    <p class="mb-2"><strong>{{ vac.empleado.nombre_completo if vac.empleado else '—' }}</strong><br>
+      {{ vac.fecha_desde.strftime('%d/%m/%Y') }} al {{ vac.fecha_hasta.strftime('%d/%m/%Y') }} · {{ vac.dias }} días (período {{ vac.anio }})<br>
+      <span class="small app-text-secondary">Le quedan {{ ctx.saldo.disponibles }} días disponibles sin contar esta solicitud · {{ ctx.estado_label }}</span></p>
+    {% if vac.observaciones %}<p class="small border rounded p-2">{{ vac.observaciones }}</p>{% endif %}
+    {% if ctx.puede %}
+    <form method="post" class="mb-3">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="accion" value="aprobar">
+      <button type="submit" class="btn btn-success btn-lg w-100">Aprobar</button>
+    </form>
+    <details class="mb-2">
+      <summary class="fw-semibold">Proponer otras fechas</summary>
+      <form method="post" class="mt-2">
+        {% include "_csrf.html" %}
+        <input type="hidden" name="accion" value="modificar">
+        <div class="row g-2 mb-2">
+          <div class="col-6"><label class="form-label small mb-0">Desde</label><input type="date" class="form-control" name="fecha_desde" required value="{{ vac.fecha_desde.isoformat() }}"></div>
+          <div class="col-6"><label class="form-label small mb-0">Hasta</label><input type="date" class="form-control" name="fecha_hasta" required value="{{ vac.fecha_hasta.isoformat() }}"></div>
+        </div>
+        <input type="text" class="form-control mb-2" name="motivo_responsable" placeholder="Motivo (opcional)">
+        <button type="submit" class="btn btn-outline-primary w-100">Proponer estas fechas</button>
+      </form>
+    </details>
+    <details>
+      <summary class="fw-semibold">Rechazar</summary>
+      <form method="post" class="mt-2">
+        {% include "_csrf.html" %}
+        <input type="hidden" name="accion" value="rechazar">
+        <textarea class="form-control mb-2" name="motivo_responsable" rows="3" required placeholder="Motivo (le llega al empleado)"></textarea>
+        <button type="submit" class="btn btn-outline-danger w-100">Rechazar</button>
+      </form>
+    </details>
+    {% elif not ctx.pendiente and not resultado %}
+    <div class="alert alert-info mb-0">Esta solicitud ya fue gestionada ({{ ctx.estado_label }}).</div>
+    {% elif not resultado %}
+    <div class="alert alert-warning mb-0">Tu usuario no es el responsable de vacaciones.</div>
+    {% endif %}
+
+    {# ------------------------------------------------------------ vacaciones: empleado #}
+    {% elif tipo == 'vac_empleado' %}
+    {% set vac = ctx.vac %}
+    <h1 class="h5 mb-2">Tus vacaciones</h1>
+    {% if ctx.estado == 'modificada' %}
+    <p>El responsable propuso nuevas fechas: <strong>{{ vac.fecha_desde.strftime('%d/%m/%Y') }} al {{ vac.fecha_hasta.strftime('%d/%m/%Y') }}</strong> ({{ vac.dias }} días).
+      {% if vac.fecha_desde_original %}<br><span class="small app-text-secondary">Habías pedido {{ vac.fecha_desde_original.strftime('%d/%m/%Y') }} al {{ vac.fecha_hasta_original.strftime('%d/%m/%Y') }}.</span>{% endif %}</p>
+    {% elif ctx.estado == 'rechazada' %}
+    <p>Tu solicitud ({{ vac.fecha_desde.strftime('%d/%m/%Y') }} al {{ vac.fecha_hasta.strftime('%d/%m/%Y') }}) fue rechazada.</p>
+    {% else %}
+    <p>{{ vac.fecha_desde.strftime('%d/%m/%Y') }} al {{ vac.fecha_hasta.strftime('%d/%m/%Y') }} ({{ vac.dias }} días).</p>
+    {% endif %}
+    {% if vac.motivo_responsable %}<p class="small border rounded p-2">Motivo: {{ vac.motivo_responsable }}</p>{% endif %}
+    {% if ctx.puede %}
+    <form method="post">
+      {% include "_csrf.html" %}
+      <button type="submit" class="btn btn-success btn-lg w-100">{{ 'Acepto las nuevas fechas' if ctx.estado == 'modificada' else 'Entendido' }}</button>
+    </form>
+    {% if ctx.estado == 'modificada' %}<p class="small app-text-secondary mt-2 mb-0">Si no te sirven, hablá con el responsable y pedí otras fechas.</p>{% endif %}
+    {% elif not resultado %}
+    <div class="alert alert-info mb-0">No hay nada pendiente de tu confirmación.</div>
+    {% endif %}
+
+    {# ------------------------------------------------------------ pedido de EPP #}
+    {% elif tipo == 'epp_pedido' %}
+    {% set sol = ctx.sol %}
+    <h1 class="h5 mb-1">Pedido de ropa / EPP</h1>
+    <p class="mb-2"><strong>{{ ctx.emp.nombre_completo }}</strong> pidió <strong>{{ sol.item.nombre if sol.item else '—' }}</strong><br>
+      <span class="small app-text-secondary">Cantidad {{ sol.cantidad }}{% if sol.talle %} · Talle {{ sol.talle }}{% endif %} · {{ ctx.motivo_label }} · {{ ctx.estado_label }}</span></p>
+    {% if sol.comentario %}<p class="small border rounded p-2">{{ sol.comentario }}</p>{% endif %}
+    {% if ctx.puede %}
+    <form method="post" class="mb-3">
+      {% include "_csrf.html" %}
+      <input type="hidden" name="accion" value="entregar">
+      <div class="row g-2 mb-2">
+        <div class="col-6"><label class="form-label small mb-0">Fecha de entrega</label><input type="date" class="form-control" name="fecha" required value="{{ ctx.hoy }}"></div>
+        <div class="col-3"><label class="form-label small mb-0">Cantidad</label><input type="number" min="1" class="form-control" name="cantidad" required value="{{ sol.cantidad }}"></div>
+        <div class="col-3"><label class="form-label small mb-0">Talle</label><input type="text" class="form-control" name="talle" value="{{ sol.talle }}"></div>
+        <div class="col-6"><label class="form-label small mb-0">Tipo / modelo</label><input type="text" class="form-control" name="tipo_modelo" required value="{{ ctx.pre.tipo_modelo }}"></div>
+        <div class="col-6"><label class="form-label small mb-0">Marca</label><input type="text" class="form-control" name="marca" required value="{{ ctx.pre.marca }}"></div>
+        <div class="col-12"><label class="form-label small mb-0">¿Posee certificación?</label>
+          <select class="form-select" name="certificacion" required>
+            <option value="SI" {% if ctx.pre.certificacion == 'SI' %}selected{% endif %}>SI</option>
+            <option value="NO" {% if ctx.pre.certificacion == 'NO' %}selected{% endif %}>NO</option>
+          </select></div>
+        {% if ctx.falta_dni %}<div class="col-12"><label class="form-label small mb-0">DNI del trabajador</label><input type="text" class="form-control" name="emp_dni" required></div>{% endif %}
+        {% if ctx.falta_puesto %}<div class="col-12"><label class="form-label small mb-0">Descripción del puesto</label><input type="text" class="form-control" name="epp_descripcion_puesto" required></div>{% endif %}
+      </div>
+      {% if ctx.anterior %}
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" name="prenda_anterior_devuelta" value="1" id="prendaAnt" required>
+        <label class="form-check-label small" for="prendaAnt">Devolvió la prenda anterior (entrega del {{ ctx.anterior.fecha.strftime('%d/%m/%Y') }})</label>
+      </div>
+      {% endif %}
+      <button type="submit" class="btn btn-success btn-lg w-100">Registrar la entrega</button>
+      <p class="small app-text-secondary mt-2 mb-0">Al empleado le llega el aviso para confirmar que la recibió.</p>
+    </form>
+    <details>
+      <summary class="fw-semibold">Rechazar el pedido</summary>
+      <form method="post" class="mt-2">
+        {% include "_csrf.html" %}
+        <input type="hidden" name="accion" value="rechazar">
+        <textarea class="form-control mb-2" name="respuesta" rows="3" required placeholder="Motivo (le llega al empleado)"></textarea>
+        <button type="submit" class="btn btn-outline-danger w-100">Rechazar</button>
+      </form>
+    </details>
+    {% elif not ctx.pendiente and not resultado %}
+    <div class="alert alert-info mb-0">Este pedido ya fue resuelto ({{ ctx.estado_label }}).</div>
+    {% elif not resultado %}
+    <div class="alert alert-warning mb-0">Tu usuario no puede registrar entregas de EPP.</div>
+    {% endif %}
+
+    {# ------------------------------------------------------------ vencimiento #}
+    {% elif tipo == 'vencimiento' %}
+    {% set v = ctx.v %}
+    <h1 class="h5 mb-1">Vencimiento</h1>
+    <p class="mb-2"><strong>{{ v.nombre }}</strong><br>
+      <span class="small app-text-secondary">{{ v.sector.nombre if v.sector else '' }} · vence el {{ v.fecha_vencimiento.strftime('%d/%m/%Y') }}{% if v.activo %} ({{ ctx.dias }} días){% endif %}{% if v.responsable %} · Responsable: {{ v.responsable }}{% endif %}</span></p>
+    {% if ctx.puede %}
+    <form method="post" enctype="multipart/form-data">
+      {% include "_csrf.html" %}
+      <label class="form-label small mb-0">Ya se renovó: nueva fecha de vencimiento</label>
+      <input type="date" class="form-control mb-2" name="nueva_fecha" required>
+      <label class="form-label small mb-0">Foto o PDF del nuevo certificado (opcional)</label>
+      <input type="file" class="form-control mb-3" name="archivo" accept="image/*,.pdf">
+      <button type="submit" class="btn btn-success btn-lg w-100">Registrar la renovación</button>
+    </form>
+    {% elif not resultado %}
+    <div class="alert alert-info mb-0">Ya fue renovado{% if ctx.sucesor %}: ahora vence el {{ ctx.sucesor.fecha_vencimiento.strftime('%d/%m/%Y') }}{% endif %}.</div>
+    {% endif %}
+
+    {# ------------------------------------------------------------ tareas #}
+    {% elif tipo == 'tareas' %}
+    <h1 class="h5 mb-2">Tareas por vencer</h1>
+    {% for a in ctx.actividades %}
+    <div class="border rounded p-2 mb-2">
+      <div class="fw-semibold">[{{ ctx.codigo(a) }}] {{ a.titulo }}</div>
+      <div class="small app-text-secondary">Planificación · fin {{ a.fecha_fin.strftime('%d/%m/%Y') }} · {{ ctx.estado_act.get(a.estado, a.estado) }}</div>
+      {% if a.estado not in ('finalizada', 'cancelada') %}
+      <form method="post" class="mt-2">
+        {% include "_csrf.html" %}
+        <button type="submit" name="accion" value="act:{{ a.id }}" class="btn btn-success w-100">Cumplida</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% for o in ctx.ordenes %}
+    <div class="border rounded p-2 mb-2">
+      <div class="fw-semibold">Orden #{{ o.id }} — {{ o.equipo.nombre_equipo if o.equipo else '—' }}</div>
+      <div class="small app-text-secondary">Mantenimiento {{ o.tipo_mantenimiento }} · programada {{ o.fecha_programada|fecha }} · {{ o.estado }}</div>
+      {% if o.estado not in ('finalizado', 'cancelado') %}
+      <form method="post" class="mt-2">
+        {% include "_csrf.html" %}
+        <input type="text" class="form-control mb-2" name="resultado_{{ o.id }}" placeholder="Qué se hizo (opcional)">
+        <button type="submit" name="accion" value="ord:{{ o.id }}" class="btn btn-success w-100">Finalizada</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% if not ctx.actividades and not ctx.ordenes %}<div class="alert alert-info mb-0">No hay tareas en este aviso.</div>{% endif %}
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

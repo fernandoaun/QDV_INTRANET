@@ -49,9 +49,12 @@ def notify_solicitud_vacacion(app: Any, vac: PersonalVacacion) -> tuple[bool, st
     if not is_mail_fully_configured(app):
         return False, "SMTP no configurado."
 
+    from app.services import accion_link_service as accion_svc
+
     emp = vac.empleado
     nombre = emp.nombre_completo if emp else "—"
-    link = public_abs_url(app, "personal.vacaciones")
+    cfg = ps.get_vacacion_config()
+    link = accion_svc.url(app, accion_svc.VAC_RESPONSABLE, vac.id, email=to_addr, user_id=cfg.responsable_user_id)
     esc = html_lib.escape
     rango = _format_rango(vac)
     obs = (vac.observaciones or "").strip()
@@ -63,7 +66,7 @@ def notify_solicitud_vacacion(app: Any, vac: PersonalVacacion) -> tuple[bool, st
     )
     if obs:
         plain += f"Observaciones del empleado: {obs}\n"
-    plain += f"\nGestionar en el sistema: {link}\n"
+    plain += f"\nAprobar, rechazar o proponer otras fechas: {link}\n"
 
     html_body = (
         f"<p>Nueva solicitud de vacaciones de <strong>{esc(nombre)}</strong>.</p>"
@@ -71,7 +74,10 @@ def notify_solicitud_vacacion(app: Any, vac: PersonalVacacion) -> tuple[bool, st
     )
     if obs:
         html_body += f"<p><strong>Observaciones:</strong> {esc(obs)}</p>"
-    html_body += f'<p><a href="{esc(link)}">Gestionar solicitudes</a></p>'
+    html_body += (
+        f'<p><a href="{esc(link)}"><strong>Aprobar, rechazar o proponer otras fechas</strong></a> '
+        "(desde el celular, sin entrar al sistema)</p>"
+    )
 
     try:
         enviar_mail(app, destinatarios=[to_addr], asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain)
@@ -92,8 +98,12 @@ def notify_empleado_vacacion_gestionada(app: Any, vac: PersonalVacacion) -> tupl
     if not is_mail_fully_configured(app):
         return False, "SMTP no configurado."
 
+    from app.services import accion_link_service as accion_svc
+
     estado = (vac.estado or "").strip()
     link = public_abs_url(app, "personal.mis_vacaciones")
+    if estado in ps.ESTADOS_VACACION_PENDIENTES_EMPLEADO and emp is not None:
+        link = accion_svc.url(app, accion_svc.VAC_EMPLEADO, vac.id, email=to_addr, user_id=emp.user_id, emp=int(emp.id))
     esc = html_lib.escape
     nombre = emp.nombre_completo if emp else "—"
     motivo = (vac.motivo_responsable or "").strip()
@@ -109,18 +119,21 @@ def notify_empleado_vacacion_gestionada(app: Any, vac: PersonalVacacion) -> tupl
                 f" Pediste {vac.fecha_desde_original.strftime('%d/%m/%Y')} — "
                 f"{vac.fecha_hasta_original.strftime('%d/%m/%Y')}."
             )
-        intro = f"El responsable propuso nuevas fechas: {_format_rango(vac)}.{orig} Confirmá en el sistema."
+        intro = f"El responsable propuso nuevas fechas: {_format_rango(vac)}.{orig} Confirmalas desde el link."
     elif estado == "rechazada":
         asunto = "QDV — Vacaciones rechazadas"
-        intro = f"Tu solicitud de vacaciones fue rechazada.{f' Motivo: {motivo}.' if motivo else ''} Confirmá en el sistema."
+        intro = f"Tu solicitud de vacaciones fue rechazada.{f' Motivo: {motivo}.' if motivo else ''} Confirmá que lo leíste desde el link."
     else:
         return True, ""
 
-    plain = f"Hola {nombre},\n\n{intro}\n\nVer en el sistema: {link}\n"
+    accion = estado in ps.ESTADOS_VACACION_PENDIENTES_EMPLEADO
+    texto_link = "Confirmar" if accion else "Ver en el sistema"
+    plain = f"Hola {nombre},\n\n{intro}\n\n{texto_link}: {link}\n"
     html_body = (
         f"<p>Hola <strong>{esc(nombre)}</strong>,</p>"
         f"<p>{esc(intro)}</p>"
-        f'<p><a href="{esc(link)}">Mis vacaciones</a></p>'
+        + (f'<p><a href="{esc(link)}"><strong>Confirmar</strong></a> (desde el celular, sin entrar al sistema)</p>'
+           if accion else f'<p><a href="{esc(link)}">Mis vacaciones</a></p>')
     )
 
     try:

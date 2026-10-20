@@ -41,7 +41,7 @@ node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX preview agua '{"numero_
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX confirm TOKEN_DEL_PREVIEW
 ```
 
-Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion` | `descarga_camion`.
+Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion` | `descarga_camion` | `vacaciones` | `pedido_epp`.
 Carga de camión (`carga_camion`, choferes y operaciones; no pide turno):
 - Primero mirá `entregas`: si hay una entrega `programada` de hoy para ese chofer (`chofer_previsto`), ofrecésela y cargá con `{"entrega_id":N,"litros":X}` (litros reales cargados).
 - Si no hay programada (o dice que es otra), carga directa: `{"litros":X}`; el chofer sale de su usuario (o pasá `"chofer":"Rafa"`).
@@ -52,6 +52,10 @@ Descarga del camión (`descarga_camion`, choferes; una por cada punto donde desc
 - `{"destino":"<texto como lo dijo el chofer>","litros":X}`. `litros` = lo que descargó en ese punto tal como lo dice (si mezcló agua con el hipoclorito, el total descargado). No le preguntes cuánto era agua y cuánto hipoclorito. Usa la última carga del chofer que todavía tiene litros; si dice otra, agregá `"entrega_id":N`.
 - Si el sistema responde que hay varios destinos («¿Cuál?»), preguntale al chofer cuál de esas opciones y reenviá con ese texto. Si el destino no existe, decile que logística lo tiene que dar de alta.
 - Después de confirmar, decile cuántos litros le quedan en el camión (viene en la respuesta).
+Pedidos del personal (cualquiera con legajo; no piden turno):
+- Vacaciones (`vacaciones`): `{"desde":"AAAA-MM-DD","hasta":"AAAA-MM-DD","observaciones":"..."}`. Si dice «del 3 al 14 de enero», armá las fechas con el año que corresponda (si no es obvio, preguntá). El preview dice cuántos días le quedarían; si no le alcanzan, el sistema responde cuántos tiene.
+- Ropa / EPP (`pedido_epp`): `{"item":"<como lo dijo>","cantidad":N,"talle":"...","motivo":"<clave>","comentario":"..."}`. Motivos: `rotura`, `desgaste`, `perdida`, `talle`, `falta`, `otro` (con `otro`, comentario obligatorio). Si el sistema responde «¿Cuál?» con opciones, preguntale cuál y reenviá con ese nombre. Preguntá el talle si es ropa o calzado.
+- La respuesta (aprobación, rechazo, entrega) le llega solo por WhatsApp y mail; no hace falta que entre al sistema.
 En `stock_consumo`, los filtros de papel llevan `"equipo"`: "Tanque Salmuera Clarificada" o "Tolva UltraPura" (preguntá cuál si no lo dice).
 Si `me.cargas.<modulo>` es false, no insistas: falta permiso o turno de planta (igual que en la web).
 

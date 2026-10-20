@@ -228,7 +228,18 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
         result["preview_body"] = body
         return result
 
-    enviar_mail_texto_plano(app, recipients, subject, body)
+    # Un mail por destinatario con su link para marcar cumplidas las tareas desde el celular.
+    from app.services import accion_link_service as accion_svc
+
+    ids_p = [int(p.id) for p in plans]
+    ids_o = [int(o.id) for o in orders]
+    for dest in recipients:
+        link = accion_svc.url(app, accion_svc.TAREAS, 0, email=dest, p=ids_p, o=ids_o)
+        cuerpo = body.replace(
+            "Este mensaje se generó sin responder.",
+            f"Marcar cumplidas desde el celular, sin entrar al sistema: {link}\n\nEste mensaje se generó sin responder.",
+        )
+        enviar_mail_texto_plano(app, [dest], subject, cuerpo)
     now = datetime.now(timezone.utc)
     for p in plans:
         db.session.add(DeadlineReminderSent(domain=DOMAIN_PLANIFICACION, entity_id=p.id, sent_at=now))

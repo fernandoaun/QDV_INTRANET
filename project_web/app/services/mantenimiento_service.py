@@ -713,6 +713,25 @@ def update_order_from_form(order: MaintenanceOrder, form: Any) -> None:
                 pass
 
 
+def finalizar_orden(order: MaintenanceOrder, resultado: str = "") -> None:
+    """Cierra la orden (p. ej. desde el link del aviso) y corre la próxima fecha del plan. No hace commit."""
+    order.estado = "finalizado"
+    if (resultado or "").strip():
+        order.resultado = resultado.strip()[:4000]
+    ahora = now_operacion_local_iso_seconds()
+    if not order.closed_at_iso:
+        order.closed_at_iso = ahora
+    order.updated_at_iso = ahora
+    if order.plan_id:
+        plan = db.session.get(MaintenancePlan, order.plan_id)
+        if plan is not None and plan.frecuencia_dias and order.fecha_programada:
+            try:
+                plan.proxima_fecha = (date.fromisoformat(order.fecha_programada) + timedelta(days=int(plan.frecuencia_dias))).isoformat()
+                plan.updated_at_iso = ahora
+            except ValueError:
+                pass
+
+
 def list_resources() -> list[MaintenanceResource]:
     return list(
         db.session.scalars(

@@ -125,58 +125,141 @@ def workflow_mail_status_message(app: Any, *, mail_sent: bool, rol: str) -> str:
     )
 
 
+def _pdf(doc: SgiDocumento, rev: SgiProcedimientoRevision) -> tuple[str, bytes, str] | None:
+    from app.services.sgi_pdf_service import adjunto_difusion
+
+    return adjunto_difusion(doc, rev)
+
+
+def _send_personal(
+    app: Any,
+    doc: SgiDocumento,
+    rev: SgiProcedimientoRevision,
+    *,
+    recipients: list[str],
+    tipo_accion: str,
+    asunto: str,
+    intro_html: str,
+    intro_texto: str,
+    boton: str,
+    context: str,
+) -> bool:
+    """Un mail por destinatario con su link de acción (sin entrar al sistema) y el documento en PDF."""
+    from app.services import accion_link_service as accion_svc
+
+    if not recipients:
+        log.warning("SGI workflow %s: sin destinatarios de correo", context)
+        return False
+    adjunto = _pdf(doc, rev)
+    editor = _editor_url(app, doc, rev)
+    algun = False
+    for dest in recipients:
+        link = accion_svc.url(app, tipo_accion, rev.id, email=dest)
+        cuerpo_html = (
+            intro_html
+            + ("<p>Te mandamos el documento adjunto en PDF.</p>" if adjunto else "")
+            + f'<p><a href="{html_lib.escape(link)}"><strong>{html_lib.escape(boton)}</strong></a> '
+            "(desde el celular, sin entrar al sistema)</p>"
+            + f'<p style="color:#666;font-size:12px">También podés abrirlo en el editor: '
+            f'<a href="{html_lib.escape(editor)}">{html_lib.escape(editor)}</a></p>'
+        )
+        cuerpo_texto = (
+            intro_texto
+            + ("\nTe mandamos el documento adjunto en PDF." if adjunto else "")
+            + f"\n\n{boton}: {link}"
+        )
+        try:
+            if not is_mail_fully_configured(app):
+                log.warning("SGI workflow %s: SMTP no configurado", context)
+                return False
+            enviar_mail(
+                app,
+                destinatarios=[dest],
+                asunto=asunto,
+                cuerpo_html=cuerpo_html,
+                cuerpo_texto=cuerpo_texto,
+                adjuntos=[adjunto] if adjunto else None,
+            )
+            algun = True
+        except Exception:
+            log.exception("SGI workflow %s: fallo envío de correo a %s", context, dest)
+    return algun
+
+
 def notify_revision_requested(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> bool:
-    recipients = resolve_revision_recipients(app, rev)
-    link = _editor_url(app, doc, rev)
+    from app.services.accion_link_service import SGI_REVISAR
+
     revisor = (rev.reviso or doc.responsable_revision or "—").strip()
-    asunto = f"QDV SGI — Revisión pendiente · {doc.codigo}"
-    cuerpo_html = (
-        f"<p>El documento <strong>{html_lib.escape(doc.codigo)}</strong> "
-        f"({html_lib.escape(doc.titulo)}) fue enviado a <strong>revisión</strong>.</p>"
-        f"<p><strong>Revisor asignado:</strong> {html_lib.escape(revisor)}</p>"
-        f"<p>Ingresá al sistema, revisá el contenido y confirmá con el botón "
-        f"<strong>«Marcar como revisado»</strong>.</p>"
-        f'<p><a href="{html_lib.escape(link)}">Abrir documento en el editor</a></p>'
-    )
-    cuerpo_texto = (
-        f"Revisión pendiente: {doc.codigo} — {doc.titulo}\n"
-        f"Revisor: {revisor}\n"
-        f"Abrir: {link}"
-    )
-    return _send_workflow_mail(
+    esc = html_lib.escape
+    return _send_personal(
         app,
-        destinatarios=recipients,
-        asunto=asunto,
-        cuerpo_html=cuerpo_html,
-        cuerpo_texto=cuerpo_texto,
+        doc,
+        rev,
+        recipients=resolve_revision_recipients(app, rev),
+        tipo_accion=SGI_REVISAR,
+        asunto=f"QDV SGI — Revisión pendiente · {doc.codigo}",
+        intro_html=(
+            f"<p>El documento <strong>{esc(doc.codigo)}</strong> ({esc(doc.titulo)}) fue enviado a "
+            f"<strong>revisión</strong>.</p><p><strong>Revisor asignado:</strong> {esc(revisor)}</p>"
+            "<p>Leelo y, desde el link, marcalo como revisado o devolvelo con observaciones.</p>"
+        ),
+        intro_texto=(
+            f"Revisión pendiente: {doc.codigo} — {doc.titulo}\nRevisor: {revisor}\n"
+            "Leelo y, desde el link, marcalo como revisado o devolvelo con observaciones."
+        ),
+        boton="Revisar",
         context="revision_requested",
     )
 
 
 def notify_pending_approval(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> bool:
-    recipients = resolve_approval_recipients(app, rev)
-    link = _editor_url(app, doc, rev)
+    from app.services.accion_link_service import SGI_APROBAR
+
     aprobador = (rev.aprobo or doc.responsable_aprobacion or "—").strip()
     revisor = (rev.reviso or "—").strip()
-    asunto = f"QDV SGI — Aprobación pendiente · {doc.codigo}"
-    cuerpo_html = (
-        f"<p>El documento <strong>{html_lib.escape(doc.codigo)}</strong> "
-        f"({html_lib.escape(doc.titulo)}) fue <strong>revisado</strong> y espera tu aprobación.</p>"
-        f"<p><strong>Revisó:</strong> {html_lib.escape(revisor)}<br>"
-        f"<strong>Aprobador asignado:</strong> {html_lib.escape(aprobador)}</p>"
-        f"<p>Ingresá al sistema y usá el botón <strong>«Aprobar documento»</strong>.</p>"
-        f'<p><a href="{html_lib.escape(link)}">Abrir documento en el editor</a></p>'
+    esc = html_lib.escape
+    return _send_personal(
+        app,
+        doc,
+        rev,
+        recipients=resolve_approval_recipients(app, rev),
+        tipo_accion=SGI_APROBAR,
+        asunto=f"QDV SGI — Aprobación pendiente · {doc.codigo}",
+        intro_html=(
+            f"<p>El documento <strong>{esc(doc.codigo)}</strong> ({esc(doc.titulo)}) fue <strong>revisado</strong> "
+            f"y espera tu aprobación.</p><p><strong>Revisó:</strong> {esc(revisor)}<br>"
+            f"<strong>Aprobador asignado:</strong> {esc(aprobador)}</p>"
+            "<p>Leelo y, desde el link, aprobalo o devolvelo con observaciones.</p>"
+        ),
+        intro_texto=(
+            f"Aprobación pendiente: {doc.codigo} — {doc.titulo}\nRevisó: {revisor}\nAprobador: {aprobador}\n"
+            "Leelo y, desde el link, aprobalo o devolvelo con observaciones."
+        ),
+        boton="Aprobar",
+        context="pending_approval",
     )
-    cuerpo_texto = (
-        f"Aprobación pendiente: {doc.codigo} — {doc.titulo}\n"
-        f"Revisó: {revisor}\nAprobador: {aprobador}\n"
-        f"Abrir: {link}"
-    )
+
+
+def notify_devuelto(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision, actor_label: str, observaciones: str) -> bool:
+    """Aviso a quien elaboró: el documento volvió a borrador con observaciones."""
+    from app.services.sgi_procedimiento_service import emails_elaborador
+
+    recipients = emails_elaborador(rev) or _env_fallback(app, "SGI_REVISION_MAIL_TO")
+    link = _editor_url(app, doc, rev)
+    esc = html_lib.escape
     return _send_workflow_mail(
         app,
         destinatarios=recipients,
-        asunto=asunto,
-        cuerpo_html=cuerpo_html,
-        cuerpo_texto=cuerpo_texto,
-        context="pending_approval",
+        asunto=f"QDV SGI — Documento devuelto con observaciones · {doc.codigo}",
+        cuerpo_html=(
+            f"<p><strong>{esc(actor_label)}</strong> devolvió el documento <strong>{esc(doc.codigo)}</strong> "
+            f"({esc(doc.titulo)}) a borrador.</p><p><strong>Observaciones:</strong><br>{esc(observaciones)}</p>"
+            "<p>Corregilo y volvé a enviarlo a revisión.</p>"
+            f'<p><a href="{esc(link)}">Abrir documento en el editor</a></p>'
+        ),
+        cuerpo_texto=(
+            f"{actor_label} devolvió {doc.codigo} — {doc.titulo} a borrador.\n"
+            f"Observaciones: {observaciones}\n\nCorregilo y volvé a enviarlo a revisión.\nEditor: {link}"
+        ),
+        context="devuelto",
     )

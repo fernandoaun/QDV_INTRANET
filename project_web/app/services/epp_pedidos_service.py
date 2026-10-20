@@ -212,20 +212,30 @@ def _detalle(sol: PersonalSolicitudEpp) -> str:
 
 
 def avisar_nuevo_pedido(app: Any, sol: PersonalSolicitudEpp) -> tuple[bool, str]:
-    from app.services.mail_link_service import public_abs_url
+    """Un mail por responsable, cada uno con su link para entregar o rechazar desde el celular."""
+    from app.services import accion_link_service as accion_svc
 
     nombre = sol.empleado.nombre_completo if sol.empleado else "Un empleado"
-    parrafos = [f"{nombre} pidió ropa/EPP desde la plataforma.", f"Pedido: {_detalle(sol)}."]
+    parrafos = [f"{nombre} pidió ropa/EPP.", f"Pedido: {_detalle(sol)}."]
     if sol.comentario:
         parrafos.append(f"Comentario: {sol.comentario}")
-    return _enviar(
-        app,
-        destinatarios_responsables(app),
-        f"QDV — Pedido de EPP de {nombre}",
-        parrafos,
-        public_abs_url(app, "personal.epp_pedidos"),
-        "Ver pedidos de EPP",
-    )
+    destinatarios = destinatarios_responsables(app)
+    if not destinatarios:
+        return False, "no hay destinatario con mail cargado"
+    resultados = [
+        _enviar(
+            app,
+            [dest],
+            f"QDV — Pedido de EPP de {nombre}",
+            parrafos,
+            accion_svc.url(app, accion_svc.EPP_PEDIDO, sol.id, email=dest),
+            "Entregar o rechazar (desde el celular, sin entrar al sistema)",
+        )
+        for dest in destinatarios
+    ]
+    if any(ok for ok, _ in resultados):
+        return True, ""
+    return resultados[0]
 
 
 def avisar_rechazo(app: Any, sol: PersonalSolicitudEpp) -> tuple[bool, str]:

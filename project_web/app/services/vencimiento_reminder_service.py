@@ -41,6 +41,13 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
     dias = vs.dias_restantes(v.fecha_vencimiento, today)
     sector_nombre = v.sector.nombre if getattr(v, "sector", None) else "—"
     link = _public_link(app, v.id)
+    from app.services import accion_link_service as accion_svc
+
+    try:
+        link_accion = accion_svc.url(app, accion_svc.VENCIMIENTO, v.id, email=v.email_aviso or "")
+    except Exception:
+        log.exception("No se pudo armar el link de renovación del vencimiento id=%s", v.id)
+        link_accion = ""
     plain_lines = [
         f"Vencimiento: {v.nombre}",
         f"Sector: {sector_nombre}",
@@ -49,6 +56,8 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
         f"Responsable: {v.responsable or '—'}",
         f"Observaciones: {(v.observaciones or '').strip() or '—'}",
     ]
+    if link_accion:
+        plain_lines.append(f"Cuando lo renueves, cargá la nueva fecha (y la foto del certificado) acá: {link_accion}")
     if link:
         plain_lines.append(f"Ver en el sistema: {link}")
     plain = "\n".join(plain_lines)
@@ -66,6 +75,11 @@ def _build_html_body(app: Any, v: Any) -> tuple[str, str]:
         )
     )
     link_html = (
+        f'<p><a href="{esc(link_accion)}"><strong>Registrar la renovación</strong></a> '
+        "(nueva fecha y foto del certificado, desde el celular)</p>"
+        if link_accion
+        else ""
+    ) + (
         f'<p><a href="{esc(link)}">Abrir en el sistema</a></p>' if link else "<p><em>Definí APP_PUBLIC_BASE_URL para incluir enlace directo.</em></p>"
     )
     html_body = (

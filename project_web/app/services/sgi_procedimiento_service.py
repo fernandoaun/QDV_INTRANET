@@ -60,6 +60,7 @@ ACCION_ENVIAR_REVISION = "enviar_revision"
 ACCION_MARCAR_REVISADO = "marcar_revisado"
 ACCION_APROBAR = "aprobar"
 ACCION_NUEVA_REVISION = "nueva_revision"
+ACCION_DEVOLVER = "devolver"
 
 _CODIGO_RE = re.compile(r"^QDV-(PG|PO|MSGC|MSGI)-(\d+)$", re.IGNORECASE)
 _EMAIL_IN_TEXT_RE = re.compile(r"[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}")
@@ -1488,6 +1489,51 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
     mail_sent = workflow_svc.notify_pending_approval(app, doc, rev)
     aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="aprobador")
     return True, f"Revisión registrada. {aviso}"
+
+
+def devolver_a_borrador(rev_id: int, user_id: int | None, actor_label: str, observaciones: str) -> tuple[bool, str]:
+    """El revisor o el aprobador devuelve el documento a borrador con observaciones; se avisa a quien lo elaboró."""
+    rev = get_revision(rev_id)
+    if rev is None or rev.estado not in (ESTADO_EN_REVISION, ESTADO_REVISADO):
+        return False, "Solo un documento en revisión o revisado puede devolverse."
+    obs = (observaciones or "").strip()[:3000]
+    if not obs:
+        return False, "Escribí las observaciones: le llegan a quien elaboró el documento."
+    previo = rev.estado
+    rev.estado = ESTADO_BORRADOR
+    rev.fecha_revision = None
+    rev.updated_by_id = user_id
+    doc = rev.documento
+    doc.estado = ESTADO_BORRADOR
+    doc.updated_by_id = user_id
+    _log_aprobacion(rev, ACCION_DEVOLVER, user_id, actor_label, f"Devuelto con observaciones: {obs}")
+    etiqueta = "En revisión" if previo == ESTADO_EN_REVISION else "Revisado"
+    doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, f"{etiqueta} → Borrador (devuelto: {obs[:300]})")
+    db.session.commit()
+    app = current_app._get_current_object()
+    mail_sent = workflow_svc.notify_devuelto(app, doc, rev, actor_label, obs)
+    aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="elaborador")
+    return True, f"Documento devuelto a borrador. {aviso}"
+
+
+def emails_elaborador(rev: SgiProcedimientoRevision) -> list[str]:
+    """Mail de quien envió el documento a revisión (el último envío)."""
+    row = db.session.scalar(
+        select(SgiProcedimientoAprobacion)
+        .where(
+            SgiProcedimientoAprobacion.revision_id == rev.id,
+            SgiProcedimientoAprobacion.accion == ACCION_ENVIAR_REVISION,
+            SgiProcedimientoAprobacion.usuario_id.isnot(None),
+        )
+        .order_by(SgiProcedimientoAprobacion.id.desc())
+        .limit(1)
+    )
+    if row is None:
+        return []
+    from app.services.sgi_difusion_mail_service import _user_emails
+
+    u = db.session.get(User, int(row.usuario_id))
+    return _user_emails(u) if u is not None and u.activo else []
 
 
 def reenviar_aviso_workflow(rev_id: int, payload: dict[str, Any] | None = None) -> tuple[bool, str]:
