@@ -6,17 +6,16 @@ Punto de entrada para rutas: `app.services.operational_informed_stock`.
 Definición obligatoria (no mezclar con otras fórmulas):
 
 **PRODUCCIÓN (último turno con cierre recepcionado)**
-  = stock final − stock inicial + cargas en el turno − ingresos PT admin en el turno
+  = stock final − stock inicial + cargas en el turno − ingresos PT de hipoclorito en el turno
   = `hypochlorite` del cierre de ese partido − cierre inmediatamente anterior
     + entregas hipo con `cargada_at_iso` en [inicio, cierre del turno]
-    − `sum_hipo_administrador_pt_ingresos` en el mismo intervalo
-  (las cargas bajaron el stock y se re-suman; los ingresos admin lo inflaron y se restan.)
+    − `sum_hipo_pt_ingresos_in_interval` en el mismo intervalo
+  (las cargas bajaron el stock y se re-suman; los ingresos lo inflaron y se restan.)
 
 **STOCK INSTANTÁNEO (estimado)**
   = stock al inicio del turno en análisis + producción estimada del turno en curso
   (`produccion_estimada_service`: electrolizadores en marcha, sin parada, a ritmo fijo)
-  − cargas (entregas «cargada») + ingresos de PT
-  de hipoclorito con `cargado_por` = usuario **administrador** (`User.is_admin`),
+  − cargas (entregas «cargada») + ingresos de PT de hipoclorito (cualquier usuario que lo cargue),
   todos contados **desde el inicio operativo** de ese turno hasta ahora (ISO local).
 
 - Base: si hay un turno **entregado y pendiente de recepción** con stock válido, lo declarado en esa
@@ -24,7 +23,7 @@ Definición obligatoria (no mezclar con otras fórmulas):
   **cierre recepcionado inmediatamente anterior**, desde el `started_at_iso` de la `ShiftSession`
   abierta o, si no hay sesión, desde `received_at_iso` de ese cierre.
 - Cargas: `Entrega` de hipoclorito con `cargada_at_iso` en [T0, ahora].
-- Ingresos administrativos: `ingresos_stock` PT + join a `User.is_admin` + ventana de tiempo.
+- Ingresos: `ingresos_stock` PT de hipoclorito + ventana de tiempo.
 
 Para cargar camiones y programar entregas se usa el **disponible para carga**: igual que el
 instantáneo pero tomando solo el margen configurado (p. ej. 90 %) de la producción estimada.
@@ -40,7 +39,7 @@ from typing import Any, Tuple
 from sqlalchemy import func, select
 from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.extensions import db
-from app.models import Entrega, IngresoStock, ShiftHandover, User
+from app.models import Entrega, IngresoStock, ShiftHandover
 from app.services import shift_handover_service as sh
 from app.utils.hipoclorito_producto import entrega_columna_es_hipoclorito_operativo_sql
 
@@ -82,13 +81,13 @@ def _list_received_handovers_with_valid_stock(limit: int = 80) -> list[ShiftHand
     return out
 
 
-def sum_hipo_administrador_pt_ingresos_in_interval(
+def sum_hipo_pt_ingresos_in_interval(
     t_from_inclusive: str, t_to_inclusive: str | None
 ) -> float:
     """
     Suma `IngresoStock.cantidad` (L) de categoría producto terminado, producto hipoclorito
-    operativo, con `cargado_por_user_id` apuntando a un usuario con `is_admin` True, y
-    `created_at_iso` en [t_from, t_to] (t_to = ahora operativa local si se omite).
+    operativo, con `created_at_iso` en [t_from, t_to] (t_to = ahora operativa local si se omite).
+    Cuenta el ingreso lo cargue quien lo cargue (antes solo administradores: Fernando, 20/10/2026).
     """
     t0 = (t_from_inclusive or "").strip()
     t1 = (t_to_inclusive or "").strip() if t_to_inclusive else sh.now_local_iso()
@@ -100,12 +99,9 @@ def sum_hipo_administrador_pt_ingresos_in_interval(
     total = db.session.scalar(
         select(func.coalesce(func.sum(IngresoStock.cantidad), 0.0))
         .select_from(IngresoStock)
-        .join(User, IngresoStock.cargado_por_user_id == User.id)
         .where(
             IngresoStock.categoria == ENTREGAS_STOCK_CATEGORIA,
             hipo,
-            User.is_admin.is_(True),
-            IngresoStock.cargado_por_user_id.isnot(None),
             IngresoStock.created_at_iso >= t0,
             IngresoStock.created_at_iso <= t1,
         )
@@ -186,7 +182,7 @@ def _componentes_stock(handovers: list[ShiftHandover]) -> dict[str, Any] | None:
         return None
     s0, t0 = pair
     loads = _sum_hipochlorite_truck_loads_liters(t0, None)
-    ingr = sum_hipo_administrador_pt_ingresos_in_interval(t0, None)
+    ingr = sum_hipo_pt_ingresos_in_interval(t0, None)
     est = pe.estimar(t0)
     prod = float(est["litros"])
     margen = max(0.0, min(100.0, float(est["config"]["margen_carga_pct"]))) / 100.0
@@ -233,7 +229,7 @@ def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> flo
     if not t0 or not t1 or t0 > t1:
         return None
     loads = _sum_hipochlorite_truck_loads_liters(t0, t1)
-    ingr = sum_hipo_administrador_pt_ingresos_in_interval(t0, t1)
+    ingr = sum_hipo_pt_ingresos_in_interval(t0, t1)
     p = s_last - s_prev + loads - ingr
     return p if math.isfinite(p) else None
 
@@ -241,7 +237,7 @@ def _last_shift_production_from_handovers(handovers: list[ShiftHandover]) -> flo
 def get_instant_stock() -> float | None:
     """
     Stock instantáneo: stock al inicio del turno (último cierre recepcionado)
-    − cargas reales (entregas 'cargada') + ingresos PT de hipoclorito hechos por administrador,
+    − cargas reales (entregas 'cargada') + ingresos PT de hipoclorito,
     en la ventana [inicio operativo de turno, ahora] (criterio detallado en el docstring del módulo).
     """
     return _instant_from_handovers(_list_received_handovers_with_valid_stock())
@@ -278,7 +274,7 @@ def get_last_shift_production() -> float | None:
     """
     Producción del turno cuyo cierre es el último partido recepcionado:
     stock final − stock inicial + cargas hipo (ventana [inicio, cierre] del turno)
-    − ingresos PT por administrador en esa misma ventana.
+    − ingresos PT de hipoclorito en esa misma ventana.
     Solo con dos o más cierres recepcionados válidos; si no, None (no inventar cierre).
     """
     return _last_shift_production_from_handovers(_list_received_handovers_with_valid_stock())

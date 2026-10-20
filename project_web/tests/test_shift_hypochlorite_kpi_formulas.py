@@ -139,3 +139,22 @@ def test_stock_instantaneo_usa_cantidad_real_cargada(app):
         db.session.commit()
 
         assert get_instant_stock() == 8_800.0
+
+
+def test_ingreso_pt_de_cualquier_usuario_suma_al_panel(app):
+    """El ingreso de hipoclorito terminado cuenta aunque lo cargue alguien que no es administrador."""
+    from app.extensions import db
+    from app.models import IngresoStock, User
+    from app.services.shift_hypochlorite_indicators_service import sum_hipo_pt_ingresos_in_interval
+
+    with app.app_context():
+        u = User(username="pytest_ingreso_lab", password_hash="x", is_admin=False, rol="responsable_laboratorio", activo=True)
+        db.session.add(u)
+        db.session.flush()
+        for prod, cant in (("Hipoclorito", 9_371.0), ("Cloro gaseoso", 500.0)):
+            db.session.add(IngresoStock(categoria="producto_terminado", producto=prod, marca="QDV", vencimiento="", lote="", cantidad=cant, unidad="L",
+                                        fecha="2026-10-20", hora="15:17", operador="Lab", cargado_por_user_id=int(u.id),
+                                        created_at_iso="2026-10-20T15:17:00"))
+        db.session.commit()
+        assert sum_hipo_pt_ingresos_in_interval("2026-10-20T08:00:00", "2026-10-20T18:00:00") == 9_371.0
+        assert sum_hipo_pt_ingresos_in_interval("2026-10-20T16:00:00", "2026-10-20T18:00:00") == 0.0

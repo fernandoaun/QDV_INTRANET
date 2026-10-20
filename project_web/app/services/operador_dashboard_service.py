@@ -29,7 +29,7 @@ from app.services.plant_stop_service import (
 from app.services.salmuera_analisis_8hs_service import ANALISIS_8HS_INTERVAL_SECONDS
 from app.services.shift_hypochlorite_indicators_service import (
     format_header_liters,
-    sum_hipo_administrador_pt_ingresos_in_interval,
+    sum_hipo_pt_ingresos_in_interval,
 )
 from app.utils.datetime_operacion import now_operacion_naive_local
 
@@ -342,7 +342,7 @@ def _shift_production_liters(current: ShiftHandover, previous: ShiftHandover) ->
     from app.services.shift_hypochlorite_indicators_service import _sum_hipochlorite_truck_loads_liters
 
     loads = _sum_hipochlorite_truck_loads_liters(t0, t1)
-    ingr = sum_hipo_administrador_pt_ingresos_in_interval(t0, t1)
+    ingr = sum_hipo_pt_ingresos_in_interval(t0, t1)
     p = s_last - s_prev + loads - ingr
     return p if math.isfinite(p) else None
 
