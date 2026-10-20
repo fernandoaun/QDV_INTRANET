@@ -1441,7 +1441,9 @@ def enviar_a_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool
     doc_svc.append_historial(doc.id, actor_label, doc_svc.ACCION_CAMBIO_ESTADO, "Borrador → En revisión")
     db.session.commit()
     mail_sent = workflow_svc.notify_revision_requested(app, doc, rev)
-    aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="revisor")
+    aviso = workflow_svc.workflow_mail_status_message(
+        app, mail_sent=mail_sent, rol="revisor", destinatarios=workflow_svc.resolve_revision_recipients(app, rev)
+    )
     return True, f"Documento enviado a revisión. {aviso}"
 
 
@@ -1487,7 +1489,9 @@ def marcar_como_revisado(rev_id: int, user_id: int, actor_label: str) -> tuple[b
     )
     db.session.commit()
     mail_sent = workflow_svc.notify_pending_approval(app, doc, rev)
-    aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="aprobador")
+    aviso = workflow_svc.workflow_mail_status_message(
+        app, mail_sent=mail_sent, rol="aprobador", destinatarios=workflow_svc.resolve_approval_recipients(app, rev)
+    )
     return True, f"Revisión registrada. {aviso}"
 
 
@@ -1512,7 +1516,9 @@ def devolver_a_borrador(rev_id: int, user_id: int | None, actor_label: str, obse
     db.session.commit()
     app = current_app._get_current_object()
     mail_sent = workflow_svc.notify_devuelto(app, doc, rev, actor_label, obs)
-    aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="elaborador")
+    aviso = workflow_svc.workflow_mail_status_message(
+        app, mail_sent=mail_sent, rol="elaborador", destinatarios=emails_elaborador(rev) or None
+    )
     return True, f"Documento devuelto a borrador. {aviso}"
 
 
@@ -1558,7 +1564,7 @@ def reenviar_aviso_workflow(rev_id: int, payload: dict[str, Any] | None = None) 
                 "o configurá SGI_REVISION_MAIL_TO en el servidor."
             )
         mail_sent = workflow_svc.notify_revision_requested(app, doc, rev)
-        aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="revisor")
+        aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="revisor", destinatarios=recipients)
         return True, f"Aviso de revisión reenviado. {aviso}"
 
     if rev.estado == ESTADO_REVISADO:
@@ -1569,7 +1575,7 @@ def reenviar_aviso_workflow(rev_id: int, payload: dict[str, Any] | None = None) 
                 "o configurá SGI_APROBACION_MAIL_TO en el servidor."
             )
         mail_sent = workflow_svc.notify_pending_approval(app, doc, rev)
-        aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="aprobador")
+        aviso = workflow_svc.workflow_mail_status_message(app, mail_sent=mail_sent, rol="aprobador", destinatarios=recipients)
         return True, f"Aviso de aprobación reenviado. {aviso}"
 
     return False, "Solo se puede reenviar el aviso si el documento está en revisión o pendiente de aprobación."

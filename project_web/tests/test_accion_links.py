@@ -237,3 +237,18 @@ def test_responder_por_whatsapp(app, admin_user):
         assert res["ok"] and not db.session.get(Vencimiento, v.id).activo
         with pytest.raises(ValueError, match="ya no está pendiente"):
             write_svc.preview_and_token(admin, "responder", {"pendiente": p["pendiente"], "accion": "renovar"}, "texto")
+
+
+def test_aviso_flujo_dice_si_salio_por_whatsapp(app, admin_user):
+    from app.extensions import db
+    from app.services import sgi_workflow_service as wf
+
+    with app.test_request_context():
+        admin, emp = _admin(app)
+        admin.whatsapp_e164 = "+5492990000000"
+        db.session.commit()
+        msg = lambda d: wf.workflow_mail_status_message(app, mail_sent=True, rol="aprobador", destinatarios=d)  # noqa: E731
+        assert msg(["admin@qdv.test"]) == "Se notificó al aprobador por correo y por WhatsApp."
+        assert "por WhatsApp no, porque otro@x.ar" in msg(["otro@x.ar"])
+        assert "a otro@x.ar solo por correo" in msg(["admin@qdv.test", "otro@x.ar"])
+        assert wf.workflow_mail_status_message(app, mail_sent=True, rol="revisor") == "Se notificó al revisor por correo."

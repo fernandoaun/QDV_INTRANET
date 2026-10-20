@@ -113,10 +113,21 @@ def _send_workflow_mail(
         return False
 
 
-def workflow_mail_status_message(app: Any, *, mail_sent: bool, rol: str) -> str:
-    """Mensaje honesto tras cambiar estado del flujo (revisor / aprobador)."""
+def workflow_mail_status_message(app: Any, *, mail_sent: bool, rol: str, destinatarios: list[str] | None = None) -> str:
+    """Mensaje honesto tras cambiar estado del flujo (revisor / aprobador): por correo y, si tiene celular, por WhatsApp."""
     if mail_sent:
-        return f"Se notificó al {rol} por correo."
+        if destinatarios is None:
+            return f"Se notificó al {rol} por correo."
+        from app.services.whatsapp_avisos_service import telefonos_por_email
+
+        con_celular = telefonos_por_email(destinatarios)
+        sin_celular = [e for e in destinatarios if e.strip().lower() not in con_celular]
+        if not sin_celular:
+            return f"Se notificó al {rol} por correo y por WhatsApp."
+        quienes = ", ".join(sin_celular)
+        if con_celular:
+            return f"Se notificó al {rol} por correo y por WhatsApp (a {quienes} solo por correo: no está en ningún legajo con celular)."
+        return f"Se notificó al {rol} por correo; por WhatsApp no, porque {quienes} no está en ningún legajo con celular."
     if is_mail_fully_configured(app):
         return f"No se pudo enviar el aviso por correo al {rol} (revisá los logs del servidor)."
     return (
