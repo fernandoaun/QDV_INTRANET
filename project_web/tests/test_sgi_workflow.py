@@ -555,3 +555,24 @@ def test_circuito_pone_fechas_y_nombres(app, sgi_editor):
         assert rev.reviso == "PÉREZ, ANA" and rev.aprobo == "GÓMEZ, LUIS"
         cc = json.loads(rev.contenido_json)["control_cambios"]
         assert cc[-1]["fecha_aprobacion"] == hoy.isoformat()
+
+
+def test_primera_hoja_encabezado_arriba_y_firmas_al_pie(app, sgi_editor):
+    """Primera hoja: tabla logo|título|código arriba (sin carátula grande); al pie control de cambios, firmas y vigencia."""
+    from flask import render_template
+
+    from app.models.sgi import PROCEDIMIENTO_SECCIONES
+    from app.web.modules.sgi.procedure_routes import _procedure_render_kwargs
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="HOJA UNO")
+        assert err is None
+        with app.test_request_context():
+            html = render_template("sgi/procedure_print.html", **_procedure_render_kwargs(
+                doc=doc, rev=rev, payload=proc_svc.revision_to_payload(rev), secciones=PROCEDIMIENTO_SECCIONES))
+    assert "sgi-proc-cover-titulo" not in html and "sgi-proc-cover-empresa" not in html
+    primera = html[html.index("sgi-proc-caratula"):html.index("sgi-proc-cuerpo")]
+    orden = [primera.index(t) for t in ("sgi-proc-header-table", "Control de cambios", "Elaboró", "Fecha de vigencia / aprobación")]
+    assert orden == sorted(orden)
+    assert html.count("Fecha de vigencia / aprobación") == 1 and html.count("Elaboró") == 1
+    assert html.count('id="procHeaderTitulo"') == 1

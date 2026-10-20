@@ -583,7 +583,7 @@
       if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = titulo;
       else el.textContent = titulo;
     }
-    if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = titulo;
+    document.querySelectorAll(".proc-header-titulo").forEach((h) => { h.textContent = titulo; });
   }
 
   function applyUndoState(state) {
@@ -1574,8 +1574,7 @@
     if (tituloInput) tituloInput.value = titulo;
     const tituloDisp = qs("#procTituloDisplay");
     if (tituloDisp) tituloDisp.textContent = titulo;
-    const headerTit = qs("#procHeaderTitulo");
-    if (headerTit) headerTit.textContent = titulo;
+    document.querySelectorAll(".proc-header-titulo").forEach((h) => { h.textContent = titulo; });
 
     const secs = initial.secciones || {};
     qsa("[data-seccion-body]").forEach((el) => {
@@ -1651,7 +1650,7 @@
         if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = data.titulo;
         else el.textContent = data.titulo;
       }
-      if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = data.titulo;
+      document.querySelectorAll(".proc-header-titulo").forEach((h) => { h.textContent = data.titulo; });
       const hint = qs("#procCcHint");
       if (hint) {
         hint.textContent =
@@ -1781,7 +1780,7 @@
         if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.value = t;
         else el.textContent = t;
       }
-      if (qs("#procHeaderTitulo")) qs("#procHeaderTitulo").textContent = t;
+      document.querySelectorAll(".proc-header-titulo").forEach((h) => { h.textContent = t; });
       scheduleUndoSnapshot();
       scheduleAutoSaveHint();
     });

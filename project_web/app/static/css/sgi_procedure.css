@@ -284,6 +284,25 @@
   color: #212529;
 }
 
+/* —— Primera hoja: encabezado arriba, control de cambios + firmas + vigencia al pie —— */
+.sgi-proc-caratula {
+  display: flex;
+  flex-direction: column;
+  min-height: 34rem;
+}
+
+.sgi-proc-header-block--primera {
+  margin-top: 0;
+}
+
+.sgi-proc-caratula-pie {
+  margin-top: auto;
+}
+
+.sgi-proc-caratula-pie .sgi-proc-firmas-table {
+  margin: 1rem 0 0.5rem;
+}
+
 /* —— Encabezado interiores (3 columnas como Word header1) —— */
 .sgi-proc-header-block {
   margin: 1.5rem 0 1.25rem;
@@ -671,6 +690,10 @@
     max-width: none;
     /* @page ya aporta margen: no duplicar padding lateral */
     padding: 0;
+  }
+  .sgi-proc-caratula {
+    /* A4 (297 mm) menos los márgenes de @page: el pie queda al final de la primera hoja. */
+    min-height: 260mm;
   }
   .sgi-proc-firma-gerente {
     position: fixed;

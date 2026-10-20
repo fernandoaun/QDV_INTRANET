@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>{{ doc.codigo }} · {{ rev.revision_label }}</title>
-  <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/sgi_procedure.css') }}?v={{ proc_css_v|default('1') }}" rel="stylesheet">
   <style>
     body { margin: 0; background: #fff; }
     @page { size: A4; margin: 15mm; }

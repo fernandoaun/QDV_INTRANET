@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ doc.codigo }} · {{ doc.titulo }}{% endblock %}
 {% block extra_head %}
-<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}?v={{ proc_css_v|default('1') }}" rel="stylesheet">
 {% endblock %}
 {% block content %}
 <div class="app-page-head sgi-proc-no-print">
