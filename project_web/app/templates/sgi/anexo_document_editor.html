@@ -2,7 +2,7 @@
 {% set standalone = standalone|default(false) %}
 {% block title %}{{ anexo.codigo }} · Editor anexo{% endblock %}
 {% block extra_head %}
-<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}?v={{ proc_css_v|default('1') }}" rel="stylesheet">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 {% endblock %}
 {% block content %}
@@ -75,13 +75,28 @@
 {% else %}
 <div class="sgi-proc-workspace">
   <div class="sgi-proc-sheet" id="sgiAnexoDocSheet">
+    {% set header_titulo = payload.titulo or anexo.nombre %}
+    {% set header_codigo = anexo.codigo %}
+    {% set header_revision = anexo.revision %}
     <section class="sgi-proc-caratula">
-      <div class="sgi-proc-cover-logo-wrap">{% include "sgi/_procedure_logo.html" %}</div>
-      <div class="sgi-proc-cover-empresa">QUÍMICA DEL VALLE S.R.L.</div>
-      <input type="text" class="form-control form-control-lg text-center fw-bold mb-2" id="anexoDocTitulo" value="{{ payload.titulo or anexo.nombre }}" {% if solo_lectura|default(false) %}readonly{% endif %}>
-      <div class="sgi-proc-cover-codigo">{{ anexo.codigo }}</div>
-      <div class="sgi-proc-cover-revision">{{ anexo.revision }}</div>
+      <div class="sgi-proc-header-block sgi-proc-header-block--primera">
+        {% include "sgi/_procedure_page_header.html" %}
+      </div>
+      <div class="sgi-proc-no-print">
+        <label class="form-label small mb-1" for="anexoDocTitulo">Título</label>
+        <input type="text" class="form-control fw-bold mb-2" id="anexoDocTitulo" value="{{ payload.titulo or anexo.nombre }}" {% if solo_lectura|default(false) %}readonly{% endif %}
+               oninput="document.querySelectorAll('.proc-header-titulo').forEach((h) => { h.textContent = this.value; })">
+      </div>
+      <div class="sgi-proc-caratula-pie">
+        <p class="sgi-proc-cover-fecha small mb-0">
+          Fecha de vigencia: {{ anexo.fecha_vigencia.strftime('%d/%m/%Y') if anexo.fecha_vigencia else '—' }}
+        </p>
+      </div>
     </section>
+    <div class="sgi-proc-page-break sgi-proc-header-block">
+      {% set header_sin_ids = true %}
+      {% include "sgi/_procedure_page_header.html" %}
+    </div>
     <section class="sgi-proc-cuerpo">
       {% for key, label in secciones %}
       {% if key not in ('control_registros', 'anexos') %}

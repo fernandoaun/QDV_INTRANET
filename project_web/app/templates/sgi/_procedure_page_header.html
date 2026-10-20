@@ -12,7 +12,7 @@
         <strong class="proc-header-titulo"{% if not header_sin_ids|default(false) %} id="procHeaderTitulo"{% endif %}>{{ header_titulo|default(doc.titulo) }}</strong>
       </td>
       <td class="sgi-proc-header-codigo-cell">
-        <strong>{{ doc.codigo }}</strong>
+        <strong>{{ header_codigo|default(doc.codigo) }}</strong>
       </td>
     </tr>
     {% if _show_fv %}
@@ -24,7 +24,7 @@
     {% endif %}
     <tr>
       <td class="sgi-proc-header-rev-cell">
-        <strong class="proc-header-rev"{% if not header_sin_ids|default(false) %} id="procHeaderRev"{% endif %}>{{ rev.revision_label }}</strong>
+        <strong class="proc-header-rev"{% if not header_sin_ids|default(false) %} id="procHeaderRev"{% endif %}>{{ header_revision|default(rev.revision_label) }}</strong>
       </td>
     </tr>
     <tr>

@@ -1,36 +1,41 @@
 {# Documento anexo MSGC — mismo formato visual que PG/PO/MSGC #}
 <div class="sgi-proc-sheet">
+  {# Primera hoja: encabezado arriba; al pie, firmas y vigencia (solo acá). #}
+  {% set header_titulo = payload.titulo or anexo.nombre %}
+  {% set header_codigo = anexo.codigo %}
+  {% set header_revision = anexo.revision %}
   <section class="sgi-proc-caratula">
-    <div class="sgi-proc-cover-logo-wrap">
-      {% include "sgi/_procedure_logo.html" %}
+    <div class="sgi-proc-header-block sgi-proc-header-block--primera">
+      {% include "sgi/_procedure_page_header.html" %}
     </div>
-    <div class="sgi-proc-cover-empresa">QUÍMICA DEL VALLE S.R.L.</div>
-    <h1 class="sgi-proc-cover-titulo">{{ payload.titulo or anexo.nombre }}</h1>
-    <div class="sgi-proc-cover-codigo">{{ anexo.codigo }}</div>
-    <div class="sgi-proc-cover-revision">{{ anexo.revision }}</div>
-    {% if doc_aprobado|default(false) %}
-    <table class="sgi-proc-table sgi-proc-firmas-table">
-      <thead>
-        <tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>{{ rev.elaboro or '—' }}</td>
-          <td>{{ rev.reviso or '—' }}</td>
-          <td>{{ rev.aprobo or '—' }}</td>
-        </tr>
-      </tbody>
-    </table>
-    {% endif %}
-    {% if anexo.fecha_vigencia %}
-    <p class="sgi-proc-cover-fecha text-center small mb-3">
-      Fecha de vigencia: {{ anexo.fecha_vigencia.strftime('%d/%m/%Y') }}
-    </p>
-    {% endif %}
-    {% if not standalone|default(false) %}
-    <p class="text-center small text-muted mb-0">Anexo del {{ doc.codigo }}</p>
-    {% endif %}
+    <div class="sgi-proc-caratula-pie">
+      {% if doc_aprobado|default(false) %}
+      <table class="sgi-proc-table sgi-proc-firmas-table">
+        <thead>
+          <tr><th>Elaboró</th><th>Revisó</th><th>Aprobó</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{{ rev.elaboro or '—' }}</td>
+            <td>{{ rev.reviso or '—' }}</td>
+            <td>{{ rev.aprobo or '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      {% endif %}
+      <p class="sgi-proc-cover-fecha small mb-0">
+        Fecha de vigencia: {{ anexo.fecha_vigencia.strftime('%d/%m/%Y') if anexo.fecha_vigencia else '—' }}
+      </p>
+      {% if not standalone|default(false) %}
+      <p class="small text-muted mb-0">Anexo del {{ doc.codigo }}</p>
+      {% endif %}
+    </div>
   </section>
+
+  <div class="sgi-proc-page-break sgi-proc-header-block">
+    {% set header_sin_ids = true %}
+    {% include "sgi/_procedure_page_header.html" %}
+  </div>
 
   <section class="sgi-proc-cuerpo">
     {% for key, label in secciones %}
