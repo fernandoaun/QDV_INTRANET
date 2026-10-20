@@ -268,5 +268,8 @@ def test_usuario_sin_legajo_con_mail_recibe_whatsapp(app, admin_user):
         db.session.commit()
         assert telefonos_por_email(["gerente@x.ar"]) == {"gerente@x.ar": "+5492990000001"}
         assert accion_svc.usuario_por_email("gerente@x.ar").id == u.id
+        from app.services.sgi_difusion_mail_service import _user_emails
+
+        assert _user_emails(u) == ["gerente@x.ar"]
         assert wf.workflow_mail_status_message(app, mail_sent=True, rol="aprobador", destinatarios=["gerente@x.ar"]) == (
             "Se notificó al aprobador por correo y por WhatsApp.")

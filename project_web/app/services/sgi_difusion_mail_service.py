@@ -46,6 +46,11 @@ def _user_emails(user: User) -> list[str]:
     if addr and addr.lower() not in seen:
         seen.add(addr.lower())
         emails.append(addr)
+    # Sin legajo (solo lectura total / SGI): el mail está en el usuario.
+    propio = normalize_validate_email((user.email or "").strip()) if user.email else None
+    if propio and propio.lower() not in seen:
+        seen.add(propio.lower())
+        emails.append(propio)
     uname = (user.username or "").strip()
     if "@" in uname:
         norm = normalize_validate_email(uname)
