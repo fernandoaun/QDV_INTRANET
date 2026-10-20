@@ -64,6 +64,11 @@
         <input type="hidden" name="categoria" value="{{ categoria }}">
         <input type="hidden" name="producto" value="{{ producto_sel }}">
         <input type="hidden" name="marca" value="{{ marca_sel }}">
+        {% if ajuste_al_panel %}
+        <div class="col-12">
+          <div class="alert alert-info mb-0">El hipoclorito no se ajusta por lote: el ajuste corrige el stock del Panel desde ahora{% if stock_panel is not none %} (hoy {{ "{:,.0f}".format(stock_panel).replace(",", ".") }} L){% endif %}. Positivo suma, negativo descuenta.</div>
+        </div>
+        {% else %}
         <div class="col-md-5">
           <label class="form-label" for="ajLote">Lote existente</label>
           <select class="form-select" id="ajLote" name="ingreso_stock_id" {% if lotes %}required{% else %}disabled{% endif %}>
@@ -77,6 +82,7 @@
           </select>
           <div class="form-text">Para stock nuevo sin lote existente, usá Ingreso de stock.</div>
         </div>
+        {% endif %}
         <div class="col-md-2">
           <label class="form-label" for="ajTipo">Tipo</label>
           <select class="form-select" id="ajTipo" name="tipo" required>
@@ -90,7 +96,7 @@
           <input class="form-control" value="{{ operador_display_line or operador_sugerido or username }}" readonly aria-readonly="true"></div>
         <div class="col-12"><label class="form-label" for="ajObs">Observaciones</label><input class="form-control" id="ajObs" name="observaciones" placeholder="Detalle opcional para gerencia"></div>
         <div class="col-12 pt-1">
-          <button type="submit" class="btn btn-primary" {% if not lotes %}disabled{% endif %}>Guardar ajuste</button>
+          <button type="submit" class="btn btn-primary" {% if not lotes and not ajuste_al_panel %}disabled{% endif %}>Guardar ajuste</button>
         </div>
       </form>
     </div>

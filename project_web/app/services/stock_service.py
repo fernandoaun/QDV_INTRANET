@@ -1139,6 +1139,13 @@ def ajustes_recientes(limit: int = 100) -> list[dict[str, Any]]:
     return _ajuste_rows_to_dicts(stock_repo.list_ajustes_recent(limit))
 
 
+def ajuste_va_al_panel(cat: str, producto: str) -> bool:
+    """El hipoclorito terminado no lleva saldo por lote (la producción no entra como ingreso): su ajuste corrige el Panel."""
+    from app.utils.hipoclorito_producto import es_producto_entrega_operativo_hipoclorito
+
+    return (cat or "").strip() == "producto_terminado" and es_producto_entrega_operativo_hipoclorito(producto)
+
+
 def load_stock_ajuste_view_data(cat: str, producto: str, marca_sel: str = "") -> dict[str, Any]:
     c = _validate_cat(cat)
     productos = productos_catalogo(c)
@@ -1150,10 +1157,18 @@ def load_stock_ajuste_view_data(cat: str, producto: str, marca_sel: str = "") ->
     marca_eff = (marca_sel or "").strip()
     if producto_sel and marcas and not marca_eff and len(marcas) == 1:
         marca_eff = marcas[0]
+    al_panel = bool(producto_sel) and ajuste_va_al_panel(c, producto_sel)
+    stock_panel = None
     lotes: list[dict[str, Any]] = []
-    if producto_sel and marca_eff and es_stockeable:
+    if al_panel:
+        from app.services.shift_hypochlorite_indicators_service import get_instant_stock
+
+        stock_panel = get_instant_stock()
+    elif producto_sel and marca_eff and es_stockeable:
         lotes = lotes_ajustables(c, producto_sel, marca_eff)
     return {
+        "ajuste_al_panel": al_panel,
+        "stock_panel": stock_panel,
         "productos": productos,
         "producto_sel": producto_sel,
         "producto_es_stockeable": es_stockeable,
@@ -1177,7 +1192,8 @@ def save_ajuste_from_web_form(form: Any, *, operador: str, admin_user_id: int | 
         raise ValueError("Solo se pueden ajustar productos estoqueables.")
     if not m:
         raise ValueError("Marca obligatoria.")
-    if not raw_ing.isdigit():
+    al_panel = ajuste_va_al_panel(c, p)
+    if not al_panel and not raw_ing.isdigit():
         raise ValueError("Seleccioná el lote de ingreso a ajustar.")
     if tipo not in ("positivo", "negativo"):
         raise ValueError("Tipo de ajuste inválido.")
@@ -1190,19 +1206,20 @@ def save_ajuste_from_web_form(form: Any, *, operador: str, admin_user_id: int | 
     if qty_abs <= 0 or math.isnan(qty_abs):
         raise ValueError("La cantidad debe ser mayor a cero.")
 
-    iid = int(raw_ing)
-    ing = db.session.get(IngresoStock, iid)
-    if ing is None:
-        raise ValueError("Lote / ingreso no válido.")
-    if (
-        (ing.categoria or "").strip() != c
-        or (ing.producto or "").strip() != p
-        or (ing.marca or "").strip() != m
-    ):
-        raise ValueError("El lote seleccionado no corresponde a este producto y marca.")
-
     signed_qty = qty_abs if tipo == "positivo" else -qty_abs
-    if signed_qty < 0:
+    iid: int | None = None
+    if not al_panel:
+        iid = int(raw_ing)
+        ing = db.session.get(IngresoStock, iid)
+        if ing is None:
+            raise ValueError("Lote / ingreso no válido.")
+        if (
+            (ing.categoria or "").strip() != c
+            or (ing.producto or "").strip() != p
+            or (ing.marca or "").strip() != m
+        ):
+            raise ValueError("El lote seleccionado no corresponde a este producto y marca.")
+    if iid is not None and signed_qty < 0:
         disponible = saldo_consumible_lote(c, p, m, iid)
         if qty_abs > disponible + 1e-9:
             raise ValueError("El ajuste negativo no puede dejar el lote con saldo negativo.")

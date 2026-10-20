@@ -173,6 +173,8 @@ def register_stock_routes(bp: Blueprint) -> None:
             marca_sel=data["marca_sel"],
             marcas=data["marcas"],
             lotes=data["lotes"],
+            ajuste_al_panel=data["ajuste_al_panel"],
+            stock_panel=data["stock_panel"],
             ajustes_recientes=data["ajustes_recientes"],
             operador_display_line=operador_display_line(),
             operador_sugerido=default_operador_for_salmuera(),

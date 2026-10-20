@@ -15,7 +15,7 @@ Definición obligatoria (no mezclar con otras fórmulas):
 **STOCK INSTANTÁNEO (estimado)**
   = stock al inicio del turno en análisis + producción estimada del turno en curso
   (`produccion_estimada_service`: electrolizadores en marcha, sin parada, a ritmo fijo)
-  − cargas (entregas «cargada») + ingresos de PT de hipoclorito (cualquier usuario que lo cargue),
+  − cargas (entregas «cargada») + ingresos y ajustes de PT de hipoclorito (cualquier usuario que los cargue),
   todos contados **desde el inicio operativo** de ese turno hasta ahora (ISO local).
 
 - Base: si hay un turno **entregado y pendiente de recepción** con stock válido, lo declarado en esa
@@ -23,7 +23,7 @@ Definición obligatoria (no mezclar con otras fórmulas):
   **cierre recepcionado inmediatamente anterior**, desde el `started_at_iso` de la `ShiftSession`
   abierta o, si no hay sesión, desde `received_at_iso` de ese cierre.
 - Cargas: `Entrega` de hipoclorito con `cargada_at_iso` en [T0, ahora].
-- Ingresos: `ingresos_stock` PT de hipoclorito + ventana de tiempo.
+- Ingresos y ajustes: `ingresos_stock` y `stock_ajustes` PT de hipoclorito + ventana de tiempo.
 
 Para cargar camiones y programar entregas se usa el **disponible para carga**: igual que el
 instantáneo pero tomando solo el margen configurado (p. ej. 90 %) de la producción estimada.
@@ -39,7 +39,7 @@ from typing import Any, Tuple
 from sqlalchemy import func, select
 from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.extensions import db
-from app.models import Entrega, IngresoStock, ShiftHandover
+from app.models import Entrega, IngresoStock, ShiftHandover, StockAjuste
 from app.services import shift_handover_service as sh
 from app.utils.hipoclorito_producto import entrega_columna_es_hipoclorito_operativo_sql
 
@@ -88,29 +88,30 @@ def sum_hipo_pt_ingresos_in_interval(
     Suma `IngresoStock.cantidad` (L) de categoría producto terminado, producto hipoclorito
     operativo, con `created_at_iso` en [t_from, t_to] (t_to = ahora operativa local si se omite).
     Cuenta el ingreso lo cargue quien lo cargue (antes solo administradores: Fernando, 20/10/2026).
+    Suma también los ajustes de stock de hipoclorito (con signo): el hipoclorito no lleva saldo por
+    lote, así que su ajuste corrige directamente este stock.
     """
     t0 = (t_from_inclusive or "").strip()
     t1 = (t_to_inclusive or "").strip() if t_to_inclusive else sh.now_local_iso()
     if not t0 or not t1 or t0 > t1:
         return 0.0
-    hipo = entrega_columna_es_hipoclorito_operativo_sql(IngresoStock.producto)
-    if hipo is None:
-        return 0.0
-    total = db.session.scalar(
-        select(func.coalesce(func.sum(IngresoStock.cantidad), 0.0))
-        .select_from(IngresoStock)
-        .where(
-            IngresoStock.categoria == ENTREGAS_STOCK_CATEGORIA,
-            hipo,
-            IngresoStock.created_at_iso >= t0,
-            IngresoStock.created_at_iso <= t1,
+    total = 0.0
+    for modelo in (IngresoStock, StockAjuste):
+        hipo = entrega_columna_es_hipoclorito_operativo_sql(modelo.producto)
+        if hipo is None:
+            return 0.0
+        total += float(
+            db.session.scalar(
+                select(func.coalesce(func.sum(modelo.cantidad), 0.0)).where(
+                    modelo.categoria == ENTREGAS_STOCK_CATEGORIA,
+                    hipo,
+                    modelo.created_at_iso >= t0,
+                    modelo.created_at_iso <= t1,
+                )
+            )
+            or 0.0
         )
-    )
-    try:
-        v = float(total or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-    return v if math.isfinite(v) else 0.0
+    return total if math.isfinite(total) else 0.0
 
 
 def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_inclusive: str | None) -> float:

@@ -158,3 +158,25 @@ def test_ingreso_pt_de_cualquier_usuario_suma_al_panel(app):
         db.session.commit()
         assert sum_hipo_pt_ingresos_in_interval("2026-10-20T08:00:00", "2026-10-20T18:00:00") == 9_371.0
         assert sum_hipo_pt_ingresos_in_interval("2026-10-20T16:00:00", "2026-10-20T18:00:00") == 0.0
+
+
+def test_ajuste_de_hipoclorito_va_al_panel_sin_lote(app):
+    from app.services import stock_service as ss
+    from app.services.shift_hypochlorite_indicators_service import sum_hipo_pt_ingresos_in_interval
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    with app.app_context():
+        ss.ensure_producto("producto_terminado", "Hipoclorito")
+        datos = ss.load_stock_ajuste_view_data("producto_terminado", "Hipoclorito", "QDV")
+        assert datos["ajuste_al_panel"] and datos["lotes"] == []
+        rec = ss.save_ajuste_from_web_form(
+            {"categoria": "producto_terminado", "producto": "Hipoclorito", "marca": "QDV", "tipo": "negativo",
+             "cantidad": "1500", "motivo": "Recuento"}, operador="Test", admin_user_id=None)
+        assert rec.ingreso_stock_id is None and rec.cantidad == -1500.0
+        desde = now_operacion_naive_local().replace(hour=0, minute=0, second=0).isoformat(timespec="seconds")
+        assert sum_hipo_pt_ingresos_in_interval(desde, None) == -1500.0
+        # Los demás productos siguen pidiendo lote.
+        ss.ensure_producto("materia_prima", "Sal")
+        with pytest.raises(ValueError, match="lote"):
+            ss.save_ajuste_from_web_form({"categoria": "materia_prima", "producto": "Sal", "marca": "X", "tipo": "positivo",
+                                          "cantidad": "1", "motivo": "Recuento"}, operador="Test", admin_user_id=None)
