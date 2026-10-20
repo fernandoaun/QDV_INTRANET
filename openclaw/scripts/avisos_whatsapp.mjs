@@ -9,6 +9,8 @@
 // Gateway: POST http://127.0.0.1:{OPENCLAW_GATEWAY_PORT}/tools/invoke
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
+import http from "node:http";
+import https from "node:https";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -33,18 +35,40 @@ async function qdv(path, init = {}) {
   return r.json();
 }
 
+// GET binario con node:http (no fetch: el undici de Node 24 aborta el proceso con
+// «assert(!this.paused)» al bajar un archivo de gunicorn).
+function bajarBinario(url, headers, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith("https:") ? https : http;
+    const req = mod.get(url, { headers, timeout: timeoutMs }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const partes = [];
+      res.on("data", (c) => partes.push(c));
+      res.on("end", () => resolve(Buffer.concat(partes)));
+      res.on("error", reject);
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+  });
+}
+
 // Baja el adjunto a una carpeta temporal propia del aviso; devuelve la ruta local.
 async function bajarAdjunto(aviso) {
-  const r = await fetch(`${BASE}${aviso.adjunto.url}`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!r.ok) throw new Error(`QDV adjunto #${aviso.id} → HTTP ${r.status}`);
+  let contenido;
+  try {
+    contenido = await bajarBinario(`${BASE}${aviso.adjunto.url}`, { Authorization: `Bearer ${TOKEN}` }, 60_000);
+  } catch (e) {
+    throw new Error(`QDV adjunto #${aviso.id} → ${e?.message || e}`);
+  }
   const dir = join(tmpdir(), "qdv-avisos", String(aviso.id));
   await mkdir(dir, { recursive: true });
   const nombre = String(aviso.adjunto.nombre || "documento.pdf").replace(/[\\/]+/g, "_");
   const ruta = join(dir, nombre);
-  await writeFile(ruta, Buffer.from(await r.arrayBuffer()));
+  await writeFile(ruta, contenido);
   return { dir, ruta };
 }
 

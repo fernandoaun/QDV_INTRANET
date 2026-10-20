@@ -42,7 +42,15 @@ run_gateway() {
 
 if [ "$#" -eq 0 ]; then
   # Avisos del sistema por WhatsApp (copia de los mails), en segundo plano junto al gateway.
-  node --max-old-space-size=64 /opt/qdv/avisos_whatsapp.mjs &
+  # Si el proceso se cae, vuelve a arrancar (los avisos ya enviados quedan registrados en QDV).
+  (
+    while true; do
+      QDV_AVISOS_ESPERA_INICIAL_MS="${QDV_AVISOS_ESPERA_INICIAL_MS:-120000}" node --max-old-space-size=64 /opt/qdv/avisos_whatsapp.mjs
+      echo "[qdv-avisos] se cortó (código $?); reinicio en 30 s" >&2
+      sleep 30
+      export QDV_AVISOS_ESPERA_INICIAL_MS=5000
+    done
+  ) &
   run_gateway
 fi
 
