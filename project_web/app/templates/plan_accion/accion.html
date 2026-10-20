@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Plan de acción · {% if accion %}acción N° {{ accion.numero }}{% else %}nueva acción{% endif %} · QDV{% endblock %}
+{% macro campo(clave, largo=False) -%}
+  {% set val = (datos.get(clave, '') if datos else (accion[clave] if accion else '')) %}
+  {% if clave in ('fecha_deteccion', 'fecha_cumplimiento') %}
+    {% set val = (datos.get(clave, '') if datos else fecha_dmy(accion[clave]) if accion else '') %}
+  {% endif %}
+  {% if editar %}
+    {% if clave in opciones %}
+    <input class="form-control form-control-sm" name="{{ clave }}" list="pa-op-{{ clave }}" maxlength="80" value="{{ val or '' }}">
+    <datalist id="pa-op-{{ clave }}">{% for op in opciones[clave] %}<option value="{{ op }}">{% endfor %}</datalist>
+    {% elif clave in ('fecha_deteccion', 'fecha_cumplimiento') %}
+    <input class="form-control form-control-sm" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ val or '' }}">
+    {% elif largo %}
+    <textarea class="form-control form-control-sm" name="{{ clave }}" rows="3"{% if clave == 'accion' %} required{% endif %}>{{ val or '' }}</textarea>
+    {% else %}
+    <input class="form-control form-control-sm" name="{{ clave }}" maxlength="255" value="{{ val or '' }}">
+    {% endif %}
+  {% else %}
+    <div style="white-space:pre-line">{{ val or '—' }}</div>
+  {% endif %}
+{%- endmacro %}
+{% macro fila(clave, largo=False) -%}
+<div class="col-12 {{ 'col-md-12' if largo else 'col-md-6 col-lg-4' }}">
+  <label class="form-label small fw-semibold mb-1">{{ plan_campo_labels[clave] }}</label>
+  {{ campo(clave, largo) }}
+</div>
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Plan de acción — {% if accion %}acción N° {{ accion.numero }}{% else %}nueva acción{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-02</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="paForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('plan_accion.ver', accion_id=accion.id) if accion else url_for('plan_accion.hub') }}">Cancelar</a>
+    {% else %}
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('plan_accion.ver', accion_id=accion.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('plan_accion.ver', accion_id=accion.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('plan_accion.hub') }}">Todo el plan</a>
+  </div>
+</div>
+
+<form id="paForm" method="post" action="{{ url_for('plan_accion.ver', accion_id=accion.id) if accion else url_for('plan_accion.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Identificación y trazabilidad</div>
+  <div class="row g-3 p-3">{{ fila('origen') }}{{ fila('tipo_hallazgo') }}{{ fila('fecha_deteccion') }}</div>
+</div>
+<div class="app-card mb-3">
+  <div class="app-card-header">Análisis</div>
+  <div class="row g-3 p-3">{{ fila('tipo_accion') }}{{ fila('causa_raiz') }}{{ fila('accion', largo=True) }}{{ fila('causa_raiz_descripcion', largo=True) }}</div>
+</div>
+<div class="app-card mb-3">
+  <div class="app-card-header">Planificación</div>
+  <div class="row g-3 p-3">{{ fila('requisito') }}{{ fila('fecha_cumplimiento') }}{{ fila('estado') }}{{ fila('responsable') }}</div>
+</div>
+<div class="app-card mb-3">
+  <div class="app-card-header">Seguimiento</div>
+  <div class="row g-3 p-3">{{ fila('resultado_eficacia') }}{{ fila('metodo_eficacia', largo=True) }}{{ fila('comentarios', largo=True) }}</div>
+</div>
+</form>
+
+{% if accion and editar and es_admin %}
+<form method="post" action="{{ url_for('plan_accion.baja', accion_id=accion.id) }}" onsubmit="return confirm('¿Dar de baja esta acción? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la acción</button>
+</form>
+{% endif %}
+
+{% if historial is defined and historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ plan_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

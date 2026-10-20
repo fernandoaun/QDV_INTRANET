@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Plan de acción{% if blanco %} (en blanco){% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-02_03: misma estructura que la planilla Excel (siempre "papel", horizontal). */
+  .pa-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .pa-sheet { background: #fff; color: #000; min-width: 1500px; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .76rem; }
+  .pa-head { border-collapse: collapse; width: 100%; margin-bottom: 10px; }
+  .pa-head td { border: 2px solid #000; vertical-align: middle; }
+  .pa-head .logo { width: 14%; text-align: center; }
+  .pa-head .logo img { max-height: 64px; }
+  .pa-head .titulo { text-align: center; font-weight: 700; font-size: 1.2rem; }
+  .pa-head .meta { width: 18%; text-align: center; font-weight: 700; font-size: .85rem; padding: 1px 6px; }
+  .pa-datos { margin-bottom: 10px; font-size: .85rem; }
+  .pa-datos b { display: inline-block; min-width: 19rem; }
+  .pa-datos input { font: inherit; border: 1px dashed #999; background: #fffbe6; padding: 1px 6px; width: 18rem; }
+  .pa-tabla { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  .pa-tabla th, .pa-tabla td { border: 1px solid #333; padding: 4px 5px; vertical-align: top; overflow-wrap: anywhere; }
+  .pa-tabla thead th { background: #d9d9d9; text-align: center; vertical-align: middle; font-size: .7rem; }
+  .pa-tabla thead tr.grupo th { background: #bfbfbf; font-size: .78rem; letter-spacing: .02em; }
+  .pa-tabla td.num { text-align: center; font-weight: 700; }
+  .pa-tabla td.num a { color: inherit; }
+  .pa-tabla td.c { text-align: center; }
+  .pa-tabla tr.vacia td { height: 2.2rem; }
+  .pa-estado-cerrado { background: #e2f0d9; }
+  .pa-estado-en-curso { background: #fff2cc; }
+  .pa-estado-atrasado { background: #f8cbad; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body * { visibility: hidden; }
+    .pa-sheet, .pa-sheet * { visibility: visible; }
+    .pa-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 6.5pt; }
+    .pa-datos input { border: 0; background: none; padding: 0; }
+    .pa-no-print { display: none !important; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Plan de acción{% if blanco %} — en blanco{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-02{% if not blanco %} · {{ acciones|length }} acción(es){% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('plan_accion.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nueva acción</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+  </div>
+</div>
+
+<div class="pa-scroll app-card p-0 mb-3">
+  <div class="pa-sheet">
+    <table class="pa-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ reg.fecha_vigencia.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <div class="pa-datos">
+      {% if puede_editar %}
+      <form method="post" action="{{ url_for('plan_accion.responsable') }}" class="d-flex align-items-center gap-2 mb-1">
+        {% include "_csrf.html" %}
+        <b>RESPONSABLE DE SEGUIMIENTO DEL PLAN:</b>
+        <input name="responsable_seguimiento" maxlength="160" value="{{ responsable }}" aria-label="Responsable de seguimiento del plan">
+        <button class="btn btn-outline-secondary btn-sm py-0 pa-no-print">Guardar</button>
+      </form>
+      {% else %}
+      <div class="mb-1"><b>RESPONSABLE DE SEGUIMIENTO DEL PLAN:</b> {% if not blanco %}{{ responsable }}{% endif %}</div>
+      {% endif %}
+      <div><b>FECHA DE ÚLTIMA ACTUALIZACIÓN:</b> {% if not blanco %}{{ fecha_dmy(ultima_actualizacion) }}{% endif %}</div>
+    </div>
+
+    <table class="pa-tabla">
+      <colgroup>
+        <col style="width:3.5%"><col style="width:7%"><col style="width:7%"><col style="width:6%">
+        <col style="width:7%"><col style="width:13%"><col style="width:5%"><col style="width:7%">
+        <col style="width:7%"><col style="width:6%"><col style="width:5.5%"><col style="width:8%">
+        <col style="width:6%"><col style="width:5%"><col style="width:7%">
+      </colgroup>
+      <thead>
+        <tr class="grupo">
+          <th colspan="4">IDENTIFICACIÓN Y TRAZABILIDAD</th>
+          <th colspan="4">ANÁLISIS</th>
+          <th colspan="4">PLANIFICACIÓN</th>
+          <th colspan="3">SEGUIMIENTO</th>
+        </tr>
+        <tr>
+          {% for c in ('numero','origen','tipo_hallazgo','fecha_deteccion','tipo_accion','accion','causa_raiz','causa_raiz_descripcion','requisito','fecha_cumplimiento','estado','responsable','metodo_eficacia','resultado_eficacia','comentarios') %}
+          <th>{{ plan_campo_labels[c]|upper }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in acciones %}
+        <tr>
+          <td class="num"><a href="{{ url_for('plan_accion.ver', accion_id=a.id) }}" title="Ver la acción">{{ a.numero }}</a></td>
+          <td>{{ a.origen }}</td>
+          <td>{{ a.tipo_hallazgo }}</td>
+          <td class="c">{{ fecha_dmy(a.fecha_deteccion) }}</td>
+          <td>{{ a.tipo_accion }}</td>
+          <td style="white-space:pre-line">{{ a.accion }}</td>
+          <td class="c">{{ a.causa_raiz }}</td>
+          <td style="white-space:pre-line">{{ a.causa_raiz_descripcion }}</td>
+          <td>{{ a.requisito }}</td>
+          <td class="c">{{ fecha_dmy(a.fecha_cumplimiento) }}</td>
+          <td class="c {{ 'pa-estado-' ~ (a.estado|lower|replace(' ', '-')) if a.estado }}">{{ a.estado }}</td>
+          <td>{{ a.responsable }}</td>
+          <td style="white-space:pre-line">{{ a.metodo_eficacia }}</td>
+          <td class="c">{{ a.resultado_eficacia }}</td>
+          <td style="white-space:pre-line">{{ a.comentarios }}</td>
+        </tr>
+        {% endfor %}
+        {% if blanco or not acciones %}
+        {% for _ in range(12) %}<tr class="vacia">{% for _ in range(15) %}<td></td>{% endfor %}</tr>{% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if not blanco and acciones and puede_editar %}<p class="text-muted small pa-no-print">Para editar una acción, tocá su número.</p>{% endif %}
+{% endblock %}
