@@ -585,6 +585,9 @@ def _user_workflow_emails(user: User) -> set[str]:
     addr = resolve_empleado_email(emp)
     if addr:
         emails.add(addr.lower())
+    propio = normalize_validate_email((user.email or "").strip()) if user.email else None
+    if propio:
+        emails.add(propio.lower())
     uname = (user.username or "").strip()
     if "@" in uname:
         norm = normalize_validate_email(uname)

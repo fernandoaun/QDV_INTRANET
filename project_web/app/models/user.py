@@ -21,6 +21,8 @@ class User(db.Model):
     rol = db.Column(db.String(32), nullable=False, default="operaciones", server_default="operaciones")
     activo = db.Column(db.Boolean, nullable=False, default=True)
     whatsapp_e164 = db.Column(db.String(20), nullable=True, unique=True, index=True)
+    # Mail de quien no lleva legajo (solo lectura total / SGI); el resto usa el mail del legajo.
+    email = db.Column(db.String(256), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=_utc_now)
 
     permisos = db.relationship(

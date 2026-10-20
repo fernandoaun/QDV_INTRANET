@@ -56,6 +56,15 @@ def telefonos_por_email(emails: list[str]) -> dict[str, str]:
         e164 = e164 or normalize_whatsapp_e164(emp.telefono)
         if e164:
             out[(emp.email or "").strip().lower()] = e164
+    # Usuarios sin legajo (solo lectura total / SGI): el mail está en el usuario.
+    faltan = buscados - set(out)
+    if faltan:
+        for user in db.session.scalars(
+            select(User).where(func.lower(func.trim(User.email)).in_(faltan), User.activo.is_(True))
+        ).all():
+            e164 = normalize_whatsapp_e164(user.whatsapp_e164)
+            if e164:
+                out[(user.email or "").strip().lower()] = e164
     return out
 
 

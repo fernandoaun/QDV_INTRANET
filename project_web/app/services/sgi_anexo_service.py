@@ -1125,7 +1125,7 @@ def organigrama_puesto_holders(node_id: str) -> list[dict[str, Any]]:
         if u is None:
             continue
         emp = legajos.get(uid)
-        email = resolve_empleado_email(emp) or ""
+        email = resolve_empleado_email(emp) or (u.email or "").strip().lower()
         out.append(
             {
                 "user_id": uid,

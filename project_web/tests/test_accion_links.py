@@ -252,3 +252,21 @@ def test_aviso_flujo_dice_si_salio_por_whatsapp(app, admin_user):
         assert "por WhatsApp no, porque otro@x.ar" in msg(["otro@x.ar"])
         assert "a otro@x.ar solo por correo" in msg(["admin@qdv.test", "otro@x.ar"])
         assert wf.workflow_mail_status_message(app, mail_sent=True, rol="revisor") == "Se notificó al revisor por correo."
+
+
+def test_usuario_sin_legajo_con_mail_recibe_whatsapp(app, admin_user):
+    from app.extensions import db
+    from app.models import User
+    from app.services import accion_link_service as accion_svc
+    from app.services import sgi_workflow_service as wf
+    from app.services.whatsapp_avisos_service import telefonos_por_email
+
+    with app.test_request_context():
+        u = User(username="gerente_lectura", rol="solo_lectura_total", whatsapp_e164="+5492990000001",
+                 email="Gerente@X.ar", password_hash="x")
+        db.session.add(u)
+        db.session.commit()
+        assert telefonos_por_email(["gerente@x.ar"]) == {"gerente@x.ar": "+5492990000001"}
+        assert accion_svc.usuario_por_email("gerente@x.ar").id == u.id
+        assert wf.workflow_mail_status_message(app, mail_sent=True, rol="aprobador", destinatarios=["gerente@x.ar"]) == (
+            "Se notificó al aprobador por correo y por WhatsApp.")

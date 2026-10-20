@@ -11,7 +11,7 @@ from typing import Any
 
 from flask import current_app
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.extensions import db
 from app.models import EmpleadoPersonal, User
@@ -49,8 +49,11 @@ def usuario_por_email(email: str | None) -> User | None:
         u = db.session.get(User, int(emp.user_id))
         if u is not None and u.activo:
             return u
-    u = db.session.scalar(select(User).where(func.lower(User.username) == e, User.activo.is_(True)).limit(1))
-    return u
+    return db.session.scalar(
+        select(User)
+        .where(or_(func.lower(User.username) == e, func.lower(func.trim(User.email)) == e), User.activo.is_(True))
+        .limit(1)
+    )
 
 
 def crear_token(app: Any, tipo: str, obj_id: int, *, email: str = "", user_id: int | None = None, **extra: Any) -> str:
