@@ -186,3 +186,19 @@ def test_bot_pedidos_del_personal(app, admin_user, modulo):
             assert db.session.query(PersonalVacacion).one().estado == "solicitada"
         else:
             assert db.session.query(PersonalSolicitudEpp).one().talle == "42"
+
+
+def test_aviso_de_prueba_no_guarda_nada(app, client, admin_user):
+    from app.extensions import db
+    from app.models import PlanificacionActividad
+    from app.services import accion_link_service as accion_svc
+
+    a = PlanificacionActividad(titulo="Tarea demo", fecha_inicio=date.today(), fecha_fin=date.today(), estado="pendiente")
+    db.session.add(a)
+    db.session.commit()
+    link = _url(app, accion_svc.TAREAS, 0, email="x@qdv.test", p=[a.id], o=[], demo=1)
+    html = client.post(link, data={"accion": f"act:{a.id}"}).get_data(as_text=True)
+    assert "No se guardó nada" in html
+    assert db.session.get(PlanificacionActividad, a.id).estado == "pendiente"
+    for tipo in (accion_svc.VAC_RESPONSABLE, accion_svc.VAC_EMPLEADO, accion_svc.EPP_PEDIDO):
+        assert "(ejemplo)" in client.get(_url(app, tipo, 0, demo=1)).get_data(as_text=True) or tipo == accion_svc.VAC_EMPLEADO

@@ -38,6 +38,13 @@ def ver(token: str):
     _cargar_permisos(data["user"])
     handler = _HANDLERS[data["t"]]
     resultado = None
+    if data.get("demo"):
+        # Aviso de prueba: se ve igual que el real, pero los botones no guardan nada.
+        if request.method == "POST":
+            resultado = {"ok": True, "msg": "Esto es una prueba: así queda cuando tocás el botón. No se guardó nada."}
+        ctx = _demo_contexto(data, handler)
+        return render_template("accion/ver.html", error="", tipo=data["t"], ctx=ctx, resultado=resultado,
+                               token=token, nombre=accion_svc.actor_label(data))
     if request.method == "POST":
         ok, msg = handler.ejecutar(data, request)
         resultado = {"ok": ok, "msg": msg}
@@ -363,6 +370,40 @@ class _Tareas:
             accion_svc.registrar(data, "orden_finalizada", "maintenance_order", o.id)
             return True, f"Orden #{o.id} finalizada."
         return False, "Ese ítem no es de este aviso."
+
+
+# --------------------------------------------------------------------------- avisos de prueba
+
+
+def _demo_contexto(data: dict[str, Any], handler: Any) -> dict[str, Any]:
+    """Pantalla de un aviso de prueba: datos reales cuando se pueden leer, si no, un ejemplo. Siempre «pendiente»."""
+    from datetime import timedelta
+    from types import SimpleNamespace as NS
+
+    t = data["t"]
+    hoy = date.today()
+    if t in (accion_svc.SGI_REVISAR, accion_svc.SGI_APROBAR, accion_svc.VENCIMIENTO, accion_svc.TAREAS):
+        ctx = handler.contexto(data)
+        if not ctx.get("error"):
+            ctx.update({"puede": True, "pendiente": True, "sin_usuario": False})
+            return ctx
+    emp = NS(nombre_completo="PÉREZ, JUAN (ejemplo)", dni="30111000", puesto="Operario")
+    if t == accion_svc.VAC_RESPONSABLE:
+        vac = NS(empleado=emp, fecha_desde=hoy + timedelta(days=30), fecha_hasta=hoy + timedelta(days=34), dias=5,
+                 anio=hoy.year, observaciones="Viaje familiar")
+        return {"vac": vac, "saldo": {"disponibles": 9}, "pendiente": True, "puede": True, "estado_label": "Solicitada"}
+    if t == accion_svc.VAC_EMPLEADO:
+        vac = NS(fecha_desde=hoy + timedelta(days=37), fecha_hasta=hoy + timedelta(days=41), dias=5,
+                 fecha_desde_original=hoy + timedelta(days=30), fecha_hasta_original=hoy + timedelta(days=34),
+                 motivo_responsable="Esa semana hay parada de planta")
+        return {"vac": vac, "estado": "modificada", "puede": True}
+    if t == accion_svc.EPP_PEDIDO:
+        sol = NS(item=NS(nombre="Guantes de nitrilo"), cantidad=2, talle="9", comentario="Se rompieron en la carga")
+        return {"sol": sol, "emp": emp, "motivo_label": "Rotura", "estado_label": "Pendiente", "pendiente": True,
+                "puede": True, "anterior": None, "hoy": hoy.isoformat(),
+                "pre": {"tipo_modelo": "Nitrilo", "marca": "Ansell", "certificacion": "SI"},
+                "falta_dni": False, "falta_puesto": False}
+    return {"error": "Aviso de prueba sin datos."}
 
 
 _HANDLERS: dict[str, Any] = {
