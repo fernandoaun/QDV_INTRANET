@@ -239,7 +239,11 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
             "Este mensaje se generó sin responder.",
             f"Marcar cumplidas desde el celular, sin entrar al sistema: {link}\n\nEste mensaje se generó sin responder.",
         )
-        enviar_mail_texto_plano(app, [dest], subject, cuerpo)
+        wa = body.replace(
+            "Este mensaje se generó sin responder.",
+            "Cuando termines alguna, respondeme *CUMPLIDA* y cuál (por ejemplo «cumplida PL-12» o «cumplida orden 34»).",
+        )
+        enviar_mail_texto_plano(app, [dest], subject, cuerpo, texto_whatsapp=wa)
     now = datetime.now(timezone.utc)
     for p in plans:
         db.session.add(DeadlineReminderSent(domain=DOMAIN_PLANIFICACION, entity_id=p.id, sent_at=now))

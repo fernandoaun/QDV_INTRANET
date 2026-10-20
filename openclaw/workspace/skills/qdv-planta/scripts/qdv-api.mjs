@@ -14,6 +14,7 @@ const GET_COMMANDS = {
   health: { path: "/api/v1/health", auth: false },
   meta: { path: "/api/v1/sync/meta", auth: false },
   me: { path: "/api/v1/me", auth: true },
+  pendientes: { path: "/api/v1/pendientes", auth: true },
   shift: { path: "/api/v1/shift/status", auth: true },
   dashboard: { path: "/api/v1/dashboard/snapshot", auth: true },
   entregas: { path: "/api/v1/entregas", auth: true },

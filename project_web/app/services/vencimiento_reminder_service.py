@@ -233,6 +233,7 @@ def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, A
             continue
 
         try:
+            wa = plain + "\n\nCuando lo renueves, respondeme *RENOVADO* y la nueva fecha de vencimiento."
             enviar_mail(
                 app,
                 destinatarios=[to_addr],
@@ -240,6 +241,7 @@ def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, A
                 cuerpo_html=html_body,
                 cuerpo_texto=plain,
                 cc=cc_use or None,
+                texto_whatsapp=wa,
             )
             now = datetime.now(timezone.utc)
             v.aviso_30_dias_enviado = True
@@ -252,7 +254,7 @@ def run_vencimiento_reminders(app: Any, *, dry_run: bool = False) -> dict[str, A
             )
             db.session.commit()
             result["emails_sent"] += 1
-            encolar_whatsapp_extra(v, subject, plain, [to_addr, *cc_use])
+            encolar_whatsapp_extra(v, subject, wa, [to_addr, *cc_use])
         except Exception as exc:
             db.session.rollback()
             err_txt = str(exc)[:2000]

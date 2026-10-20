@@ -32,3 +32,15 @@ def api_me():
             **caps,
         }
     )
+
+
+@bp.get("/pendientes")
+@limiter.limit(LIMIT_SHIFT_STATUS)
+def api_pendientes():
+    """Trámites que esta persona tiene que resolver (los de los avisos), para responderlos por WhatsApp."""
+    u = current_user()
+    if u is None:
+        return jsonify({"error": "unauthorized"}), 401
+    from app.services import avisos_pendientes_service as pend_svc
+
+    return jsonify({"pendientes": pend_svc.pendientes(u)})

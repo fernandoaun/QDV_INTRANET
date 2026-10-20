@@ -60,11 +60,29 @@ def telefonos_por_email(emails: list[str]) -> dict[str, str]:
 
 
 _TAG = re.compile(r"<[^>]+>")
+_URL = re.compile(r"https?://\S+")
+_SIN_SISTEMA = re.compile(r"\s*\((?:desde el celular[^)]*|nueva fecha y foto[^)]*)\)", re.IGNORECASE)
+
+
+def _sin_links(texto: str) -> str:
+    """Saca los links: por WhatsApp se responde al mensaje, no se entra a ningún lado.
+
+    Una línea que era solo «Etiqueta: <link>» se va entera; si tenía más texto, queda el texto.
+    """
+    out: list[str] = []
+    for ln in texto.split("\n"):
+        if _URL.search(ln):
+            ln = _SIN_SISTEMA.sub("", _URL.sub("", ln)).strip()
+            if not ln or ln.endswith(":") or len(ln) < 4:
+                continue
+        out.append(ln)
+    return "\n".join(out)
 
 
 def armar_texto(asunto: str, cuerpo: str) -> str:
     asunto = (asunto or "").strip()
     cuerpo = html.unescape(_TAG.sub("", cuerpo or ""))  # restos de HTML de mails sin versión texto
+    cuerpo = _sin_links(cuerpo)
     lineas = [ln.rstrip() for ln in (cuerpo or "").replace("\r\n", "\n").split("\n")]
     # Sin tiras de líneas vacías que deja la conversión desde HTML.
     limpio: list[str] = []

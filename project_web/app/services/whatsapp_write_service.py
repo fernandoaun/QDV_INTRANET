@@ -39,7 +39,7 @@ from app.services.hipoclorito_warnings import (
 )
 
 WRITE_MODULES = frozenset(
-    {"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion", "descarga_camion", "vacaciones", "pedido_epp"}
+    {"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo", "carga_camion", "descarga_camion", "vacaciones", "pedido_epp", "responder"}
 )
 OPERATIONAL_WRITE_MODULES = frozenset({"reactor", "agua", "salmuera", "stock_ingreso", "stock_consumo"})
 INTENT_MAX_AGE_SEC = 600
@@ -86,6 +86,9 @@ def assert_can_write(user: User, module: str) -> None:
 
         if not user_can_entregas_entregar_effective(user):
             raise PermissionError("Tu perfil no puede registrar descargas.")
+    elif module == "responder":
+        if not user.activo:
+            raise PermissionError("Usuario inactivo.")
     elif module in ("vacaciones", "pedido_epp"):
         from app.auth_utils import user_can_solicitar_vacaciones
 
@@ -185,6 +188,10 @@ def _validate(user: User, module: str, payload: dict[str, Any]) -> tuple[str, di
         return _carga_camion_preview(user, payload)
     if module == "descarga_camion":
         return _descarga_camion_preview(user, payload)
+    if module == "responder":
+        from app.services import avisos_pendientes_service as pend_svc
+
+        return pend_svc.preview(user, payload)
     if module == "vacaciones":
         return _vacaciones_preview(user, payload)
     if module == "pedido_epp":
@@ -294,6 +301,10 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
         return _carga_camion_execute(user, payload)
     if module == "descarga_camion":
         return _descarga_camion_execute(user, payload)
+    if module == "responder":
+        from app.services import avisos_pendientes_service as pend_svc
+
+        return pend_svc.ejecutar(user, payload)
     if module == "vacaciones":
         return _vacaciones_execute(user, payload)
     if module == "pedido_epp":

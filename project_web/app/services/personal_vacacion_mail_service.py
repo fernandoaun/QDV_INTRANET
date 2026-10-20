@@ -79,8 +79,12 @@ def notify_solicitud_vacacion(app: Any, vac: PersonalVacacion) -> tuple[bool, st
         "(desde el celular, sin entrar al sistema)</p>"
     )
 
+    wa = f"{nombre} pidió vacaciones: {rango} (período {vac.anio})."
+    if obs:
+        wa += f"\nObservaciones: {obs}"
+    wa += "\n\nRespondeme *APROBAR*, *RECHAZAR* y el motivo, o *PROPONER* otras fechas."
     try:
-        enviar_mail(app, destinatarios=[to_addr], asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain)
+        enviar_mail(app, destinatarios=[to_addr], asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain, texto_whatsapp=wa)
     except Exception as exc:
         log.exception("Fallo mail solicitud vacaciones id=%s", vac.id)
         return False, f"Error SMTP: {exc}"
@@ -136,8 +140,15 @@ def notify_empleado_vacacion_gestionada(app: Any, vac: PersonalVacacion) -> tupl
            if accion else f'<p><a href="{esc(link)}">Mis vacaciones</a></p>')
     )
 
+    wa = f"Hola {nombre}, {intro[0].lower()}{intro[1:]}".replace(" Confirmalas desde el link.", "").replace(
+        " Confirmá que lo leíste desde el link.", ""
+    )
+    if estado == "modificada":
+        wa += "\n\nSi te sirven, respondeme *ACEPTO*. Si no, hablá con el responsable."
+    elif estado == "rechazada":
+        wa += "\n\nRespondeme *OK* para confirmar que lo leíste."
     try:
-        enviar_mail(app, destinatarios=[to_addr], asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain)
+        enviar_mail(app, destinatarios=[to_addr], asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain, texto_whatsapp=wa)
     except Exception as exc:
         log.exception("Fallo mail gestión vacaciones id=%s", vac.id)
         return False, f"Error SMTP: {exc}"

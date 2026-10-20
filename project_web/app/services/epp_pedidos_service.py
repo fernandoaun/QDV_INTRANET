@@ -179,7 +179,9 @@ def destinatarios_responsables(app: Any) -> list[str]:
     return merged_recipient_addresses(app)
 
 
-def _enviar(app: Any, destinatarios: list[str], asunto: str, parrafos: list[str], link: str, link_texto: str) -> tuple[bool, str]:
+def _enviar(
+    app: Any, destinatarios: list[str], asunto: str, parrafos: list[str], link: str, link_texto: str, texto_whatsapp: str = ""
+) -> tuple[bool, str]:
     from app.services.mail_link_service import require_absolute_mail_url
     from app.services.mail_service import enviar_mail, is_mail_fully_configured
 
@@ -196,7 +198,8 @@ def _enviar(app: Any, destinatarios: list[str], asunto: str, parrafos: list[str]
         '<p style="color:#666;font-size:12px">No responder a este mensaje.</p>'
     )
     try:
-        enviar_mail(app, destinatarios=destinatarios, asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain)
+        enviar_mail(app, destinatarios=destinatarios, asunto=asunto, cuerpo_html=html_body, cuerpo_texto=plain,
+                    texto_whatsapp=texto_whatsapp or None)
     except Exception as exc:  # el pedido queda registrado aunque falle el mail
         log.warning("Pedido EPP: no se pudo enviar el mail: %s", exc)
         return False, "no se pudo enviar el mail"
@@ -230,6 +233,9 @@ def avisar_nuevo_pedido(app: Any, sol: PersonalSolicitudEpp) -> tuple[bool, str]
             parrafos,
             accion_svc.url(app, accion_svc.EPP_PEDIDO, sol.id, email=dest),
             "Entregar o rechazar (desde el celular, sin entrar al sistema)",
+            "\n".join(parrafos)
+            + "\n\nCuando se lo entregues, respondeme *ENTREGADO* (te confirmo los datos de la constancia), "
+            "o *RECHAZAR* y el motivo.",
         )
         for dest in destinatarios
     ]

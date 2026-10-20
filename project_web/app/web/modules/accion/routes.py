@@ -25,8 +25,8 @@ def _cargar_permisos(user: Any) -> None:
     g._qdv_api_perms_edit = set(p_edit)
 
 
-def _form() -> dict[str, Any]:
-    return {k: v for k, v in request.form.items()}
+def _form(req: Any) -> dict[str, Any]:
+    return {k: v for k, v in req.form.items()}
 
 
 @bp.route("/<token>", methods=["GET", "POST"])
@@ -157,7 +157,7 @@ class _VacResponsable:
         if not ps.user_is_responsable_vacaciones(user):
             return False, "Ya no sos el responsable de vacaciones."
         accion = (req.form.get("accion") or "").strip()
-        ok, msg, vac = ps.gestionar_vacacion_responsable(int(data["id"]), user_id=int(user.id), accion=accion, data=_form())
+        ok, msg, vac = ps.gestionar_vacacion_responsable(int(data["id"]), user_id=int(user.id), accion=accion, data=_form(req))
         if ok and vac is not None:
             maybe_notify_empleado_vacacion_gestionada(vac)
             accion_svc.registrar(data, f"vacaciones_{accion}", "personal_vacacion", vac.id)
@@ -262,7 +262,7 @@ class _EppPedido:
             return True, "Pedido rechazado. Le avisamos al empleado."
         if accion != "entregar":
             return False, "Acción no reconocida."
-        form = _form()
+        form = _form(req)
         form.update({
             "empleado_id": str(sol.empleado_id),
             "item_id": str(sol.item_id),

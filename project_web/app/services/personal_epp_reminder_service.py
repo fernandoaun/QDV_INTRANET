@@ -138,6 +138,14 @@ def _send_to_empleado(
     asunto, plain, html_body = _build_mail_bodies(
         app, empleado=empleado, entregas=entregas, es_recordatorio=es_recordatorio, link=link
     )
+    lineas = "\n".join(f"- {_format_entrega_line(en)}" for en in entregas)
+    varias = len(entregas) > 1
+    wa = (
+        f"Hola {empleado.nombre_completo}, RRHH registró {'estas entregas' if varias else 'una entrega'} de ropa/EPP a tu nombre:\n"
+        f"{lineas}\n\nCuando {'las tengas' if varias else 'la tengas'}, respondeme *RECIBIDO* para confirmar."
+    )
+    if any(en.prenda_anterior_entrega_id and not en.prenda_anterior_devuelta for en in entregas):
+        wa += " Antes entregá la prenda anterior a RRHH."
     try:
         enviar_mail(
             app,
@@ -145,6 +153,7 @@ def _send_to_empleado(
             asunto=asunto,
             cuerpo_html=html_body,
             cuerpo_texto=plain,
+            texto_whatsapp=wa,
         )
     except Exception as exc:
         log.exception("Fallo envío aviso EPP empleado_id=%s", empleado.id)

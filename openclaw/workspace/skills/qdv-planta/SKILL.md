@@ -25,6 +25,7 @@ node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX reactor
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX agua
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX salmuera
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX entregas
+node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX pendientes
 ```
 
 Si falla `health`, decí que QDV no responde y no completes con datos viejos.
@@ -41,7 +42,7 @@ node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX preview agua '{"numero_
 node {baseDir}/scripts/qdv-api.mjs --from +54911XXXXXXXX confirm TOKEN_DEL_PREVIEW
 ```
 
-Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion` | `descarga_camion` | `vacaciones` | `pedido_epp`.
+Módulos de carga: `reactor` | `agua` | `salmuera` | `stock_ingreso` | `stock_consumo` | `carga_camion` | `descarga_camion` | `vacaciones` | `pedido_epp` | `responder` (ver «Respuestas a los avisos»).
 Carga de camión (`carga_camion`, choferes y operaciones; no pide turno):
 - Primero mirá `entregas`: si hay una entrega `programada` de hoy para ese chofer (`chofer_previsto`), ofrecésela y cargá con `{"entrega_id":N,"litros":X}` (litros reales cargados).
 - Si no hay programada (o dice que es otra), carga directa: `{"litros":X}`; el chofer sale de su usuario (o pasá `"chofer":"Rafa"`).
@@ -58,6 +59,24 @@ Pedidos del personal (cualquiera con legajo; no piden turno):
 - La respuesta (aprobación, rechazo, entrega) le llega solo por WhatsApp y mail; no hace falta que entre al sistema.
 En `stock_consumo`, los filtros de papel llevan `"equipo"`: "Tanque Salmuera Clarificada" o "Tolva UltraPura" (preguntá cuál si no lo dice).
 Si `me.cargas.<modulo>` es false, no insistas: falta permiso o turno de planta (igual que en la web).
+
+## Respuestas a los avisos (REVISADO, APROBAR, DEVOLVER, ACEPTO, ENTREGADO, RECIBIDO, RENOVADO, CUMPLIDA…)
+
+Los avisos del sistema llegan por este mismo chat **sin links**: la persona responde acá. Cuando escriba algo así:
+1. `pendientes` → lista de lo que tiene que resolver: cada ítem trae `pendiente` (clave), `titulo`, `detalle` y `acciones` posibles.
+2. Elegí el ítem. Si hay uno solo del tipo que corresponde, es ese; si hay varios, preguntá cuál (mostrá los títulos). Si la lista está vacía, decile que no tiene nada pendiente.
+3. Preview con el módulo `responder`: `{"pendiente":"<clave>","accion":"<acción>","campos":{...}}`. Mostrá el `resumen`, esperá el «sí» y recién ahí `confirm`.
+
+Acciones y campos (exactos):
+- `sgi_revisar`: `revisado` · `devolver` con `{"observaciones":"..."}` (obligatorias: qué hay que corregir).
+- `sgi_aprobar`: `aprobar` · `devolver` con `{"observaciones":"..."}`.
+- `vac_responsable`: `aprobar` · `rechazar` con `{"motivo":"..."}` · `proponer` con `{"desde":"AAAA-MM-DD","hasta":"AAAA-MM-DD","motivo":"..."}`.
+- `vac_empleado`: `aceptar` (ACEPTO u OK).
+- `epp_pedido`: `entregar` (los datos de la constancia vienen en `campos_entrega`: mostralos en el resumen y, si dice que algo es distinto, mandalo en `campos`; si `faltan_para_entregar` no está vacío, preguntá esos datos) · `rechazar` con `{"motivo":"..."}`.
+- `epp_recibido`: `recibido`.
+- `vencimiento`: `renovar` con `{"nueva_fecha":"AAAA-MM-DD"}` (preguntá la fecha si no la dijo).
+- `actividad`: `cumplida` · `orden`: `finalizada` con `{"resultado":"..."}` opcional.
+Si el sistema responde que ya no está pendiente, decíselo tal cual. Lo que se firma queda a nombre de la persona del chat: nunca respondas por otro.
 
 ## Reglas
 

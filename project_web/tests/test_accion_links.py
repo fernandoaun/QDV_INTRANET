@@ -202,3 +202,38 @@ def test_aviso_de_prueba_no_guarda_nada(app, client, admin_user):
     assert db.session.get(PlanificacionActividad, a.id).estado == "pendiente"
     for tipo in (accion_svc.VAC_RESPONSABLE, accion_svc.VAC_EMPLEADO, accion_svc.EPP_PEDIDO):
         assert "(ejemplo)" in client.get(_url(app, tipo, 0, demo=1)).get_data(as_text=True) or tipo == accion_svc.VAC_EMPLEADO
+
+
+def test_whatsapp_sin_links():
+    from app.services.whatsapp_avisos_service import armar_texto
+
+    t = armar_texto("Aviso", "Vence algo.\nVer en el sistema: https://x.ar/a/1\nAprobar o rechazar (desde el celular, sin entrar al sistema): https://x.ar/accion/abc\nFin")
+    assert "http" not in t and "Ver en el sistema" not in t and "Fin" in t and "Vence algo." in t
+
+
+def test_responder_por_whatsapp(app, admin_user):
+    from app.extensions import db
+    from app.models import Vencimiento
+    from app.services import vencimiento_service as vs
+    from app.services import whatsapp_write_service as write_svc
+
+    with app.test_request_context():
+        admin, _ = _admin(app)
+        vs.create_sector("Habilitaciones", "", admin.id)
+        v, _ = vs.create_vencimiento(
+            {"sector_id": str(vs.list_sectores()[0].id), "nombre": "Matafuegos", "fecha_vencimiento": (date.today() + timedelta(days=5)).isoformat(),
+             "responsable": "Mant", "email_aviso": "admin@qdv.test"}, admin.id, "Tester")
+        v.aviso_30_dias_enviado = True
+        db.session.commit()
+        from app.services import avisos_pendientes_service as pend_svc
+
+        (p,) = [x for x in pend_svc.pendientes(admin) if x["tipo"] == "vencimiento"]
+        with pytest.raises(ValueError, match="podés"):
+            write_svc.preview_and_token(admin, "responder", {"pendiente": p["pendiente"], "accion": "aprobar"}, "texto")
+        nueva = (date.today() + timedelta(days=370)).isoformat()
+        out = write_svc.preview_and_token(admin, "responder", {"pendiente": p["pendiente"], "accion": "renovar", "campos": {"nueva_fecha": nueva}}, "texto")
+        assert "Matafuegos" in out["resumen"]
+        res = write_svc.confirm_and_save(admin, out["confirm_token"])
+        assert res["ok"] and not db.session.get(Vencimiento, v.id).activo
+        with pytest.raises(ValueError, match="ya no está pendiente"):
+            write_svc.preview_and_token(admin, "responder", {"pendiente": p["pendiente"], "accion": "renovar"}, "texto")

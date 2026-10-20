@@ -75,12 +75,14 @@ def enviar_mail(
     cuerpo_texto: str | None = None,
     cc: list[str] | None = None,
     adjuntos: list[tuple[str, bytes, str]] | None = None,
+    texto_whatsapp: str | None = None,
 ) -> None:
     """
     Envía un correo usando la configuración SMTP del sistema.
 
     Debe indicarse `cuerpo_html` y/o `cuerpo_texto`. Si solo hay HTML, se genera texto plano simple.
     `adjuntos`: [(nombre, contenido, tipo MIME)]; el primero también viaja en la copia por WhatsApp.
+    `texto_whatsapp`: texto de la copia por WhatsApp si no debe ser el del mail (p. ej. «respondé APROBAR»).
     """
     cfg = smtp_settings_from_app(app)
     host = cfg["host"]
@@ -144,9 +146,11 @@ def enviar_mail(
 
     from app.services.whatsapp_avisos_service import encolar_desde_mail
 
-    encolar_desde_mail(app, to_norm + cc_norm, msg["Subject"], plain, adjunto=(adjuntos or [None])[0])
+    encolar_desde_mail(app, to_norm + cc_norm, msg["Subject"], texto_whatsapp or plain, adjunto=(adjuntos or [None])[0])
 
 
-def enviar_mail_texto_plano(app: Any, destinatarios: list[str], asunto: str, cuerpo: str, *, cc: list[str] | None = None) -> None:
+def enviar_mail_texto_plano(
+    app: Any, destinatarios: list[str], asunto: str, cuerpo: str, *, cc: list[str] | None = None, texto_whatsapp: str | None = None
+) -> None:
     """Atajo para mensajes solo texto (p. ej. recordatorios planificación/mantenimiento)."""
-    enviar_mail(app, destinatarios=destinatarios, asunto=asunto, cuerpo_texto=cuerpo, cc=cc)
+    enviar_mail(app, destinatarios=destinatarios, asunto=asunto, cuerpo_texto=cuerpo, cc=cc, texto_whatsapp=texto_whatsapp)

@@ -143,6 +143,7 @@ def _send_personal(
     intro_texto: str,
     boton: str,
     context: str,
+    texto_whatsapp: str = "",
 ) -> bool:
     """Un mail por destinatario con su link de acción (sin entrar al sistema) y el documento en PDF."""
     from app.services import accion_link_service as accion_svc
@@ -179,6 +180,7 @@ def _send_personal(
                 cuerpo_html=cuerpo_html,
                 cuerpo_texto=cuerpo_texto,
                 adjuntos=[adjunto] if adjunto else None,
+                texto_whatsapp=texto_whatsapp or None,
             )
             algun = True
         except Exception:
@@ -209,6 +211,10 @@ def notify_revision_requested(app: Any, doc: SgiDocumento, rev: SgiProcedimiento
         ),
         boton="Revisar",
         context="revision_requested",
+        texto_whatsapp=(
+            f"{doc.codigo} — {doc.titulo} ({rev.revision_label}) fue enviado a revisión y te toca revisarlo. "
+            "Te mando el PDF.\n\nCuando lo leas, respondeme *REVISADO*, o *DEVOLVER* y qué hay que corregir."
+        ),
     )
 
 
@@ -237,6 +243,10 @@ def notify_pending_approval(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRe
         ),
         boton="Aprobar",
         context="pending_approval",
+        texto_whatsapp=(
+            f"{doc.codigo} — {doc.titulo} ({rev.revision_label}) fue revisado por {revisor} y espera tu aprobación. "
+            "Te mando el PDF.\n\nCuando lo leas, respondeme *APROBAR*, o *DEVOLVER* y qué hay que corregir."
+        ),
     )
 
 
