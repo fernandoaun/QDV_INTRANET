@@ -239,9 +239,12 @@ def run_deadline_reminders(app: Any, *, dry_run: bool = False) -> dict[str, Any]
             "Este mensaje se generó sin responder.",
             f"Marcar cumplidas desde el celular, sin entrar al sistema: {link}\n\nEste mensaje se generó sin responder.",
         )
-        wa = body.replace(
+        ejemplo = f"cumplida {plans[0].codigo}" if plans else f"cumplida orden {orders[0].id}"
+        wa = "\n".join(
+            ln for ln in body.split("\n") if not ln.startswith(("Aviso automático", "Ventana de aviso"))
+        ).strip().replace(
             "Este mensaje se generó sin responder.",
-            "Cuando termines alguna, respondeme *CUMPLIDA* y cuál (por ejemplo «cumplida PL-12» o «cumplida orden 34»).",
+            f"Cuando termines alguna, respondeme *CUMPLIDA* y cuál (por ejemplo «{ejemplo}»).",
         )
         enviar_mail_texto_plano(app, [dest], subject, cuerpo, texto_whatsapp=wa)
     now = datetime.now(timezone.utc)
