@@ -576,3 +576,18 @@ def test_primera_hoja_encabezado_arriba_y_firmas_al_pie(app, sgi_editor):
     assert orden == sorted(orden)
     assert html.count("Fecha de vigencia / aprobación") == 1 and html.count("Elaboró") == 1
     assert html.count('id="procHeaderTitulo"') == 1
+
+
+def test_pdf_del_procedimiento_para_difusion(app, sgi_editor):
+    """El PDF que se adjunta a los avisos: encabezado en cada página y firmas en la primera hoja."""
+    import pytest
+
+    pytest.importorskip("weasyprint")
+    from app.services import sgi_pdf_service
+
+    with app.app_context():
+        doc, rev, err = proc_svc.create_procedimiento_visual("PG", sgi_editor, "Tester", titulo="PDF ADJUNTO")
+        assert err is None
+        nombre, contenido, mime = sgi_pdf_service.adjunto_difusion(doc, rev)
+    assert mime == "application/pdf" and contenido.startswith(b"%PDF") and nombre.endswith(".pdf")
+    assert doc.codigo in nombre

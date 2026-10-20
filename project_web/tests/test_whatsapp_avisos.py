@@ -63,3 +63,47 @@ def test_api_avisos_pendientes_y_resultado(app, client):
     assert len(client.get("/api/v1/whatsapp/avisos", headers=H).get_json()["avisos"]) == 1
     client.post(f"/api/v1/whatsapp/avisos/{aid}/resultado", headers=H, json={"ok": True})
     assert client.get("/api/v1/whatsapp/avisos", headers=H).get_json()["avisos"] == []
+
+
+def test_aviso_con_adjunto_se_sirve_al_gateway(app, client, tmp_path):
+    app.config["APP_UPLOAD_ROOT"] = str(tmp_path)
+    with app.app_context():
+        _empleado("L1", "uno@qdv.ar", "2994111111")
+        n = svc.encolar_desde_mail(app, ["uno@qdv.ar"], "Documento aprobado", "Cuerpo",
+                                   adjunto=("QDV-PO-01 Rev. 00.pdf", b"%PDF-1.7 prueba", "application/pdf"))
+        assert n == 1
+    app.config["API_BEARER_TOKEN"] = TOKEN
+    app.config["API_BEARER_USER_ID"] = None
+    assert client.get("/api/v1/whatsapp/avisos/1/adjunto").status_code == 401
+    (aviso,) = client.get("/api/v1/whatsapp/avisos", headers=H).get_json()["avisos"]
+    assert aviso["adjunto"]["nombre"] == "QDV-PO-01 Rev. 00.pdf"
+    r = client.get(aviso["adjunto"]["url"], headers=H)
+    assert r.status_code == 200 and r.data == b"%PDF-1.7 prueba"
+    assert client.get("/api/v1/whatsapp/avisos/999999/adjunto", headers=H).status_code == 404
+
+
+def test_mail_con_adjunto_y_copia_por_whatsapp(app, monkeypatch, tmp_path):
+    from app.services import mail_service
+
+    enviados = []
+
+    class FakeSMTP:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def ehlo(self): pass
+        def starttls(self): pass
+        def login(self, *a): pass
+        def send_message(self, msg): enviados.append(msg)
+
+    monkeypatch.setattr(mail_service.smtplib, "SMTP", FakeSMTP)
+    app.config.update(SMTP_HOST="smtp.test", SMTP_PORT=2525, MAIL_FROM="avisos@qdv.ar", APP_UPLOAD_ROOT=str(tmp_path))
+    with app.app_context():
+        _empleado("L1", "uno@qdv.ar", "2994111111")
+        mail_service.enviar_mail(app, destinatarios=["uno@qdv.ar"], asunto="A", cuerpo_texto="B",
+                                 adjuntos=[("doc.pdf", b"%PDF-x", "application/pdf")])
+        (msg,) = enviados
+        (att,) = list(msg.iter_attachments())
+        assert att.get_filename() == "doc.pdf" and att.get_content() == b"%PDF-x"
+        (aviso,) = db.session.query(WhatsappAviso).all()
+        assert aviso.adjunto_nombre == "doc.pdf" and (tmp_path / aviso.adjunto_path).read_bytes() == b"%PDF-x"

@@ -10,7 +10,9 @@ from __future__ import annotations
 import html
 import logging
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, insert, select, update
@@ -24,6 +26,10 @@ log = logging.getLogger(__name__)
 TEXTO_MAX = 3000
 INTENTOS_MAX = 5
 VIGENCIA = timedelta(hours=24)
+ADJUNTOS_DIR = "whatsapp_adjuntos"
+ADJUNTO_MAX_BYTES = 15 * 1024 * 1024
+# (nombre visible, contenido, tipo MIME)
+Adjunto = tuple[str, bytes, str]
 
 
 def _utc_now() -> datetime:
@@ -74,7 +80,27 @@ def armar_texto(asunto: str, cuerpo: str) -> str:
     return texto
 
 
-def encolar_desde_mail(app: Any, emails: list[str], asunto: str, cuerpo: str) -> int:
+def _guardar_adjunto(adjunto: Adjunto) -> tuple[str, str]:
+    """Guarda el archivo en uploads y devuelve (ruta relativa, nombre). Borra adjuntos de más de 3 días."""
+    from app.services.upload_paths import uploads_workspace_root
+
+    nombre, contenido, _mime = adjunto
+    carpeta = uploads_workspace_root() / ADJUNTOS_DIR
+    carpeta.mkdir(parents=True, exist_ok=True)
+    limite = _utc_now().timestamp() - 3 * 86400
+    for viejo in carpeta.iterdir():
+        try:
+            if viejo.is_file() and viejo.stat().st_mtime < limite:
+                viejo.unlink()
+        except OSError:
+            pass
+    ext = Path(nombre).suffix.lower()[:10] or ".bin"
+    archivo = carpeta / f"{uuid.uuid4().hex}{ext}"
+    archivo.write_bytes(contenido)
+    return f"{ADJUNTOS_DIR}/{archivo.name}", (nombre or archivo.name)[:160]
+
+
+def encolar_desde_mail(app: Any, emails: list[str], asunto: str, cuerpo: str, adjunto: Adjunto | None = None) -> int:
     """Encola la copia por WhatsApp de un mail ya enviado. Nunca levanta excepción (el mail ya salió)."""
     try:
         if not app.config.get("WHATSAPP_AVISOS_ENABLED", True):
@@ -84,12 +110,19 @@ def encolar_desde_mail(app: Any, emails: list[str], asunto: str, cuerpo: str) ->
             if not telefonos:
                 return 0
             texto = armar_texto(asunto, cuerpo)
+            adjunto_path, adjunto_nombre = "", ""
+            if adjunto is not None and 0 < len(adjunto[1]) <= ADJUNTO_MAX_BYTES:
+                adjunto_path, adjunto_nombre = _guardar_adjunto(adjunto)
             ahora = _utc_now()
             # Transacción propia: no confirma ni descarta lo que tenga pendiente la sesión del llamador.
             with db.engine.begin() as conn:
                 conn.execute(
                     insert(WhatsappAviso),
-                    [{"telefono_e164": t, "texto": texto, "creado_en": ahora} for t in telefonos],
+                    [
+                        {"telefono_e164": t, "texto": texto, "creado_en": ahora,
+                         "adjunto_path": adjunto_path, "adjunto_nombre": adjunto_nombre}
+                        for t in telefonos
+                    ],
                 )
             return len(telefonos)
     except Exception:
@@ -109,7 +142,27 @@ def pendientes(limit: int = 20) -> list[dict[str, Any]]:
         .order_by(WhatsappAviso.id)
         .limit(max(1, min(int(limit), 100)))
     ).all()
-    return [{"id": r.id, "telefono": r.telefono_e164, "texto": r.texto} for r in rows]
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        item: dict[str, Any] = {"id": r.id, "telefono": r.telefono_e164, "texto": r.texto}
+        if r.adjunto_path:
+            item["adjunto"] = {"nombre": r.adjunto_nombre, "url": f"/api/v1/whatsapp/avisos/{r.id}/adjunto"}
+        out.append(item)
+    return out
+
+
+def adjunto_de_aviso(aviso_id: int) -> tuple[Path, str] | None:
+    """(archivo, nombre) del adjunto de un aviso, si existe."""
+    from app.services.upload_paths import uploads_workspace_root
+
+    r = db.session.get(WhatsappAviso, int(aviso_id))
+    if r is None or not r.adjunto_path:
+        return None
+    raiz = (uploads_workspace_root() / ADJUNTOS_DIR).resolve()
+    f = (uploads_workspace_root() / r.adjunto_path).resolve()
+    if f.parent != raiz or not f.is_file():
+        return None
+    return f, (r.adjunto_nombre or f.name)
 
 
 def registrar_resultado(aviso_id: int, ok: bool, error: str = "") -> bool:

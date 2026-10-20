@@ -14,6 +14,7 @@ _ENDPOINTS_SERVICIO_WHATSAPP = frozenset(
         "api_v1.api_whatsapp_allowlist",
         "api_v1.api_whatsapp_avisos_pendientes",
         "api_v1.api_whatsapp_aviso_resultado",
+        "api_v1.api_whatsapp_aviso_adjunto",
     }
 )
 

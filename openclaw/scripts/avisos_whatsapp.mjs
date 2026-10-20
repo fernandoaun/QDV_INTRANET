@@ -1,9 +1,16 @@
 // Retira de QDV los avisos (copia de los mails del sistema) y los manda por WhatsApp
 // con la herramienta `message` del gateway local. Corre en segundo plano junto al gateway.
+// Si el aviso trae adjunto (p. ej. el PDF del procedimiento aprobado), lo baja y lo manda
+// como documento con el texto de epígrafe.
 //
 // QDV:     GET  {QDV_API_BASE_URL}/api/v1/whatsapp/avisos
+//          GET  {QDV_API_BASE_URL}/api/v1/whatsapp/avisos/<id>/adjunto
 //          POST {QDV_API_BASE_URL}/api/v1/whatsapp/avisos/<id>/resultado
 // Gateway: POST http://127.0.0.1:{OPENCLAW_GATEWAY_PORT}/tools/invoke
+
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const BASE = String(process.env.QDV_API_BASE_URL || "").replace(/\/+$/, "");
 const TOKEN = String(process.env.QDV_API_BEARER_TOKEN || "").trim();
@@ -26,14 +33,40 @@ async function qdv(path, init = {}) {
   return r.json();
 }
 
+// Baja el adjunto a una carpeta temporal propia del aviso; devuelve la ruta local.
+async function bajarAdjunto(aviso) {
+  const r = await fetch(`${BASE}${aviso.adjunto.url}`, {
+    headers: { Authorization: `Bearer ${TOKEN}` },
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) throw new Error(`QDV adjunto #${aviso.id} → HTTP ${r.status}`);
+  const dir = join(tmpdir(), "qdv-avisos", String(aviso.id));
+  await mkdir(dir, { recursive: true });
+  const nombre = String(aviso.adjunto.nombre || "documento.pdf").replace(/[\\/]+/g, "_");
+  const ruta = join(dir, nombre);
+  await writeFile(ruta, Buffer.from(await r.arrayBuffer()));
+  return { dir, ruta };
+}
+
 async function enviar(aviso) {
+  const adj = aviso.adjunto ? await bajarAdjunto(aviso) : null;
+  const args = { channel: "whatsapp", target: aviso.telefono, message: aviso.texto };
+  if (adj) Object.assign(args, { media: adj.ruta, asDocument: true });
+  try {
+    await invocar(aviso, args);
+  } finally {
+    if (adj) await rm(adj.dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
+async function invocar(aviso, args) {
   const r = await fetch(`http://127.0.0.1:${GW_PORT}/tools/invoke`, {
     method: "POST",
     headers: { Authorization: `Bearer ${GW_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       tool: "message",
       action: "send",
-      args: { channel: "whatsapp", target: aviso.telefono, message: aviso.texto },
+      args,
       idempotencyKey: `qdv-aviso-${aviso.id}`,
     }),
     signal: AbortSignal.timeout(60_000),

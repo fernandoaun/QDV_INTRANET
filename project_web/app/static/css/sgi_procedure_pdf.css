@@ -1,0 +1,25 @@
+/* PDF generado en el servidor (WeasyPrint) para los avisos de difusión.
+   Encabezado del documento en cada página (margen superior) con «Página x de y»;
+   en la primera hoja, control de cambios, firmas y vigencia al pie. */
+@page {
+  size: A4;
+  margin: 44mm 15mm 15mm 15mm;
+  @top-center { content: element(qdvHdr); width: 100%; vertical-align: bottom; padding-bottom: 5mm; }
+}
+@page :first {
+  @top-center { content: element(qdvHdr1); width: 100%; vertical-align: bottom; padding-bottom: 5mm; }
+}
+.sgi-proc-sheet { box-shadow: none; margin: 0; padding: 0; width: auto; max-width: none; }
+.sgi-proc-header-block--primera { position: running(qdvHdr1); margin: 0; }
+.sgi-proc-page-break.sgi-proc-header-block { position: running(qdvHdr); margin: 0; }
+.sgi-proc-header-table { width: 100%; }
+.proc-pagina::after { content: counter(page); }
+.proc-total-pag::after { content: counter(pages); }
+/* Primera hoja: el pie (control de cambios, firmas, vigencia) abajo de todo. 297 − 44 − 15 = 238 mm útiles. */
+.sgi-proc-caratula { display: block; position: relative; height: 234mm; min-height: 0; }
+.sgi-proc-caratula-pie { position: absolute; left: 0; right: 0; bottom: 0; }
+.sgi-proc-cuerpo { break-before: page; }
+/* Las secciones largas siguen en la página siguiente en vez de saltar enteras. */
+.sgi-proc-seccion { page-break-inside: auto; break-inside: auto; }
+.sgi-proc-seccion-titulo { break-after: avoid; }
+.sgi-proc-table tr { break-inside: avoid; }

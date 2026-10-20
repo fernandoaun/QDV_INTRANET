@@ -14,6 +14,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
 
+# Pango + fuentes para WeasyPrint (PDF de procedimientos que se adjunta a los avisos).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-liberation fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY project_web/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

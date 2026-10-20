@@ -99,6 +99,13 @@ def _vista_url(app: Any, doc: SgiDocumento, rev: SgiProcedimientoRevision) -> st
     return public_abs_url(app, "sgi.procedimiento_vista", slug=slug, doc_id=doc.id, rev_id=rev.id)
 
 
+def _adjunto_pdf(doc: SgiDocumento, rev: SgiProcedimientoRevision) -> tuple[str, bytes, str] | None:
+    """PDF del documento para adjuntar (uno por difusión, no por destinatario)."""
+    from app.services.sgi_pdf_service import adjunto_difusion
+
+    return adjunto_difusion(doc, rev)
+
+
 def _doc_tipo_label(doc: SgiDocumento) -> str:
     return TIPO_LABELS.get(doc.tipo or "", doc.tipo or "Documento")
 
@@ -111,6 +118,7 @@ def _send_mail(
     cuerpo_html: str,
     cuerpo_texto: str,
     context: str,
+    adjuntos: list[tuple[str, bytes, str]] | None = None,
 ) -> bool:
     if not destinatarios:
         log.warning("SGI difusión %s: sin destinatarios", context)
@@ -125,6 +133,7 @@ def _send_mail(
             asunto=asunto,
             cuerpo_html=cuerpo_html,
             cuerpo_texto=cuerpo_texto,
+            adjuntos=adjuntos,
         )
         return True
     except Exception:
@@ -258,7 +267,10 @@ def notify_approval_emails(
     doc: SgiDocumento,
     rev: SgiProcedimientoRevision,
 ) -> int:
-    """Al aprobar: mail con link del documento a cada usuario del perfil (además de la campana)."""
+    """Al aprobar: mail con el documento en PDF adjunto (y el link) a cada usuario del perfil, además de la campana.
+
+    La copia por WhatsApp del mail lleva el mismo PDF.
+    """
     if app is None:
         if not has_app_context():
             return 0
@@ -268,7 +280,10 @@ def notify_approval_emails(
     from app.services.sgi_notification_service import users_to_notify_document_approved
 
     users = users_to_notify_document_approved(doc, rev)
+    if not users:
+        return 0
     link = _vista_url(app, doc, rev)
+    adjunto = _adjunto_pdf(doc, rev)
     tipo = _doc_tipo_label(doc)
     sent = 0
     for u in users:
@@ -285,12 +300,14 @@ def notify_approval_emails(
             f"<p>Hola {nombre}, se aprobó un documento que aplica a tu puesto/perfil:</p>"
             f"<p><strong>{codigo}</strong> — {titulo}<br>"
             f"{tipo_e} · {rev_l}</p>"
-            f'<p><a href="{html_lib.escape(link)}">Abrir documento</a></p>'
+            + ("<p>Te lo mandamos adjunto en PDF para que lo leas.</p>" if adjunto else "")
+            + f'<p><a href="{html_lib.escape(link)}">Abrir documento en el sistema</a></p>'
         )
         cuerpo_texto = (
             f"Documento aprobado que te aplica: {doc.codigo} — {doc.titulo}\n"
             f"{tipo} · {rev.revision_label}\n"
-            f"Abrir: {link}"
+            + ("Te lo mandamos adjunto en PDF para que lo leas.\n" if adjunto else "")
+            + f"En el sistema: {link}"
         )
         if _send_mail(
             app,
@@ -299,6 +316,7 @@ def notify_approval_emails(
             cuerpo_html=cuerpo_html,
             cuerpo_texto=cuerpo_texto,
             context=f"aprobacion_doc_{doc.id}_u{u.id}",
+            adjuntos=[adjunto] if adjunto else None,
         ):
             sent += 1
     return sent
@@ -323,6 +341,7 @@ def notify_document_update_emails(
     tipo = _doc_tipo_label(doc)
     sent = 0
     es_org = (doc.tipo_contenido or "").strip().lower() == "organigrama"
+    adjunto = None if (es_org or not users) else _adjunto_pdf(doc, rev)
     for u in users:
         dest = _user_emails(u)
         if not dest:
@@ -352,12 +371,14 @@ def notify_document_update_emails(
                 f"<p>Hola {nombre}, se actualizó un documento vigente que aplica a tu puesto/perfil:</p>"
                 f"<p><strong>{codigo}</strong> — {titulo}<br>"
                 f"{tipo_e} · {rev_l}</p>"
-                f'<p><a href="{html_lib.escape(link)}">Abrir documento</a></p>'
+                + ("<p>Te lo mandamos adjunto en PDF para que lo leas.</p>" if adjunto else "")
+                + f'<p><a href="{html_lib.escape(link)}">Abrir documento en el sistema</a></p>'
             )
             cuerpo_texto = (
                 f"Documento actualizado que te aplica: {doc.codigo} — {doc.titulo}\n"
                 f"{tipo} · {rev.revision_label}\n"
-                f"Abrir: {link}"
+                + ("Te lo mandamos adjunto en PDF para que lo leas.\n" if adjunto else "")
+                + f"En el sistema: {link}"
             )
         if _send_mail(
             app,
@@ -366,6 +387,7 @@ def notify_document_update_emails(
             cuerpo_html=cuerpo_html,
             cuerpo_texto=cuerpo_texto,
             context=f"actualizacion_doc_{doc.id}_u{u.id}",
+            adjuntos=[adjunto] if adjunto else None,
         ):
             sent += 1
     return sent

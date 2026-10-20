@@ -29,7 +29,7 @@
     </tr>
     <tr>
       <td class="sgi-proc-header-pag-cell">
-        Página <span class="proc-pagina">1</span> de <span class="proc-total-pag">1</span>
+        Página <span class="proc-pagina">{% if not pdf|default(false) %}1{% endif %}</span> de <span class="proc-total-pag">{% if not pdf|default(false) %}1{% endif %}</span>
       </td>
     </tr>
   </tbody>

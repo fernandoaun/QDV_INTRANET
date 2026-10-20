@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from flask import g, jsonify, request
+from flask import g, jsonify, request, send_file
 
 from app.api.v1.blueprint import bp
 from app.api.v1.limits import LIMIT_SHIFT_STATUS
@@ -41,3 +41,16 @@ def api_whatsapp_aviso_resultado(aviso_id: int):
     ok = bool(data.get("ok"))
     actualizado = whatsapp_avisos_service.registrar_resultado(aviso_id, ok, str(data.get("error") or ""))
     return jsonify({"ok": True, "actualizado": actualizado})
+
+
+@bp.get("/whatsapp/avisos/<int:aviso_id>/adjunto")
+@limiter.limit(LIMIT_SHIFT_STATUS)
+def api_whatsapp_aviso_adjunto(aviso_id: int):
+    """Archivo adjunto de un aviso (p. ej. el PDF del procedimiento aprobado), para que el gateway lo mande."""
+    if not getattr(g, "_qdv_api_service", False):
+        return jsonify({"error": "unauthorized"}), 401
+    adj = whatsapp_avisos_service.adjunto_de_aviso(aviso_id)
+    if adj is None:
+        return jsonify({"error": "not_found"}), 404
+    archivo, nombre = adj
+    return send_file(archivo, as_attachment=True, download_name=nombre)
