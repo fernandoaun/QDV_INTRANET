@@ -180,3 +180,65 @@ def test_ajuste_de_hipoclorito_va_al_panel_sin_lote(app):
         with pytest.raises(ValueError, match="lote"):
             ss.save_ajuste_from_web_form({"categoria": "materia_prima", "producto": "Sal", "marca": "X", "tipo": "positivo",
                                           "cantidad": "1", "motivo": "Recuento"}, operador="Test", admin_user_id=None)
+
+
+def _turno_recibido_tarde(db, sh, username, *, corregido_informado=None):
+    """Turno entregado a las 07:40 y recepcionado recién a las 16:11 con 9.500 L."""
+    from app.models import ShiftHandover, ShiftSession, User
+
+    u = User(username=username, password_hash="x", is_admin=True, activo=True)
+    db.session.add(u)
+    db.session.flush()
+    session = ShiftSession(user_id=int(u.id), effective_role="operaciones", started_at_iso="2026-10-22T01:49:58",
+                           ended_at_iso="2026-10-22T07:40:28", status="closed",
+                           created_at_iso="2026-10-22T01:49:58", updated_at_iso="2026-10-22T07:40:28")
+    db.session.add(session)
+    db.session.flush()
+    db.session.add(ShiftSession(user_id=int(u.id), effective_role="operaciones", started_at_iso="2026-10-22T16:11:17",
+                                status="open", created_at_iso="2026-10-22T16:11:17", updated_at_iso="2026-10-22T16:11:17"))
+    db.session.add(ShiftHandover(shift_session_id=int(session.id), outgoing_user_id=int(u.id),
+                                 shift_started_at_iso="2026-10-22T01:49:58", handed_over_at_iso="2026-10-22T07:40:28",
+                                 received_at_iso="2026-10-22T16:11:17", hypochlorite_stock_liters=9_500.0,
+                                 hypochlorite_stock_liters_informado=corregido_informado,
+                                 status=sh.HANDOVER_RECEIVED, created_at_iso="2026-10-22T07:40:28",
+                                 updated_at_iso="2026-10-22T16:11:17"))
+    return u
+
+
+def _movimientos_entre_entrega_y_recepcion(db):
+    from app.models import Entrega, IngresoStock
+
+    db.session.add(Entrega(cliente="ARSA", lugar_entrega="Planta", producto="Hipoclorito", cantidad=1_250.0, unidad="L",
+                           fecha_prevista="2026-10-22", estado="entregada", created_at_iso="2026-10-22T14:00:00",
+                           updated_at_iso="2026-10-22T14:25:04", cargada_at_iso="2026-10-22T14:25:04"))
+    db.session.add(IngresoStock(categoria="producto_terminado", producto="Hipoclorito", marca="QDV", vencimiento="-",
+                                lote="L1", cantidad=19_700.0, unidad="L", fecha="2026-10-22", hora="14:56",
+                                operador="Op", created_at_iso="2026-10-22T14:56:00"))
+
+
+def test_movimientos_entre_entrega_y_recepcion_del_turno_cuentan(app, monkeypatch):
+    """Cargas e ingresos hechos con el turno entregado pero sin recepcionar no se pierden al arrancar el siguiente."""
+    from app.extensions import db
+    from app.services import shift_handover_service as sh
+    from app.services.shift_hypochlorite_indicators_service import get_instant_stock
+
+    monkeypatch.setattr(sh, "now_local_iso", lambda: "2026-10-22T18:00:00")
+    with app.app_context():
+        _turno_recibido_tarde(db, sh, "pytest_hueco_turno")
+        _movimientos_entre_entrega_y_recepcion(db)
+        db.session.commit()
+        assert get_instant_stock() == 9_500.0 - 1_250.0 + 19_700.0
+
+
+def test_stock_corregido_al_recibir_cuenta_desde_la_recepcion(app, monkeypatch):
+    """Si el entrante corrigió el stock al recibir, esa medición ya incluye lo anterior: no se cuenta dos veces."""
+    from app.extensions import db
+    from app.services import shift_handover_service as sh
+    from app.services.shift_hypochlorite_indicators_service import get_instant_stock
+
+    monkeypatch.setattr(sh, "now_local_iso", lambda: "2026-10-22T18:00:00")
+    with app.app_context():
+        _turno_recibido_tarde(db, sh, "pytest_hueco_corregido", corregido_informado=8_000.0)
+        _movimientos_entre_entrega_y_recepcion(db)
+        db.session.commit()
+        assert get_instant_stock() == 9_500.0

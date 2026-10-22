@@ -20,8 +20,9 @@ Definición obligatoria (no mezclar con otras fórmulas):
 
 - Base: si hay un turno **entregado y pendiente de recepción** con stock válido, lo declarado en esa
   entrega, desde la hora de la entrega (es la última medición real del tanque). Si no, lo declarado al
-  **cierre recepcionado inmediatamente anterior**, desde el `started_at_iso` de la `ShiftSession`
-  abierta o, si no hay sesión, desde `received_at_iso` de ese cierre.
+  **cierre recepcionado inmediatamente anterior**, desde su `handed_over_at_iso` (así no se pierden
+  cargas ni ingresos hechos entre la entrega y la recepción del turno) o, si el entrante corrigió el
+  stock al recibir, desde `received_at_iso`.
 - Cargas: `Entrega` de hipoclorito con `cargada_at_iso` en [T0, ahora].
 - Ingresos y ajustes: `ingresos_stock` y `stock_ajustes` PT de hipoclorito + ventana de tiempo.
 
@@ -151,7 +152,7 @@ def _resolve_s0_t0_instant(
 ) -> Tuple[float, str] | None:
     """
     Stock al inicio del turno en curso = cierre del último handover recepcionado; ancla
-    de tiempo T0 según partida pendiente, sesión abierta o, en última instancia, recepción.
+    de tiempo T0 = hora en que se midió ese stock (entrega, o recepción si se corrigió).
     """
     pending = sh.get_pending_handover()
     if pending is not None and _finite_non_negative_stock(pending.hypochlorite_stock_liters):
@@ -162,13 +163,14 @@ def _resolve_s0_t0_instant(
             return float(pending.hypochlorite_stock_liters), t0
     if not handovers:
         return None
-    s0 = float(handovers[0].hypochlorite_stock_liters)
-    open_s = sh.get_open_shift_session()
-    if open_s is not None:
-        t0 = (open_s.started_at_iso or "").strip()
-        if t0:
-            return s0, t0
-    t0 = (handovers[0].received_at_iso or "").strip()
+    last = handovers[0]
+    s0 = float(last.hypochlorite_stock_liters)
+    # El stock vale a la hora en que se midió: al entregar el turno o, si el entrante lo corrigió,
+    # al recibirlo. Lo que pasó entre entrega y recepción (cargas, ingresos) cuenta igual.
+    corregido_al_recibir = last.hypochlorite_stock_liters_informado is not None
+    t0 = ((last.received_at_iso if corregido_al_recibir else last.handed_over_at_iso) or "").strip()
+    if not t0:
+        t0 = (last.received_at_iso or "").strip()
     if t0:
         return s0, t0
     return None

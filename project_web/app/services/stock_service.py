@@ -30,6 +30,12 @@ def _validate_cat(cat: str) -> str:
     return c
 
 
+def _rechazar_hipoclorito_fuera_de_pt(categoria: str, producto: str) -> None:
+    """El hipoclorito es solo producto terminado: en otra categoría no suma al stock del Panel."""
+    if categoria != "producto_terminado" and es_producto_entrega_operativo_hipoclorito(producto):
+        raise ValueError("El hipoclorito se carga solo como Producto terminado.")
+
+
 def productos_catalogo(cat: str) -> list[str]:
     c = _validate_cat(cat)
     rows = db.session.scalars(
@@ -575,6 +581,7 @@ def save_ingreso(
             raise ValueError("La cantidad debe ser mayor a cero.")
     if not p or not m or not v or not l:
         raise ValueError("Completá producto, marca, vencimiento y lote.")
+    _rechazar_hipoclorito_fuera_de_pt(c, p)
     ensure_producto(
         c,
         p,
@@ -1366,6 +1373,7 @@ def create_catalog_product(
     n = (nombre_producto or "").strip()
     if not n:
         raise ValueError("El nombre del producto es obligatorio.")
+    _rechazar_hipoclorito_fuera_de_pt(c, n)
     try:
         smin = float(stock_minimo_alerta)
     except (TypeError, ValueError):

@@ -151,3 +151,18 @@ def test_quitar_catalogo_blocked_without_perm(client, app):
         still = db.session.get(ProductoCatalogo, pid)
         assert still is not None
         assert still.activo is True
+
+
+def test_hipoclorito_solo_como_producto_terminado(app):
+    """El hipoclorito no es materia prima: un ingreso o alta fuera de PT no sumaría al Panel."""
+    import pytest
+
+    from app.services import stock_service as ss
+
+    with app.app_context():
+        for cat, nombre in (("materia_prima", "Hipoclorito"), ("laboratorio", "hipoclorito de sodio ")):
+            with pytest.raises(ValueError, match="Producto terminado"):
+                ss.save_ingreso(cat, nombre, "QDV", "-", "L1", 1000.0, "Op")
+            with pytest.raises(ValueError, match="Producto terminado"):
+                ss.create_catalog_product(cat, nombre, stock_minimo_alerta=0)
+        ss.save_ingreso("producto_terminado", "Hipoclorito", "QDV", "-", "L1", 1000.0, "Op")
