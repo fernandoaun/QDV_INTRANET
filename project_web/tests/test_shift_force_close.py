@@ -172,3 +172,57 @@ def test_parse_stock_corregido():
     assert p("12.5", 0) == 12.5
     with pytest.raises(ValueError):
         p("mucho", 0)
+
+
+def _ingreso_camion_despues_de_entregar(app, litros: float = 19_700.0) -> None:
+    from app.extensions import db
+    from app.models import IngresoStock
+
+    with app.app_context():
+        db.session.add(IngresoStock(categoria="producto_terminado", producto="Hipoclorito", marca="QDV", vencimiento="-",
+                                    lote="L1", cantidad=litros, unidad="L", fecha="2026-10-08", hora="09:00",
+                                    operador="Lucía", created_at_iso="2026-10-08T09:00:00"))
+        db.session.commit()
+
+
+def test_con_camion_en_el_medio_no_se_acepta_el_stock_de_la_entrega(app, client, turno_abierto):
+    """Entró un camión después de entregar: el entrante tiene que medir y corregir, o explicar por qué no cambia."""
+    from app.extensions import db
+    from app.models import ShiftHandover
+
+    hid = _handover_pendiente(app, turno_abierto, "9500")
+    _ingreso_camion_despues_de_entregar(app)
+    _login(client, "pt_op_sig", "x2")
+    page = client.get(f"/operacion/turno/recibir/{hid}")
+    html = page.get_data(as_text=True)
+    assert "entraron 19.700 L" in html and "29.200 L" in html
+    base = {"csrf_token": _csrf(html), "confirm_read": "1", "reception_mode": "accepted", "with_laboratorist": "no"}
+
+    r = client.post(f"/operacion/turno/recibir/{hid}", data=base, follow_redirects=True)
+    assert "Medí los tanques" in r.get_data(as_text=True)
+    with app.app_context():
+        assert db.session.get(ShiftHandover, hid).status == "pending_reception"
+
+    client.post(f"/operacion/turno/recibir/{hid}", data=base | {"stock_corregido": "29000"})
+    with app.app_context():
+        ho = db.session.get(ShiftHandover, hid)
+        assert ho.status == "received" and ho.hypochlorite_stock_liters == 29_000
+        assert ho.hypochlorite_stock_liters_informado == 9_500
+
+
+def test_con_camion_en_el_medio_se_puede_explicar_en_observaciones(app, client, turno_abierto):
+    from app.extensions import db
+    from app.models import ShiftHandover
+
+    hid = _handover_pendiente(app, turno_abierto, "9500")
+    _ingreso_camion_despues_de_entregar(app)
+    _login(client, "pt_op_sig", "x2")
+    page = client.get(f"/operacion/turno/recibir/{hid}")
+    client.post(f"/operacion/turno/recibir/{hid}", data={
+        "csrf_token": _csrf(page.get_data(as_text=True)), "confirm_read": "1", "reception_mode": "accepted",
+        "with_laboratorist": "no", "reception_notes": "El camión se descargó en el tanque de reserva",
+    })
+    with app.app_context():
+        ho = db.session.get(ShiftHandover, hid)
+        assert ho.status == "received" and ho.reception_status == "accepted_with_observations"
+        assert ho.hypochlorite_stock_liters == 9_500

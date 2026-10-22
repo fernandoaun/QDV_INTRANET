@@ -316,11 +316,19 @@ def receive_handover(handover_id: int):
         else:
             flash("Turno recepcionado. Tenés el turno operativo activo.", "success")
             return redirect(url_for("produccion.hub"))
+    from app.services.shift_hypochlorite_indicators_service import (
+        movimientos_desde_entrega,
+        texto_movimientos_desde_entrega,
+    )
+
+    mov = movimientos_desde_entrega(ho)
     return render_template(
         "shift/receive.html",
         ho=ho,
         detail=detail,
         laboratoristas=sh.list_active_laboratorista_users(),
+        mov_hipo=mov,
+        mov_hipo_texto=texto_movimientos_desde_entrega(mov) if mov else "",
     )
 
 

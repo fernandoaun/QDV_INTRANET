@@ -146,6 +146,41 @@ def _sum_hipochlorite_truck_loads_liters(cargada_from_iso: str, cargada_to_iso_i
     return v if math.isfinite(v) else 0.0
 
 
+def movimientos_desde_entrega(ho: ShiftHandover) -> dict[str, Any] | None:
+    """
+    Ingresos (y ajustes) PT de hipoclorito y cargas en camión desde que se entregó el turno hasta ahora.
+    Lo que acepte el entrante pasa a ser el stock vigente, así que tiene que incluir estos movimientos.
+    None si no hubo ninguno.
+    """
+    t0 = (ho.handed_over_at_iso or "").strip()
+    if not t0:
+        return None
+    ingresos = sum_hipo_pt_ingresos_in_interval(t0, None)
+    cargas = _sum_hipochlorite_truck_loads_liters(t0, None)
+    if abs(ingresos) < 0.5 and abs(cargas) < 0.5:
+        return None
+    informado = float(ho.hypochlorite_stock_liters or 0.0)
+    return {
+        "desde": t0,
+        "ingresos": ingresos,
+        "cargas": cargas,
+        "informado": informado,
+        "esperado": max(0.0, informado + ingresos - cargas),
+    }
+
+
+def texto_movimientos_desde_entrega(mov: dict[str, Any]) -> str:
+    partes = []
+    if abs(mov["ingresos"]) >= 0.5:
+        partes.append(f"entraron {format_header_liters(mov['ingresos'])}")
+    if abs(mov["cargas"]) >= 0.5:
+        partes.append(f"se cargaron {format_header_liters(mov['cargas'])} en camiones")
+    return (
+        f"Desde la entrega del turno {' y '.join(partes)} de hipoclorito: el stock esperado es de unos "
+        f"{format_header_liters(mov['esperado'])} (más lo producido), no {format_header_liters(mov['informado'])}."
+    )
+
+
 def _resolve_s0_t0_instant(
     handovers: list[ShiftHandover],
 ) -> Tuple[float, str] | None:

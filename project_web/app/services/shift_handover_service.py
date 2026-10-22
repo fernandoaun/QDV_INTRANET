@@ -618,6 +618,20 @@ def persist_handover_reception(
             f"real {_litros(stock_corregido)} L."
         )
         notes = f"{nota}\n{notes}" if notes else nota
+    from app.services.shift_hypochlorite_indicators_service import (
+        movimientos_desde_entrega,
+        texto_movimientos_desde_entrega,
+    )
+
+    mov = movimientos_desde_entrega(ho)
+    if mov is not None and stock_corregido is None:
+        # Lo que se acepta pasa a ser el stock del Panel: con camiones en el medio, no puede quedar el de la entrega sin más.
+        if not notes:
+            raise ValueError(
+                texto_movimientos_desde_entrega(mov)
+                + " Medí los tanques y poné el stock real, o explicá en observaciones por qué sigue igual."
+            )
+        mode = RECEPTION_WITH_OBS
     if mode == RECEPTION_WITH_OBS and not notes:
         raise ValueError("Las observaciones son obligatorias si elegís «Leí con observaciones».")
     lab_id, lab_err = resolve_laboratorist_from_form(
