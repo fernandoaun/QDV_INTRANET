@@ -216,18 +216,19 @@ def _movimientos_entre_entrega_y_recepcion(db):
                                 operador="Op", created_at_iso="2026-10-22T14:56:00"))
 
 
-def test_movimientos_entre_entrega_y_recepcion_del_turno_cuentan(app, monkeypatch):
-    """Cargas e ingresos hechos con el turno entregado pero sin recepcionar no se pierden al arrancar el siguiente."""
+def test_stock_recibido_es_la_base_aunque_hubo_movimientos_antes(app, monkeypatch):
+    """Lo que acepta el entrante al recibir es el stock a esa hora (regla de Fernando, 22/10/2026):
+    cargas e ingresos anteriores a la recepción ya están reflejados en esa medición."""
     from app.extensions import db
     from app.services import shift_handover_service as sh
     from app.services.shift_hypochlorite_indicators_service import get_instant_stock
 
     monkeypatch.setattr(sh, "now_local_iso", lambda: "2026-10-22T18:00:00")
     with app.app_context():
-        _turno_recibido_tarde(db, sh, "pytest_hueco_turno")
+        _turno_recibido_tarde(db, sh, "pytest_recibido_base")
         _movimientos_entre_entrega_y_recepcion(db)
         db.session.commit()
-        assert get_instant_stock() == 9_500.0 - 1_250.0 + 19_700.0
+        assert get_instant_stock() == 9_500.0
 
 
 def test_stock_corregido_al_recibir_cuenta_desde_la_recepcion(app, monkeypatch):
