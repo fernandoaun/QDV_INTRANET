@@ -78,11 +78,11 @@ def test_carga_analisis_sin_turno_y_con_turno(app, lab):
     assert r.status_code in (302, 303)
     assert _ultimo_agua(app) == ("Laura Lab (sin turno)", lab_id)
 
-    # Con el turno de Oscar abierto: el responsable es el operador; ella queda como «cargado por».
+    # Con el turno de Oscar abierto: el responsable es el operador y queda a la vista que lo cargó ella.
     _abrir_turno(app, oper_id)
     r = client.post("/produccion/agua", data={"numero_columna": "2", "temperatura": "26", "dureza": "4"})
     assert r.status_code in (302, 303)
-    assert _ultimo_agua(app) == ("Oscar Operador", lab_id)
+    assert _ultimo_agua(app) == ("Oscar Operador (cargó Laura Lab)", lab_id)
 
 
 def test_registra_paradas_y_puede_ajustar_stock(app, lab):

@@ -156,13 +156,17 @@ def format_shift_operator_display(sess: ShiftSession | None) -> str:
 
 
 def operador_responsable_para_carga(user: User, open_s: ShiftSession | None = None) -> str:
-    """Responsable de laboratorio: lo que carga queda a nombre del operador del turno abierto.
-    Sin turno abierto queda a su nombre, marcado «(sin turno)»."""
+    """Responsable de laboratorio: lo que carga queda a nombre del operador del turno abierto (responsable
+    de la operación y los análisis), con su nombre como quien lo cargó. Sin turno abierto queda a su
+    nombre, marcado «(sin turno)»."""
     os = open_s if open_s is not None else get_open_shift_session()
     responsable = format_shift_operator_display(os) if os is not None else ""
+    nombre = user_display_name(user) or (user.username or "").strip()
     if responsable:
-        return responsable
-    return f"{user_display_name(user) or (user.username or '').strip()} (sin turno)"
+        if os is not None and int(os.user_id) == int(user.id):
+            return responsable
+        return f"{responsable} (cargó {nombre})"
+    return f"{nombre} (sin turno)"
 
 
 def operador_turno_display_line(user: User | None, open_s: ShiftSession | None = None) -> str:
