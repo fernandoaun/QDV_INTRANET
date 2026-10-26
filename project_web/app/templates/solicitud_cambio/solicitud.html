@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Solicitud de cambio{% if sol %} N° {{ sol.numero }}{% elif blanco %} (en blanco){% else %} nueva{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-03_01: misma estructura que el formulario Word (siempre "papel"). */
+  .sc-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .sc-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .82rem; }
+  .sc-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .sc-head td { border: 2px solid #000; vertical-align: middle; }
+  .sc-head .logo { width: 20%; text-align: center; }
+  .sc-head .logo img { max-height: 70px; }
+  .sc-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .sc-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .sc-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .sc-tabla td, .sc-tabla th { border: 1.5px solid #333; padding: 5px 8px; vertical-align: top; overflow-wrap: anywhere; }
+  .sc-tabla th.sec { background: #d9d9d9; text-align: center; font-size: .9rem; letter-spacing: .02em; }
+  .sc-tabla th.sub { background: #f2f2f2; text-align: center; font-weight: 700; }
+  .sc-tabla td.rot { font-weight: 700; background: #fafafa; }
+  .sc-tabla td.alto { height: 90px; }
+  .sc-tabla td.c { text-align: center; }
+  .sc-tipos label, .sc-tipos div { display: block; line-height: 1.5; }
+  .sc-caja { display: inline-block; min-width: 2.2em; font-family: monospace; }
+  .sc-res { font-weight: 700; font-size: .95rem; }
+  .sc-sheet textarea, .sc-sheet input[type=text], .sc-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .sc-sheet textarea { min-height: 80px; resize: vertical; }
+  .sc-control { margin-top: 18px; }
+  .sc-control th { background: #d9d9d9; text-align: center; font-size: .78rem; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .sc-sheet, .sc-sheet * { visibility: visible; }
+    .sc-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro txt(clave, largo=False, fecha=False) -%}
+  {% set v = sol[clave] if sol else '' %}
+  {% if editar %}
+    {% if largo %}<textarea name="{{ clave }}" aria-label="{{ sc_campo_labels[clave] }}">{{ v or '' }}</textarea>
+    {% elif fecha %}<input type="text" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ fecha_dmy(v) if v else '' }}" aria-label="{{ sc_campo_labels[clave] }}">
+    {% elif clave in opciones %}<input type="text" name="{{ clave }}" list="sc-op-{{ clave }}" maxlength="40" value="{{ v or '' }}" aria-label="{{ sc_campo_labels[clave] }}">
+    <datalist id="sc-op-{{ clave }}">{% for op in opciones[clave] %}<option value="{{ op }}">{% endfor %}</datalist>
+    {% else %}<input type="text" name="{{ clave }}" maxlength="255" value="{{ v or '' }}"{% if clave == 'asunto' %} required{% endif %} aria-label="{{ sc_campo_labels[clave] }}">{% endif %}
+  {% elif sol %}
+    {% if fecha %}{{ fecha_dmy(v) }}{% else %}<div style="white-space:pre-line">{{ v }}</div>{% endif %}
+  {% endif %}
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Solicitud de cambio{% if sol %} N° {{ sol.numero }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-03</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="scForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('solicitud_cambio.ver', solicitud_id=sol.id) if sol else url_for('solicitud_cambio.hub') }}">Cancelar</a>
+    {% else %}
+    {% if sol and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('solicitud_cambio.ver', solicitud_id=sol.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if sol %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('solicitud_cambio.ver', solicitud_id=sol.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('solicitud_cambio.hub') }}">Todas las solicitudes</a>
+  </div>
+</div>
+
+<form id="scForm" method="post" action="{{ url_for('solicitud_cambio.ver', solicitud_id=sol.id) if sol else url_for('solicitud_cambio.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="sc-scroll app-card p-0 mb-3">
+  <div class="sc-sheet">
+    <table class="sc-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ reg.fecha_vigencia.strftime('%d/%m/%Y') }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="sc-tabla">
+      <colgroup><col style="width:22%"><col style="width:33%"><col style="width:20%"><col style="width:25%"></colgroup>
+      <tr><th class="sec" colspan="4">SECCIÓN 1 «SOLICITUD DEL CAMBIO»</th></tr>
+      <tr>
+        <td class="rot">Fecha y asunto:</td>
+        <td>{% if editar %}<div class="mb-1">{{ txt('fecha', fecha=True) }}</div>{{ txt('asunto') }}{% elif sol %}{{ fecha_dmy(sol.fecha) }}{% if sol.fecha %} — {% endif %}{{ sol.asunto }}{% endif %}</td>
+        <td class="rot">ID solicitud de cambio:</td>
+        <td class="c fw-bold">{{ sol.numero if sol else ('(se asigna al guardar)' if editar else '') }}</td>
+      </tr>
+      <tr><td class="rot">Solicita:</td><td>{{ txt('solicita') }}</td><td class="rot">Estado de la solicitud:</td><td>{{ txt('estado') }}</td></tr>
+      <tr><td class="rot">Obra / servicio / sector de planta:</td><td>{{ txt('sector') }}</td><td class="rot">Requerido para:</td><td>{{ txt('requerido_para', fecha=True) }}</td></tr>
+      <tr><td class="rot">Razón:</td><td>{{ txt('razon', largo=True) }}</td><td class="rot">Prioridad:</td><td>{{ txt('prioridad') }}</td></tr>
+      <tr><th class="sub" colspan="4">Descripción del cambio</th></tr>
+      <tr><td colspan="4" class="alto">{{ txt('descripcion', largo=True) }}</td></tr>
+      <tr><th class="sub" colspan="4">Tipo de cambio</th></tr>
+      <tr class="sc-tipos">
+        {% set marcados = items(sol.tipos) if sol else [] %}
+        {% for col in tipos_cambio|batch(3) %}
+        <td{% if loop.last %} colspan="2"{% endif %}>
+          {% for t in col %}
+          {% if editar %}<label><input type="checkbox" name="tipos" value="{{ t }}"{% if t in marcados %} checked{% endif %}> {{ t }}</label>
+          {% else %}<div><span class="sc-caja">[{{ ' X ' if t in marcados else '   ' }}]</span> {{ t }}</div>{% endif %}
+          {% endfor %}
+        </td>
+        {% endfor %}
+      </tr>
+    </table>
+
+    <table class="sc-tabla">
+      <colgroup><col style="width:30%"><col style="width:70%"></colgroup>
+      <tr><th class="sec" colspan="2">SECCIÓN 2 «EVALUACIÓN DEL CAMBIO»</th></tr>
+      <tr><th class="sub" colspan="2">Impacto estimado</th></tr>
+      <tr><td class="rot">Fecha de evaluación:</td><td>{{ txt('fecha_evaluacion', fecha=True) }}</td></tr>
+      <tr><td class="rot">Integrantes del equipo de evaluación del proyecto:</td><td>{{ txt('equipo_evaluacion', largo=True) }}</td></tr>
+      <tr><th class="sub" colspan="2">Descripción de los impactos</th></tr>
+      <tr><td colspan="2" class="alto">{% if editar %}<textarea name="impactos" placeholder="Impacto de costos, plazos, alcance, calidad y riesgos del cambio" aria-label="Descripción de los impactos">{{ sol.impactos if sol else '' }}</textarea>{% else %}{{ txt('impactos') }}{% endif %}</td></tr>
+    </table>
+
+    <table class="sc-tabla">
+      <colgroup><col style="width:40%"><col style="width:22%"><col style="width:14%"><col style="width:24%"></colgroup>
+      <tr><th class="sec" colspan="4">SECCIÓN 3 «RESOLUCIÓN DE LA SOLICITUD DEL CAMBIO»</th></tr>
+      <tr>
+        <td colspan="2" class="sc-res">
+          {% for r in resoluciones %}
+          {% if editar %}<label class="me-4"><input type="radio" name="resolucion" value="{{ r }}"{% if sol and sol.resolucion == r %} checked{% endif %}> {{ r|upper }}</label>
+          {% else %}<span class="me-4"><span class="sc-caja">[{{ ' X ' if sol and sol.resolucion == r else '   ' }}]</span> {{ r|upper }}</span>{% endif %}
+          {% endfor %}
+          {% if editar %}<label class="fw-normal small"><input type="radio" name="resolucion" value=""{% if not sol or not sol.resolucion %} checked{% endif %}> sin resolver</label>{% endif %}
+        </td>
+        <td class="rot">Fecha de resolución:</td>
+        <td>{{ txt('fecha_resolucion', fecha=True) }}</td>
+      </tr>
+      <tr><th class="sub" colspan="4">Acciones de control</th></tr>
+      <tr><th>Actividad</th><th>Responsable</th><th>Fecha</th><th>Eficacia (sí – no)</th></tr>
+      {% set filas = acciones(sol) %}
+      {% set n = [filas|length + (2 if editar else 0), filas_acciones]|max %}
+      {% for i in range(n) %}
+      {% set a = filas[i] if i < filas|length else {} %}
+      <tr>
+        {% if editar %}
+        <td><input type="text" name="ac_actividad_{{ i }}" maxlength="255" value="{{ a.actividad or '' }}" aria-label="Actividad {{ i + 1 }}"></td>
+        <td><input type="text" name="ac_responsable_{{ i }}" maxlength="255" value="{{ a.responsable or '' }}" aria-label="Responsable {{ i + 1 }}"></td>
+        <td><input type="text" name="ac_fecha_{{ i }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ a.fecha or '' }}" aria-label="Fecha {{ i + 1 }}"></td>
+        <td><select name="ac_eficacia_{{ i }}" aria-label="Eficacia {{ i + 1 }}"><option value=""></option>{% for e in eficacia_op %}<option{% if a.eficacia == e %} selected{% endif %}>{{ e }}</option>{% endfor %}</select></td>
+        {% else %}
+        <td style="height:1.9rem">{{ a.actividad }}</td><td>{{ a.responsable }}</td><td class="c">{{ a.fecha }}</td><td class="c">{{ a.eficacia }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="acciones_filas" value="{{ n }}">{% endif %}
+
+    <table class="sc-tabla sc-control">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">00</td><td>Creación del documento</td><td class="c">20/10/2026</td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+{% if sol and editar and es_admin %}
+<form method="post" action="{{ url_for('solicitud_cambio.baja', solicitud_id=sol.id) }}" onsubmit="return confirm('¿Dar de baja esta solicitud? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la solicitud</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ sc_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -33,6 +33,7 @@ from app.models.objetivos import Objetivo, ObjetivoCambio, ObjetivoMes, Objetivo
 from app.models.fichas_proceso import FichaProceso, FichaProcesoCambio
 from app.models.perfiles_puesto import PerfilPuesto, PerfilPuestoCambio
 from app.models.plan_accion import PlanAccion, PlanAccionCambio
+from app.models.solicitud_cambio import SolicitudCambio, SolicitudCambioCambio
 from app.models.parametro import AppParametro
 from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
@@ -132,6 +133,8 @@ __all__ = [
     "PerfilPuestoCambio",
     "PlanAccion",
     "PlanAccionCambio",
+    "SolicitudCambio",
+    "SolicitudCambioCambio",
     "AppParametro",
     "PlanificacionDependencia",
     "SecurityAuditLog",

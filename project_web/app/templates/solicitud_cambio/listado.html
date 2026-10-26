@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Solicitudes de cambio · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Solicitudes de cambio</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-03 · {{ solicitudes|length }} solicitud(es)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('solicitud_cambio.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nueva solicitud</a>{% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th class="text-center">ID</th><th>Fecha</th><th>Asunto</th><th>Solicita</th><th>Prioridad</th><th>Estado</th><th>Resolución</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for s in solicitudes %}
+        <tr>
+          <td class="text-center fw-semibold">{{ s.numero }}</td>
+          <td class="small text-nowrap">{{ fecha_dmy(s.fecha) or '—' }}</td>
+          <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('solicitud_cambio.ver', solicitud_id=s.id) }}">{{ s.asunto }}</a></td>
+          <td class="small">{{ s.solicita or '—' }}</td>
+          <td class="small">{{ s.prioridad or '—' }}</td>
+          <td class="small">{{ s.estado or '—' }}</td>
+          <td class="small">{{ s.resolucion or '—' }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('solicitud_cambio.ver', solicitud_id=s.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('solicitud_cambio.ver', solicitud_id=s.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-4">Todavía no hay solicitudes de cambio cargadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
