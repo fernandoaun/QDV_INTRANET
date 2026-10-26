@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}Evaluación de desempeño{% if ev %} N° {{ ev.numero }}{% elif blanco %} (en blanco){% else %} nueva{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-05_04: misma estructura que la planilla Word (siempre "papel"). */
+  .ed-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .ed-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .ed-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .ed-head td { border: 2px solid #000; vertical-align: middle; }
+  .ed-head .logo { width: 20%; text-align: center; }
+  .ed-head .logo img { max-height: 70px; }
+  .ed-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .ed-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .ed-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .ed-tabla td, .ed-tabla th { border: 1.5px solid #333; padding: 4px 7px; vertical-align: middle; overflow-wrap: anywhere; }
+  .ed-tabla th { background: #d9d9d9; text-align: center; font-size: .74rem; }
+  .ed-tabla td.rot { font-weight: 700; background: #fafafa; }
+  .ed-tabla td.c { text-align: center; }
+  .ed-tabla td.area { background: #f2f2f2; font-weight: 700; text-align: center; }
+  .ed-tabla td.marca { text-align: center; font-weight: 700; }
+  .ed-tabla td.vacia { height: 1.8rem; }
+  .ed-tabla td.firma { height: 4.2rem; vertical-align: top; }
+  .ed-tabla td.nivel-si { background: #e2f0d9; font-weight: 700; }
+  .ed-instr { margin: 0 0 8px; line-height: 1.45; }
+  .ed-sheet textarea, .ed-sheet input[type=text] { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .ed-sheet textarea { min-height: 54px; resize: vertical; }
+  .ed-sheet input[type=radio] { width: 1.05rem; height: 1.05rem; cursor: pointer; }
+  .ed-control { margin-top: 18px; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .ed-sheet, .ed-sheet * { visibility: visible; }
+    .ed-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 7.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro txt(clave, largo=False, fecha=False, maxlen=255, lista=None) -%}
+  {% set v = ev[clave] if ev else '' %}
+  {% if editar %}
+    {% if largo %}<textarea name="{{ clave }}" aria-label="{{ ed_campo_labels[clave] }}">{{ v or '' }}</textarea>
+    {% elif fecha %}<input type="text" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ fecha_dmy(v) if v else '' }}" aria-label="{{ ed_campo_labels[clave] }}">
+    {% else %}<input type="text" name="{{ clave }}" id="ed-{{ clave }}" maxlength="{{ maxlen }}" value="{{ v or '' }}"{% if lista %} list="{{ lista }}" autocomplete="off"{% endif %}{% if clave == 'evaluado' %} required{% endif %} aria-label="{{ ed_campo_labels[clave] }}">{% endif %}
+  {% elif ev %}
+    {% if fecha %}{{ fecha_dmy(v) }}{% else %}<div style="white-space:pre-line">{{ v }}</div>{% endif %}
+  {% endif %}
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Evaluación de desempeño{% if ev %} N° {{ ev.numero }} — {{ ev.evaluado }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-05{% if editar %} · El puntaje total y el resultado se calculan solos.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="edForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('evaluacion_desempeno.ver', evaluacion_id=ev.id) if ev else url_for('evaluacion_desempeno.hub') }}">Cancelar</a>
+    {% else %}
+    {% if ev and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('evaluacion_desempeno.ver', evaluacion_id=ev.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if ev %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('evaluacion_desempeno.ver', evaluacion_id=ev.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('evaluacion_desempeno.hub') }}">Todas las evaluaciones</a>
+  </div>
+</div>
+
+<form id="edForm" method="post" action="{{ url_for('evaluacion_desempeno.ver', evaluacion_id=ev.id) if ev else url_for('evaluacion_desempeno.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}
+<datalist id="ed-empleados">{% for emp in empleados %}<option value="{{ emp.nombre_completo }}" data-puesto="{{ emp.puesto }}" data-sector="{{ emp.area }}">{% endfor %}</datalist>
+{% endif %}
+<div class="ed-scroll app-card p-0 mb-3">
+  <div class="ed-sheet">
+    <table class="ed-head">
+      <tr>
+        <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="3">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="ed-tabla">
+      <colgroup><col style="width:17%"><col style="width:33%"><col style="width:17%"><col style="width:33%"></colgroup>
+      <tr><td class="rot">Sector:</td><td>{{ txt('sector', maxlen=128) }}</td><td class="rot">Puesto:</td><td>{{ txt('puesto', maxlen=128) }}</td></tr>
+      <tr><td class="rot">Evaluado:</td><td>{{ txt('evaluado', lista='ed-empleados') }}</td><td class="rot">Período evaluado:</td><td>{{ txt('periodo', maxlen=80) }}</td></tr>
+      <tr><td class="rot">Evaluador:</td><td>{{ txt('evaluador') }}</td><td class="rot">Fecha de evaluación:</td><td>{{ txt('fecha', fecha=True) }}</td></tr>
+    </table>
+
+    <p class="ed-instr">Antes de iniciar la evaluación del personal a su cargo, lea bien las instrucciones.<br>
+      Asigne el puntaje correspondiente.<br>
+      La escala para ser utilizada por el evaluador corresponde a un nivel que va de DEFICIENTE (1) a EXCELENTE (5).</p>
+    <table class="ed-tabla">
+      <colgroup><col style="width:20%"><col style="width:80%"></colgroup>
+      {% for n, nombre, desc in escala %}<tr><td class="rot">{{ nombre }}</td><td>{{ desc }}</td></tr>{% endfor %}
+    </table>
+    <p class="ed-instr">En comentarios, anote lo adicional que usted quiere remarcar.</p>
+
+    {% set p = puntajes(ev) %}
+    <table class="ed-tabla" id="ed-puntajes">
+      <colgroup><col style="width:50%">{% for _ in escala %}<col style="width:8.5%">{% endfor %}<col style="width:7.5%"></colgroup>
+      <tr><th rowspan="2">ÁREA DE DESEMPEÑO</th>{% for n, nombre, _ in escala %}<th>{{ nombre }}</th>{% endfor %}<th rowspan="2">PTS</th></tr>
+      <tr>{% for n, _, _ in escala %}<th>{{ n }}</th>{% endfor %}</tr>
+      {% for area, its in areas %}
+      <tr><td class="area" colspan="7">{{ area }}</td></tr>
+      {% for i, texto in its %}
+      <tr>
+        <td>{{ texto }}</td>
+        {% for n, nombre, _ in escala %}
+        <td class="marca">{% if editar %}<input type="radio" name="p_{{ i }}" value="{{ n }}"{% if p.get(i) == n %} checked{% endif %} aria-label="{{ texto }}: {{ nombre }}">{% elif p.get(i) == n %}X{% endif %}</td>
+        {% endfor %}
+        <td class="c fw-bold" data-pts="{{ i }}">{{ p.get(i, '') }}</td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+      <tr><td class="rot text-end" colspan="6">PUNTAJE TOTAL:</td><td class="c fw-bold" id="ed-total">{{ total(ev) if total(ev) is not none else '' }}</td></tr>
+    </table>
+
+    <div class="fw-bold mb-1">Análisis de resultados:</div>
+    {% set niv = nivel(ev) %}
+    <table class="ed-tabla" id="ed-niveles">
+      <tr>{% for lo, hi, n in niveles %}<td class="c" data-lo="{{ lo }}" data-hi="{{ hi }}">{{ lo if lo == hi else lo ~ ' a ' ~ hi }}</td>{% endfor %}</tr>
+      <tr>{% for lo, hi, n in niveles %}<td class="c {{ 'nivel-si' if niv == n }}" data-nivel="{{ n }}">{{ n }} <span class="ed-caja">[{{ ' X ' if niv == n else '   ' }}]</span></td>{% endfor %}</tr>
+    </table>
+
+    <table class="ed-tabla">
+      <colgroup><col style="width:35%"><col style="width:65%"></colgroup>
+      <tr><td class="firma"><b>Firma del evaluador:</b></td><td class="firma"><b>Comentarios:</b> {{ txt('comentarios_evaluador', largo=True) }}</td></tr>
+      <tr><td class="firma"><b>Firma del evaluado:</b></td><td class="firma"><b>Comentarios:</b> {{ txt('comentarios_evaluado', largo=True) }}</td></tr>
+    </table>
+
+    {% for clave, pref, titulo in (('observaciones', 'obs', 'Observaciones:<br>Relacionadas a concientización, formación, competencia / oportunidades de mejora:'), ('objetivos', 'obj', 'Objetivos para el próximo período:')) %}
+    {% set renglones = items(ev[clave]) if ev else [] %}
+    {% set n = [renglones|length + (2 if editar else 0), filas_listas]|max %}
+    <table class="ed-tabla">
+      <tr><td class="rot">{{ titulo|safe }}</td></tr>
+      {% for i in range(n) %}
+      <tr><td class="vacia">{% if editar %}<input type="text" name="{{ pref }}_{{ i }}" maxlength="500" value="{{ renglones[i] if i < renglones|length else '' }}" aria-label="{{ ed_campo_labels[clave] }} {{ i + 1 }}">{% elif i < renglones|length %}{{ renglones[i] }}{% endif %}</td></tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="{{ pref }}_filas" value="{{ n }}">{% endif %}
+    {% endfor %}
+
+    <table class="ed-tabla ed-control">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">00</td><td>Confección del documento</td><td class="c">24/06/2026</td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+{% if ev and editar and es_admin %}
+<form method="post" action="{{ url_for('evaluacion_desempeno.baja', evaluacion_id=ev.id) }}" onsubmit="return confirm('¿Dar de baja esta evaluación? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la evaluación</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ ed_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if editar %}
+<script>
+(function () {
+  "use strict";
+  var N = {{ n_items }};
+  var form = document.getElementById("edForm");
+  function recalcular() {
+    var suma = 0, hechos = 0;
+    for (var i = 1; i <= N; i++) {
+      var r = form.querySelector('input[name="p_' + i + '"]:checked');
+      var celda = form.querySelector('[data-pts="' + i + '"]');
+      if (celda) celda.textContent = r ? r.value : "";
+      if (r) { suma += Number(r.value); hechos++; }
+    }
+    var completo = hechos === N;
+    document.getElementById("ed-total").textContent = completo ? suma : (hechos ? suma + " (faltan " + (N - hechos) + ")" : "");
+    form.querySelectorAll("#ed-niveles [data-nivel]").forEach(function (td, k) {
+      var rango = form.querySelectorAll("#ed-niveles [data-lo]")[k];
+      var si = completo && suma >= Number(rango.dataset.lo) && suma <= Number(rango.dataset.hi);
+      td.classList.toggle("nivel-si", si);
+      td.querySelector(".ed-caja").textContent = si ? "[ X ]" : "[    ]";
+    });
+  }
+  form.addEventListener("change", function (e) { if (e.target.name && e.target.name.indexOf("p_") === 0) recalcular(); });
+  var evaluado = document.getElementById("ed-evaluado");
+  if (evaluado) evaluado.addEventListener("change", function () {
+    var op = Array.prototype.find.call(document.querySelectorAll("#ed-empleados option"), function (o) { return o.value === evaluado.value; });
+    if (!op) return;
+    var puesto = document.getElementById("ed-puesto"), sector = document.getElementById("ed-sector");
+    if (puesto && !puesto.value) puesto.value = op.dataset.puesto || "";
+    if (sector && !sector.value) sector.value = op.dataset.sector || "";
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}
