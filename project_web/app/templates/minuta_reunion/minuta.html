@@ -22,11 +22,13 @@
   .mr-sheet textarea { min-height: 60px; resize: vertical; }
   .mr-sheet textarea.largo { min-height: 220px; }
   .mr-control { margin-top: 18px; }
+  .mr-plan { white-space: nowrap; }
   @media print {
     @page { size: A4 portrait; margin: 10mm; }
     body * { visibility: hidden; }
     .mr-sheet, .mr-sheet * { visibility: visible; }
     .mr-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8.5pt; }
+    .mr-plan { display: none; }
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 </style>
@@ -45,7 +47,7 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Minuta de reunión{% if minuta %} N° {{ minuta.numero }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
-    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-04</div>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-04{% if editar %} · Las acciones con responsable pasan al Plan de acción.{% endif %}</div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     {% if editar %}
@@ -110,6 +112,7 @@
     </table>
 
     {% set acs = filas(minuta, 'acciones') %}
+    {% set en_plan = plan_numeros(minuta) %}
     {% set na = [acs|length + (2 if editar else 0), filas_min.acciones]|max %}
     <table class="mr-tabla">
       <colgroup><col style="width:56%"><col style="width:26%"><col style="width:18%"></colgroup>
@@ -118,11 +121,11 @@
       {% set a = acs[i] if i < acs|length else {} %}
       <tr>
         {% if editar %}
-        <td><input type="text" name="acciones_accion_{{ i }}" maxlength="255" value="{{ a.accion or '' }}" aria-label="Acción o conclusión {{ i + 1 }}"></td>
+        <td><input type="text" name="acciones_accion_{{ i }}" maxlength="255" value="{{ a.accion or '' }}" aria-label="Acción o conclusión {{ i + 1 }}">{% if a.plan_accion_id %}<input type="hidden" name="acciones_plan_{{ i }}" value="{{ a.plan_accion_id }}">{% endif %}</td>
         <td><input type="text" name="acciones_responsable_{{ i }}" maxlength="255" value="{{ a.responsable or '' }}" aria-label="Responsable {{ i + 1 }}"></td>
         <td><input type="text" name="acciones_fecha_{{ i }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ a.fecha or '' }}" aria-label="Fecha {{ i + 1 }}"></td>
         {% else %}
-        <td class="vacia">{{ a.accion }}</td><td>{{ a.responsable }}</td><td class="c">{{ a.fecha }}</td>
+        <td class="vacia">{{ a.accion }}{% if a.plan_accion_id in en_plan %} <a class="mr-plan small" href="{{ url_for('plan_accion.ver', accion_id=a.plan_accion_id) }}">Plan de acción N° {{ en_plan[a.plan_accion_id] }}</a>{% endif %}</td><td>{{ a.responsable }}</td><td class="c">{{ a.fecha }}</td>
         {% endif %}
       </tr>
       {% endfor %}

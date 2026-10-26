@@ -27,7 +27,7 @@ OPCIONES: dict[str, tuple[str, ...]] = {
     "origen": (
         "Auditoría interna", "Auditoría de cliente", "Auditoría externa / certificación", "Auditoría externa / vigilancia",
         "Ente regulador", "Evaluación", "Incidente", "Inspección", "Observación preventiva", "Simulacro",
-        "Orden de servicio",
+        "Orden de servicio", "Minuta de reunión",
     ),
     "tipo_hallazgo": ("No Conformidad", "Oportunidad de Mejora", "Otros"),
     "tipo_accion": ("Acción corrección (inmediata)", "Acción correctiva", "Acción de control"),

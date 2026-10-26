@@ -19,6 +19,11 @@ def _acceso():
     return u, es_admin or user_can_edit_sgi_documentos(u), es_admin, None
 
 
+def _avisar_plan(creadas: int) -> None:
+    if creadas:
+        flash(f"{creadas} acción(es) con responsable pasaron al Plan de acción.", "info")
+
+
 def _hoja(**kw):
     kw.setdefault("historial", None)
     return render_template("minuta_reunion/minuta.html", **kw, **svc.labels_context())
@@ -60,8 +65,10 @@ def nueva():
             for e in errs:
                 flash(e, "danger")
         else:
+            creadas = svc.sincronizar_plan(minuta, u.id)
             db.session.commit()
             flash(f"Minuta N° {minuta.numero} cargada.", "success")
+            _avisar_plan(creadas)
             return redirect(url_for("minuta_reunion.ver", minuta_id=minuta.id))
     return _hoja(minuta=None, blanco=False, editar=True, puede_editar=True, es_admin=es_admin)
 
@@ -85,8 +92,10 @@ def ver(minuta_id: int):
             for e in errs:
                 flash(e, "danger")
             return redirect(url_for("minuta_reunion.ver", minuta_id=minuta.id, editar=1))
+        creadas = svc.sincronizar_plan(minuta, u.id)
         db.session.commit()
         flash(f"Minuta N° {minuta.numero} guardada.", "success")
+        _avisar_plan(creadas)
         return redirect(url_for("minuta_reunion.ver", minuta_id=minuta.id))
     return _hoja(
         minuta=minuta,

@@ -102,3 +102,39 @@ def test_registro_sgi(app):
         links = proc.registro_modulo_links("minuta_reunion")
     assert links == {"label": "Minutas de reunión", "blank_url": "/sgi/minutas-reunion/en-blanco",
                      "filled_url": "/sgi/minutas-reunion/"}
+
+
+def test_acciones_con_responsable_pasan_al_plan(app, client, minuta_id):
+    from app.services import minuta_reunion_service as svc
+    from app.services import plan_accion_service as plan
+
+    c = _login(app, client, "pytest_mr_plan", is_admin=False, rol="sgi")
+    with app.app_context():
+        m = svc.get(minuta_id)
+        assert svc.sincronizar_plan(m, None) == 1  # la fila del fixture tiene responsable
+        from app.extensions import db
+
+        db.session.commit()
+        pa_id = svc.filas(m, "acciones")[0]["plan_accion_id"]
+        pa = plan.get(pa_id)
+        assert pa.origen == "Minuta de reunión" and pa.requisito == "QDV-RG-PG-04_01 Minuta N° 1"
+        assert pa.fecha_deteccion == date(2026, 10, 21) and pa.fecha_cumplimiento == date(2026, 11, 15)
+        assert pa.estado == "En curso" and pa.responsable == "Participante A"
+    form = {"motivo": "Revisión por la dirección", "fecha": "21/10/2026", "acciones_filas": "3",
+            "acciones_accion_0": "Actualizar el PG-04 y difundirlo", "acciones_responsable_0": "Participante B",
+            "acciones_fecha_0": "20/11/2026", "acciones_plan_0": str(pa_id),
+            "acciones_accion_1": "Se aprueba el presupuesto",  # conclusión: sin responsable, no va al plan
+            "acciones_accion_2": "Comprar repuestos", "acciones_responsable_2": "Participante C"}
+    r = c.post(f"/sgi/minutas-reunion/{minuta_id}", data=form)
+    assert r.status_code in (302, 303)
+    with app.app_context():
+        acciones = plan.listar()
+        assert [a.accion for a in acciones] == ["Actualizar el PG-04 y difundirlo", "Comprar repuestos"]
+        assert acciones[0].id == pa_id and acciones[0].responsable == "Participante B"
+        assert acciones[0].fecha_cumplimiento == date(2026, 11, 20)
+        assert {x.campo for x in plan.cambios(acciones[0])} >= {"accion", "responsable", "fecha_cumplimiento"}
+    c.post(f"/sgi/minutas-reunion/{minuta_id}", data=form)  # volver a guardar no duplica
+    with app.app_context():
+        assert len(plan.listar()) == 2
+    hoja = c.get(f"/sgi/minutas-reunion/{minuta_id}").get_data(as_text=True)
+    assert "Plan de acción N° 1" in hoja and "Plan de acción N° 2" in hoja
