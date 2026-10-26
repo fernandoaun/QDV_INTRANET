@@ -38,6 +38,7 @@ from app.models.minuta_reunion import MinutaReunion, MinutaReunionCambio
 from app.models.evaluacion_desempeno import EvaluacionDesempeno, EvaluacionDesempenoCambio
 from app.models.desvios import Desvio, DesvioCambio
 from app.models.foda import Foda, FodaCambio
+from app.models.matriz_legal import RequisitoLegal, RequisitoLegalCambio
 from app.models.parametro import AppParametro
 from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
@@ -147,6 +148,8 @@ __all__ = [
     "DesvioCambio",
     "Foda",
     "FodaCambio",
+    "RequisitoLegal",
+    "RequisitoLegalCambio",
     "AppParametro",
     "PlanificacionDependencia",
     "SecurityAuditLog",

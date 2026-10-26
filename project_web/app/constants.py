@@ -197,6 +197,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "foda.en_blanco",
         "filled_endpoint": "foda.hub",
     },
+    "matriz_legal": {
+        "label": "Matriz legal y otros requisitos",
+        "blank_endpoint": "matriz_legal.en_blanco",
+        "filled_endpoint": "matriz_legal.hub",
+    },
     "epp_constancia": {
         "label": "Entregas EPP (Res. 299/11)",
         "blank_endpoint": "personal.epp_constancia_en_blanco",

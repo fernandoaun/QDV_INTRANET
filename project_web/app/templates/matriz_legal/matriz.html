@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Matriz legal{% if blanco %} (en blanco){% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-10_01: misma estructura que la planilla Excel, una hoja por ámbito (siempre "papel", horizontal). */
+  .ml-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .ml-sheet { background: #fff; color: #000; min-width: 1400px; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .76rem; }
+  .ml-head { border-collapse: collapse; width: 100%; margin-bottom: 10px; }
+  .ml-head td { border: 2px solid #000; vertical-align: middle; }
+  .ml-head .logo { width: 14%; text-align: center; }
+  .ml-head .logo img { max-height: 64px; }
+  .ml-head .titulo { text-align: center; font-weight: 700; font-size: 1.2rem; }
+  .ml-head .titulo small { display: block; font-size: .85rem; font-weight: 600; }
+  .ml-head .meta { width: 18%; text-align: center; font-weight: 700; font-size: .85rem; padding: 1px 6px; }
+  .ml-datos { margin-bottom: 10px; font-size: .85rem; }
+  .ml-datos b { display: inline-block; min-width: 13rem; }
+  .ml-tabla { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  .ml-tabla th, .ml-tabla td { border: 1px solid #333; padding: 4px 5px; vertical-align: top; overflow-wrap: anywhere; }
+  .ml-tabla thead th { background: #d9d9d9; text-align: center; vertical-align: middle; font-size: .72rem; }
+  .ml-tabla td.c { text-align: center; }
+  .ml-tabla tr.vacia td { height: 2.2rem; }
+  .ml-estado-cumple { background: #e2f0d9; }
+  .ml-estado-en-proceso { background: #fff2cc; }
+  .ml-estado-no-cumple { background: #f8cbad; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body * { visibility: hidden; }
+    .ml-sheet, .ml-sheet * { visibility: visible; }
+    .ml-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 6.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Matriz legal y otros requisitos{% if blanco %} — en blanco{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-10</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('matriz_legal.nuevo', hoja=ambito) }}"><i class="bi bi-plus-lg me-1"></i>Nuevo requisito</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir esta hoja</button>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-0">
+  {% for clave, nombre in ambitos.items() %}
+  <li class="nav-item"><a class="nav-link{% if clave == ambito %} active{% endif %}" href="{{ url_for('matriz_legal.en_blanco' if blanco else 'matriz_legal.hub', hoja=clave) }}">{{ nombre }}{% if not blanco %} <span class="badge text-bg-light">{{ cantidades.get(clave, 0) }}</span>{% endif %}</a></li>
+  {% endfor %}
+</ul>
+<div class="ml-scroll app-card p-0 mb-3" style="border-top-left-radius:0">
+  <div class="ml-sheet">
+    <table class="ml-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}<small>{{ ambitos[ambito] }}</small></td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+    <div class="ml-datos">
+      <div><b>FECHA DE ACTUALIZACIÓN:</b> {{ fecha_dmy(ultima_fecha) if ultima_fecha else '' }}</div>
+      <div><b>ACTUALIZADO POR:</b> {{ ultimo_usuario }}</div>
+    </div>
+    <table class="ml-tabla">
+      <colgroup>
+        <col style="width:7%"><col style="width:7%"><col style="width:8%"><col style="width:10%"><col style="width:6%"><col style="width:15%">
+        <col style="width:7%"><col style="width:8%"><col style="width:10%"><col style="width:6%"><col style="width:6%"><col style="width:10%">
+      </colgroup>
+      <thead><tr>{% for c in columnas %}<th>{{ ml_campo_labels[c] }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in requisitos %}
+        <tr>
+          <td>{% if puede_editar %}<a href="{{ url_for('matriz_legal.ver', requisito_id=r.id) }}" title="Ver el requisito">{{ r.tipo or '—' }}</a>{% else %}<a class="text-reset" href="{{ url_for('matriz_legal.ver', requisito_id=r.id) }}">{{ r.tipo }}</a>{% endif %}</td>
+          {% for c in columnas[1:] %}
+          <td class="{{ 'c' if c in ('articulo', 'frecuencia', 'estado') }} {{ 'ml-estado-' ~ (r.estado|lower|replace(' ', '-')) if c == 'estado' and r.estado }}" style="white-space:pre-line">{{ r[c] }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+        {% if blanco or not requisitos %}
+        {% for _ in range(12) %}<tr class="vacia">{% for _ in columnas %}<td></td>{% endfor %}</tr>{% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if requisitos and puede_editar %}<p class="text-muted small">Para editar un requisito, tocá su tipo en la primera columna.</p>{% endif %}
+{% endblock %}

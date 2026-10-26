@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Matriz legal · {% if req %}requisito{% else %}nuevo requisito{% endif %} · QDV{% endblock %}
+{% macro campo(clave, largo=False) -%}
+  {% set val = (datos.get(clave, '') if datos else (req[clave] if req else '')) %}
+  {% if editar %}
+    {% if largo %}<textarea class="form-control form-control-sm" name="{{ clave }}" rows="3">{{ val or '' }}</textarea>
+    {% elif clave in opciones or clave == 'proceso' %}
+    <input class="form-control form-control-sm" name="{{ clave }}" list="ml-op-{{ clave }}" maxlength="160" value="{{ val or '' }}">
+    <datalist id="ml-op-{{ clave }}">{% for op in (procesos if clave == 'proceso' else opciones[clave]) %}<option value="{{ op }}">{% endfor %}</datalist>
+    {% else %}<input class="form-control form-control-sm" name="{{ clave }}" maxlength="255" value="{{ val or '' }}">{% endif %}
+  {% else %}
+    <div style="white-space:pre-line">{{ val or '—' }}</div>
+  {% endif %}
+{%- endmacro %}
+{% macro fila(clave, largo=False) -%}
+<div class="col-12 {{ 'col-md-12' if largo else 'col-md-6 col-lg-4' }}">
+  <label class="form-label small fw-semibold mb-1">{{ ml_campo_labels[clave] }}</label>
+  {{ campo(clave, largo) }}
+</div>
+{%- endmacro %}
+{% block content %}
+{% set amb = (datos.get('ambito') if datos else req.ambito) or 'nacion' %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Matriz legal — {% if req %}{{ req.norma or 'requisito' }}{% else %}nuevo requisito{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-10</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="mlForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_legal.ver', requisito_id=req.id) if req else url_for('matriz_legal.hub', hoja=amb) }}">Cancelar</a>
+    {% else %}
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('matriz_legal.ver', requisito_id=req.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_legal.ver', requisito_id=req.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_legal.hub', hoja=amb) }}">Toda la matriz</a>
+  </div>
+</div>
+
+<form id="mlForm" method="post" action="{{ url_for('matriz_legal.ver', requisito_id=req.id) if req else url_for('matriz_legal.nuevo') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Requisito</div>
+  <div class="row g-3 p-3">
+    <div class="col-12 col-md-6 col-lg-4">
+      <label class="form-label small fw-semibold mb-1">{{ ml_campo_labels.ambito }}</label>
+      {% if editar %}<select class="form-select form-select-sm" name="ambito">{% for k, n in ambitos.items() %}<option value="{{ k }}"{% if k == amb %} selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+      {% else %}<div>{{ ambitos[amb] }}</div>{% endif %}
+    </div>
+    {{ fila('tipo') }}{{ fila('fuente') }}{{ fila('organismo') }}{{ fila('norma') }}{{ fila('articulo') }}
+    {{ fila('descripcion', largo=True) }}
+  </div>
+</div>
+<div class="app-card mb-3">
+  <div class="app-card-header">Cumplimiento</div>
+  <div class="row g-3 p-3">{{ fila('proceso') }}{{ fila('responsable') }}{{ fila('frecuencia') }}{{ fila('estado') }}{{ fila('evidencia', largo=True) }}{{ fila('observaciones', largo=True) }}</div>
+</div>
+</form>
+
+{% if req and editar and es_admin %}
+<form method="post" action="{{ url_for('matriz_legal.baja', requisito_id=req.id) }}" onsubmit="return confirm('¿Dar de baja este requisito? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja el requisito</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ ml_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
