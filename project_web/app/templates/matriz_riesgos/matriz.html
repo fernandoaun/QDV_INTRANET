@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Matriz de riesgos y oportunidades{% if matriz %} · {{ matriz.sector }}{% elif blanco %} (en blanco){% else %} nueva{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+{% include "matriz_riesgos/_colores.html" %}
+<style>
+  /* Registro QDV-RG-PG-09_04: misma estructura que cada pestaña de la planilla (siempre "papel", apaisada). */
+  .mrg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .mrg-sheet { background: #fff; color: #000; min-width: 1100px; max-width: 1400px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .mrg-head { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+  .mrg-head td { border: 2px solid #000; vertical-align: middle; }
+  .mrg-head .logo { width: 16%; text-align: center; }
+  .mrg-head .logo img { max-height: 70px; }
+  .mrg-head .titulo { text-align: center; font-weight: 700; font-size: 1.2rem; }
+  .mrg-head .meta { width: 22%; font-weight: 700; font-size: .85rem; padding: 1px 6px; }
+  .mrg-datos { border-collapse: collapse; margin-bottom: 12px; }
+  .mrg-datos td { padding: 3px 8px; border: 1.5px solid #333; }
+  .mrg-datos td:first-child { font-weight: 700; background: #f2f2f2; white-space: nowrap; }
+  .mrg-tabla { border-collapse: collapse; width: 100%; table-layout: fixed; }
+  .mrg-tabla td, .mrg-tabla th { border: 1.5px solid #333; padding: 4px 6px; vertical-align: top; overflow-wrap: anywhere; }
+  .mrg-tabla th { background: #d9d9d9; text-align: center; vertical-align: middle; font-size: .75rem; }
+  .mrg-tabla th.grupo { background: #bdd7ee; font-size: .85rem; }
+  .mrg-tabla td.c { text-align: center; }
+  .mrg-tabla td.vacia { height: 1.9rem; }
+  .mrg-sheet textarea, .mrg-sheet input[type=text], .mrg-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 2px 4px; }
+  .mrg-sheet textarea { min-height: 52px; resize: vertical; }
+  .mrg-control { margin-top: 18px; width: 60%; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body * { visibility: hidden; }
+    .mrg-sheet, .mrg-sheet * { visibility: visible; }
+    .mrg-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 7.5pt; }
+    .mrg-tabla tr { break-inside: avoid; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro clase(c) %}mrg-c-{{ c|lower|replace(' ', '-') }}{% endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Matriz de riesgos y oportunidades{% if matriz %} — {{ matriz.sector }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-09{% if editar %} · El valor y la clasificación se calculan solos (probabilidad × severidad).{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="mrgForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.ver', matriz_id=matriz.id) if matriz else url_for('matriz_riesgos.hub') }}">Cancelar</a>
+    {% else %}
+    {% if matriz and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('matriz_riesgos.ver', matriz_id=matriz.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if matriz %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.ver', matriz_id=matriz.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.valoracion') }}" target="_blank">Tabla de valoración</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.hub') }}">Todos los sectores</a>
+  </div>
+</div>
+
+<form id="mrgForm" method="post" action="{{ url_for('matriz_riesgos.ver', matriz_id=matriz.id) if matriz else url_for('matriz_riesgos.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="mrg-scroll app-card p-0 mb-3">
+  <div class="mrg-sheet">
+    <table class="mrg-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de Vigencia: {{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="mrg-datos">
+      <tr><td>Sector:</td><td style="min-width:18rem">
+        {% if editar %}<input type="text" name="sector" list="mrgSectores" maxlength="160" required value="{{ matriz.sector if matriz else '' }}" aria-label="Sector">
+        <datalist id="mrgSectores">{% for s in sectores %}<option value="{{ s }}">{% endfor %}</datalist>
+        {% else %}{{ matriz.sector if matriz else '' }}{% endif %}</td></tr>
+      <tr><td>Fecha de ult. Actualización:</td><td>{{ fecha_dmy(matriz.fecha_actualizacion) if matriz and matriz.fecha_actualizacion else '' }}{% if editar %} <span class="text-muted small">(se pone sola al guardar un cambio)</span>{% endif %}</td></tr>
+    </table>
+
+    {% set fs = filas(matriz) %}
+    {% set n = [fs|length + (3 if editar else 0), filas_min]|max %}
+    <table class="mrg-tabla" id="mrgTabla">
+      <colgroup>
+        <col style="width:3.5%"><col style="width:8.5%"><col style="width:17%"><col style="width:6.5%"><col style="width:6.5%">
+        <col style="width:6%"><col style="width:8%"><col style="width:17%"><col style="width:7.5%"><col style="width:10%"><col style="width:9.5%">
+      </colgroup>
+      <tr><th class="grupo" colspan="3">Identificación de Riesgos</th><th class="grupo" colspan="8">Evaluación de Riesgos</th></tr>
+      <tr><th>ID</th><th>Tipo de Riesgo</th><th>Riesgo / Oportunidad de proceso</th><th>Probabilidad</th><th>Severidad</th>
+        <th>Valorización del Riesgo</th><th>Clasificación del Riesgo</th><th>Acciones</th><th>Fecha de Implementación</th>
+        <th>Responsables</th><th>Evaluación de la eficacia de las acciones</th></tr>
+      {% for i in range(n) %}
+      {% set f = fs[i] if i < fs|length else {} %}
+      {% set v = valor(f) %}{% set cl = clasificacion(v) %}
+      <tr>
+        <td class="c">{{ i + 1 if (f or editar) else '' }}</td>
+        {% if editar %}
+        <td><select name="filas_tipo_{{ i }}" aria-label="Tipo de riesgo {{ i + 1 }}"><option value=""></option>{% for t in tipos %}<option{% if f.tipo == t %} selected{% endif %}>{{ t }}</option>{% endfor %}{% if f.tipo and f.tipo not in tipos %}<option selected>{{ f.tipo }}</option>{% endif %}</select></td>
+        <td><textarea name="filas_riesgo_{{ i }}" aria-label="Riesgo u oportunidad {{ i + 1 }}">{{ f.riesgo or '' }}</textarea></td>
+        {% for k in ('probabilidad', 'severidad') %}
+        <td><select name="filas_{{ k }}_{{ i }}" class="mrg-ps" data-fila="{{ i }}" aria-label="{{ k|capitalize }} {{ i + 1 }}"><option value=""></option>{% for x in range(1, 6) %}<option{% if f[k] == x|string %} selected{% endif %}>{{ x }}</option>{% endfor %}</select></td>
+        {% endfor %}
+        <td class="c" id="mrgValor{{ i }}">{{ v or '' }}</td>
+        <td class="c {{ clase(cl) if v }}" id="mrgClase{{ i }}">{{ cl|upper if v else '' }}</td>
+        <td><textarea name="filas_acciones_{{ i }}" aria-label="Acciones {{ i + 1 }}">{{ f.acciones or '' }}</textarea></td>
+        <td><input type="text" name="filas_fecha_{{ i }}" placeholder="mm/aaaa" maxlength="10" value="{{ f.fecha or '' }}" aria-label="Fecha de implementación {{ i + 1 }}"></td>
+        <td><textarea name="filas_responsables_{{ i }}" aria-label="Responsables {{ i + 1 }}">{{ f.responsables or '' }}</textarea></td>
+        <td><textarea name="filas_eficacia_{{ i }}" aria-label="Evaluación de la eficacia {{ i + 1 }}">{{ f.eficacia or '' }}</textarea></td>
+        {% else %}
+        <td class="c">{{ f.tipo }}</td><td class="vacia">{{ f.riesgo }}</td><td class="c">{{ f.probabilidad }}</td><td class="c">{{ f.severidad }}</td>
+        <td class="c">{{ v or '' }}</td><td class="c {{ clase(cl) if v }}"><b>{{ cl|upper if v else '' }}</b></td>
+        <td>{{ f.acciones }}</td><td class="c">{{ f.fecha }}</td><td>{{ f.responsables }}</td><td>{{ f.eficacia }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="filas_filas" value="{{ n }}">{% endif %}
+
+    <table class="mrg-tabla mrg-control">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">00</td><td>Confección del documento</td><td class="c">{{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+{% if editar %}
+<script>
+(function () {
+  // Valorización y clasificación en vivo, con la misma regla que la planilla.
+  function clase(v) {
+    if (v <= 0) return "";
+    if (v <= 1) return "Aceptable";
+    if (v <= 4) return "Bajo";
+    if (v <= 9) return "Moderado";
+    if (v <= 16) return "Alto";
+    return "Intolerable";
+  }
+  document.querySelectorAll(".mrg-ps").forEach(function (sel) {
+    sel.addEventListener("change", function () {
+      var i = sel.dataset.fila;
+      var p = parseInt(document.querySelector('[name="filas_probabilidad_' + i + '"]').value || "0", 10);
+      var s = parseInt(document.querySelector('[name="filas_severidad_' + i + '"]').value || "0", 10);
+      var v = p * s, c = clase(v), td = document.getElementById("mrgClase" + i);
+      document.getElementById("mrgValor" + i).textContent = v || "";
+      td.textContent = c.toUpperCase();
+      td.className = "c" + (c ? " mrg-c-" + c.toLowerCase() : "");
+    });
+  });
+})();
+</script>
+{% endif %}
+
+{% if matriz and editar and es_admin %}
+<form method="post" action="{{ url_for('matriz_riesgos.baja', matriz_id=matriz.id) }}" onsubmit="return confirm('¿Dar de baja la matriz de este sector? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la matriz del sector</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ mrg_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:30rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:30rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

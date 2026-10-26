@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Matriz de riesgos y oportunidades · QDV{% endblock %}
+{% block extra_head %}{% include "matriz_riesgos/_colores.html" %}{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Matriz de riesgos y oportunidades</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-09 · una hoja por sector · {{ matrices|length }} sector(es)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('matriz_riesgos.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nuevo sector</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.valoracion') }}">Tabla de valoración</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.en_blanco') }}">En blanco</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th>Sector</th><th>Última actualización</th><th class="text-center">Renglones</th>
+        {% for c in clasificaciones|reverse %}<th class="text-center">{{ c[0] }}</th>{% endfor %}<th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for m in matrices %}
+        {% set r = resumen(m) %}
+        <tr>
+          <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('matriz_riesgos.ver', matriz_id=m.id) }}">{{ m.sector }}</a></td>
+          <td class="small text-nowrap">{{ fecha_dmy(m.fecha_actualizacion) if m.fecha_actualizacion else '—' }}</td>
+          <td class="text-center small">{{ filas(m)|length }}</td>
+          {% for c in clasificaciones|reverse %}
+          <td class="text-center small {{ 'mrg-c-' ~ c[0]|lower if r.get(c[0]) }}">{{ r.get(c[0], '') }}</td>
+          {% endfor %}
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('matriz_riesgos.ver', matriz_id=m.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('matriz_riesgos.ver', matriz_id=m.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="text-center text-muted py-4">Todavía no hay matrices cargadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

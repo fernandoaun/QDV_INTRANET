@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Tabla de valoración · Matriz de riesgos · QDV{% endblock %}
+{% block extra_head %}
+{% include "matriz_riesgos/_colores.html" %}
+<style>
+  .mrv-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .mrv-sheet { background: #fff; color: #000; min-width: 900px; max-width: 1200px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .mrv-sheet h2 { font-size: 1rem; font-weight: 700; margin: 16px 0 6px; }
+  .mrv-tabla { border-collapse: collapse; width: 100%; }
+  .mrv-tabla td, .mrv-tabla th { border: 1.5px solid #333; padding: 4px 8px; vertical-align: top; white-space: pre-line; }
+  .mrv-tabla th { background: #d9d9d9; text-align: center; vertical-align: middle; }
+  .mrv-tabla td.c { text-align: center; vertical-align: middle; font-weight: 700; }
+  .mrv-nota { font-size: .75rem; margin: 4px 0 0; }
+  @media print {
+    @page { size: A4 landscape; margin: 8mm; }
+    body * { visibility: hidden; }
+    .mrv-sheet, .mrv-sheet * { visibility: visible; }
+    .mrv-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 7.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Tabla de valoración</h1>
+    <div class="text-muted small">Criterios de la matriz de riesgos y oportunidades {{ reg.codigo }}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('matriz_riesgos.hub') }}">Todos los sectores</a>
+  </div>
+</div>
+<div class="mrv-scroll app-card p-0 mb-3">
+  <div class="mrv-sheet">
+    <h2>TABLA DE SEVERIDAD</h2>
+    <table class="mrv-tabla">
+      <tr><th style="width:13%">SEVERIDAD</th><th>PERSONAS</th><th>MEDIO AMBIENTE</th><th>PROCESOS DE LA ORGANIZACIÓN</th></tr>
+      {% for n, nombre, personas, ambiente, procesos in severidad_tabla %}
+      <tr><td class="c">{{ n }} - {{ nombre|upper }}</td><td>{{ personas }}</td><td>{{ ambiente }}</td><td>{{ procesos }}</td></tr>
+      {% endfor %}
+    </table>
+
+    <h2>TABLA DE PROBABILIDAD</h2>
+    <table class="mrv-tabla">
+      {% for n, nombre, desc in probabilidad_tabla %}
+      <tr><td class="c" style="width:13%">{{ n }} {{ nombre|upper }}</td><td>{{ desc }}</td></tr>
+      {% endfor %}
+    </table>
+    {% for nota in notas_probabilidad %}<p class="mrv-nota">{{ nota }}</p>{% endfor %}
+
+    <h2>TABLA DE EVALUACIÓN DE RIESGOS</h2>
+    <table class="mrv-tabla" style="width:auto">
+      <tr><th rowspan="2">Severidad</th><th colspan="5">Probabilidad</th></tr>
+      <tr>{% for p in probabilidad_tabla %}<th>{{ p[0] }} - {{ p[1] }}</th>{% endfor %}</tr>
+      {% for s in severidad_tabla %}
+      <tr><td class="c">{{ s[0] }} - {{ s[1] }}</td>
+        {% for p in probabilidad_tabla %}{% set v = s[0] * p[0] %}<td class="c mrg-c-{{ clasificacion(v)|lower }}" style="min-width:5rem">{{ v }}</td>{% endfor %}</tr>
+      {% endfor %}
+    </table>
+
+    <h2>MATRIZ DE RIESGOS</h2>
+    <table class="mrv-tabla">
+      <tr><th style="width:13%">TIPO DE RIESGO / IMPACTO</th><th style="width:14%">VALOR DE RIESGO / IMPACTO</th><th>TRATAMIENTO - ACCIONES NECESARIAS</th></tr>
+      {% for nombre, desde, hasta, trat in clasificaciones %}
+      <tr><td class="c mrg-c-{{ nombre|lower }}">{{ nombre|upper }}</td><td class="c">Riesgo/Impacto {% if desde == hasta %}= {{ desde }}{% else %}de {{ desde }} a {{ hasta }}{% endif %}</td><td>{{ trat }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -202,6 +202,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "matriz_legal.en_blanco",
         "filled_endpoint": "matriz_legal.hub",
     },
+    "matriz_riesgos": {
+        "label": "Matriz de riesgos y oportunidades",
+        "blank_endpoint": "matriz_riesgos.en_blanco",
+        "filled_endpoint": "matriz_riesgos.hub",
+    },
     "mapa_procesos": {
         "label": "Mapa de procesos",
         "blank_endpoint": "mapa_procesos.hub",
