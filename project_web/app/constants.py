@@ -202,6 +202,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "matriz_legal.en_blanco",
         "filled_endpoint": "matriz_legal.hub",
     },
+    "mapa_procesos": {
+        "label": "Mapa de procesos",
+        "blank_endpoint": "mapa_procesos.hub",
+        "filled_endpoint": "mapa_procesos.hub",
+    },
     "epp_constancia": {
         "label": "Entregas EPP (Res. 299/11)",
         "blank_endpoint": "personal.epp_constancia_en_blanco",

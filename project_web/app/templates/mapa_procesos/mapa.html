@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Mapa de procesos · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-09_02: el mapa aprobado, siempre "papel" y horizontal. Cada proceso abre su ficha (QDV-RG-PG-09_03). */
+  .mp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .mp-sheet { background: #fff; color: #111; min-width: 1180px; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .82rem; }
+  .mp-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .mp-head td { border: 2px solid #000; vertical-align: middle; }
+  .mp-head .logo { width: 16%; text-align: center; }
+  .mp-head .logo img { max-height: 70px; }
+  .mp-head .titulo { text-align: center; font-weight: 800; font-size: 1.55rem; line-height: 1.25; }
+  .mp-head .meta { width: 19%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .mp-grid { display: grid; grid-template-columns: 150px 1fr 150px; gap: 12px; align-items: stretch; }
+  .mp-lado { border: 2px solid #f08a5d; border-radius: 12px; padding: 10px 12px; text-align: center; position: relative; }
+  .mp-lado h3 { color: #e8572a; font-size: 1rem; font-weight: 800; margin: 2px 0 10px; }
+  .mp-lado .bloque { padding: 8px 0; }
+  .mp-lado .bloque + .bloque { border-top: 1.5px dashed #f2a07d; }
+  .mp-lado ul { text-align: left; margin: 4px 0 0; padding-left: 16px; }
+  .mp-entradas { text-align: left; }
+  .mp-entradas::after, .mp-salidas::before { content: "➜"; position: absolute; top: 38%; font-size: 1.8rem; color: #f07b3f; }
+  .mp-entradas::after { right: -24px; }
+  .mp-salidas::before { left: -24px; }
+  .mp-centro { display: flex; flex-direction: column; gap: 12px; }
+  .mp-zona { border: 2px solid; border-radius: 12px; padding: 8px 12px 12px; }
+  .mp-zona > h3 { text-align: center; font-weight: 800; font-size: 1.05rem; margin: 0 0 8px; letter-spacing: .02em; }
+  .mp-estrategicos { border-color: #2f4fa3; background: #eef3fc; }
+  .mp-estrategicos > h3 { color: #1f3a8a; }
+  .mp-principales { border-color: #2e7d32; background: #f3f9f1; }
+  .mp-principales > h3 { color: #1b5e20; }
+  .mp-apoyo { border-color: #e0a64b; background: #fff8ea; }
+  .mp-apoyo > h3 { color: #c2410c; }
+  .mp-fila { display: flex; gap: 12px; justify-content: center; align-items: stretch; }
+  a.mp-proc, span.mp-proc { display: flex; align-items: center; gap: 10px; border: 2px solid currentColor; border-radius: 10px; background: #fff; padding: 8px 14px; font-weight: 700; text-transform: uppercase; text-decoration: none; }
+  a.mp-proc:hover { box-shadow: 0 0 0 3px rgba(0,0,0,.12); }
+  .mp-proc i { font-size: 1.9rem; }
+  .mp-estrategicos .mp-proc { color: #1f3a8a; min-width: 260px; justify-content: center; }
+  .mp-apoyo .mp-proc { color: #c2410c; flex: 1; justify-content: center; font-size: .78rem; }
+  .mp-cadena { display: grid; grid-template-columns: 130px 18px 1fr 18px 130px; gap: 6px; align-items: stretch; }
+  .mp-flecha { align-self: center; color: #2e7d32; font-size: 1.3rem; text-align: center; }
+  .mp-col { border: 2px solid #2e7d32; border-radius: 10px; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
+  .mp-col > .mp-tit { background: #2e7d32; color: #fff; font-weight: 800; text-align: center; padding: 5px 4px; font-size: .78rem; text-decoration: none; display: block; }
+  .mp-col > .mp-tit:hover { background: #1b5e20; color: #fff; }
+  .mp-col > .mp-ico { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 2.6rem; color: #4b7f52; }
+  .mp-prod { padding: 0 8px 8px; }
+  .mp-etapas { display: flex; gap: 4px; align-items: center; margin: 8px 0; }
+  .mp-etapa { flex: 1; border: 1.5px solid #9ccc9c; border-radius: 6px; background: #f7fbf6; text-align: center; padding: 6px 3px; font-size: .68rem; font-weight: 700; text-transform: uppercase; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  .mp-etapas .sep { color: #2e7d32; font-weight: 800; }
+  .mp-efl { border: 1.5px dashed #3f51b5; border-radius: 8px; padding: 6px 8px; margin: 4px 30px 0; }
+  .mp-efl .tt { text-align: center; color: #283593; font-weight: 800; font-size: .74rem; text-transform: uppercase; }
+  .mp-efl .mp-etapa { border-color: #7986cb; background: #f4f5fd; color: #283593; }
+  .mp-efl .sep { color: #283593; }
+  a.mp-control { display: block; margin-top: 10px; text-align: center; font-weight: 800; color: #1f3a8a; background: linear-gradient(90deg, #dbe7fb, #eef3fc, #dbe7fb); border: 2px solid #5b7fd0; border-radius: 30px; padding: 6px; font-size: 1.05rem; text-decoration: none; letter-spacing: .03em; }
+  .mp-pie { text-align: center; font-style: italic; margin-top: 10px; }
+  .mp-nota { font-size: .8rem; }
+  @media print {
+    @page { size: A4 landscape; margin: 7mm; }
+    body * { visibility: hidden; }
+    .mp-sheet, .mp-sheet * { visibility: visible; }
+    .mp-sheet { position: absolute; left: 0; top: 0; min-width: 0; width: 100%; padding: 0; font-size: 7pt; zoom: .8; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro proc(p, clase='mp-proc') -%}
+  {% set fid = ficha_id(p) %}
+  {% if fid %}<a class="{{ clase }}" href="{{ url_for('fichas.ver', ficha_id=fid) }}" title="Ver la ficha de proceso {{ p[0] }}"><i class="bi {{ p[1] }}" aria-hidden="true"></i>{{ p[0] }}</a>
+  {% else %}<span class="{{ clase }}"><i class="bi {{ p[1] }}" aria-hidden="true"></i>{{ p[0] }}</span>{% endif %}
+{%- endmacro %}
+{% macro col(p) -%}
+  {% set fid = ficha_id(p) %}
+  <div class="mp-col">
+    {% if fid %}<a class="mp-tit" href="{{ url_for('fichas.ver', ficha_id=fid) }}" title="Ver la ficha de proceso">{{ p[0]|upper }}</a>{% else %}<span class="mp-tit">{{ p[0]|upper }}</span>{% endif %}
+    <div class="mp-ico"><i class="bi {{ p[1] }}" aria-hidden="true"></i></div>
+  </div>
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Mapa de procesos</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-09 · Tocá un proceso para ver su ficha.</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('fichas.hub') }}">Fichas de proceso</a>
+  </div>
+</div>
+
+<div class="mp-scroll app-card p-0 mb-3">
+  <div class="mp-sheet">
+    <table class="mp-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}<br>{{ reg.subtitulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <div class="mp-grid">
+      <div class="mp-lado mp-entradas">
+        <h3 class="text-center">ENTRADAS</h3>
+        {% for titulo, its in entradas %}
+        <div class="bloque"><b>{{ titulo }}</b>{% if its %}<ul>{% for it in its %}<li>{{ it }}</li>{% endfor %}</ul>{% endif %}</div>
+        {% endfor %}
+      </div>
+
+      <div class="mp-centro">
+        <div class="mp-zona mp-estrategicos">
+          <h3>PROCESOS ESTRATÉGICOS</h3>
+          <div class="mp-fila">{% for p in estrategicos %}{{ proc(p) }}{% endfor %}</div>
+        </div>
+
+        <div class="mp-zona mp-principales">
+          <h3>PROCESOS PRINCIPALES</h3>
+          <div class="mp-cadena">
+            {{ col(diseno) }}
+            <div class="mp-flecha">➜</div>
+            <div class="mp-col">
+              {% set fid = ficha_id(produccion) %}
+              {% if fid %}<a class="mp-tit" href="{{ url_for('fichas.ver', ficha_id=fid) }}" title="Ver la ficha de proceso">PRODUCCIÓN</a>{% else %}<span class="mp-tit">PRODUCCIÓN</span>{% endif %}
+              <div class="mp-prod">
+                <div class="mp-etapas">{% for e in etapas_produccion %}<div class="mp-etapa">{{ e }}</div>{% if not loop.last %}<span class="sep">➜</span>{% endif %}{% endfor %}</div>
+                <div class="mp-efl">
+                  <div class="tt">Tratamiento de efluentes</div>
+                  <div class="mp-etapas">{% for e in etapas_efluentes %}<div class="mp-etapa">{{ e }}</div>{% if not loop.last %}<span class="sep">➜</span>{% endif %}{% endfor %}</div>
+                </div>
+              </div>
+            </div>
+            <div class="mp-flecha">➜</div>
+            {{ col(despacho) }}
+          </div>
+          {% set fid = ficha_id(control) %}
+          {% if fid %}<a class="mp-control" href="{{ url_for('fichas.ver', ficha_id=fid) }}" title="Ver la ficha de proceso">⟵ CONTROL DE CALIDAD ⟶</a>{% else %}<span class="mp-control">⟵ CONTROL DE CALIDAD ⟶</span>{% endif %}
+        </div>
+
+        <div class="mp-zona mp-apoyo">
+          <h3>PROCESOS DE APOYO</h3>
+          <div class="mp-fila">{% for p in apoyo %}{{ proc(p) }}{% endfor %}</div>
+        </div>
+      </div>
+
+      <div class="mp-lado mp-salidas">
+        <h3>SALIDAS</h3>
+        {% for titulo, its in salidas %}
+        <div class="bloque"><b>{{ titulo }}</b>{% if its %}<ul>{% for it in its %}<li>{{ it }}</li>{% endfor %}</ul>{% endif %}</div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="mp-pie">Fecha de actualización: {{ fecha_dmy(reg.fecha_actualizacion) }}</div>
+  </div>
+</div>
+{% endblock %}

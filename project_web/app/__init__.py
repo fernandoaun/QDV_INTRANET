@@ -253,6 +253,7 @@ def create_app() -> Flask:
     from app.web.modules.desvios import bp as desvios_bp
     from app.web.modules.foda import bp as foda_bp
     from app.web.modules.matriz_legal import bp as matriz_legal_bp
+    from app.web.modules.mapa_procesos import bp as mapa_procesos_bp
     from app.web.modules.accion import bp as accion_bp
     from app.web.modules.vencimientos import bp as vencimientos_bp
     from app.web.modules.sgi import bp as sgi_bp
@@ -279,6 +280,7 @@ def create_app() -> Flask:
     app.register_blueprint(desvios_bp)
     app.register_blueprint(foda_bp)
     app.register_blueprint(matriz_legal_bp)
+    app.register_blueprint(mapa_procesos_bp)
     app.register_blueprint(accion_bp)
     app.register_blueprint(mantenimiento_bp)
     app.register_blueprint(vencimientos_bp)
