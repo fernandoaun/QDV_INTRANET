@@ -182,6 +182,16 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "evaluacion_desempeno.en_blanco",
         "filled_endpoint": "evaluacion_desempeno.hub",
     },
+    "desvios": {
+        "label": "Reportes de NC, PNC y OM",
+        "blank_endpoint": "desvios.en_blanco",
+        "filled_endpoint": "desvios.hub",
+    },
+    "desvios_seguimiento": {
+        "label": "Seguimiento de PNC, NC y OM",
+        "blank_endpoint": "desvios.seguimiento_en_blanco",
+        "filled_endpoint": "desvios.seguimiento",
+    },
     "epp_constancia": {
         "label": "Entregas EPP (Res. 299/11)",
         "blank_endpoint": "personal.epp_constancia_en_blanco",

@@ -27,7 +27,7 @@ OPCIONES: dict[str, tuple[str, ...]] = {
     "origen": (
         "Auditoría interna", "Auditoría de cliente", "Auditoría externa / certificación", "Auditoría externa / vigilancia",
         "Ente regulador", "Evaluación", "Incidente", "Inspección", "Observación preventiva", "Simulacro",
-        "Orden de servicio", "Minuta de reunión",
+        "Orden de servicio", "Minuta de reunión", "Registro de NC, PNC y OM",
     ),
     "tipo_hallazgo": ("No Conformidad", "Oportunidad de Mejora", "Otros"),
     "tipo_accion": ("Acción corrección (inmediata)", "Acción correctiva", "Acción de control"),
@@ -212,6 +212,53 @@ def crear(data: Any, user_id: int | None, numero: int | None = None) -> tuple[Pl
 def baja(accion: PlanAccion, user_id: int | None) -> None:
     accion.activo = False
     _log(accion, user_id, "baja", f"N° {accion.numero}: {accion.accion}", None)
+
+
+# ---------------------------------------------------------------- acciones que vienen de otros registros
+
+
+def sincronizar_filas(filas: list[dict[str, Any]], base: dict[str, Any], user_id: int | None, texto: str = "accion") -> int:
+    """Cada renglón con texto y responsable es una acción del plan (minutas, reportes de NC…).
+
+    La primera vez la crea con `base` (origen, requisito, tipo…) y guarda su id en el renglón (`plan_accion_id`);
+    después actualiza texto, responsable y fecha de cumplimiento (con historial). Si la acción se dio de baja en el
+    plan no se recrea. Modifica `filas` en el lugar y devuelve cuántas acciones creó.
+    """
+    creadas = 0
+    for f in filas:
+        if not f.get(texto) or not f.get("responsable"):
+            continue
+        pid = f.get("plan_accion_id")
+        if not pid:
+            accion, _ = crear(
+                {**base, "accion": f[texto], "estado": "En curso", "responsable": f["responsable"],
+                 "fecha_cumplimiento": f.get("fecha")},
+                user_id,
+            )
+            if accion is not None:
+                f["plan_accion_id"] = accion.id
+                creadas += 1
+        elif (accion := get(pid)) is not None:
+            datos = {k: getattr(accion, k) for k in (*CAMPOS_TEXTO, *CAMPOS_FECHA)}
+            datos.update(accion=f[texto], responsable=f["responsable"], fecha_cumplimiento=f.get("fecha"))
+            guardar(accion, datos, user_id)
+    return creadas
+
+
+def conservar_ids(anteriores: list[dict[str, Any]], nuevas: list[dict[str, Any]], texto: str = "accion") -> None:
+    """Si un renglón llega sin el id del plan (p. ej. otra pestaña), lo recupera del renglón anterior con el mismo texto."""
+    libres = {f.get(texto): f["plan_accion_id"] for f in anteriores if f.get("plan_accion_id")}
+    usados = {f["plan_accion_id"] for f in nuevas if f.get("plan_accion_id")}
+    for f in nuevas:
+        pid = libres.get(f.get(texto))
+        if not f.get("plan_accion_id") and pid and pid not in usados:
+            f["plan_accion_id"] = pid
+            usados.add(pid)
+
+
+def numeros(ids: list[int]) -> dict[int, int]:
+    """id de acción → N° del plan, solo de las acciones activas."""
+    return {a.id: a.numero for a in (get(i) for i in ids) if a is not None}
 
 
 # ---------------------------------------------------------------- lectura de la planilla Excel (.xlsx)

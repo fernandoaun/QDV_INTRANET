@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Reporte de NC, PNC y OM{% if dv %} N° {{ dv.numero }}{% elif blanco %} (en blanco){% else %} nuevo{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-08_01: misma estructura que el formulario Word (siempre "papel"). */
+  .dv-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .dv-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .dv-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .dv-head td { border: 2px solid #000; vertical-align: middle; }
+  .dv-head .logo { width: 20%; text-align: center; }
+  .dv-head .logo img { max-height: 70px; }
+  .dv-head .titulo { text-align: center; font-weight: 700; font-size: 1.1rem; }
+  .dv-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .dv-tabla { border-collapse: collapse; width: 100%; margin-bottom: 10px; table-layout: fixed; }
+  .dv-tabla td, .dv-tabla th { border: 1.5px solid #333; padding: 4px 7px; vertical-align: top; overflow-wrap: anywhere; }
+  .dv-tabla th { background: #d9d9d9; text-align: center; font-size: .78rem; }
+  .dv-tabla th.izq { text-align: left; }
+  .dv-tabla td.rot { font-weight: 700; background: #fafafa; }
+  .dv-tabla td.c { text-align: center; }
+  .dv-tabla td.vacia { height: 1.8rem; }
+  .dv-tabla td.alto { height: 5rem; }
+  .dv-chk label, .dv-chk div { display: block; line-height: 1.5; }
+  .dv-caja { display: inline-block; min-width: 2.2em; font-family: monospace; }
+  .dv-sub { font-weight: 400; font-size: .72rem; }
+  .dv-sheet textarea, .dv-sheet input[type=text], .dv-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .dv-sheet textarea { min-height: 60px; resize: vertical; }
+  .dv-control { margin-top: 18px; }
+  .dv-plan { white-space: nowrap; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .dv-sheet, .dv-sheet * { visibility: visible; }
+    .dv-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 7.5pt; }
+    .dv-plan { display: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro txt(clave, largo=False, fecha=False, maxlen=255) -%}
+  {% set v = dv[clave] if dv else '' %}
+  {% if editar %}
+    {% if largo %}<textarea name="{{ clave }}"{% if clave == 'descripcion' %} required{% endif %} aria-label="{{ dv_campo_labels[clave] }}">{{ v or '' }}</textarea>
+    {% elif fecha %}<input type="text" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ fecha_dmy(v) if v else '' }}" aria-label="{{ dv_campo_labels[clave] }}">
+    {% else %}<input type="text" name="{{ clave }}" maxlength="{{ maxlen }}" value="{{ v or '' }}" aria-label="{{ dv_campo_labels[clave] }}">{% endif %}
+  {% elif dv %}
+    {% if fecha %}{{ fecha_dmy(v) }}{% else %}<div style="white-space:pre-line">{{ v }}</div>{% endif %}
+  {% endif %}
+{%- endmacro %}
+{% macro casilla(nombre, valor, marcado, tipo='checkbox') -%}
+  {% if editar %}<label><input type="{{ tipo }}" name="{{ nombre }}" value="{{ valor }}"{% if marcado %} checked{% endif %}> {{ valor }}</label>
+  {% else %}<div><span class="dv-caja">[{{ ' X ' if marcado else '   ' }}]</span> {{ valor }}</div>{% endif %}
+{%- endmacro %}
+{% macro sino(clave) -%}
+  {% set v = dv[clave] if dv else '' %}
+  {% for op in si_no %}
+  {% if editar %}<label class="me-3"><input type="radio" name="{{ clave }}" value="{{ op }}"{% if v == op %} checked{% endif %}> {{ op }}</label>
+  {% else %}<span class="me-3"><span class="dv-caja">[{{ ' X ' if v == op else '   ' }}]</span> {{ op }}</span>{% endif %}
+  {% endfor %}
+  {% if editar %}<label class="small"><input type="radio" name="{{ clave }}" value=""{% if not v %} checked{% endif %}> sin respuesta</label>{% endif %}
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Reporte de NC, PNC y OM{% if dv %} N° {{ dv.numero }}{% elif blanco %} — en blanco{% else %} — nuevo{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-08{% if editar %} · Las acciones con responsable pasan al Plan de acción.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="dvForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desvios.ver', desvio_id=dv.id) if dv else url_for('desvios.hub') }}">Cancelar</a>
+    {% else %}
+    {% if dv and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('desvios.ver', desvio_id=dv.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if dv %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desvios.ver', desvio_id=dv.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desvios.hub') }}">Todos los reportes</a>
+  </div>
+</div>
+
+<form id="dvForm" method="post" action="{{ url_for('desvios.ver', desvio_id=dv.id) if dv else url_for('desvios.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="dv-scroll app-card p-0 mb-3">
+  <div class="dv-sheet">
+    <table class="dv-head">
+      <tr>
+        <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="3">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="dv-tabla">
+      <colgroup><col style="width:22%"><col style="width:28%"><col style="width:14%"><col style="width:36%"></colgroup>
+      <tr>
+        <td class="rot">Reporte N°:<div class="dv-sub">(A completar por Responsable SGC)</div></td>
+        <td class="fw-bold">{{ dv.numero if dv else ('(se asigna al guardar)' if editar else '') }}</td>
+        <td class="rot">Fecha:</td><td>{{ txt('fecha', fecha=True) }}</td>
+      </tr>
+      <tr><td class="rot">Clasificación:</td><td colspan="3">{% for c in clasificaciones %}<span class="me-4 d-inline-block">{{ casilla('clasificacion', c, dv and dv.clasificacion == c, 'radio') }}</span>{% endfor %}</td></tr>
+      {% set fs = items(dv.fuentes) if dv else [] %}
+      <tr class="dv-chk">
+        <td class="rot">Fuente de origen:<div class="dv-sub">(Tildar según corresponda)</div></td>
+        <td colspan="2">{% for f in fuentes_op[::2] %}{{ casilla('fuentes', f, f in fs) }}{% endfor %}</td>
+        <td>{% for f in fuentes_op[1::2] %}{{ casilla('fuentes', f, f in fs) }}{% endfor %}</td>
+      </tr>
+      <tr><td class="rot" colspan="4">Descripción del hallazgo:</td></tr>
+      <tr><td colspan="4" class="alto">{{ txt('descripcion', largo=True) }}</td></tr>
+      <tr><td class="rot">Firma y aclaración del emisor:</td><td colspan="3">{{ txt('emisor') }}</td></tr>
+    </table>
+
+    {% set enc = items(dv.encuadre) if dv else [] %}
+    <table class="dv-tabla dv-chk">
+      <tr><th class="izq" colspan="5">Encuadramiento en el SGC <span class="dv-sub">(A completar por el sector del SGC)</span></th></tr>
+      {% for fila in encuadres_op|batch(5) %}
+      <tr>{% for e in fila %}<td>{{ casilla('encuadre', e, e in enc) }}</td>{% endfor %}</tr>
+      {% endfor %}
+      <tr><td class="rot" colspan="5">Requisito de referencia (especificar):</td></tr>
+      <tr><td colspan="5">{{ txt('requisito', largo=True) }}</td></tr>
+      <tr><td class="rot" colspan="5">Análisis de causa raíz:</td></tr>
+      <tr><td colspan="5" class="alto">{{ txt('causa_raiz', largo=True) }}</td></tr>
+    </table>
+
+    {% set en_plan = plan_numeros(dv) %}
+    {% for t, (titulo, _) in tablas.items() %}
+    {% set fs = filas(dv, t) %}
+    {% set n = [fs|length + (2 if editar else 0), filas_min[t]]|max %}
+    <table class="dv-tabla">
+      <colgroup><col style="width:58%"><col style="width:26%"><col style="width:16%"></colgroup>
+      <tr><th class="izq" colspan="3">{{ titulo }}</th></tr>
+      <tr><th>Detalle</th><th>Responsable</th><th>Fecha</th></tr>
+      {% for i in range(n) %}
+      {% set a = fs[i] if i < fs|length else {} %}
+      <tr>
+        {% if editar %}
+        <td><input type="text" name="{{ t }}_detalle_{{ i }}" maxlength="500" value="{{ a.detalle or '' }}" aria-label="{{ titulo }}: detalle {{ i + 1 }}">{% if a.plan_accion_id %}<input type="hidden" name="{{ t }}_plan_{{ i }}" value="{{ a.plan_accion_id }}">{% endif %}</td>
+        <td><input type="text" name="{{ t }}_responsable_{{ i }}" maxlength="255" value="{{ a.responsable or '' }}" aria-label="{{ titulo }}: responsable {{ i + 1 }}"></td>
+        <td><input type="text" name="{{ t }}_fecha_{{ i }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ a.fecha or '' }}" aria-label="{{ titulo }}: fecha {{ i + 1 }}"></td>
+        {% else %}
+        <td class="vacia">{{ a.detalle }}{% if a.plan_accion_id in en_plan %} <a class="dv-plan small" href="{{ url_for('plan_accion.ver', accion_id=a.plan_accion_id) }}">Plan de acción N° {{ en_plan[a.plan_accion_id] }}</a>{% endif %}</td>
+        <td>{{ a.responsable }}</td><td class="c">{{ a.fecha }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="{{ t }}_filas" value="{{ n }}">{% endif %}
+    {% endfor %}
+
+    <table class="dv-tabla">
+      <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+      <tr><td class="rot">Evidencia que se adjunta:</td><td>{{ txt('evidencia', largo=True) }}</td></tr>
+      <tr><th class="izq" colspan="2">Implementación de las acciones propuestas – Verificación de la eficacia</th></tr>
+      <tr><td class="rot">Responsable de la verificación de la eficacia:</td><td>{{ txt('verificador') }}</td></tr>
+      <tr><td class="rot">¿Las acciones propuestas fueron implementadas?</td><td>{{ sino('implementadas') }}<div class="mt-1 d-flex align-items-baseline gap-2"><b>Fecha:</b> {{ txt('fecha_implementacion', fecha=True) }}</div></td></tr>
+      <tr><td class="rot">¿Fueron eficaces?</td><td>{{ sino('eficaces') }}<div class="mt-1 d-flex align-items-baseline gap-2"><b>Fecha:</b> {{ txt('fecha_eficacia', fecha=True) }}</div></td></tr>
+    </table>
+
+    {% set cierre = items(dv.cierre_responsables) if dv else [] %}
+    {% set nc = [cierre|length + (1 if editar else 0), 2]|max %}
+    <table class="dv-tabla">
+      <colgroup><col style="width:62%"><col style="width:38%"></colgroup>
+      <tr><th>NOMBRE Y APELLIDO DE LOS RESPONSABLES AL CIERRE DEL REPORTE</th><th>FECHA Y FIRMA</th></tr>
+      {% for i in range(nc) %}
+      <tr>
+        <td class="vacia">{% if editar %}<input type="text" name="cierre_{{ i }}" maxlength="255" value="{{ cierre[i] if i < cierre|length else '' }}" aria-label="Responsable al cierre {{ i + 1 }}">{% elif i < cierre|length %}{{ cierre[i] }}{% endif %}</td>
+        {% if loop.first %}<td rowspan="{{ nc }}">{% if editar %}<b>Fecha de cierre:</b> {{ txt('fecha_cierre', fecha=True) }}{% elif dv and dv.fecha_cierre %}{{ fecha_dmy(dv.fecha_cierre) }}{% endif %}</td>{% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="cierre_filas" value="{{ nc }}">{% endif %}
+
+    <table class="dv-tabla">
+      <colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+      <tr><td class="rot">Estado del reporte (seguimiento {{ seg.codigo }}):</td>
+        <td>{% if editar %}<select name="estado" aria-label="Estado">{% for e in estados %}<option{% if (dv.estado if dv else 'Abierta') == e %} selected{% endif %}>{{ e }}</option>{% endfor %}</select>{% elif dv %}{{ dv.estado }}{% endif %}</td></tr>
+    </table>
+
+    <table class="dv-tabla dv-control">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">{{ reg.revision }}</td><td>Confección del documento</td><td class="c">{{ fecha_dmy(reg.aprobacion) }}</td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+{% if dv and editar and es_admin %}
+<form method="post" action="{{ url_for('desvios.baja', desvio_id=dv.id) }}" onsubmit="return confirm('¿Dar de baja este reporte? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja el reporte</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ dv_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

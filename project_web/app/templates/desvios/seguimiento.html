@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Seguimiento de PNC, NC y OM{% if blanco %} (en blanco){% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-08_02: misma estructura que la planilla Excel (hoja 1: listado; hoja 2: resumen). */
+  .sg-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .sg-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1100px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .82rem; }
+  .sg-head { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+  .sg-head td { border: 2px solid #000; vertical-align: middle; }
+  .sg-head .logo { width: 18%; text-align: center; }
+  .sg-head .logo img { max-height: 64px; }
+  .sg-head .titulo { text-align: center; font-weight: 700; font-size: 1.1rem; }
+  .sg-head .meta { width: 22%; text-align: center; font-weight: 700; font-size: .88rem; padding: 1px 6px; }
+  .sg-datos { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+  .sg-ref td { padding: 1px 8px; border: 1px solid #333; }
+  .sg-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .sg-tabla td, .sg-tabla th { border: 1.5px solid #333; padding: 4px 7px; vertical-align: top; overflow-wrap: anywhere; }
+  .sg-tabla th { background: #d9d9d9; text-align: center; }
+  .sg-tabla td.c { text-align: center; }
+  .sg-tabla tr.vacia td { height: 1.8rem; }
+  .sg-abierta { background: #f8cbad; }
+  .sg-en-proceso-de-cierre { background: #fff2cc; }
+  .sg-cerrada { background: #c6efce; }
+  .sg-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .sg-kpi { border: 1.5px solid #333; text-align: center; padding: 8px 4px; }
+  .sg-kpi b { display: block; font-size: 1.6rem; line-height: 1.2; }
+  .sg-barra { display: flex; height: 16px; border: 1px solid #333; background: #f2f2f2; }
+  .sg-barra span { display: block; height: 100%; }
+  .sg-pagina2 { margin-top: 26px; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .sg-sheet, .sg-sheet * { visibility: visible; }
+    .sg-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8pt; }
+    .sg-pagina2 { break-before: page; }
+    .sg-no-print { display: none !important; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro encabezado(titulo, pagina) -%}
+<table class="sg-head">
+  <tr>
+    <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+    <td class="titulo" rowspan="3">{{ titulo }}</td>
+    <td class="meta">{{ seg.codigo }}</td>
+  </tr>
+  <tr><td class="meta">Rev. {{ seg.revision }}</td></tr>
+  <tr><td class="meta">Página {{ pagina }} de 2</td></tr>
+</table>
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Seguimiento de PNC, NC y OM{% if blanco %} — en blanco{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ seg.codigo }} · procedimiento PG-08 · se arma solo con los reportes {{ reg.codigo }}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desvios.hub') }}">Reportes ({{ reg.codigo }})</a>
+  </div>
+</div>
+
+<div class="sg-scroll app-card p-0 mb-3">
+  <div class="sg-sheet">
+    {{ encabezado(seg.titulo, 1) }}
+    <div class="sg-datos">
+      <div>
+        <div><b>Fecha de actualización:</b> {{ fecha_dmy(ultima_actualizacion) if ultima_actualizacion else '' }}</div>
+        <div><b>Actualizó:</b> Responsable SGC</div>
+      </div>
+      <table class="sg-ref">
+        <tr><td colspan="2"><b>Referencias:</b></td></tr>
+        <tr><td class="sg-cerrada" style="width:2rem"></td><td>Cerrada</td></tr>
+        <tr><td class="sg-en-proceso-de-cierre"></td><td>En proceso de cierre</td></tr>
+        <tr><td class="sg-abierta"></td><td>Abierta</td></tr>
+      </table>
+    </div>
+    <table class="sg-tabla">
+      <colgroup><col style="width:12%"><col style="width:10%"><col style="width:12%"><col style="width:48%"><col style="width:18%"></colgroup>
+      <tr><th>Fecha</th><th>Desvío N°</th><th>Tipo (PNC, NC, OM)</th><th>Descripción</th><th>Estado</th></tr>
+      {% for d in desvios %}
+      <tr>
+        <td class="c">{{ fecha_dmy(d.fecha) }}</td>
+        <td class="c"><a class="text-reset" href="{{ url_for('desvios.ver', desvio_id=d.id) }}">{{ d.numero }}</a></td>
+        <td class="c">{{ tipo(d) }}</td>
+        <td style="white-space:pre-line">{{ d.descripcion }}</td>
+        <td class="c sg-{{ d.estado|lower|replace(' ', '-') }}">{{ d.estado }}</td>
+      </tr>
+      {% endfor %}
+      {% for _ in range([12 - desvios|length, 0]|max) %}<tr class="vacia"><td></td><td></td><td></td><td></td><td></td></tr>{% endfor %}
+    </table>
+    <table class="sg-tabla" style="width:70%;margin-left:auto">
+      <colgroup><col style="width:20%"><col style="width:52%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">{{ seg.revision }}</td><td>Se confecciona registro</td><td class="c">{{ fecha_dmy(seg.aprobacion) }}</td></tr>
+    </table>
+
+    <div class="sg-pagina2">
+      {{ encabezado('SEGUIMIENTO DE DESVÍOS · PNC · NC · OM', 2) }}
+      {% set t = res.total %}
+      <div class="sg-kpis">
+        <div class="sg-kpi">DESVÍOS REGISTRADOS<b>{{ '' if blanco else t.total }}</b></div>
+        <div class="sg-kpi sg-cerrada">CERRADAS<b>{{ '' if blanco else t['Cerrada'] }}</b></div>
+        <div class="sg-kpi sg-en-proceso-de-cierre">EN PROCESO<b>{{ '' if blanco else t['En proceso de cierre'] }}</b></div>
+        <div class="sg-kpi sg-abierta">ABIERTAS<b>{{ '' if blanco else t['Abierta'] }}</b></div>
+      </div>
+      <div class="row g-3">
+        <div class="col-7">
+          <table class="sg-tabla">
+            <tr><th colspan="5">RESUMEN CONSOLIDADO</th></tr>
+            <tr><th>Tipo de desvío</th><th>Abiertas</th><th>En proceso</th><th>Cerradas</th><th>Total</th></tr>
+            {% for tp, v in res.por_tipo.items() %}
+            <tr><td class="c fw-bold">{{ tp }}</td>{% for k in ('Abierta', 'En proceso de cierre', 'Cerrada', 'total') %}<td class="c">{{ '' if blanco else v[k] }}</td>{% endfor %}</tr>
+            {% endfor %}
+            <tr><td class="c fw-bold">TOTAL</td>{% for k in ('Abierta', 'En proceso de cierre', 'Cerrada', 'total') %}<td class="c fw-bold">{{ '' if blanco else t[k] }}</td>{% endfor %}</tr>
+          </table>
+        </div>
+        <div class="col-5">
+          <table class="sg-tabla">
+            <tr><th colspan="2">CONTROL DEL SEGUIMIENTO</th></tr>
+            <tr><td>Tasa de cierre</td><td class="c fw-bold">{{ '' if blanco else res.tasa_cierre ~ ' %' }}</td></tr>
+            <tr><td>Pendientes</td><td class="c fw-bold">{{ '' if blanco else res.pendientes }}</td></tr>
+          </table>
+        </div>
+      </div>
+      {% if not blanco and t.total %}
+      <table class="sg-tabla">
+        <tr><th colspan="2">ESTADO POR TIPO DE DESVÍO</th></tr>
+        {% for tp, v in res.por_tipo.items() %}
+        <tr>
+          <td class="c fw-bold" style="width:12%">{{ tp }}</td>
+          <td>
+            {% if v.total %}
+            <div class="sg-barra" title="{{ tp }}: {{ v['Cerrada'] }} cerradas, {{ v['En proceso de cierre'] }} en proceso, {{ v['Abierta'] }} abiertas">
+              {% for k in ('Cerrada', 'En proceso de cierre', 'Abierta') %}{% if v[k] %}<span class="sg-{{ k|lower|replace(' ', '-') }}" style="width:{{ 100 * v[k] / v.total }}%"></span>{% endif %}{% endfor %}
+            </div>
+            {% else %}<span class="text-muted">Sin desvíos</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

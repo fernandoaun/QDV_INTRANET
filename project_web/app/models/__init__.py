@@ -36,6 +36,7 @@ from app.models.plan_accion import PlanAccion, PlanAccionCambio
 from app.models.solicitud_cambio import SolicitudCambio, SolicitudCambioCambio
 from app.models.minuta_reunion import MinutaReunion, MinutaReunionCambio
 from app.models.evaluacion_desempeno import EvaluacionDesempeno, EvaluacionDesempenoCambio
+from app.models.desvios import Desvio, DesvioCambio
 from app.models.parametro import AppParametro
 from app.models.security_audit import SecurityAuditLog
 from app.models.deadline_alert_email import DeadlineAlertEmail
@@ -141,6 +142,8 @@ __all__ = [
     "MinutaReunionCambio",
     "EvaluacionDesempeno",
     "EvaluacionDesempenoCambio",
+    "Desvio",
+    "DesvioCambio",
     "AppParametro",
     "PlanificacionDependencia",
     "SecurityAuditLog",

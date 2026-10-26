@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Reportes de NC, PNC y OM · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Reportes de NC, PNC y OM</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-08 · {{ desvios|length }} reporte(s)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('desvios.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nuevo reporte</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desvios.seguimiento') }}"><i class="bi bi-list-check me-1"></i>Seguimiento ({{ seg.codigo }})</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th class="text-center">N°</th><th>Fecha</th><th>Tipo</th><th>Descripción del hallazgo</th><th>Estado</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for d in desvios %}
+        <tr>
+          <td class="text-center fw-semibold">{{ d.numero }}</td>
+          <td class="small text-nowrap">{{ fecha_dmy(d.fecha) or '—' }}</td>
+          <td class="small">{{ tipo(d) or '—' }}</td>
+          <td><a class="text-decoration-none" href="{{ url_for('desvios.ver', desvio_id=d.id) }}">{{ d.descripcion|truncate(110) }}</a></td>
+          <td class="small text-nowrap"><span class="dv-estado dv-{{ d.estado|lower|replace(' ', '-') }}">{{ d.estado }}</span></td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('desvios.ver', desvio_id=d.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('desvios.ver', desvio_id=d.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay reportes cargados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<style>
+  .dv-estado { padding: 1px 8px; border-radius: 10px; color: #000; }
+  .dv-abierta { background: #f8cbad; }
+  .dv-en-proceso-de-cierre { background: #fff2cc; }
+  .dv-cerrada { background: #c6efce; }
+</style>
+{% endblock %}

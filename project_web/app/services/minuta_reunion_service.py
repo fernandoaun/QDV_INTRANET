@@ -159,57 +159,27 @@ def _fmt(campo: str, val: Any) -> Any:
 def sincronizar_plan(m: MinutaReunion, user_id: int | None) -> int:
     """Cada acción de la minuta con responsable es una acción del Plan de acción (QDV-RG-PG-02_03).
 
-    La primera vez la crea y guarda su id en el renglón; después la actualiza (texto, responsable, fecha). Los
-    renglones sin responsable son conclusiones y no pasan al plan. Devuelve cuántas acciones creó.
+    Los renglones sin responsable son conclusiones y no pasan al plan. Devuelve cuántas acciones creó.
     """
     filas_ = filas(m, "acciones")
-    creadas = 0
-    requisito = f"{REGISTRO['codigo']} Minuta N° {m.numero}"
-    for f in filas_:
-        if not f.get("accion") or not f.get("responsable"):
-            continue
-        pa = plan.get(f["plan_accion_id"]) if f.get("plan_accion_id") else None
-        if pa is None and not f.get("plan_accion_id"):
-            pa, errs = plan.crear(
-                {"origen": "Minuta de reunión", "fecha_deteccion": m.fecha, "accion": f["accion"], "requisito": requisito,
-                 "estado": "En curso", "responsable": f["responsable"], "fecha_cumplimiento": f.get("fecha")},
-                user_id,
-            )
-            if pa is not None:
-                f["plan_accion_id"] = pa.id
-                creadas += 1
-        elif pa is not None:  # dada de baja en el plan: no se recrea
-            datos = {k: getattr(pa, k) for k in (*plan.CAMPOS_TEXTO, *plan.CAMPOS_FECHA)}
-            datos.update(accion=f["accion"], responsable=f["responsable"], fecha_cumplimiento=f.get("fecha"))
-            plan.guardar(pa, datos, user_id)
+    base = {"origen": "Minuta de reunión", "fecha_deteccion": m.fecha, "requisito": f"{REGISTRO['codigo']} Minuta N° {m.numero}"}
+    creadas = plan.sincronizar_filas(filas_, base, user_id)
     m.acciones = json.dumps(filas_, ensure_ascii=False)
     return creadas
 
 
 def plan_numeros(m: MinutaReunion | None) -> dict[int, int]:
     """id de acción del plan → su N°, para los renglones de la minuta que ya están en el plan."""
-    ids = [f["plan_accion_id"] for f in filas(m, "acciones") if f.get("plan_accion_id")]
-    return {pa.id: pa.numero for pa in (plan.get(i) for i in ids) if pa is not None}
-
-
-def _conservar_plan(m: MinutaReunion, nuevas_json: str) -> str:
-    """Si un renglón llega sin el id del plan (p. ej. otra pestaña), lo recupera del renglón anterior con el mismo texto."""
-    libres = {f["accion"]: f["plan_accion_id"] for f in filas(m, "acciones") if f.get("plan_accion_id")}
-    nuevas = json.loads(nuevas_json)
-    usados = {f["plan_accion_id"] for f in nuevas if f.get("plan_accion_id")}
-    for f in nuevas:
-        pid = libres.get(f.get("accion"))
-        if not f.get("plan_accion_id") and pid and pid not in usados:
-            f["plan_accion_id"] = pid
-            usados.add(pid)
-    return json.dumps(nuevas, ensure_ascii=False)
+    return plan.numeros([f["plan_accion_id"] for f in filas(m, "acciones") if f.get("plan_accion_id")])
 
 
 def guardar(m: MinutaReunion, data: Any, user_id: int | None) -> list[str]:
     v, errores = _limpio(data)
     if errores:
         return errores
-    v["acciones"] = _conservar_plan(m, v["acciones"])
+    nuevas = json.loads(v["acciones"])
+    plan.conservar_ids(filas(m, "acciones"), nuevas)
+    v["acciones"] = json.dumps(nuevas, ensure_ascii=False)
     for campo, nuevo in v.items():
         antes = getattr(m, campo)
         if campo in TABLAS and json.loads(antes or "[]") == json.loads(nuevo):
