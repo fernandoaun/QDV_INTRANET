@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}FODA{% if blanco %} (en blanco){% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-09_01: matriz FODA (siempre "papel"). */
+  .fo-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .fo-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1100px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .85rem; }
+  .fo-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .fo-head td { border: 2px solid #000; vertical-align: middle; }
+  .fo-head .logo { width: 20%; text-align: center; }
+  .fo-head .logo img { max-height: 70px; }
+  .fo-head .titulo { text-align: center; font-weight: 700; font-size: 1.4rem; }
+  .fo-head .meta { width: 26%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .fo-matriz { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .fo-cuad { border: 2px solid #333; border-radius: 10px; padding: 10px 14px; min-height: 230px; }
+  .fo-cuad h2 { font-size: 1.05rem; font-weight: 700; margin: 0 0 6px; }
+  .fo-fortalezas { background: #e2f0d9; }
+  .fo-debilidades { background: #fde9d9; }
+  .fo-oportunidades { background: #deebf7; }
+  .fo-amenazas { background: #fff2cc; }
+  .fo-cuad ul { margin: 0; padding-left: 18px; }
+  .fo-cuad li { margin-bottom: 2px; line-height: 1.35; }
+  .fo-cuad textarea { font: inherit; width: 100%; min-height: 220px; border: 1px dashed #999; background: #fffbe6; padding: 4px 6px; resize: vertical; }
+  .fo-pie { margin-top: 12px; }
+  @media print {
+    @page { size: A4 landscape; margin: 10mm; }
+    body * { visibility: hidden; }
+    .fo-sheet, .fo-sheet * { visibility: visible; }
+    .fo-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">FODA{% if blanco %} — en blanco{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-09{% if editar %} · Escribí un ítem por renglón.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="foForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('foda.hub') }}">Cancelar</a>
+    {% elif not blanco %}
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('foda.hub', editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('foda.hub', historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>
+    {% else %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% endif %}
+  </div>
+</div>
+
+<form id="foForm" method="post" action="{{ url_for('foda.hub') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="fo-scroll app-card p-0 mb-3">
+  <div class="fo-sheet">
+    <table class="fo-head">
+      <tr>
+        <td class="logo" rowspan="4"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="4">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Fecha de vigencia: {{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <div class="fo-matriz">
+      {% for clave, titulo in cuadrantes %}
+      <div class="fo-cuad fo-{{ clave }}">
+        <h2>{{ titulo }}:</h2>
+        {% if editar %}
+        <textarea name="{{ clave }}" aria-label="{{ titulo }} (un ítem por renglón)">{{ foda[clave] if foda else '' }}</textarea>
+        {% elif foda and items(foda[clave]) %}
+        <ul>{% for it in items(foda[clave]) %}<li>{{ it }}</li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="fo-pie"><b>Fecha de actualización:</b> {{ fecha_dmy(ultima_actualizacion) if ultima_actualizacion else ('' if blanco else '—') }}</div>
+  </div>
+</div>
+</form>
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Cuadrante</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ foda_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
