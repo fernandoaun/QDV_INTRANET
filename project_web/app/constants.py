@@ -172,6 +172,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "solicitud_cambio.en_blanco",
         "filled_endpoint": "solicitud_cambio.hub",
     },
+    "minuta_reunion": {
+        "label": "Minutas de reunión",
+        "blank_endpoint": "minuta_reunion.en_blanco",
+        "filled_endpoint": "minuta_reunion.hub",
+    },
     "epp_constancia": {
         "label": "Entregas EPP (Res. 299/11)",
         "blank_endpoint": "personal.epp_constancia_en_blanco",

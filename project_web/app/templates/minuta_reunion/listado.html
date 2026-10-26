@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Minutas de reunión · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Minutas de reunión</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-04 · {{ minutas|length }} minuta(s)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('minuta_reunion.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nueva minuta</a>{% endif %}
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th class="text-center">N°</th><th>Fecha</th><th>Motivo</th><th>Lugar</th><th class="text-center">Presentes</th><th class="text-center">Acciones</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for m in minutas %}
+        <tr>
+          <td class="text-center fw-semibold">{{ m.numero }}</td>
+          <td class="small text-nowrap">{{ fecha_dmy(m.fecha) or '—' }}</td>
+          <td class="fw-semibold"><a class="text-decoration-none" href="{{ url_for('minuta_reunion.ver', minuta_id=m.id) }}">{{ m.motivo|truncate(90) }}</a></td>
+          <td class="small">{{ m.lugar or '—' }}</td>
+          <td class="text-center small">{{ presentes(m) }}</td>
+          <td class="text-center small">{{ filas(m, 'acciones')|length }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('minuta_reunion.ver', minuta_id=m.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('minuta_reunion.ver', minuta_id=m.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-center text-muted py-4">Todavía no hay minutas de reunión cargadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

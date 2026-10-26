@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Minuta de reunión{% if minuta %} N° {{ minuta.numero }}{% elif blanco %} (en blanco){% else %} nueva{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-04_01: misma estructura que el formulario Word (siempre "papel"). */
+  .mr-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .mr-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .82rem; }
+  .mr-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .mr-head td { border: 2px solid #000; vertical-align: middle; }
+  .mr-head .logo { width: 20%; text-align: center; }
+  .mr-head .logo img { max-height: 70px; }
+  .mr-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .mr-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .mr-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .mr-tabla td, .mr-tabla th { border: 1.5px solid #333; padding: 5px 8px; vertical-align: top; overflow-wrap: anywhere; }
+  .mr-tabla th { background: #d9d9d9; text-align: center; font-size: .8rem; }
+  .mr-tabla td.c { text-align: center; }
+  .mr-tabla td.vacia { height: 1.9rem; }
+  .mr-tabla td.desarrollo { min-height: 160px; height: 160px; }
+  .mr-sheet b { white-space: nowrap; }
+  .mr-sheet textarea, .mr-sheet input[type=text], .mr-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .mr-sheet textarea { min-height: 60px; resize: vertical; }
+  .mr-sheet textarea.largo { min-height: 220px; }
+  .mr-control { margin-top: 18px; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .mr-sheet, .mr-sheet * { visibility: visible; }
+    .mr-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro txt(clave, largo=False, fecha=False, maxlen=255) -%}
+  {% set v = minuta[clave] if minuta else '' %}
+  {% if editar %}
+    {% if largo %}<textarea name="{{ clave }}" class="{{ 'largo' if clave == 'desarrollo' }}"{% if clave == 'motivo' %} required{% endif %} aria-label="{{ mr_campo_labels[clave] }}">{{ v or '' }}</textarea>
+    {% elif fecha %}<input type="text" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ fecha_dmy(v) if v else '' }}" aria-label="{{ mr_campo_labels[clave] }}">
+    {% else %}<input type="text" name="{{ clave }}" maxlength="{{ maxlen }}" value="{{ v or '' }}" aria-label="{{ mr_campo_labels[clave] }}">{% endif %}
+  {% elif minuta %}
+    {% if fecha %}{{ fecha_dmy(v) }}{% else %}<div style="white-space:pre-line">{{ v }}</div>{% endif %}
+  {% endif %}
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Minuta de reunión{% if minuta %} N° {{ minuta.numero }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-04</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="mrForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id) if minuta else url_for('minuta_reunion.hub') }}">Cancelar</a>
+    {% else %}
+    {% if minuta and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if minuta %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('minuta_reunion.hub') }}">Todas las minutas</a>
+  </div>
+</div>
+
+<form id="mrForm" method="post" action="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id) if minuta else url_for('minuta_reunion.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="mr-scroll app-card p-0 mb-3">
+  <div class="mr-sheet">
+    <table class="mr-head">
+      <tr>
+        <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="3">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="mr-tabla">
+      <colgroup><col style="width:34%"><col style="width:26%"><col style="width:40%"></colgroup>
+      <tr>
+        <td><b>Fecha:</b> {{ txt('fecha', fecha=True) }}</td>
+        <td><b>Horario:</b> {{ txt('horario', maxlen=60) }}</td>
+        <td><b>Lugar:</b> {{ txt('lugar') }}</td>
+      </tr>
+      <tr><td colspan="3"><b>Motivo de la reunión:</b> {{ txt('motivo', largo=True) }}</td></tr>
+    </table>
+
+    {% set ps = filas(minuta, 'participantes') %}
+    {% set np = [ps|length + (3 if editar else 0), filas_min.participantes]|max %}
+    <table class="mr-tabla">
+      <colgroup><col style="width:42%"><col style="width:33%"><col style="width:25%"></colgroup>
+      <tr><th>PARTICIPANTE</th><th>SECTOR / EMPRESA</th><th>ASISTENCIA<br>(Presente / Ausente)</th></tr>
+      {% for i in range(np) %}
+      {% set p = ps[i] if i < ps|length else {} %}
+      <tr>
+        {% if editar %}
+        <td><input type="text" name="participantes_participante_{{ i }}" maxlength="255" value="{{ p.participante or '' }}" aria-label="Participante {{ i + 1 }}"></td>
+        <td><input type="text" name="participantes_sector_{{ i }}" maxlength="255" value="{{ p.sector or '' }}" aria-label="Sector o empresa {{ i + 1 }}"></td>
+        <td><select name="participantes_asistencia_{{ i }}" aria-label="Asistencia {{ i + 1 }}"><option value=""></option>{% for a in asistencia_op %}<option{% if p.asistencia == a %} selected{% endif %}>{{ a }}</option>{% endfor %}</select></td>
+        {% else %}
+        <td class="vacia">{{ p.participante }}</td><td>{{ p.sector }}</td><td class="c">{{ p.asistencia }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="participantes_filas" value="{{ np }}">{% endif %}
+
+    <table class="mr-tabla">
+      <tr><th>DESARROLLO</th></tr>
+      <tr><td class="{{ 'desarrollo' if not editar }}">{{ txt('desarrollo', largo=True) }}</td></tr>
+    </table>
+
+    {% set acs = filas(minuta, 'acciones') %}
+    {% set na = [acs|length + (2 if editar else 0), filas_min.acciones]|max %}
+    <table class="mr-tabla">
+      <colgroup><col style="width:56%"><col style="width:26%"><col style="width:18%"></colgroup>
+      <tr><th>ACCIONES / CONCLUSIONES</th><th>RESPONSABLE</th><th>FECHA</th></tr>
+      {% for i in range(na) %}
+      {% set a = acs[i] if i < acs|length else {} %}
+      <tr>
+        {% if editar %}
+        <td><input type="text" name="acciones_accion_{{ i }}" maxlength="255" value="{{ a.accion or '' }}" aria-label="Acción o conclusión {{ i + 1 }}"></td>
+        <td><input type="text" name="acciones_responsable_{{ i }}" maxlength="255" value="{{ a.responsable or '' }}" aria-label="Responsable {{ i + 1 }}"></td>
+        <td><input type="text" name="acciones_fecha_{{ i }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ a.fecha or '' }}" aria-label="Fecha {{ i + 1 }}"></td>
+        {% else %}
+        <td class="vacia">{{ a.accion }}</td><td>{{ a.responsable }}</td><td class="c">{{ a.fecha }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="acciones_filas" value="{{ na }}">{% endif %}
+
+    <table class="mr-tabla mr-control">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">00</td><td>Confección del documento</td><td class="c">08/09/2026</td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+{% if minuta and editar and es_admin %}
+<form method="post" action="{{ url_for('minuta_reunion.baja', minuta_id=minuta.id) }}" onsubmit="return confirm('¿Dar de baja esta minuta? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la minuta</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ mr_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
