@@ -182,6 +182,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "evaluacion_desempeno.en_blanco",
         "filled_endpoint": "evaluacion_desempeno.hub",
     },
+    "capacitacion": {
+        "label": "Registros de capacitación",
+        "blank_endpoint": "capacitacion.en_blanco",
+        "filled_endpoint": "capacitacion.hub",
+    },
     "desvios": {
         "label": "Reportes de NC, PNC y OM",
         "blank_endpoint": "desvios.en_blanco",

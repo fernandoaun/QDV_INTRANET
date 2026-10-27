@@ -36,6 +36,7 @@ from app.models.plan_accion import PlanAccion, PlanAccionCambio
 from app.models.solicitud_cambio import SolicitudCambio, SolicitudCambioCambio
 from app.models.minuta_reunion import MinutaReunion, MinutaReunionCambio
 from app.models.evaluacion_desempeno import EvaluacionDesempeno, EvaluacionDesempenoCambio
+from app.models.capacitacion import Capacitacion, CapacitacionCambio
 from app.models.desvios import Desvio, DesvioCambio
 from app.models.foda import Foda, FodaCambio
 from app.models.matriz_legal import RequisitoLegal, RequisitoLegalCambio
@@ -145,6 +146,8 @@ __all__ = [
     "MinutaReunionCambio",
     "EvaluacionDesempeno",
     "EvaluacionDesempenoCambio",
+    "Capacitacion",
+    "CapacitacionCambio",
     "Desvio",
     "DesvioCambio",
     "Foda",

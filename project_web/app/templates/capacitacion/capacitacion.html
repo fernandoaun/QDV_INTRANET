@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Registro de capacitación{% if cap %} N° {{ cap.numero }}{% elif blanco %} (en blanco){% else %} nuevo{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-05_03: misma estructura que la planilla Word (siempre "papel"). */
+  .cp-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .cp-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .cp-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .cp-head td { border: 2px solid #000; vertical-align: middle; }
+  .cp-head .logo { width: 20%; text-align: center; }
+  .cp-head .logo img { max-height: 70px; }
+  .cp-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .cp-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .cp-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .cp-tabla td, .cp-tabla th { border: 1.5px solid #333; padding: 4px 7px; vertical-align: middle; overflow-wrap: anywhere; }
+  .cp-tabla th { background: #d9d9d9; text-align: center; font-size: .74rem; }
+  .cp-tabla td.c { text-align: center; }
+  .cp-tabla td.vacia { height: 1.8rem; }
+  .cp-tabla td.alto { height: 3.6rem; vertical-align: top; }
+  .cp-sheet textarea, .cp-sheet input[type=text], .cp-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .cp-sheet textarea { min-height: 54px; resize: vertical; }
+  .cp-sheet input[type=checkbox], .cp-sheet input[type=radio] { width: 1.05rem; height: 1.05rem; cursor: pointer; }
+  .cp-caja { font-weight: 700; }
+  .cp-control { margin-top: 18px; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .cp-sheet, .cp-sheet * { visibility: visible; }
+    .cp-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 7.5pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% macro txt(clave, largo=False, fecha=False, maxlen=255) -%}
+  {% set v = cap[clave] if cap else '' %}
+  {% if editar %}
+    {% if largo %}<textarea name="{{ clave }}" aria-label="{{ cp_campo_labels[clave] }}"{% if clave == 'tema' %} required{% endif %}>{{ v or '' }}</textarea>
+    {% elif fecha %}<input type="text" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ fecha_dmy(v) if v else '' }}" aria-label="{{ cp_campo_labels[clave] }}">
+    {% else %}<input type="text" name="{{ clave }}" maxlength="{{ maxlen }}" value="{{ v or '' }}" aria-label="{{ cp_campo_labels[clave] }}">{% endif %}
+  {% elif cap %}
+    {% if fecha %}{{ fecha_dmy(v) }}{% else %}<span style="white-space:pre-line">{{ v }}</span>{% endif %}
+  {% endif %}
+{%- endmacro %}
+{% macro sino(clave) -%}
+  {% set v = cap[clave] if cap else '' %}
+  {% for op in si_no %}
+  <td class="c">{% if editar %}<input type="radio" name="{{ clave }}" value="{{ op }}"{% if v == op %} checked{% endif %} aria-label="{{ cp_campo_labels[clave] }}: {{ op }}">{% else %}<span class="cp-caja">{{ '☒' if v == op else '☐' }}</span>{% endif %}</td>
+  {% endfor %}
+{%- endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Registro de capacitación{% if cap %} N° {{ cap.numero }}{% elif blanco %} — en blanco{% else %} — nuevo{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-05{% if editar %} · La cantidad de asistentes se cuenta sola.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="cpForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id) if cap else url_for('capacitacion.hub') }}">Cancelar</a>
+    {% else %}
+    {% if cap and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if cap %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('capacitacion.hub') }}">Todas las capacitaciones</a>
+  </div>
+</div>
+
+<form id="cpForm" method="post" action="{{ url_for('capacitacion.ver', capacitacion_id=cap.id) if cap else url_for('capacitacion.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}
+<datalist id="cp-empleados">{% for emp in empleados %}<option value="{{ emp.nombre_completo }}" data-sector="{{ emp.area }}">{% endfor %}</datalist>
+{% endif %}
+{% set asis = asistentes(cap) %}
+{% set ms = metodos(cap) %}
+<div class="cp-scroll app-card p-0 mb-3">
+  <div class="cp-sheet">
+    <table class="cp-head">
+      <tr>
+        <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="3">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="cp-tabla">
+      <colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>
+      <tr><td><b>Fecha:</b> {{ txt('fecha', fecha=True) }}</td><td colspan="2"><b>Lugar:</b> {{ txt('lugar') }}</td></tr>
+      <tr><td colspan="2"><b>Cantidad de Asistentes:</b> <span id="cp-cantidad">{{ asis|length if cap else '' }}</span></td><td><b>Duración:</b> {{ txt('duracion', maxlen=60) }}</td></tr>
+      <tr><td colspan="2" class="alto"><b>Disertante/es:</b> {{ txt('disertantes') }}</td><td class="alto"><b>Firma:</b></td></tr>
+      <tr><td colspan="3" class="alto"><b>Tema:</b> {{ txt('tema', largo=True) }}</td></tr>
+      <tr><td colspan="3"><b>Material que se entrega:</b> {{ txt('material', largo=True) }}</td></tr>
+    </table>
+
+    <table class="cp-tabla">
+      <colgroup><col style="width:46%"><col style="width:30%"><col style="width:24%"></colgroup>
+      <tr><th>MÉTODO DE EVALUACIÓN DE LA EFICACIA DE LA CAPACITACIÓN</th><th>RESPONSABLE</th><th>TIEMPO / FECHA EVALUACIÓN</th></tr>
+      {% for k, nombre in metodos_op %}
+      {% set m = ms.get(k, {}) %}
+      <tr>
+        <td>
+          {% if editar %}<label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" name="m_{{ k }}" value="1"{% if m.marcado %} checked{% endif %}> {{ nombre }}</label>
+            {% if k == 'otros' %}<input type="text" class="mt-1" name="m_{{ k }}_detalle" maxlength="255" value="{{ m.detalle or '' }}" placeholder="¿Cuál?" aria-label="Otro método">{% endif %}
+          {% else %}{{ nombre }} <span class="cp-caja">{{ '☒' if m.marcado else '☐' }}</span>{% if m.detalle %}: {{ m.detalle }}{% endif %}{% endif %}
+        </td>
+        <td>{% if editar %}<input type="text" name="m_{{ k }}_responsable" maxlength="255" value="{{ m.responsable or '' }}" aria-label="{{ nombre }}: responsable">{% else %}{{ m.responsable or '' }}{% endif %}</td>
+        <td>{% if editar %}<input type="text" name="m_{{ k }}_plazo" maxlength="255" value="{{ m.plazo or '' }}" aria-label="{{ nombre }}: tiempo o fecha de evaluación">{% else %}{{ m.plazo or '' }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+
+    {% set na = [asis|length + (3 if editar else 0), filas_asistentes]|max %}
+    <table class="cp-tabla" id="cp-asistentes">
+      <colgroup><col style="width:7%"><col style="width:40%"><col style="width:28%"><col style="width:25%"></colgroup>
+      <tr><th>Nº</th><th>APELLIDO y NOMBRE</th><th>SECTOR</th><th>FIRMA</th></tr>
+      {% for i in range(na) %}
+      {% set a = asis[i] if i < asis|length else {} %}
+      <tr>
+        <td class="c">{{ i + 1 }}</td>
+        {% if editar %}
+        <td><input type="text" name="as_nombre_{{ i }}" maxlength="255" value="{{ a.nombre or '' }}" list="cp-empleados" autocomplete="off" aria-label="Asistente {{ i + 1 }}"></td>
+        <td><input type="text" name="as_sector_{{ i }}" maxlength="255" value="{{ a.sector or '' }}" aria-label="Sector del asistente {{ i + 1 }}"></td>
+        <td></td>
+        {% else %}
+        <td class="vacia">{{ a.nombre }}</td><td>{{ a.sector }}</td><td></td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="as_filas" value="{{ na }}">{% endif %}
+
+    <table class="cp-tabla">
+      <colgroup><col style="width:70%"><col style="width:15%"><col style="width:15%"></colgroup>
+      <tr><th colspan="3">Conclusiones (a completar por el capacitador o superior del sector de acuerdo con el método de evaluación establecido)</th></tr>
+      <tr><td></td><td class="c fw-bold">SI</td><td class="c fw-bold">NO</td></tr>
+      <tr><td>¿Fue eficaz la capacitación realizada?</td>{{ sino('eficaz') }}</tr>
+      <tr><td>¿Se deben realizar nuevas acciones? En caso afirmativo especificar: {{ txt('nuevas_acciones_detalle', largo=True) }}</td>{{ sino('nuevas_acciones') }}</tr>
+    </table>
+
+    <table class="cp-tabla cp-control">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      <tr><td class="c">00</td><td>Confección del registro</td><td class="c">{{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+    </table>
+  </div>
+</div>
+</form>
+
+{% if cap and editar and es_admin %}
+<form method="post" action="{{ url_for('capacitacion.baja', capacitacion_id=cap.id) }}" onsubmit="return confirm('¿Dar de baja esta capacitación? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la capacitación</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ cp_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if editar %}
+<script>
+(function () {
+  "use strict";
+  var tabla = document.getElementById("cp-asistentes");
+  var opciones = Array.prototype.slice.call(document.querySelectorAll("#cp-empleados option"));
+  function contar() {
+    var n = 0;
+    tabla.querySelectorAll('input[name^="as_nombre_"]').forEach(function (inp) { if (inp.value.trim()) n++; });
+    document.getElementById("cp-cantidad").textContent = n || "";
+  }
+  tabla.addEventListener("change", function (e) {
+    var m = /^as_nombre_(\d+)$/.exec(e.target.name || "");
+    if (m) {
+      var op = opciones.find(function (o) { return o.value === e.target.value; });
+      var sector = tabla.querySelector('input[name="as_sector_' + m[1] + '"]');
+      if (op && sector && !sector.value) sector.value = op.dataset.sector || "";
+    }
+    contar();
+  });
+  tabla.addEventListener("input", contar);
+  contar();
+})();
+</script>
+{% endif %}
+{% endblock %}
