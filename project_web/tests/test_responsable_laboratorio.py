@@ -120,6 +120,11 @@ def test_camion_carga_el_operador_y_descarga_el_chofer(app, lab):
         entregas_service.ejecutar_entregada(e, lucia, datetime(2026, 9, 30, 12, 0))
         assert e.entregada_chofer_nombre == "Mauri"
         assert e.entregada_by_user_id == lab_id
-        # Otro perfil sigue quedando a su nombre.
+        # El administrador tampoco carga ni descarga; otro perfil sigue quedando a su nombre.
+        admin = User(username="pytest_admin_camion", password_hash="x", activo=True, is_admin=True, nombre_completo="Ana Admin")
+        db.session.add(admin)
+        db.session.flush()
+        assert entregas_service._operador_carga(admin) == "Oscar Operador (registró Ana Admin)"
+        assert entregas_service._chofer_descarga(e, admin) == "Mauri"
         assert entregas_service._chofer_descarga(e, db.session.get(User, oper_id)) == "Oscar Operador"
         assert db.session.query(ConsumoStock).count() == 0

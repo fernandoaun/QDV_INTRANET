@@ -462,12 +462,16 @@ def _actor_operador(u: User | None) -> str:
     return _actor_display(u)
 
 
-def _operador_carga(u: User | None) -> str:
-    """La responsable de laboratorio registra cargas pero no carga: queda a nombre del operador del turno,
-    con ella como quien lo registró."""
+def _registra_sin_hacer(u: User | None) -> bool:
+    """Responsable de laboratorio y administrador registran cargas y descargas de camión, pero no las hacen."""
     from app.user_roles import user_is_responsable_laboratorio
 
-    if u is not None and user_is_responsable_laboratorio(u):
+    return u is not None and (bool(getattr(u, "is_admin", False)) or user_is_responsable_laboratorio(u))
+
+
+def _operador_carga(u: User | None) -> str:
+    """Quien registra sin cargar: queda a nombre del operador del turno, con su nombre como quien lo registró."""
+    if _registra_sin_hacer(u):
         from app.services.shift_handover_service import operador_responsable_para_carga
 
         return operador_responsable_para_carga(u, verbo="registró")
@@ -475,10 +479,8 @@ def _operador_carga(u: User | None) -> str:
 
 
 def _chofer_descarga(entrega: Entrega, u: User | None) -> str:
-    """La responsable de laboratorio registra descargas pero no descarga: el responsable es el chofer asignado."""
-    from app.user_roles import user_is_responsable_laboratorio
-
-    if u is not None and user_is_responsable_laboratorio(u):
+    """Quien registra sin descargar: el responsable es el chofer asignado."""
+    if _registra_sin_hacer(u):
         chofer = (entrega.chofer_row.nombre if entrega.chofer_row else "") or (entrega.chofer_previsto or "")
         if chofer.strip():
             return chofer.strip()
