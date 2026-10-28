@@ -87,6 +87,16 @@ def sql_es_origen_carga():
     return Entrega.carga_origen_entrega_id.is_(None)
 
 
+def siguiente_lote_despacho(fecha: date) -> str:
+    """Lote de despacho: D + aammdd + correlativo de cargas del día (D26102801)."""
+    prefijo = f"D{fecha.strftime('%y%m%d')}"
+    usados = db.session.scalars(
+        select(Entrega.lote_despacho).where(Entrega.lote_despacho.like(f"{prefijo}%")).distinct()
+    ).all()
+    n = max((int(x[len(prefijo):]) for x in usados if x and x[len(prefijo):].isdigit()), default=0)
+    return f"{prefijo}{n + 1:02d}"
+
+
 def ensure_carga_grupo(entrega: Entrega) -> str:
     gid = (entrega.carga_grupo_id or "").strip()
     if gid:
@@ -335,6 +345,7 @@ def ejecutar_cargada(
     entrega.updated_at_iso = iso
     ensure_carga_grupo(entrega)
     entrega.carga_origen_entrega_id = None
+    entrega.lote_despacho = siguiente_lote_despacho(ahora.date())
     if consumo_id is not None:
         entrega.consumo_stock_id = consumo_id
     detalle_carga: dict[str, Any] = {
@@ -684,6 +695,7 @@ def entrega_to_api_dict(e: Entrega) -> dict[str, Any]:
         "cargada_at_iso": e.cargada_at_iso,
         "cargada_by_user_id": _opt_int(e.cargada_by_user_id),
         "consumo_stock_id": _opt_int(e.consumo_stock_id),
+        "lote_despacho": e.lote_despacho,
         "stock_categoria": e.stock_categoria,
         "stock_marca": e.stock_marca,
         "stock_equipo_id": _opt_int(e.stock_equipo_id),

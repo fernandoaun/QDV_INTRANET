@@ -258,6 +258,7 @@ def create_app() -> Flask:
     from app.web.modules.mapa_procesos import bp as mapa_procesos_bp
     from app.web.modules.accion import bp as accion_bp
     from app.web.modules.vencimientos import bp as vencimientos_bp
+    from app.web.modules.trazabilidad import bp as trazabilidad_bp
     from app.web.modules.sgi import bp as sgi_bp
     from app.web.modules.archivo import bp as archivo_bp
     from app.web.modules.personal import bp as personal_bp
@@ -288,6 +289,7 @@ def create_app() -> Flask:
     app.register_blueprint(accion_bp)
     app.register_blueprint(mantenimiento_bp)
     app.register_blueprint(vencimientos_bp)
+    app.register_blueprint(trazabilidad_bp)
     app.register_blueprint(sgi_bp)
     app.register_blueprint(archivo_bp)
     app.register_blueprint(personal_bp)

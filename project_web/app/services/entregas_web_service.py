@@ -265,6 +265,7 @@ def assign_logistica_multi_entregas(
             created_by_user_id=int(actor.id) if actor else origen.created_by_user_id,
             cargada_at_iso=origen.cargada_at_iso,
             cargada_by_user_id=origen.cargada_by_user_id,
+            lote_despacho=origen.lote_despacho,
             consumo_stock_id=None,
             stock_categoria=origen.stock_categoria,
             stock_marca=origen.stock_marca,

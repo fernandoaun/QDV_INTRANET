@@ -101,7 +101,7 @@
           <tr>
             <td>{{ z.producto }}</td>
             <td>{{ z.marca }}</td>
-            <td>{{ z.lote }}</td>
+            <td>{% if z.ingreso_id and z.lote %}<a href="{{ url_for('trazabilidad.index', ingreso=z.ingreso_id) }}" title="Ver trazabilidad">{{ z.lote }}</a>{% else %}{{ z.lote }}{% endif %}</td>
             <td>{{ z.fecha_ingreso }} {{ z.hora_ingreso or '' }}</td>
             <td>{{ z.vencimiento }}</td>
             <td>{{ z.disponible | round(4) }}</td>
@@ -165,7 +165,7 @@
             {% endif %}
             <td>{{ r.producto }}</td>
             <td>{{ r.marca }}</td>
-            <td>{{ r.lote or '—' }}</td>
+            <td>{% if r.lote and r.categoria != 'laboratorio' and categoria != 'laboratorio' %}<a href="{{ url_for('trazabilidad.index', ingreso=r.id) }}" title="Ver trazabilidad">{{ r.lote }}</a>{% else %}{{ r.lote or '—' }}{% endif %}</td>
             <td>{{ r.vencimiento or '—' }}</td>
             <td>{{ r.cantidad }}</td>
             <td>{{ r.unidad or '—' }}</td>

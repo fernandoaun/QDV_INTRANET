@@ -1,6 +1,5 @@
-"""Trazabilidad (lotes, eventos de entrega, vínculo PT–cliente).
+"""Trazabilidad: lote de despacho ⇄ producción ⇄ lotes de materia prima (ver ``trazabilidad_service``)."""
 
-Modelos y eventos: ``Entrega``, ``EntregaEvento``, ``ProductoTerminado`` y
-servicios en ``app.services.entregas_service``. Rutas web: ``entregas`` y
-partes de ``produccion`` según el flujo.
-"""
+from app.web.modules.trazabilidad.routes import bp
+
+__all__ = ["bp"]

@@ -119,11 +119,15 @@ def gestion():
             if not user_can_entregas_cargar_effective(u):
                 return _no_edit()
             try:
-                _, stock_mut = ews.create_carga_camion_from_form(request.form, u)
+                carga, stock_mut = ews.create_carga_camion_from_form(request.form, u)
                 db.session.commit()
                 if stock_mut is not None:
                     stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
-                flash("Camión cargado. Logística puede asignar esa carga a una o varias entregas.", "success")
+                flash(
+                    f"Camión cargado, lote de despacho {carga.lote_despacho}. "
+                    "Logística puede asignar esa carga a una o varias entregas.",
+                    "success",
+                )
                 keep = {"quick_chofer_entrega_id": (request.form.get("chofer_entrega_id") or "").strip()}
                 return redirect(url_for("entregas.gestion", **{k: v for k, v in keep.items() if v}))
             except Exception as ex:  # noqa: BLE001
@@ -160,7 +164,7 @@ def gestion():
                 db.session.commit()
                 if stock_mut is not None:
                     stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
-                flash("Entrega marcada como cargada.", "success")
+                flash(f"Entrega marcada como cargada. Lote de despacho {ent.lote_despacho}.", "success")
                 if warning:
                     flash(warning, "warning")
             except Exception as ex:  # noqa: BLE001

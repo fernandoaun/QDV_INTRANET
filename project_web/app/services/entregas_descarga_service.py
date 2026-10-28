@@ -160,6 +160,7 @@ def registrar_descarga(
             created_by_user_id=int(actor.id) if actor else None,
             cargada_at_iso=origen.cargada_at_iso,
             cargada_by_user_id=origen.cargada_by_user_id,
+            lote_despacho=origen.lote_despacho,
             stock_categoria=origen.stock_categoria,
             stock_marca=origen.stock_marca,
             stock_equipo_id=origen.stock_equipo_id,

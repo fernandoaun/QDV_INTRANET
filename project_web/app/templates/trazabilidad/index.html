@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Trazabilidad · QDV{% endblock %}
+{% macro litros(x) %}{{ "{:,.0f}".format(x or 0).replace(",", ".") }} L{% endmacro %}
+{% macro cliente(e) %}{% if e.cliente_row %}{{ e.cliente_row.nombre }}{% else %}{{ e.cliente }}{% endif %}{% endmacro %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Trazabilidad</h1>
+    <p class="app-intro mb-0">Buscá un lote de despacho (D…) para ver de dónde salió el producto, o un lote de materia prima para ver a qué camiones y clientes llegó.</p>
+  </div>
+</div>
+
+<form class="app-card mb-3" method="get">
+  <div class="app-card-body d-flex gap-2 flex-wrap">
+    <input class="form-control" style="max-width:22rem" name="q" value="{{ q }}" placeholder="D26102801 o lote de MP" autofocus>
+    <button class="btn btn-primary">Buscar</button>
+  </div>
+</form>
+
+{% if q and not despacho and not rastreo and not ingresos %}
+<div class="alert alert-warning">No hay ningún lote de despacho ni de ingreso «{{ q }}».</div>
+{% endif %}
+
+{% if ingresos %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Hay {{ ingresos|length }} ingresos con el lote «{{ q }}»: elegí cuál</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Fecha</th><th>Producto</th><th>Proveedor / marca</th><th>Vencimiento</th><th class="text-end">Cantidad</th></tr></thead>
+      <tbody>
+        {% for i in ingresos %}
+        <tr>
+          <td><a href="{{ url_for('trazabilidad.index', ingreso=i.id) }}">{{ i.fecha|fecha }} {{ i.hora }}</a></td>
+          <td>{{ i.producto }}</td><td>{{ i.proveedor or i.marca }}</td><td>{{ i.vencimiento }}</td>
+          <td class="text-end">{{ i.cantidad }} {{ i.unidad }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if despacho %}
+{% set d = despacho %}{% set v = d.ventana %}{% set a = d.analisis %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Lote de despacho {{ d.lote }}</div>
+  <div class="app-card-body small">
+    <p class="mb-2">Cargado el <strong>{{ d.origen.cargada_at_iso|fecha }}</strong> · {{ litros(d.origen.cantidad_real_cargada or d.origen.cantidad) }}</p>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Cliente</th><th>Lugar</th><th class="text-end">Litros</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          {% for e in d.entregas %}
+          <tr>
+            <td>{{ cliente(e) }}</td><td>{{ e.lugar_entrega }}</td>
+            <td class="text-end">{{ litros(e.cantidad_real_entregada or e.cantidad_real_cargada or e.cantidad) }}</td>
+            <td>{{ e.estado }}</td>
+            <td class="text-end"><a href="{{ url_for('entregas.historial', eid=e.id) }}">Entrega #{{ e.id }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Origen: producción del {{ v.desde|fecha }} al {{ v.hasta|fecha }}</div>
+  <div class="app-card-body small">
+    <p class="app-text-secondary">Los dos tanques funcionan como un pulmón: el camión lleva una mezcla de lo producido antes de la carga.
+      {% if v.stock is not none %}Al cargar había unos {{ litros(v.stock) }} en tanques; el período mostrado repuso {{ litros(v.cubierto) }} ({{ factor|int }} veces ese stock), que es de donde sale cerca del 95 % del producto del camión.{% endif %}
+      {% if not v.completa %}<strong>No hay cierres de turno suficientes para cubrir todo el período: se muestran los últimos 15 días.</strong>{% endif %}
+    </p>
+    {% if a.ultimo %}
+    <p class="mb-2"><strong>Último análisis antes de cargar</strong> (salmuera/hipoclorito, {{ a.ultimo.fecha_iso|fecha }} {{ a.ultimo.hora_hm }}, lote {{ a.ultimo.lote or '—' }}):
+      concentración {{ a.ultimo.hipo_conc }} g/L · exceso de soda {{ a.ultimo.hipo_exceso_soda }} · {{ a.ultimo.operador }}</p>
+    {% endif %}
+    <p class="mb-0">Análisis en el período: {{ a.salmuera }} de salmuera/hipoclorito{% if a.conc_min is not none %} (concentración entre {{ a.conc_min }} y {{ a.conc_max }} g/L, promedio {{ '%.1f'|format(a.conc_prom) }}){% endif %}, {{ a.reactor }} de reactor y {{ a.agua }} de agua.</p>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Lotes de materia prima usados</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Materia prima</th><th>Lote</th><th>Proveedor / marca</th><th>Vencimiento</th><th class="text-end">Consumido en el período</th><th>Uso</th></tr></thead>
+      <tbody>
+        {% for m in d.materias_primas %}
+        <tr>
+          <td>{{ m.producto }}</td>
+          <td>{% if m.ingreso_id %}<a href="{{ url_for('trazabilidad.index', ingreso=m.ingreso_id) }}">{{ m.lote or '—' }}</a>{% else %}<span class="app-text-secondary">sin lote</span>{% endif %}</td>
+          <td>{{ m.proveedor }}</td><td>{{ m.vencimiento }}</td>
+          <td class="text-end">{% if m.previo %}—{% else %}{{ '%g'|format(m.cantidad) }} {{ m.unidad }}{% endif %}</td>
+          <td class="small">{% if m.previo %}en uso al empezar el período (último consumo {{ m.ultimo|fecha }}){% else %}{{ m.primero|fecha }} a {{ m.ultimo|fecha }}{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="app-text-secondary">No hay consumos de materia prima registrados en el período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if d.hipo_comprado %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Hipoclorito comprado que entró al pulmón en el período</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Fecha</th><th>Proveedor / marca</th><th>Lote</th><th class="text-end">Litros</th></tr></thead>
+      <tbody>
+        {% for i in d.hipo_comprado %}
+        <tr><td>{{ i.created_at_iso|fecha }}</td><td>{{ i.proveedor or i.marca }}</td>
+          <td><a href="{{ url_for('trazabilidad.index', ingreso=i.id) }}">{{ i.lote }}</a></td><td class="text-end">{{ litros(i.cantidad) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="app-card mb-3">
+  <div class="app-card-header">Turnos del período</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Desde</th><th>Hasta (cierre)</th><th>Operador</th><th class="text-end">Stock al cierre</th><th class="text-end">Entró al pulmón</th></tr></thead>
+      <tbody>
+        {% for x in d.turnos %}
+        <tr><td>{{ x.t.desde|fecha }}</td><td>{{ x.t.hasta|fecha }}</td><td>{{ x.operador }}</td>
+          <td class="text-end">{{ litros(x.t.stock) }}</td><td class="text-end">{{ litros(x.t.entrada) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if rastreo %}
+{% set i = rastreo.ingreso %}
+<div class="app-card mb-3">
+  <div class="app-card-header">{{ i.producto }} · lote {{ i.lote }}</div>
+  <div class="app-card-body small">
+    <p class="mb-1">Ingresó el {{ i.fecha|fecha }} {{ i.hora }} · {{ i.cantidad }} {{ i.unidad }} · {{ i.proveedor or i.marca }} · vence {{ i.vencimiento }}</p>
+    {% if rastreo.uso is none %}
+    <p class="mb-0">Este lote todavía no tiene consumos registrados: no llegó a ningún camión.</p>
+    {% elif rastreo.uso.consumos %}
+    <p class="mb-0">En el proceso desde el {{ rastreo.uso.desde|fecha }} ({{ rastreo.uso.consumos }} consumos){% if rastreo.uso.hasta %} hasta el {{ rastreo.uso.hasta|fecha }}, cuando se empezó a usar otro lote{% else %} y sigue en uso{% endif %}.</p>
+    {% endif %}
+  </div>
+</div>
+{% if rastreo.uso is not none %}
+<div class="app-card mb-3">
+  <div class="app-card-header">Camiones que pueden llevar producto hecho con este lote ({{ rastreo.cargas|length }})</div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead><tr><th>Lote de despacho</th><th>Carga</th><th>Cliente</th><th>Lugar</th><th class="text-end">Litros</th></tr></thead>
+      <tbody>
+        {% for c in rastreo.cargas %}
+        {% for e in c.entregas %}
+        <tr>
+          <td>{% if loop.first %}<a href="{{ url_for('trazabilidad.index', q=c.carga.lote_despacho) }}">{{ c.carga.lote_despacho or ('#' ~ c.carga.id) }}</a>{% endif %}</td>
+          <td>{% if loop.first %}{{ c.carga.cargada_at_iso|fecha }}{% endif %}</td>
+          <td>{{ cliente(e) }}</td><td>{{ e.lugar_entrega }}</td>
+          <td class="text-end">{{ litros(e.cantidad_real_entregada or e.cantidad_real_cargada or e.cantidad) }}</td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr><td colspan="5" class="app-text-secondary">Ningún camión cargado con producto de este período.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

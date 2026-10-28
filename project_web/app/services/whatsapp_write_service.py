@@ -442,6 +442,8 @@ def _carga_camion_execute(user: User, payload: dict[str, Any]) -> dict[str, Any]
         raise
     if stock_mut is not None:
         stock_service.after_stock_mutation(stock_mut[0], stock_mut[1])
+    if ent.lote_despacho:
+        msg += f" Lote de despacho {ent.lote_despacho}."
     return {"id": int(ent.id), "message": msg, "registro": entregas_service.entrega_to_api_dict(ent)}
 
 

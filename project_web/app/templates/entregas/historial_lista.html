@@ -119,6 +119,7 @@
             {% else %}
             <span class="badge rounded-pill text-bg-light text-dark border">{{ st }}</span>
             {% endif %}
+            {% if e.lote_despacho %}<div class="small"><a href="{{ url_for('trazabilidad.index', q=e.lote_despacho) }}">{{ e.lote_despacho }}</a></div>{% endif %}
           </td>
           <td class="small">
             {% if st == 'entregada' and e.entregada_chofer_nombre %}

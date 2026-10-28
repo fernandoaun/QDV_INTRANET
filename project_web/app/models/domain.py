@@ -476,6 +476,8 @@ class Entrega(db.Model):
     cargada_at_iso = db.Column(db.String(32), nullable=True)
     cargada_by_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"), nullable=True)
     consumo_stock_id = db.Column(db.Integer, db.ForeignKey("consumos_stock.id"), nullable=True, unique=True)
+    # Lote de despacho (p. ej. D26102801): uno por carga de camión; las hermanas lo comparten.
+    lote_despacho = db.Column(db.String(32), nullable=True, index=True)
 
     # Una carga de camión puede repartirse en varias entregas (mismo grupo).
     # Origen: carga_origen_entrega_id IS NULL (conserva cantidad_real_cargada y consumo_stock).
