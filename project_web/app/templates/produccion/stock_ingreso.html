@@ -27,7 +27,7 @@
         {% if categoria_sel == 'producto_terminado' %}
         Usá la categoría <strong>Producto terminado</strong>; el producto conviene elegirlo del catálogo para que coincida con existencias, Panel y Entregas.
         {% else %}
-        Producto (idealmente elegido del catálogo), marca, lote, vencimiento, cantidad, unidad, fecha/hora y referencias opcionales.
+        Producto (idealmente elegido del catálogo), marca, lote (o remito si no trae), vencimiento, cantidad, unidad, fecha/hora y referencias opcionales.
         {% endif %}
       </p>
     </div>
@@ -53,8 +53,11 @@
           </datalist>
         </div>
         <div class="col-md-4"><label class="form-label">Marca</label><input class="form-control" name="marca" required></div>
-        <div class="col-md-3"><label class="form-label">Lote</label><input class="form-control" name="lote" required></div>
-        <div class="col-md-3"><label class="form-label">Vencimiento</label><input class="form-control" name="vencimiento" required></div>
+        <div class="col-md-3"><label class="form-label" for="loteIngreso">Lote</label><input class="form-control" id="loteIngreso" name="lote">
+          <div class="form-text">Si el producto no trae lote, dejalo vacío y cargá el remito.</div></div>
+        <div class="col-md-3"><label class="form-label" for="remitoIngreso">N° de remito</label><input class="form-control" id="remitoIngreso" name="remito" maxlength="64"></div>
+        <div class="col-md-3"><label class="form-label" for="vencIngreso">Vencimiento</label><input class="form-control" id="vencIngreso" name="vencimiento" type="date">
+          <div class="form-text">Si no lo trae, vence a un año del ingreso.</div></div>
         <div class="col-md-2" id="cantidadCantStockWrap"><label class="form-label">Cantidad</label>
           <input class="form-control" id="cantidadIngreso" name="cantidad" type="number" step="any" min="0" autocomplete="off"></div>
         <div class="col-md-2" id="unidadWrap"><label class="form-label">Unidad</label>

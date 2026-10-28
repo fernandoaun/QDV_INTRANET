@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta
+import re
+from datetime import date, datetime, timedelta
 from typing import Any, List, Optional
 
 from sqlalchemy import and_, func, or_, select, update
@@ -544,6 +545,62 @@ def _ingreso_fecha_hora_y_created_iso(
     return f_str, h_str, reg_dt.isoformat(timespec="seconds")
 
 
+_SIN_DATO = re.compile(r"^(.)\1*$|^(s/?[lv]|sin\b.*|-+|n/?a|1 año)$", re.IGNORECASE)
+
+
+def es_dato_de_relleno(valor: str) -> bool:
+    """«1111», «00000», «S/L», «sin lote», «1 año»…: lo que se carga cuando el envase no trae el dato."""
+    v = (valor or "").strip()
+    return not v or bool(_SIN_DATO.match(v))
+
+
+def lote_de_ingreso(lote: str, remito: str) -> str:
+    """Lote del proveedor; si el envase no lo trae, el ingreso se identifica por el número de remito."""
+    lo = (lote or "").strip()
+    if not es_dato_de_relleno(lo):
+        return lo[:128]
+    r = (remito or "").strip()
+    if not r or es_dato_de_relleno(r):
+        raise ValueError("Si el producto no trae lote, cargá el número de remito: el ingreso se identifica con él.")
+    return f"Remito {r}"[:128]
+
+
+def _fin_de_mes(anio: int, mes: int) -> date:
+    if not 1 <= mes <= 12:
+        raise ValueError("mes")
+    return date(anio + mes // 12, mes % 12 + 1, 1) - timedelta(days=1)
+
+
+def vencimiento_de_ingreso(vencimiento: str, fecha_ingreso: date) -> str:
+    """Vencimiento en dd/mm/aaaa. Acepta aaaa-mm-dd, dd/mm/aa(aa) y mm/aa(aa) (fin de ese mes).
+    Si el producto no lo trae, vence a un año del ingreso."""
+    v = (vencimiento or "").strip()
+    if es_dato_de_relleno(v):
+        try:
+            return fecha_ingreso.replace(year=fecha_ingreso.year + 1).strftime("%d/%m/%Y")
+        except ValueError:  # 29/02
+            return (fecha_ingreso + timedelta(days=365)).strftime("%d/%m/%Y")
+    try:
+        m = re.fullmatch(r"(\d{4})-(\d{1,2})-(\d{1,2})", v)
+        if m:
+            return date(int(m[1]), int(m[2]), int(m[3])).strftime("%d/%m/%Y")
+        partes = re.split(r"[/.\-]", v)
+        if len(partes) == 2 and re.fullmatch(r"\d{6}", partes[1]):  # 18/072026
+            partes = [partes[0], partes[1][:2], partes[1][2:]]
+        if len(partes) == 1 and re.fullmatch(r"\d{8}", v):
+            partes = [v[:2], v[2:4], v[4:]]
+        nums = [int(x) for x in partes]
+        if len(nums) == 3:
+            d, mes, a = nums
+            return date(a + 2000 if a < 100 else a, mes, d).strftime("%d/%m/%Y")
+        if len(nums) == 2:
+            mes, a = nums
+            return _fin_de_mes(a + 2000 if a < 100 else a, mes).strftime("%d/%m/%Y")
+    except ValueError:
+        pass
+    raise ValueError("Vencimiento inválido: usá dd/mm/aaaa (o dejalo vacío si el producto no lo trae: vence a un año).")
+
+
 def save_ingreso(
     categoria: str,
     producto: str,
@@ -562,12 +619,13 @@ def save_ingreso(
     fecha: Optional[str] = None,
     hora: Optional[str] = None,
     fecha_hora_fallback: Optional[datetime] = None,
+    remito: str = "",
 ) -> None:
     c = _validate_cat(categoria)
     p = (producto or "").strip()
     m = (marca or "").strip()
-    v = (vencimiento or "").strip()
-    l = (lote or "").strip()
+    r = (remito or "").strip()[:64]
+    l = lote_de_ingreso(lote, r)
     op = (operador or "").strip() or "sistema"
     stockable_effective = bool(is_stockable) if c == "materia_prima" else True
     if c == "materia_prima" and not stockable_effective:
@@ -579,8 +637,8 @@ def save_ingreso(
             raise ValueError("La cantidad debe ser numérica.")
         if qty <= 0 or qty != qty:
             raise ValueError("La cantidad debe ser mayor a cero.")
-    if not p or not m or not v or not l:
-        raise ValueError("Completá producto, marca, vencimiento y lote.")
+    if not p or not m:
+        raise ValueError("Completá producto y marca.")
     _rechazar_hipoclorito_fuera_de_pt(c, p)
     ensure_producto(
         c,
@@ -592,6 +650,7 @@ def save_ingreso(
     )
     fb = fecha_hora_fallback or now_operacion_naive_local()
     fecha_s, hora_s, created_iso = _ingreso_fecha_hora_y_created_iso(fecha, hora, fb)
+    v = vencimiento_de_ingreso(vencimiento, date.fromisoformat(fecha_s))
     db.session.add(
         IngresoStock(
             categoria=c,
@@ -599,6 +658,7 @@ def save_ingreso(
             marca=m,
             vencimiento=v,
             lote=l,
+            remito=r or None,
             cantidad=qty,
             unidad=(unidad or "").strip()[:64] or "",
             fecha=fecha_s,
@@ -1289,6 +1349,7 @@ def save_ingreso_from_web_form(
         fecha=(form.get("fecha_ingreso") or "").strip() or None,
         hora=(form.get("hora_ingreso") or "").strip() or None,
         fecha_hora_fallback=fecha_hora_fallback,
+        remito=(form.get("remito") or "").strip(),
     )
 
 

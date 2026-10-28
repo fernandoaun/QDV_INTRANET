@@ -283,6 +283,7 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
             float(fields["cantidad"]),
             op,
             cargado_por_user_id=int(user.id),
+            remito=fields["remito"],
         )
         return {"id": None, "message": "Ingreso de stock guardado.", "registro": fields}
     if module == "stock_consumo":
@@ -557,6 +558,7 @@ def _stock_ingreso_fields(user: User, payload: dict[str, Any]) -> dict[str, Any]
         "marca": str(payload.get("marca") or "").strip(),
         "vencimiento": str(payload.get("vencimiento") or "").strip(),
         "lote": str(payload.get("lote") or "").strip(),
+        "remito": str(payload.get("remito") or "").strip(),
         "cantidad": qty,
     }
 

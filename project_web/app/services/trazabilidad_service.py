@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.constants import ENTREGAS_STOCK_CATEGORIA
 from app.extensions import db
@@ -326,7 +326,10 @@ def buscar(q: str) -> dict[str, Any]:
     ingresos = list(
         db.session.scalars(
             select(IngresoStock)
-            .where(func.lower(func.trim(IngresoStock.lote)) == q.lower(), IngresoStock.categoria != "laboratorio")
+            .where(
+                or_(func.lower(func.trim(IngresoStock.lote)) == q.lower(), func.lower(IngresoStock.remito) == q.lower()),
+                IngresoStock.categoria != "laboratorio",
+            )
             .order_by(IngresoStock.created_at_iso.desc())
         )
     )

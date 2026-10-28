@@ -181,6 +181,8 @@ class IngresoStock(db.Model):
     marca = db.Column(db.String(256), nullable=False)
     vencimiento = db.Column(db.String(64), nullable=False)
     lote = db.Column(db.String(128), nullable=False)
+    # Sin lote del proveedor el ingreso se identifica por su remito («Remito <número>» en `lote`).
+    remito = db.Column(db.String(64), nullable=True, index=True)
     cantidad = db.Column(db.Float, nullable=False)
     unidad = db.Column(db.String(64), nullable=False, default="")
     fecha = db.Column(db.String(16), nullable=False)
