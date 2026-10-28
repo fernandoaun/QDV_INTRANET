@@ -8,6 +8,7 @@ from typing import Any
 from flask import current_app, has_request_context, session
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
+from app.services.lote_produccion_service import lote_produccion_en
 from app.auth_utils import (
     user_can,
     user_can_edit,
@@ -19,17 +20,16 @@ from app.extensions import db
 from app.models import AguaRegistro, ReactorRegistro, SalmueraRegistro, User
 from app.services import security_audit_service as audit_svc
 from app.services import stock_service
-from app.web.modules.produccion.agua_helpers import agua_row_to_dict, next_agua_lote
+from app.web.modules.produccion.agua_helpers import agua_row_to_dict
 from app.web.modules.produccion.operativa_context import (
     compute_turno_from_hour,
     default_operador_for_salmuera,
     now_local,
     operador_display_line,
 )
-from app.web.modules.produccion.reactor_helpers import next_reactor_lote, parse_required_float, reactor_row_to_dict
+from app.web.modules.produccion.reactor_helpers import parse_required_float, reactor_row_to_dict
 from app.web.modules.produccion.salmuera_helpers import (
     count_consecutive_single_cell_for_electrolizador,
-    next_salmuera_lote,
     parse_voltajes,
     salmuera_row_to_dict,
 )
@@ -216,7 +216,7 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
             fecha_iso=fecha,
             hora_hm=now.strftime("%H:%M"),
             operador=op,
-            lote=next_reactor_lote(fecha),
+            lote=lote_produccion_en(fecha, now.strftime("%H:%M")),
             observaciones=(fields.get("observaciones") or "") or None,
             created_at_iso=now.isoformat(timespec="seconds"),
             **{k: v for k, v in fields.items() if k != "observaciones"},
@@ -231,7 +231,7 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
             hora_hm=now.strftime("%H:%M"),
             turno=compute_turno_from_hour(now.strftime("%H:%M")),
             operador=op,
-            lote=next_agua_lote(fecha),
+            lote=lote_produccion_en(fecha, now.strftime("%H:%M")),
             numero_columna=int(fields["numero_columna"]),
             temperatura=float(fields["temperatura"]),
             dureza=float(fields["dureza"]),
@@ -248,7 +248,7 @@ def _execute(user: User, module: str, payload: dict[str, Any]) -> dict[str, Any]
             hora_hm=now.strftime("%H:%M"),
             turno=compute_turno_from_hour(now.strftime("%H:%M")),
             operador=op,
-            lote=next_salmuera_lote(fecha),
+            lote=lote_produccion_en(fecha, now.strftime("%H:%M")),
             voltajes_json=json.dumps(fields["voltajes"], ensure_ascii=False),
             voltaje_total=float(sum(fields["voltajes"])),
             created_at_iso=now.isoformat(timespec="seconds"),

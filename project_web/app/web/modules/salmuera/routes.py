@@ -8,6 +8,7 @@ from typing import Any
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import select
 
+from app.services.lote_produccion_service import lote_produccion_en
 from app.auth_utils import current_user, login_required, permission_required
 from app.constants import ANALYSIS_INTERVAL_SECONDS, FILTRO_LAVADO_INTERVAL_SECONDS, MODULE_LABELS, SALMUERA_PANEL_ELECTROLIZADORES, SECURITY_DELETE_CODE
 from app.extensions import db
@@ -31,7 +32,6 @@ from app.web.modules.produccion.operativa_context import (
 from app.web.modules.produccion.salmuera_helpers import (
     count_consecutive_single_cell_for_electrolizador,
     last_salmuera_row_dict_for_electrolizador_on_date,
-    next_salmuera_lote,
     parse_required_float,
     parse_voltajes,
     salmuera_row_to_dict,
@@ -59,7 +59,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
     def salmuera():
         now_for_defaults = now_local()
         fecha = (request.values.get("fecha") or now_for_defaults.strftime("%Y-%m-%d")).strip()
-        lote_sugerido = next_salmuera_lote(fecha)
+        lote_sugerido = lote_produccion_en(fecha, now_for_defaults.strftime("%H:%M"))
         operador_sugerido = default_operador_for_salmuera()
         turno_sugerido = compute_turno_from_hour(now_for_defaults.strftime("%H:%M"))
         if request.method == "POST" and request.form.get("action") == "guardar":
@@ -107,7 +107,7 @@ def register_salmuera_routes(bp: Blueprint) -> None:
                 if caudal_agua >= caudal_salmuera:
                     raise ValueError("El caudal de agua debe ser menor que el caudal de salmuera.")
                 operador_auto = default_operador_for_salmuera()
-                lote_auto = next_salmuera_lote(fecha)
+                lote_auto = lote_produccion_en(fecha, now.strftime("%H:%M"))
                 hipo_exceso_soda = float((request.form.get("hipo_exceso_soda") or "0").replace(",", "."))
                 sal_conc = float((request.form.get("sal_conc") or "0").replace(",", "."))
                 sal_ph = float((request.form.get("sal_ph") or "0").replace(",", "."))

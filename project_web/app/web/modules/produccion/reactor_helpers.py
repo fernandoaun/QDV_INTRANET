@@ -2,23 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.extensions import db
 from app.models import ReactorRegistro
 from app.services.operational_warnings import warnings_for_reactor_registro
-
-
-def next_reactor_lote(fecha_iso: str) -> str:
-    n = db.session.scalar(
-        select(func.count()).select_from(ReactorRegistro).where(ReactorRegistro.fecha_iso == fecha_iso)
-    )
-    correlative = int(n or 0) + 1
-    dt = datetime.strptime(fecha_iso, "%Y-%m-%d")
-    return f"{dt.strftime('%y%m%d')}{correlative:02d}"
 
 
 def last_reactor_created_at_iso() -> str | None:

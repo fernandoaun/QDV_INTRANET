@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from flask import Response, redirect, request, url_for
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.extensions import db
 from app.models import AguaRegistro, ColumnaIntercambio
@@ -14,15 +13,6 @@ from app.services.operational_warnings import warnings_for_agua_registro
 from app.web.modules.produccion.operativa_context import now_local
 
 COLUMNA_INTERCAMBIO_ESTADOS = frozenset({"En operación", "Regenerada", "Por Regenerar"})
-
-
-def next_agua_lote(fecha_iso: str) -> str:
-    n = db.session.scalar(
-        select(func.count()).select_from(AguaRegistro).where(AguaRegistro.fecha_iso == fecha_iso)
-    )
-    correlative = int(n or 0) + 1
-    dt = datetime.strptime(fecha_iso, "%Y-%m-%d")
-    return f"{dt.strftime('%y%m%d')}{correlative:02d}"
 
 
 def last_agua_created_at_iso_for_date(fecha_iso: str) -> str | None:

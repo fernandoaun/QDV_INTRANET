@@ -18,6 +18,12 @@ class ShiftSession(db.Model):
     status = db.Column(db.String(32), nullable=False, default="open", index=True)
     created_at_iso = db.Column(db.String(32), nullable=False)
     updated_at_iso = db.Column(db.String(32), nullable=False)
+    # Lote de producción del turno (p. ej. P26102802): lo llevan los análisis hechos en el turno.
+    lote_produccion = db.Column(db.String(32), nullable=True, index=True)
+    # Lote observado (producto no conforme o dudoso): nota, cuándo y quién lo marcó.
+    lote_observado_nota = db.Column(db.Text, nullable=True)
+    lote_observado_at_iso = db.Column(db.String(32), nullable=True)
+    lote_observado_por_user_id = db.Column(db.Integer, db.ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
 
     user = db.relationship("User", foreign_keys=[user_id])
     laboratorist_user = db.relationship("User", foreign_keys=[laboratorist_user_id])

@@ -29,8 +29,10 @@ from app.models import (
     ReactorRegistro,
     SalmueraRegistro,
     ShiftHandover,
+    ShiftSession,
     User,
 )
+from app.services import lote_produccion_service as lp
 from app.services import shift_handover_service as sh
 from app.utils.hipoclorito_producto import entrega_columna_es_hipoclorito_operativo_sql
 
@@ -57,6 +59,8 @@ class _Turno:
     entrada: float
     handover_id: int
     operador_user_id: int
+    lote: str | None
+    observado: str | None
 
 
 class _Pulmon:
@@ -69,6 +73,12 @@ class _Pulmon:
             .order_by(ShiftHandover.handed_over_at_iso, ShiftHandover.id)
         ).all()
         cierres = [h for h in hos if (h.handed_over_at_iso or "").strip() and h.hypochlorite_stock_liters is not None]
+        sesiones = {
+            int(sid): (lote, nota)
+            for sid, lote, nota in db.session.execute(
+                select(ShiftSession.id, ShiftSession.lote_produccion, ShiftSession.lote_observado_nota)
+            )
+        }
         hipo_e = entrega_columna_es_hipoclorito_operativo_sql(Entrega.producto)
         cargas = db.session.execute(
             select(Entrega.cargada_at_iso, func.coalesce(Entrega.cantidad_real_cargada, Entrega.cantidad_programada, Entrega.cantidad))
@@ -91,8 +101,12 @@ class _Pulmon:
             cargado = self._suma(self._cargas_t, self._cargas_acum, t0, t1)
             ingresado = self._suma(self._ingr_t, self._ingr_acum, t0, t1)
             produccion = float(h.hypochlorite_stock_liters) - float(prev.hypochlorite_stock_liters) + cargado - ingresado
+            lote, observado = sesiones.get(int(h.shift_session_id), (None, None))
             self.turnos.append(
-                _Turno(t0, t1, float(h.hypochlorite_stock_liters), max(0.0, produccion) + ingresado, int(h.id), int(h.outgoing_user_id))
+                _Turno(
+                    t0, t1, float(h.hypochlorite_stock_liters), max(0.0, produccion) + ingresado,
+                    int(h.id), int(h.outgoing_user_id), lote, observado,
+                )
             )
         self._fin = [t.hasta for t in self.turnos]
 
@@ -224,8 +238,14 @@ def detalle_lote_despacho(lote: str) -> dict[str, Any] | None:
     hasta = (origen.cargada_at_iso or "").strip()
     v = _Pulmon().ventana(hasta)
     nombres = _nombres_usuarios({t.operador_user_id for t in v["turnos"]})
+    en_curso = lp.turno_en(hasta)
+    observados = {t.lote: t.observado for t in v["turnos"] if t.observado}
+    if en_curso is not None and en_curso.lote_observado_nota:
+        observados[en_curso.lote_produccion] = en_curso.lote_observado_nota
     return {
         "lote": lote,
+        "lote_en_curso": en_curso,
+        "observados": observados,
         "entregas": entregas,
         "origen": origen,
         "ventana": v,
@@ -301,6 +321,8 @@ def buscar(q: str) -> dict[str, Any]:
         return {"tipo": None}
     if db.session.scalar(select(Entrega.id).where(Entrega.lote_despacho == q.upper()).limit(1)):
         return {"tipo": "despacho", "lote": q.upper()}
+    if lp.turno_de_lote(q) is not None:
+        return {"tipo": "produccion", "lote": q.upper()}
     ingresos = list(
         db.session.scalars(
             select(IngresoStock)
@@ -309,3 +331,43 @@ def buscar(q: str) -> dict[str, Any]:
         )
     )
     return {"tipo": "ingresos", "ingresos": ingresos}
+
+
+def detalle_lote_produccion(lote: str) -> dict[str, Any] | None:
+    """Un turno: quién, cuándo, análisis, lotes de MP y camiones que pueden llevar su producto."""
+    turno = lp.turno_de_lote(lote)
+    if turno is None:
+        return None
+    desde = turno.started_at_iso
+    siguiente = lp.inicio_turno_siguiente(turno)
+    hasta = siguiente or sh.now_local_iso()
+    ids = {int(turno.user_id)} | ({int(turno.laboratorist_user_id)} if turno.laboratorist_user_id else set())
+    if turno.lote_observado_por_user_id:
+        ids.add(int(turno.lote_observado_por_user_id))
+    nombres = _nombres_usuarios(ids)
+    cierre = db.session.scalars(select(ShiftHandover).where(ShiftHandover.shift_session_id == turno.id)).first()
+    salmuera = list(
+        db.session.scalars(
+            select(SalmueraRegistro).where(SalmueraRegistro.lote == turno.lote_produccion).order_by(SalmueraRegistro.fecha_iso, SalmueraRegistro.hora_hm)
+        )
+    )
+    conc = [float(r.hipo_conc) for r in salmuera if r.hipo_conc]
+    return {
+        "lote": turno.lote_produccion,
+        "turno": turno,
+        "desde": desde,
+        "hasta": hasta,
+        "en_curso": siguiente is None,
+        "operador": nombres.get(int(turno.user_id), ""),
+        "laboratorista": nombres.get(int(turno.laboratorist_user_id), "") if turno.laboratorist_user_id else "",
+        "observado_por": nombres.get(int(turno.lote_observado_por_user_id), "") if turno.lote_observado_por_user_id else "",
+        "cierre": cierre,
+        "salmuera": salmuera,
+        "conc_min": min(conc) if conc else None,
+        "conc_max": max(conc) if conc else None,
+        "conc_prom": sum(conc) / len(conc) if conc else None,
+        "reactor": db.session.scalar(select(func.count()).select_from(ReactorRegistro).where(ReactorRegistro.lote == turno.lote_produccion)) or 0,
+        "agua": db.session.scalar(select(func.count()).select_from(AguaRegistro).where(AguaRegistro.lote == turno.lote_produccion)) or 0,
+        "materias_primas": [m for m in _materias_primas(desde, hasta) if not m["previo"]],
+        "cargas": _cargas_afectadas(desde, hasta),
+    }

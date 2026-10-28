@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, send_file, url_for
 from sqlalchemy import select
 
+from app.services.lote_produccion_service import lote_produccion_en
 from app.auth_utils import current_user, login_required, permission_required
 from app.constants import ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS
 from app.extensions import db
@@ -21,7 +22,6 @@ from app.web.modules.produccion.operativa_context import (
 )
 from app.web.modules.produccion.reactor_helpers import (
     last_reactor_created_at_iso,
-    next_reactor_lote,
     parse_required_float,
     reactor_row_to_dict,
 )
@@ -75,7 +75,7 @@ def register_reactor_routes(bp: Blueprint) -> None:
         if request.method == "POST":
             try:
                 now = now_local()
-                lote = next_reactor_lote(fecha)
+                lote = lote_produccion_en(fecha, now.strftime("%H:%M"))
                 ph = float((request.form.get("ph") or "0").replace(",", "."))
                 temperatura = float((request.form.get("temperatura") or "0").replace(",", "."))
                 densidad = float((request.form.get("densidad") or "0").replace(",", "."))

@@ -1,4 +1,4 @@
-"""Lote de despacho por carga y trazabilidad pulmón ⇄ lotes de materia prima."""
+"""Lote de despacho por carga, lote de producción por turno y trazabilidad pulmón ⇄ lotes de MP."""
 from datetime import date
 
 
@@ -12,10 +12,11 @@ def _usuario(db, User):
 def _cierre(db, u, desde, hasta, stock):
     from app.models import ShiftHandover, ShiftSession
     from app.services import shift_handover_service as sh
+    from app.services.lote_produccion_service import siguiente_lote_produccion
 
     s = ShiftSession(
         user_id=int(u.id), effective_role="operaciones", started_at_iso=desde, ended_at_iso=hasta,
-        status="closed", created_at_iso=desde, updated_at_iso=hasta,
+        status="closed", created_at_iso=desde, updated_at_iso=hasta, lote_produccion=siguiente_lote_produccion(desde),
     )
     db.session.add(s)
     db.session.flush()
@@ -73,6 +74,39 @@ def _escenario(db, User):
         stock += 1_000.0
         _cierre(db, u, desde, hasta, stock)
     return cierres
+
+
+def test_analisis_llevan_el_lote_del_turno(app):
+    from app.extensions import db
+    from app.models import User
+    from app.services.lote_produccion_service import lote_produccion_en
+
+    with app.app_context():
+        _escenario(db, User)
+        assert lote_produccion_en("2026-05-01", "06:00") == "P26050101"
+        assert lote_produccion_en("2026-05-01", "15:30") == "P26050102"
+        assert lote_produccion_en("2026-05-01", "23:10") == "P26050103"
+        # Entre la entrega (14:00) y una recepción que no llegó sigue el lote del que entregó.
+        assert lote_produccion_en("2026-05-02", "15:00") == "P26050201"
+        assert lote_produccion_en("2026-04-01", "10:00") == "P26040100"
+
+
+def test_turno_nuevo_recibe_lote(app):
+    from app.extensions import db
+    from app.models import User
+    from app.services import shift_handover_service as sh
+    from app.services.lote_produccion_service import lote_produccion_en
+    from app.utils.datetime_operacion import now_operacion_naive_local
+
+    with app.app_context():
+        u = User(username="pytest_turno_lote", password_hash="x", rol="operaciones", activo=True)
+        db.session.add(u)
+        db.session.flush()
+        sh.persist_new_open_shift_session(u, None)
+        sess = sh.get_open_shift_session()
+        hoy = now_operacion_naive_local()
+        assert sess.lote_produccion == f"P{hoy.strftime('%y%m%d')}01"
+        assert lote_produccion_en(hoy.strftime("%Y-%m-%d"), "23:59") == sess.lote_produccion
 
 
 def test_lote_despacho_correlativo_por_dia(app):
@@ -173,3 +207,30 @@ def test_pantalla_trazabilidad(auth_client, app):
     assert "Municipio" in r.get_data(as_text=True)
     r = auth_client.get("/trazabilidad/?q=no-existe")
     assert "No hay ningún lote" in r.get_data(as_text=True)
+
+
+def test_lote_de_produccion_hacia_adelante_y_observado(auth_client, app, monkeypatch):
+    from app.extensions import db
+    from app.models import User
+    from app.services import trazabilidad_service as ts
+
+    monkeypatch.setattr(ts, "FACTOR_PULMON", 0.5)
+    with app.app_context():
+        _escenario(db, User)
+        _carga(db, "2026-05-02T15:00:00", 3_000, "D26050201", cliente="Municipio")
+        db.session.commit()
+        assert [c["carga"].lote_despacho for c in ts.detalle_lote_produccion("p26050103")["cargas"]] == ["D26050201"]
+        assert ts.detalle_lote_produccion("P26043001")["cargas"] == []
+        assert ts.buscar("P26050103")["tipo"] == "produccion"
+
+    r = auth_client.post("/trazabilidad/lote/P26050103/observacion", data={"nota": "Concentración baja"})
+    assert r.status_code == 302
+    with app.app_context():
+        d = ts.detalle_lote_despacho("D26050201")
+        assert d["observados"] == {"P26050103": "Concentración baja"}
+        assert d["lote_en_curso"].lote_produccion == "P26050201"
+    html = auth_client.get("/trazabilidad/?q=D26050201").get_data(as_text=True)
+    assert "incluye lotes observados" in html
+    auth_client.post("/trazabilidad/lote/P26050103/observacion", data={"accion": "quitar"})
+    with app.app_context():
+        assert ts.detalle_lote_despacho("D26050201")["observados"] == {}

@@ -116,6 +116,16 @@ class AguaRegistro(db.Model):
     created_at_iso = db.Column(db.String(32), nullable=False)
 
 
+class AnalisisLoteAnterior(db.Model):
+    """Número de lote por análisis que se usaba antes del lote por turno (28/10/2026)."""
+
+    __tablename__ = "analisis_lotes_anteriores"
+
+    tabla = db.Column(db.String(64), primary_key=True)
+    registro_id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    lote = db.Column(db.String(128))
+
+
 class FiltroLavadoRegistro(db.Model):
     """Registro de lavado y enjuague de filtro (circuito salmuera, cada 24 h)."""
 

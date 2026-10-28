@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app.constants import SALMUERA_PANEL_ELECTROLIZADORES
 from app.extensions import db
@@ -19,15 +18,6 @@ def parse_voltajes(text: str, n: int) -> list[float]:
     if len(parts) != n:
         raise ValueError(f"Tenés que ingresar exactamente {n} voltajes (separados por coma).")
     return [float(p.replace(",", ".")) for p in parts]
-
-
-def next_salmuera_lote(fecha_iso: str) -> str:
-    n = db.session.scalar(
-        select(func.count()).select_from(SalmueraRegistro).where(SalmueraRegistro.fecha_iso == fecha_iso)
-    )
-    correlative = int(n or 0) + 1
-    dt = datetime.strptime(fecha_iso, "%Y-%m-%d")
-    return f"{dt.strftime('%y%m%d')}{correlative:02d}"
 
 
 def distinct_salmuera_electrolizador_ids() -> list[int]:

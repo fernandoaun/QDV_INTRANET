@@ -5,6 +5,7 @@ from __future__ import annotations
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import select
 
+from app.services.lote_produccion_service import lote_produccion_en
 from app.auth_utils import current_user, login_required, permission_required
 from app.constants import AGUA_ANALYSIS_INTERVAL_SECONDS, MODULE_LABELS
 from app.extensions import db
@@ -16,7 +17,6 @@ from app.web.modules.produccion.agua_helpers import (
     columnas_latest_dict,
     columnas_semaforo_global,
     last_agua_created_at_iso,
-    next_agua_lote,
     redirect_agua_columnas_anchor,
     save_columna_intercambio_from_form,
 )
@@ -42,7 +42,7 @@ def register_agua_routes(bp: Blueprint) -> None:
         now_for_defaults = now_local()
         fecha = (request.values.get("fecha") or now_for_defaults.strftime("%Y-%m-%d")).strip()
         turno_sugerido = compute_turno_from_hour(now_for_defaults.strftime("%H:%M"))
-        lote_sugerido = next_agua_lote(fecha)
+        lote_sugerido = lote_produccion_en(fecha, now_for_defaults.strftime("%H:%M"))
         operador_sugerido = default_operador_for_salmuera()
         if request.method == "POST":
             if request.form.get("form_action") == "columnas_estado":
@@ -59,7 +59,7 @@ def register_agua_routes(bp: Blueprint) -> None:
                     now = now_local()
                     turno_auto = compute_turno_from_hour(now.strftime("%H:%M"))
                     operador_auto = default_operador_for_salmuera()
-                    lote_auto = next_agua_lote(fecha)
+                    lote_auto = lote_produccion_en(fecha, now.strftime("%H:%M"))
                     db.session.add(
                         AguaRegistro(
                             fecha_iso=fecha,

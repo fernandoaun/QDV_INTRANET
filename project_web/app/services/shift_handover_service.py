@@ -441,6 +441,12 @@ def list_handovers_for_history(limit: int = 200) -> list[ShiftHandover]:
     return shift_repo.list_handovers_for_history(limit)
 
 
+def _lote_nuevo_turno(now_iso: str) -> str:
+    from app.services.lote_produccion_service import siguiente_lote_produccion
+
+    return siguiente_lote_produccion(now_iso)
+
+
 def persist_new_open_shift_session(user: User, laboratorist_user_id: int | None) -> None:
     if get_pending_handover() is not None:
         raise ValueError("Antes debés recepcionar la entrega de turno pendiente.")
@@ -461,6 +467,7 @@ def persist_new_open_shift_session(user: User, laboratorist_user_id: int | None)
         status=STATUS_OPEN,
         created_at_iso=now_iso,
         updated_at_iso=now_iso,
+        lote_produccion=_lote_nuevo_turno(now_iso),
     )
     db.session.add(row)
     db.session.commit()
@@ -665,6 +672,7 @@ def persist_handover_reception(
         status=STATUS_OPEN,
         created_at_iso=now_iso,
         updated_at_iso=now_iso,
+        lote_produccion=_lote_nuevo_turno(now_iso),
     )
     db.session.add(new_sess)
     clear_shift_declined()
