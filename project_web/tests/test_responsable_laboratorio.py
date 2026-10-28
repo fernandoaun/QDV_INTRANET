@@ -91,3 +91,35 @@ def test_registra_paradas_y_puede_ajustar_stock(app, lab):
     assert r.status_code == 200 and r.get_json()["ok"] is True
     page = client.get("/produccion/stock/ajustes", follow_redirects=True).get_data(as_text=True)
     assert "Solo administradores" not in page
+
+
+def test_camion_carga_el_operador_y_descarga_el_chofer(app, lab):
+    """Ella registra cargas y descargas de camión, pero cargan los operadores y descargan los choferes."""
+    from datetime import datetime
+
+    from app.extensions import db
+    from app.models import ChoferEntrega, ConsumoStock, Entrega, User
+    from app.services import entregas_service
+
+    _, (lab_id, oper_id) = lab
+    _abrir_turno(app, oper_id)
+    with app.app_context():
+        chofer = ChoferEntrega(nombre="Mauri", activo=True, created_at_iso="2026-09-30T06:00:00",
+                               updated_at_iso="2026-09-30T06:00:00")
+        db.session.add(chofer)
+        db.session.flush()
+        e = Entrega(cliente="Cliente", lugar_entrega="Planta", producto="Otro producto", cantidad=100, unidad="L",
+                    fecha_prevista="2026-09-30", estado="programada", created_at_iso="2026-09-30T08:00:00",
+                    updated_at_iso="2026-09-30T08:00:00", chofer_entrega_id=int(chofer.id), cliente_id=None)
+        db.session.add(e)
+        db.session.flush()
+        lucia = db.session.get(User, lab_id)
+        assert entregas_service._operador_carga(lucia) == "Oscar Operador (registró Laura Lab)"
+        entregas_service.ejecutar_cargada(e, lucia, datetime(2026, 9, 30, 10, 0))
+        e.estado = "programada"  # sin cliente asignado quedaría pendiente de logística
+        entregas_service.ejecutar_entregada(e, lucia, datetime(2026, 9, 30, 12, 0))
+        assert e.entregada_chofer_nombre == "Mauri"
+        assert e.entregada_by_user_id == lab_id
+        # Otro perfil sigue quedando a su nombre.
+        assert entregas_service._chofer_descarga(e, db.session.get(User, oper_id)) == "Oscar Operador"
+        assert db.session.query(ConsumoStock).count() == 0

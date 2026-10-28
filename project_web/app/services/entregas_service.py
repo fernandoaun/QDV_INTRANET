@@ -305,7 +305,7 @@ def ejecutar_cargada(
     """Registra la carga. Devuelve (categoría, producto ledger) si hubo consumo de stock."""
     if not puede_marcar_cargada(entrega):
         raise ValueError("Esta entrega no admite la acción «Cargar».")
-    op_name = _actor_operador(actor)
+    op_name = _operador_carga(actor)
     iso = ahora.isoformat(timespec="seconds")
     consumo_id: int | None = None
     programada = cantidad_programada_operativa(entrega)
@@ -416,7 +416,7 @@ def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime, ca
         raise ValueError("Esta entrega no admite la acción «Entregado».")
     iso = ahora.isoformat(timespec="seconds")
     lugar = (entrega.lugar_entrega or "").strip()
-    chof = _actor_display(actor)
+    chof = _chofer_descarga(entrega, actor)
     programada = cantidad_programada_operativa(entrega)
     fallback = cantidad_cargada_operativa(entrega) if str(entrega.estado or "") == "cargada" else programada
     qty_real = validate_cantidad_real(fallback if cantidad_real is None else cantidad_real, "La cantidad a entregar")
@@ -444,6 +444,7 @@ def ejecutar_entregada(entrega: Entrega, actor: User | None, ahora: datetime, ca
             "hora": ahora.strftime("%H:%M"),
             "dia_semana": entrega.entregada_dia_semana,
             "responsable": chof,
+            "registrado_por": _actor_display(actor) if chof != _actor_display(actor) else None,
         },
     )
 
@@ -458,6 +459,29 @@ def _actor_display(u: User | None) -> str:
 
 
 def _actor_operador(u: User | None) -> str:
+    return _actor_display(u)
+
+
+def _operador_carga(u: User | None) -> str:
+    """La responsable de laboratorio registra cargas pero no carga: queda a nombre del operador del turno,
+    con ella como quien lo registró."""
+    from app.user_roles import user_is_responsable_laboratorio
+
+    if u is not None and user_is_responsable_laboratorio(u):
+        from app.services.shift_handover_service import operador_responsable_para_carga
+
+        return operador_responsable_para_carga(u, verbo="registró")
+    return _actor_operador(u)
+
+
+def _chofer_descarga(entrega: Entrega, u: User | None) -> str:
+    """La responsable de laboratorio registra descargas pero no descarga: el responsable es el chofer asignado."""
+    from app.user_roles import user_is_responsable_laboratorio
+
+    if u is not None and user_is_responsable_laboratorio(u):
+        chofer = (entrega.chofer_row.nombre if entrega.chofer_row else "") or (entrega.chofer_previsto or "")
+        if chofer.strip():
+            return chofer.strip()
     return _actor_display(u)
 
 

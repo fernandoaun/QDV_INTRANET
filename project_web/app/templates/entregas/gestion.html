@@ -540,7 +540,7 @@
       </div>
       <div class="modal-body">
         <p class="mb-0">¿Confirmás que la entrega fue <strong>entregada</strong> al cliente?</p>
-        <p class="small app-text-secondary mt-2 mb-3">Lugar: <strong>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</strong>. Fecha y hora del registro serán las del momento en que confirmes. El responsable se registrará como <strong>{{ nav_user.nombre_completo or nav_user.username }}</strong>.</p>
+        <p class="small app-text-secondary mt-2 mb-3">Lugar: <strong>{% if e.lugar_row %}{{ e.lugar_row.nombre }}{% else %}{{ e.lugar_entrega }}{% endif %}</strong>. Fecha y hora del registro serán las del momento en que confirmes. El responsable se registrará como <strong>{% if nav_user.rol == 'responsable_laboratorio' and (e.chofer_row or e.chofer_previsto) %}{{ e.chofer_row.nombre if e.chofer_row else e.chofer_previsto }}{% else %}{{ nav_user.nombre_completo or nav_user.username }}{% endif %}</strong>.</p>
         <div class="row g-2 align-items-end">
           <div class="col-6">
             <label class="form-label small mb-1">Volumen a descargar</label>
