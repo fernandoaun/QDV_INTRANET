@@ -93,7 +93,7 @@ def test_el_siguiente_operador_recepciona_el_turno_cerrado(app, client, turno_ab
     with app.app_context():
         lab = db.session.query(User).filter_by(username="pt_lucia").one()
         s = db.session.get(ShiftSession, turno_abierto["session_id"])
-        ho = sh.persist_forced_handover({"hypochlorite_stock_liters": "900", "motivo": "olvido", "confirmar": "1"}, lab, s, "2026-10-08T07:00:00")
+        ho = sh.persist_forced_handover({"hypochlorite_stock_liters": "900", "stock_confirmado": "900", "motivo": "olvido", "confirmar": "1"}, lab, s, "2026-10-08T07:00:00")
         hid = int(ho.id)
     _login(client, "pt_op_sig", "x2")
     page = client.get(f"/operacion/turno/recibir/{hid}")
@@ -116,7 +116,7 @@ def _handover_pendiente(app, turno_abierto, stock: str) -> int:
     with app.app_context():
         lab = db.session.query(User).filter_by(username="pt_lucia").one()
         s = db.session.get(ShiftSession, turno_abierto["session_id"])
-        return int(sh.persist_forced_handover({"hypochlorite_stock_liters": stock, "motivo": "x", "confirmar": "1"}, lab, s, "2026-10-08T07:00:00").id)
+        return int(sh.persist_forced_handover({"hypochlorite_stock_liters": stock, "stock_confirmado": stock, "motivo": "x", "confirmar": "1"}, lab, s, "2026-10-08T07:00:00").id)
 
 
 def test_el_entrante_corrige_el_stock_al_recibir(app, client, turno_abierto):
@@ -226,3 +226,34 @@ def test_con_camion_en_el_medio_se_puede_explicar_en_observaciones(app, client, 
         ho = db.session.get(ShiftHandover, hid)
         assert ho.status == "received" and ho.reception_status == "accepted_with_observations"
         assert ho.hypochlorite_stock_liters == 9_500
+
+
+def test_stock_de_cierre_bajo_pide_confirmacion():
+    from app.services import shift_handover_service as sh
+
+    assert sh.stock_de_cierre({"hypochlorite_stock_liters": "9.340"}, "x") == 9340
+    assert sh.stock_de_cierre({"hypochlorite_stock_liters": "26.500"}, "x") == 26500
+    assert sh.stock_de_cierre({"hypochlorite_stock_liters": "0"}, "x") == 0
+    for raw in ("934", "26,5", "17"):
+        with pytest.raises(sh.StockCierreSospechoso):
+            sh.stock_de_cierre({"hypochlorite_stock_liters": raw}, "x")
+    assert sh.stock_de_cierre({"hypochlorite_stock_liters": "934", "stock_confirmado": "934"}, "x") == 934
+    with pytest.raises(sh.StockCierreSospechoso):  # cambió el número: se vuelve a preguntar
+        sh.stock_de_cierre({"hypochlorite_stock_liters": "93", "stock_confirmado": "934"}, "x")
+
+
+def test_cierre_olvidado_con_stock_bajo_vuelve_a_preguntar(app, client, turno_abierto):
+    from app.extensions import db
+    from app.models import ShiftHandover
+
+    _login(client, "pt_lucia", "x3")
+    page = client.get("/operacion/turno/cerrar-olvidado")
+    data = {"csrf_token": _csrf(page.get_data(as_text=True)), "hypochlorite_stock_liters": "934", "motivo": "x", "confirmar": "1"}
+    r = client.post("/operacion/turno/cerrar-olvidado", data=data)
+    html = r.get_data(as_text=True)
+    assert "934 litros" in html and 'name="stock_confirmado" value="934"' in html
+    with app.app_context():
+        assert db.session.query(ShiftHandover).count() == 0
+    client.post("/operacion/turno/cerrar-olvidado", data={**data, "stock_confirmado": "934"})
+    with app.app_context():
+        assert db.session.query(ShiftHandover).one().hypochlorite_stock_liters == 934

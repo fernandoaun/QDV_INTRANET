@@ -57,6 +57,7 @@
       <label class="form-label" for="stockL">Stock de hipoclorito en tanques ahora (L) <span class="text-danger">*</span></label>
       <input class="form-control" id="stockL" name="hypochlorite_stock_liters" type="text" inputmode="decimal" required placeholder="litros"
              value="{{ request.form.get('hypochlorite_stock_liters', '') }}">
+      {% if stock_sospechoso %}<input type="hidden" name="stock_confirmado" value="{{ request.form.get('hypochlorite_stock_liters', '') }}">{% endif %}
       <div class="form-text">Medí el tanque: con este dato se calcula la producción del turno.</div>
     </div>
     <div class="col-md-8">

@@ -473,6 +473,60 @@ def persist_new_open_shift_session(user: User, laboratorist_user_id: int | None)
     db.session.commit()
 
 
+# Debajo de esto casi siempre es un error de tipeo (26,5 por 26.500; 934 por 9.340): se pide confirmarlo.
+STOCK_CIERRE_MINIMO_SIN_CONFIRMAR = 1000.0
+
+
+class StockCierreSospechoso(ValueError):
+    """El stock informado es muy bajo: el formulario vuelve con el número para que lo confirmen o lo corrijan."""
+
+    def __init__(self, litros: float):
+        self.litros = litros
+        super().__init__(
+            f"Pusiste {_litros_exactos(litros)} litros de hipoclorito. ¿Es correcto? Los tanques suelen tener miles de "
+            f"litros: si son, por ejemplo, {_litros(litros * 1000 if litros < 100 else litros * 10)} L, corregí el número. "
+            "Si el número está bien, volvé a confirmar."
+        )
+
+
+def _litros_exactos(v: float) -> str:
+    entero, _, dec = f"{float(v):,.2f}".partition(".")
+    dec = dec.rstrip("0")
+    return entero.replace(",", ".") + (f",{dec}" if dec else "")
+
+
+def parse_litros(raw: Any) -> float | None:
+    """Litros escritos a mano: 9.340 y 9340 son 9340; 26,5 es 26,5; 17.000,5 es 17000,5. None si está vacío."""
+    txt = str(raw or "").strip().replace(" ", "")
+    if not txt:
+        return None
+    if "," in txt:  # 17.000,5 → 17000.5
+        txt = txt.replace(".", "").replace(",", ".")
+    elif txt.count(".") > 1 or (txt.count(".") == 1 and len(txt.split(".")[1]) == 3):
+        txt = txt.replace(".", "")  # 17.000 → 17000 (separador de miles)
+    try:
+        val = float(txt)
+    except ValueError:
+        raise ValueError("El stock de hipoclorito tiene que ser un número de litros.") from None
+    if val < 0 or not math.isfinite(val):
+        raise ValueError("Stock de hipoclorito inválido.")
+    return val
+
+
+def stock_de_cierre(form: Any, msg_vacio: str) -> float:
+    stock_l = parse_litros(form.get("hypochlorite_stock_liters"))
+    if stock_l is None:
+        raise ValueError(msg_vacio)
+    if 0 < stock_l < STOCK_CIERRE_MINIMO_SIN_CONFIRMAR:
+        try:
+            confirmado = parse_litros(form.get("stock_confirmado"))
+        except ValueError:
+            confirmado = None
+        if confirmado is None or abs(confirmado - stock_l) > 1e-9:
+            raise StockCierreSospechoso(stock_l)
+    return stock_l
+
+
 def persist_handover_submission(
     form: Any,
     user: User,
@@ -480,12 +534,7 @@ def persist_handover_submission(
     warn_items: list[WarningItem],
     now_iso: str,
 ) -> None:
-    raw_stock = (form.get("hypochlorite_stock_liters") or "").strip().replace(",", ".")
-    if raw_stock == "":
-        raise ValueError("El stock final de hipoclorito (litros) es obligatorio.")
-    stock_l = float(raw_stock)
-    if stock_l < 0 or not math.isfinite(stock_l):
-        raise ValueError("Stock de hipoclorito inválido.")
+    stock_l = stock_de_cierre(form, "El stock final de hipoclorito (litros) es obligatorio.")
     closing_notes = (form.get("closing_notes") or "").strip()
     for w in warn_items:
         key = f"action_{w.source_type}_{w.source_record_id}_{w.warning_index}"
@@ -545,15 +594,7 @@ def persist_forced_handover(form: Any, actor: User, sess: ShiftSession, now_iso:
         raise ValueError("Ese turno ya no está abierto.")
     if get_pending_handover() is not None:
         raise ValueError("Ya hay una entrega de turno pendiente de recepción.")
-    raw_stock = (form.get("hypochlorite_stock_liters") or "").strip().replace(",", ".")
-    if raw_stock == "":
-        raise ValueError("Indicá el stock de hipoclorito en tanques (litros) medido ahora.")
-    try:
-        stock_l = float(raw_stock)
-    except ValueError:
-        raise ValueError("Stock de hipoclorito inválido.") from None
-    if stock_l < 0 or not math.isfinite(stock_l):
-        raise ValueError("Stock de hipoclorito inválido.")
+    stock_l = stock_de_cierre(form, "Indicá el stock de hipoclorito en tanques (litros) medido ahora.")
     motivo = (form.get("motivo") or "").strip()
     if not motivo:
         raise ValueError("Indicá el motivo del cierre.")
@@ -590,19 +631,12 @@ def _litros(v: float | None) -> str:
 
 def _parse_stock_corregido(raw: Any, informado: float | None) -> float | None:
     """Stock real que pone el entrante; None si no corrige (vacío o igual al informado)."""
-    txt = str(raw or "").strip().replace(" ", "")
-    if not txt:
-        return None
-    if "," in txt:  # 17.000,5 → 17000.5
-        txt = txt.replace(".", "").replace(",", ".")
-    elif txt.count(".") > 1 or (txt.count(".") == 1 and len(txt.split(".")[1]) == 3):
-        txt = txt.replace(".", "")  # 17.000 → 17000 (separador de miles)
     try:
-        val = float(txt)
+        val = parse_litros(raw)
     except ValueError as exc:
-        raise ValueError("El stock corregido tiene que ser un número de litros.") from exc
-    if val < 0 or not math.isfinite(val):
-        raise ValueError("Stock corregido inválido.")
+        raise ValueError(str(exc).replace("El stock de hipoclorito", "El stock corregido")) from exc
+    if val is None:
+        return None
     if informado is not None and abs(val - float(informado)) < 0.5:
         return None
     return val

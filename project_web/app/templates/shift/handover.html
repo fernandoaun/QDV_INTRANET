@@ -84,7 +84,7 @@
         <div class="small text-muted mb-1">{{ w.record_label }}</div>
         <div class="fw-semibold">{{ w.warning_message }}</div>
         <label class="form-label small mt-2">Acción tomada <span class="text-danger">*</span></label>
-        <textarea class="form-control" name="action_{{ w.source_type }}_{{ w.source_record_id }}_{{ w.warning_index }}" rows="2" required></textarea>
+        <textarea class="form-control" name="action_{{ w.source_type }}_{{ w.source_record_id }}_{{ w.warning_index }}" rows="2" required>{{ request.form.get('action_' ~ w.source_type ~ '_' ~ w.source_record_id ~ '_' ~ w.warning_index, '') }}</textarea>
       </div>
       {% endfor %}
       {% else %}
@@ -98,11 +98,14 @@
     <div class="app-card-body row g-2">
       <div class="col-md-4">
         <label class="form-label">Stock final hipoclorito (L) <span class="text-danger">*</span></label>
-        <input class="form-control" name="hypochlorite_stock_liters" type="text" inputmode="decimal" required placeholder="litros">
+        <input class="form-control" name="hypochlorite_stock_liters" type="text" inputmode="decimal" required placeholder="litros"
+               value="{{ request.form.get('hypochlorite_stock_liters', '') }}">
+        {% if stock_sospechoso %}<input type="hidden" name="stock_confirmado" value="{{ request.form.get('hypochlorite_stock_liters', '') }}">{% endif %}
       </div>
       <div class="col-md-8">
         <label class="form-label">Observaciones generales (opcional)</label>
-        <input class="form-control" name="closing_notes" placeholder="Novedades de planta, equipos, etc.">
+        <input class="form-control" name="closing_notes" placeholder="Novedades de planta, equipos, etc."
+               value="{{ request.form.get('closing_notes', '') }}">
       </div>
     </div>
   </div>

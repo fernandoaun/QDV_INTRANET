@@ -259,13 +259,15 @@ def handover_form():
 
     plant_stops = plant_stop_svc.list_stops_in_interval(sess.started_at_iso, now_iso)
     from_logout = (request.args.get("from_logout") or request.form.get("from_logout") or "").strip() == "1"
+    stock_sospechoso = False
 
     if request.method == "POST":
         try:
             sh.persist_handover_submission(request.form, u, sess, warn_items, now_iso)
         except ValueError as e:
             db.session.rollback()
-            flash(str(e), "danger")
+            stock_sospechoso = isinstance(e, sh.StockCierreSospechoso)
+            flash(str(e), "warning" if stock_sospechoso else "danger")
         else:
             flash("Entrega de turno registrada. El próximo operador debe recepcionarla.", "success")
             do_logout = (request.form.get("after_logout") or "").strip() == "1"
@@ -281,6 +283,7 @@ def handover_form():
         warn_items=warn_items,
         plant_stops=plant_stops,
         from_logout=from_logout,
+        stock_sospechoso=stock_sospechoso,
     )
 
 
@@ -346,12 +349,14 @@ def force_close_shift():
         flash("No hay ningún turno abierto.", "info")
         return redirect(url_for("main.dashboard"))
     now_iso = sh.now_local_iso()
+    stock_sospechoso = False
     if request.method == "POST":
         try:
             sh.persist_forced_handover(request.form, u, sess, now_iso)
         except ValueError as e:
             db.session.rollback()
-            flash(str(e), "danger")
+            stock_sospechoso = isinstance(e, sh.StockCierreSospechoso)
+            flash(str(e), "warning" if stock_sospechoso else "danger")
         else:
             flash(
                 f"Turno de {sh.format_shift_operator_display(sess)} cerrado. "
@@ -367,6 +372,7 @@ def force_close_shift():
         operador=sh.format_shift_operator_display(sess),
         consumos=sh.consumos_en_intervalo(sess.started_at_iso, now_iso),
         plant_stops=plant_stop_svc.list_stops_in_interval(sess.started_at_iso, now_iso),
+        stock_sospechoso=stock_sospechoso,
     )
 
 
