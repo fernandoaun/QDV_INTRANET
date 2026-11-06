@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+{% import "desarrollo/_hoja.html" as hj with context %}
+{% block title %}Desarrollo N° {{ d.numero }} · QDV{% endblock %}
+{% block extra_head %}{{ hj.estilos() }}{% endblock %}
+{% block content %}
+{% set f = dd_firmas(d) %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Desarrollo N° {{ d.numero }} — {{ d.producto_proceso }}</h1>
+    <div class="text-muted small">QDV-PO-03 Diseño y desarrollo · registros 03_01 a 03_03 · {{ dd_estado(d) }}
+      · Evidencia del sistema del {{ fecha_dmy(ev.desde) }} al {{ fecha_dmy(ev.hasta) }}{% if not d.prueba_hasta %} (en curso){% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="ddForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desarrollo.ver', desarrollo_id=d.id) }}">Cancelar</a>
+    {% else %}
+    {% for rol in firmables %}<button type="submit" form="ddFirmar_{{ rol }}" class="btn btn-success btn-sm"><i class="bi bi-pen me-1"></i>Firmar como {{ dd_firmantes[rol] }}</button>{% endfor %}
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('desarrollo.ver', desarrollo_id=d.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('desarrollo.cambio_nuevo', desarrollo_id=d.id) }}">Nuevo cambio (03_04)</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desarrollo.ver', desarrollo_id=d.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desarrollo.hub') }}">Todos los desarrollos</a>
+  </div>
+</div>
+
+{% if editar %}
+<div class="alert alert-info small">Lo que está en <span class="dd-auto">azul</span> lo completa el sistema con los registros del período de pruebas. Escribí solo si querés reemplazarlo. Al guardar cambios, las firmas que hubiera se anulan.</div>
+{% elif faltan and not f %}
+<div class="alert alert-warning small"><strong>Para firmar la liberación falta completar:</strong> {{ faltan | join('; ') }}.</div>
+{% endif %}
+{% if not ev.hay_datos %}<div class="alert alert-secondary small">No hay registros de producción ni de laboratorio en el período de pruebas: lo que no se complete a mano queda «Pendiente».</div>{% endif %}
+
+<form id="ddForm" method="post">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="dd-scroll"><div class="dd-print">
+
+{# ================================================================ 03_01 #}
+<div class="dd-sheet app-card">
+  {{ hj.encabezado('01', dd_registros['01']) }}
+  <table class="dd-t">
+    <colgroup><col style="width:30%"><col style="width:30%"><col style="width:40%"></colgroup>
+    <tr>
+      <td><b>Nº de desarrollo:</b> {{ d.numero }}</td>
+      <td><b>Fecha de inicio:</b> {% if editar %}<input type="text" name="fecha_inicio" value="{{ fecha_dmy(d.fecha_inicio) }}" required>{% else %}{{ fecha_dmy(d.fecha_inicio) }}{% endif %}</td>
+      <td><b>Tipo:</b> {% if editar %}{{ hj.selector('tipo', dd_tipos, d.tipo) }}{% else %}{% for t in dd_tipos %}{{ hj.marca(d.tipo == t) }} {{ t }}&nbsp;&nbsp;{% endfor %}{% endif %}</td>
+    </tr>
+    <tr><td colspan="3"><b>Producto / proceso:</b> {% if editar %}<input type="text" name="producto_proceso" value="{{ d.producto_proceso }}" required>{% else %}{{ d.producto_proceso }}{% endif %}</td></tr>
+    <tr><td colspan="3"><b>Motivo / necesidad:</b> {% if editar %}<textarea name="motivo" required>{{ d.motivo }}</textarea>{% else %}<div style="white-space:pre-line">{{ d.motivo }}</div>{% endif %}</td></tr>
+    <tr><td colspan="3"><b>Período de pruebas (evidencia del sistema):</b>
+      {% if editar %}desde <input type="text" name="prueba_desde" value="{{ fecha_dmy(d.prueba_desde) }}" style="width:8rem" required> hasta <input type="text" name="prueba_hasta" value="{{ fecha_dmy(d.prueba_hasta) if d.prueba_hasta else '' }}" placeholder="en curso" style="width:8rem">
+      {% else %}{{ fecha_dmy(ev.desde) }} al {{ fecha_dmy(ev.hasta) }}{% if ev.lotes %} · Lotes de producción: {{ ev.lotes | join(', ') }}{% endif %}{% endif %}</td></tr>
+  </table>
+
+  <div class="dd-sec">Planificación</div>
+  <table class="dd-t">
+    <colgroup><col style="width:6%"><col style="width:26%"><col style="width:20%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup>
+    <tr><th>Etapa</th><th>Actividad</th><th>Responsable</th><th>Fecha prevista</th><th>Fecha realizada</th><th>Estado</th></tr>
+    {% for etapa in dd_etapas %}{% set e = h.planificacion[loop.index0] if h.planificacion else {} %}{% set i = loop.index0 %}
+    <tr>
+      <td class="c">{{ loop.index }}</td><td>{{ etapa }}</td>
+      {% if editar %}
+      <td>{{ hj.campo('etapa_%d_responsable' % i, e.responsable) }}</td>
+      <td>{{ hj.campo('etapa_%d_fecha_prevista' % i, e.fecha_prevista) }}</td>
+      <td>{{ hj.campo('etapa_%d_fecha_realizada' % i, e.fecha_realizada) }}</td>
+      <td>{{ hj.selector('etapa_%d_estado' % i, dd_estados_etapa, e.estado) }}</td>
+      {% else %}
+      <td>{{ hj.valor(e.responsable) }}</td><td class="c">{{ hj.valor(e.fecha_prevista) }}</td>
+      <td class="c">{% if e.fecha_realizada %}{{ e.fecha_realizada }}{% elif e.estado in ('Pendiente', 'En curso', 'No aplica') %}—{% else %}{{ hj.valor('') }}{% endif %}</td>
+      <td class="c">{{ hj.valor(e.estado) }}</td>
+      {% endif %}
+    </tr>
+    {% endfor %}
+  </table>
+
+  <div class="dd-sec">Recursos necesarios</div>
+  <table class="dd-t">
+    <colgroup><col style="width:26%"><col style="width:74%"></colgroup>
+    {% for k in dd_recursos %}
+    <tr><td><b>{{ dd_recursos_labels[k] }}</b></td>
+      <td>{% if editar %}{{ hj.campo('recurso_' ~ k, h.recursos[k] if h.recursos else '', ev.recursos[k], largo=True) }}{% else %}{{ hj.valor(h.recursos[k] if h.recursos else '', ev.recursos[k]) }}{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  <table class="dd-t">
+    <tr><th>CRITERIOS DE ACEPTACIÓN</th></tr>
+    <tr><td>{% if editar %}{{ hj.campo('criterios', h.criterios, largo=True) }}{% else %}{{ hj.valor(h.criterios) }}{% endif %}</td></tr>
+    <tr><th>OBSERVACIONES</th></tr>
+    <tr><td>{% if editar %}{{ hj.campo('observaciones_01', h.observaciones_01, largo=True) }}{% else %}{{ h.observaciones_01 or 'Sin observaciones.' }}{% endif %}</td></tr>
+  </table>
+  <table class="dd-firmas"><tr><td>{{ dd_firma_texto(f.planta) }}<div class="linea">Responsable de Planta · fecha</div></td></tr></table>
+</div>
+
+{# ================================================================ 03_02 #}
+<div class="dd-sheet app-card">
+  {{ hj.encabezado('02', dd_registros['02']) }}
+  <table class="dd-t">
+    <tr><td><b>Nº de desarrollo:</b> {{ d.numero }}</td><td><b>Producto / proceso:</b> {{ d.producto_proceso }}</td><td><b>Fecha:</b> {{ fecha_dmy(d.fecha_inicio) }}</td></tr>
+  </table>
+  <div class="dd-sec">A. ENTRADAS</div>
+  <div class="dd-sec">Requisitos del producto</div>
+  <table class="dd-t">
+    <colgroup><col style="width:20%"><col style="width:32%"><col style="width:36%"><col style="width:12%"></colgroup>
+    <tr><th>Requisito</th><th>Especificación / criterio</th><th>Fuente</th><th>Conforme</th></tr>
+    {% for p in dd_producto %}{% set i = loop.index0 %}{% set m = h.producto[i] if h.producto else {} %}{% set r = ev.resultados[i] %}
+    <tr><td>{{ p.requisito }}</td>
+      {% if editar %}
+      <td>{{ hj.campo('producto_%d_especificacion' % i, m.especificacion, p.especificacion) }}</td>
+      <td>{{ hj.campo('producto_%d_fuente' % i, m.fuente, 'Especificación vigente (PO-03 5.3)' if p.especificacion else '') }}</td>
+      <td class="c">{{ hj.check('producto_%d_conforme' % i, m.conforme) }}</td>
+      {% else %}
+      <td>{{ hj.valor(m.especificacion, p.especificacion or (no_aplica if p.requisito == 'Otros' else '')) }}</td>
+      <td>{{ hj.valor(m.fuente, 'Especificación vigente (PO-03 5.3)' if p.especificacion else (no_aplica if p.requisito == 'Otros' else '')) }}</td>
+      <td class="c">{{ hj.marca(m.conforme) }}</td>
+      {% endif %}</tr>
+    {% endfor %}
+  </table>
+  <div class="dd-sec">Materias primas / insumos</div>
+  <table class="dd-t">
+    <colgroup><col style="width:20%"><col style="width:30%"><col style="width:38%"><col style="width:12%"></colgroup>
+    <tr><th>Materia prima / insumo</th><th>Requisito / característica</th><th>Fuente</th><th>Conforme</th></tr>
+    {% for nombre, _ in dd_materias_primas %}{% set i = loop.index0 %}{% set m = h.materias_primas[i] if h.materias_primas else {} %}{% set a = ev.materias_primas[i] %}
+    <tr><td>{{ nombre }}</td>
+      {% if editar %}
+      <td>{{ hj.campo('mp_%d_requisito' % i, m.requisito) }}</td>
+      <td>{{ hj.campo('mp_%d_fuente' % i, m.fuente, a.fuente) }}</td>
+      <td class="c">{{ hj.check('mp_%d_conforme' % i, m.conforme) }}</td>
+      {% else %}
+      <td>{{ hj.valor(m.requisito, no_aplica if nombre == 'Otros' else '') }}</td>
+      <td>{{ hj.valor(m.fuente, a.fuente or (no_aplica if nombre == 'Otros' else '')) }}</td>
+      <td class="c">{{ hj.marca(m.conforme) }}</td>
+      {% endif %}</tr>
+    {% endfor %}
+  </table>
+  <div class="dd-sec">Requisitos del proceso</div>
+  <table class="dd-t">
+    <colgroup><col style="width:22%"><col style="width:52%"><col style="width:26%"></colgroup>
+    <tr><th>Requisito / parámetro</th><th>Valor / criterio</th><th>Fuente</th></tr>
+    {% for nombre in dd_proceso %}{% set i = loop.index0 %}{% set m = h.proceso[i] if h.proceso else {} %}{% set a = ev.proceso[nombre] %}
+    <tr><td>{{ nombre }}</td>
+      {% if editar %}
+      <td>{{ hj.campo('proceso_%d_valor' % i, m.valor, a) }}</td>
+      <td>{{ hj.campo('proceso_%d_fuente' % i, m.fuente, 'Registros de producción del Software QDV' if a else '') }}</td>
+      {% else %}
+      <td>{{ hj.valor(m.valor, a or (no_aplica if nombre == 'Otros' else '')) }}</td>
+      <td>{{ hj.valor(m.fuente, 'Registros de producción del Software QDV' if a else (no_aplica if nombre == 'Otros' else '')) }}</td>
+      {% endif %}</tr>
+    {% endfor %}
+  </table>
+  <div class="dd-sec">Otros requisitos</div>
+  <table class="dd-t"><tr><td>
+    {% for o in dd_otros_requisitos %}{% if editar %}<label class="me-3">{{ hj.check('otro_' ~ o, o in (h.otros_requisitos or [])) }} {{ o }}</label>{% else %}{{ hj.marca(o in (h.otros_requisitos or [])) }} {{ o }}&nbsp;&nbsp;{% endif %}{% endfor %}
+    <div class="mt-1"><b>Detalle:</b> {% if editar %}{{ hj.campo('otros_detalle', h.otros_detalle, largo=True) }}{% else %}{{ h.otros_detalle or ('Sin otros requisitos.' if not h.otros_requisitos else '') }}{% if h.otros_requisitos and not h.otros_detalle %}{{ hj.valor('') }}{% endif %}{% endif %}</div>
+  </td></tr></table>
+
+  <div class="dd-sec">B. SALIDAS</div>
+  <table class="dd-t">
+    <colgroup><col style="width:32%"><col style="width:52%"><col style="width:16%"></colgroup>
+    <tr><th>Salida</th><th>Documento / especificación asociada</th><th>Aprobada</th></tr>
+    {% for s in dd_salidas %}{% set i = loop.index0 %}{% set m = h.salidas[i] if h.salidas else {} %}
+    <tr><td>{{ s }}</td>
+      {% if editar %}<td>{{ hj.campo('salida_%d_documento' % i, m.documento) }}</td><td class="c">{{ hj.check('salida_%d_aprobada' % i, m.aprobada) }}</td>
+      {% else %}<td>{{ hj.valor(m.documento, no_aplica if s == 'Otros' else '') }}</td><td class="c">{{ hj.marca(m.aprobada) }}</td>{% endif %}</tr>
+    {% endfor %}
+  </table>
+  <table class="dd-t">
+    <tr><th>RESULTADO FINAL</th></tr>
+    <tr><td>{% if editar %}{{ hj.campo('resultado_final', h.resultado_final, largo=True) }}{% else %}{{ hj.valor(h.resultado_final) }}{% endif %}</td></tr>
+    <tr><td><b>¿Las salidas cumplen las entradas?</b> {% if editar %}{{ hj.selector('salidas_cumplen', dd_si_no, h.salidas_cumplen) }}{% else %}{% for o in dd_si_no %}{{ hj.marca(h.salidas_cumplen == o) }} {{ o }}&nbsp;&nbsp;{% endfor %}{% endif %}</td></tr>
+    <tr><td><b>Observaciones:</b> {% if editar %}{{ hj.campo('observaciones_02', h.observaciones_02, largo=True) }}{% else %}{{ h.observaciones_02 or 'Sin observaciones.' }}{% endif %}</td></tr>
+  </table>
+</div>
+
+{# ================================================================ 03_03 #}
+<div class="dd-sheet app-card">
+  {{ hj.encabezado('03', dd_registros['03']) }}
+  <table class="dd-t"><tr><td><b>Nº de desarrollo:</b> {{ d.numero }}</td><td><b>Producto / proceso:</b> {{ d.producto_proceso }}</td></tr></table>
+  <div class="dd-sec">A. REVISIÓN</div>
+  <table class="dd-t">
+    <colgroup><col style="width:34%"><col style="width:16%"><col style="width:50%"></colgroup>
+    <tr><th>Aspecto</th><th>Conforme</th><th>Observaciones</th></tr>
+    {% for a in dd_revision_aspectos %}{% set i = loop.index0 %}{% set m = h.revision[i] if h.revision else {} %}
+    <tr><td>{{ a }}</td>
+      {% if editar %}<td>{{ hj.selector('rev_%d_conforme' % i, dd_si_no, m.conforme) }}</td><td>{{ hj.campo('rev_%d_observaciones' % i, m.observaciones) }}</td>
+      {% else %}<td class="c">{% if m.conforme %}{% for o in dd_si_no %}{{ hj.marca(m.conforme == o) }} {{ o }} {% endfor %}{% else %}{{ hj.valor('', no_aplica if a == 'Otros' else '') }}{% endif %}</td>
+      <td>{{ m.observaciones or '—' }}</td>{% endif %}</tr>
+    {% endfor %}
+  </table>
+
+  <div class="dd-sec">B. VERIFICACIÓN</div>
+  <table class="dd-t"><tr><td><b>Método utilizado:</b>
+    {% for mt in dd_metodos %}{% if editar %}<label class="me-3">{{ hj.check('metodo_' ~ mt, mt in (h.metodos or [])) }} {{ mt }}</label>{% else %}{{ hj.marca(mt in (h.metodos or [])) }} {{ mt }}&nbsp;&nbsp;{% endif %}{% endfor %}
+    {% if editar %}<div class="mt-1">Otro: {{ hj.campo('metodo_otro', h.metodo_otro) }}</div>{% else %}{{ hj.marca(h.metodo_otro) }} Otro: {{ h.metodo_otro or '—' }}{% endif %}
+  </td></tr></table>
+  <table class="dd-t">
+    <colgroup><col style="width:16%"><col style="width:24%"><col style="width:46%"><col style="width:14%"></colgroup>
+    <tr><th>Característica</th><th>Especificación</th><th>Resultado obtenido</th><th>Conforme</th></tr>
+    {% for p in dd_producto if p.requisito != 'Presentación' %}{% set i = loop.index0 if loop.index0 < 3 else 4 %}{% set m = h.verificacion[i] if h.verificacion else {} %}{% set r = ev.resultados[i] %}
+    {% set conf_auto = ('Sí' if r.conforme else 'No') if r.conforme is not none else '' %}
+    <tr><td>{{ p.requisito }}</td><td>{{ (h.producto[i].especificacion if h.producto and h.producto[i].especificacion else p.especificacion) or no_aplica }}</td>
+      {% if editar %}<td>{{ hj.campo('verif_%d_resultado' % i, m.resultado, r.resultado) }}</td><td>{{ hj.selector('verif_%d_conforme' % i, dd_si_no, m.conforme) }}</td>
+      {% else %}<td>{{ hj.valor(m.resultado, r.resultado or (no_aplica if p.requisito == 'Otros' else '')) }}</td>
+      <td class="c">{% set cf = m.conforme or conf_auto %}{% if cf %}{{ hj.marca(cf == 'Sí') }} {{ cf }}{% else %}{{ hj.valor('', no_aplica if p.requisito == 'Otros' else '') }}{% endif %}</td>{% endif %}</tr>
+    {% endfor %}
+  </table>
+  <table class="dd-t">
+    <tr><td><b>Registro / informe asociado Nº:</b> {% if editar %}{{ hj.campo('informe', h.informe, ('Lotes ' ~ ev.lotes | join(', ')) if ev.lotes else '') }}{% else %}{{ hj.valor(h.informe, ('Lotes de producción ' ~ ev.lotes | join(', ')) if ev.lotes else '') }}{% endif %}</td></tr>
+    <tr><td><b>Resultado de la verificación:</b> {% if editar %}{{ hj.selector('verificacion_resultado', ('Conforme', 'No conforme'), h.verificacion_resultado) }}{% else %}{% for o in ('Conforme', 'No conforme') %}{{ hj.marca(h.verificacion_resultado == o) }} {{ o }}&nbsp;&nbsp;{% endfor %}{% if not h.verificacion_resultado %}{{ hj.valor('') }}{% endif %}{% endif %}</td></tr>
+    <tr><td><b>Observaciones:</b> {% if editar %}{{ hj.campo('observaciones_verif', h.observaciones_verif, largo=True) }}{% else %}{{ h.observaciones_verif or 'Sin observaciones.' }}{% endif %}</td></tr>
+  </table>
+
+  <div class="dd-sec">C. VALIDACIÓN</div>
+  <table class="dd-t">
+    <tr><td><b>¿Requiere validación?</b> {% if editar %}{{ hj.selector('requiere_validacion', dd_si_no, h.requiere_validacion) }}{% else %}{% for o in dd_si_no %}{{ hj.marca(h.requiere_validacion == o) }} {{ o }}&nbsp;&nbsp;{% endfor %}{% if not h.requiere_validacion %}{{ hj.valor('') }}{% endif %}{% endif %}</td></tr>
+    <tr><td><b>Justificación:</b> {% if editar %}{{ hj.campo('justificacion', h.justificacion, largo=True) }}{% else %}{{ hj.valor(h.justificacion, no_aplica if h.requiere_validacion == 'Sí' else '') }}{% endif %}</td></tr>
+    <tr><td><b>Método utilizado:</b> {% if editar %}{{ hj.campo('metodo_validacion', h.metodo_validacion, largo=True) }}{% else %}{{ hj.valor(h.metodo_validacion, no_aplica if h.requiere_validacion == 'No' else '') }}{% endif %}</td></tr>
+    <tr><td><b>Resultado:</b> {% if editar %}{{ hj.campo('resultado_validacion', h.resultado_validacion, largo=True) }}{% else %}{{ hj.valor(h.resultado_validacion, no_aplica if h.requiere_validacion == 'No' else '') }}{% endif %}</td></tr>
+    <tr><td><b>¿Cumple el uso previsto?</b> {% if editar %}{{ hj.selector('cumple_uso', dd_si_no, h.cumple_uso) }}{% elif h.requiere_validacion == 'No' %}{{ no_aplica }}{% else %}{% for o in dd_si_no %}{{ hj.marca(h.cumple_uso == o) }} {{ o }}&nbsp;&nbsp;{% endfor %}{% if not h.cumple_uso %}{{ hj.valor('') }}{% endif %}{% endif %}</td></tr>
+  </table>
+
+  <div class="dd-sec">D. APROBACIÓN Y LIBERACIÓN</div>
+  <table class="dd-t">
+    <tr><td><b>Resultado final:</b> {% if editar %}{{ hj.selector('resultado_aprobacion', dd_resultados_aprobacion, h.resultado_aprobacion) }}{% else %}{% for o in dd_resultados_aprobacion %}{{ hj.marca(h.resultado_aprobacion == o) }} {{ o }}&nbsp;&nbsp;{% endfor %}{% if not h.resultado_aprobacion %}{{ hj.valor('') }}{% endif %}{% endif %}</td></tr>
+    <tr><td><b>Observaciones:</b> {% if editar %}{{ hj.campo('observaciones_aprobacion', h.observaciones_aprobacion, largo=True) }}{% else %}{{ h.observaciones_aprobacion or 'Sin observaciones.' }}{% endif %}</td></tr>
+    <tr><td><b>Fecha de liberación:</b> {% if editar %}{{ hj.campo('fecha_liberacion', h.fecha_liberacion) }}{% else %}{{ hj.valor(h.fecha_liberacion) }}{% endif %}</td></tr>
+  </table>
+  <table class="dd-firmas"><tr>
+    {% for rol, label in dd_firmantes.items() %}<td style="width:33%">{{ dd_firma_texto(f[rol]) if f[rol] else ('Pendiente de firma' if rol != 'gerencia' else 'Cuando corresponda') }}<div class="linea">{{ label }}{% if rol == 'gerencia' %}, cuando corresponda{% endif %}</div></td>{% endfor %}
+  </tr></table>
+</div>
+
+</div></div>
+</form>
+
+{% for rol in firmables %}<form id="ddFirmar_{{ rol }}" method="post" action="{{ url_for('desarrollo.firmar', desarrollo_id=d.id, rol=rol) }}">{% include "_csrf.html" %}</form>{% endfor %}
+
+{% if cambios_d %}
+<div class="app-card mt-3">
+  <div class="app-card-header">Cambios de este desarrollo (QDV-RG-PO-03_04)</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>N°</th><th>Fecha</th><th>Descripción</th><th>Resultado</th></tr></thead>
+    <tbody>{% for c in cambios_d %}{% set cd = dd_datos(c) %}
+      <tr><td><a href="{{ url_for('desarrollo.cambio_ver', cambio_id=c.id) }}">{{ c.numero }}</a></td><td>{{ fecha_dmy(c.fecha) }}</td><td>{{ cd.descripcion }}</td><td>{{ cd.resultado }}</td></tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+
+{% if editar and es_admin %}
+<form class="mt-3" method="post" action="{{ url_for('desarrollo.baja', desarrollo_id=d.id) }}" onsubmit="return confirm('¿Dar de baja este desarrollo? Queda en el historial.');">
+  {% include "_csrf.html" %}<button class="btn btn-outline-danger btn-sm">Dar de baja el desarrollo</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial</div>
+  <div class="table-responsive"><table class="table table-sm mb-0">
+    <thead><tr><th>Fecha</th><th>Usuario</th><th>Detalle</th></tr></thead>
+    <tbody>{% for x in historial %}<tr><td class="small text-nowrap">{{ fecha_local(x.created_at) }}</td><td class="small">{{ x.user.username if x.user else '—' }}</td><td class="small">{{ x.detalle }}</td></tr>
+    {% else %}<tr><td colspan="3" class="text-center text-muted">Sin movimientos.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endif %}
+{% endblock %}

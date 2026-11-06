@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Checklists de equipos · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Checklists de equipos</h1>
+    <div class="text-muted">Inspecciones de cada equipo (registros del PO-01), firmadas en el sistema.</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.equipos') }}">Equipos</a>
+  </div>
+</div>
+
+<div class="app-card mb-4">
+  <div class="app-card-header">Checklists por equipo</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Registro</th><th>Checklist</th><th>Equipo</th><th>Ítems</th><th></th></tr></thead>
+      <tbody>
+        {% for c in checklists %}
+        <tr>
+          <td class="text-nowrap">{{ c.codigo }}</td>
+          <td>{{ c.titulo }}</td>
+          <td><a href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=c.equipo_id) }}">{{ c.equipo.nombre_equipo }}</a></td>
+          <td>{{ ck_items(c) | length }}</td>
+          <td class="text-end">{% if puede_cargar %}<a class="btn btn-sm btn-primary" href="{{ url_for('mantenimiento.checklist_nuevo', equipo_id=c.equipo_id) }}">Nuevo checklist</a>{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Ningún equipo tiene checklist todavía.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="app-card-header">Checklists realizados</div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>Registro</th><th>Equipo</th><th>Resultado</th><th>Firmas</th></tr></thead>
+      <tbody>
+        {% for r in registros %}
+        {% set malos = ck_mal_estado(r) %}
+        <tr>
+          <td class="text-nowrap"><a href="{{ url_for('mantenimiento.checklist_ver', registro_id=r.id) }}">{{ fecha_dmy(r.fecha) }}</a></td>
+          <td class="text-nowrap">{{ r.checklist.codigo }} N° {{ r.numero }}</td>
+          <td>{{ r.checklist.equipo.nombre_equipo }}</td>
+          <td>{% if malos %}<span class="text-danger">{{ malos | length }} en mal estado</span>{% else %}Todo en buen estado{% endif %}</td>
+          <td>{% if r.planta_firma_at %}Completas{% else %}Falta Responsable de Planta{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Todavía no hay checklists realizados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

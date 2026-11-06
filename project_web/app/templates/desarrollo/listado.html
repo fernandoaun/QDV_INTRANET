@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Diseño y desarrollo · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Diseño y desarrollo de producción</h1>
+    <div class="text-muted small">QDV-PO-03 · registros QDV-RG-PO-03_01 a 03_04</div>
+  </div>
+  <div class="app-page-actions">{% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('desarrollo.nuevo') }}">Nuevo desarrollo</a>{% endif %}</div>
+</div>
+<div class="app-card mb-4">
+  <div class="app-card-header">Desarrollos (03_01 a 03_03)</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>N°</th><th>Inicio</th><th>Producto / proceso</th><th>Tipo</th><th>Estado</th></tr></thead>
+    <tbody>{% for d in desarrollos %}
+      <tr><td><a href="{{ url_for('desarrollo.ver', desarrollo_id=d.id) }}">{{ d.numero }}</a></td><td>{{ fecha_dmy(d.fecha_inicio) }}</td>
+        <td>{{ d.producto_proceso }}</td><td>{{ d.tipo }}</td><td>{{ dd_estado(d) }}</td></tr>
+    {% else %}<tr><td colspan="5" class="text-center text-muted py-3">Todavía no hay desarrollos.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+<div class="app-card">
+  <div class="app-card-header">Cambios de diseño y desarrollo (03_04)</div>
+  <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+    <thead><tr><th>N°</th><th>Fecha</th><th>Desarrollo</th><th>Descripción</th><th>Resultado</th></tr></thead>
+    <tbody>{% for c in cambios %}{% set cd = dd_datos(c) %}
+      <tr><td><a href="{{ url_for('desarrollo.cambio_ver', cambio_id=c.id) }}">{{ c.numero }}</a></td><td>{{ fecha_dmy(c.fecha) }}</td>
+        <td>N° {{ c.desarrollo.numero }}</td><td>{{ cd.descripcion }}</td><td>{{ cd.resultado }}</td></tr>
+    {% else %}<tr><td colspan="5" class="text-center text-muted py-3">Todavía no hay cambios.</td></tr>{% endfor %}</tbody></table></div>
+</div>
+{% endblock %}

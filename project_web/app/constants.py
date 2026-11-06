@@ -152,6 +152,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "mantenimiento.predictivo",
         "filled_endpoint": "mantenimiento.predictivo",
     },
+    "mant_checklists": {
+        "label": "Checklists de equipos",
+        "blank_endpoint": "mantenimiento.checklists",
+        "filled_endpoint": "mantenimiento.checklists",
+    },
     "plan_mantenimiento": {
         "label": "Plan de mantenimiento",
         "blank_endpoint": "planificacion.plan_mantenimiento_en_blanco",
@@ -166,6 +171,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "label": "Plan de acción",
         "blank_endpoint": "plan_accion.en_blanco",
         "filled_endpoint": "plan_accion.hub",
+    },
+    "desarrollo_produccion": {
+        "label": "Diseño y desarrollo de producción",
+        "blank_endpoint": "desarrollo.hub",
+        "filled_endpoint": "desarrollo.hub",
     },
     "solicitud_cambio": {
         "label": "Solicitudes de cambio",

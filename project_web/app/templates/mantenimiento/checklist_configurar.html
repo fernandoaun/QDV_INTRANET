@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Checklist de {{ equipo.nombre_equipo }} · Mantenimiento{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Checklist de {{ equipo.nombre_equipo }}</h1>
+    <div class="text-muted">Lo que se revisa en cada inspección del equipo (registro del PO-01).</div>
+  </div>
+  <div class="app-page-actions">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=equipo.id) }}">Equipo</a>
+  </div>
+</div>
+<form method="post" class="app-card">
+  {% include "_csrf.html" %}
+  <div class="app-card-body row g-3">
+    <div class="col-md-4">
+      <label class="form-label" for="ckCodigo">Código del registro</label>
+      <input class="form-control" id="ckCodigo" name="codigo" required maxlength="64" placeholder="QDV-RG-PO-01_07"
+             value="{{ request.form.get('codigo', checklist.codigo if checklist else '') }}">
+    </div>
+    <div class="col-md-8">
+      <label class="form-label" for="ckTitulo">Título</label>
+      <input class="form-control" id="ckTitulo" name="titulo" required maxlength="255" placeholder="Check list de compresor de aire"
+             value="{{ request.form.get('titulo', checklist.titulo if checklist else '') }}">
+    </div>
+    <div class="col-12">
+      <label class="form-label" for="ckItems">Ítems a inspeccionar (uno por renglón)</label>
+      <textarea class="form-control" id="ckItems" name="items" rows="14" required>{{ request.form.get('items', ck_items(checklist) | join('\n')) }}</textarea>
+      <div class="form-text">Cambiar los ítems no modifica los checklists ya realizados: cada uno guarda los ítems que tenía.</div>
+    </div>
+    <div class="col-12"><button class="btn btn-primary" type="submit">Guardar checklist</button></div>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Nuevo desarrollo · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Nuevo desarrollo de producción</h1>
+    <div class="text-muted small">QDV-PO-03 Diseño y desarrollo. Con estos datos se abren los registros 03_01 a 03_03; lo que el sistema ya registró en el período de pruebas se completa solo.</div>
+  </div>
+  <div class="app-page-actions"><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desarrollo.hub') }}">Cancelar</a></div>
+</div>
+<form method="post" class="app-card">
+  {% include "_csrf.html" %}
+  <div class="app-card-body row g-3">
+    <div class="col-md-3"><label class="form-label" for="ddFecha">Fecha de inicio</label>
+      <input class="form-control" id="ddFecha" name="fecha_inicio" placeholder="dd/mm/aaaa" required value="{{ request.form.get('fecha_inicio', fecha_dmy(hoy)) }}"></div>
+    <div class="col-md-3"><label class="form-label" for="ddTipo">Tipo</label>
+      <select class="form-select" id="ddTipo" name="tipo" required><option value=""></option>{% for t in dd_tipos %}<option{% if request.form.get('tipo') == t %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="col-md-6"><label class="form-label" for="ddProd">Producto / proceso</label>
+      <input class="form-control" id="ddProd" name="producto_proceso" required maxlength="255" value="{{ request.form.get('producto_proceso', '') }}"></div>
+    <div class="col-12"><label class="form-label" for="ddMotivo">Motivo / necesidad</label>
+      <textarea class="form-control" id="ddMotivo" name="motivo" rows="3" required>{{ request.form.get('motivo', '') }}</textarea></div>
+    <div class="col-md-3"><label class="form-label" for="ddDesde">Período de pruebas desde</label>
+      <input class="form-control" id="ddDesde" name="prueba_desde" placeholder="dd/mm/aaaa" required value="{{ request.form.get('prueba_desde', fecha_dmy(hoy)) }}"></div>
+    <div class="col-md-3"><label class="form-label" for="ddHasta">Hasta</label>
+      <input class="form-control" id="ddHasta" name="prueba_hasta" placeholder="vacío = en curso" value="{{ request.form.get('prueba_hasta', '') }}"></div>
+    <div class="col-12 form-text">Del período de pruebas salen los resultados de laboratorio y de proceso, las materias primas, los operadores y los lotes de producción.</div>
+    <div class="col-12"><button class="btn btn-primary" type="submit">Abrir el desarrollo</button></div>
+  </div>
+</form>
+{% endblock %}

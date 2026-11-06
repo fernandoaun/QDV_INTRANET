@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% import "desarrollo/_hoja.html" as hj with context %}
+{% block title %}Cambio de diseño y desarrollo{% if c %} N° {{ c.numero }}{% endif %} · QDV{% endblock %}
+{% block extra_head %}{{ hj.estilos() }}{% endblock %}
+{% block content %}
+{% set f = dd_firmas(c) %}
+{% set r = request.form if request.method == 'POST' else {} %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Cambio de diseño y desarrollo{% if c %} N° {{ c.numero }}{% else %} — nuevo{% endif %}</h1>
+    <div class="text-muted small">QDV-RG-PO-03_04 · desarrollo N° {{ d.numero }} ({{ d.producto_proceso }}){% if editar %} · Todos los campos son obligatorios.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="dcForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desarrollo.cambio_ver', cambio_id=c.id) if c else url_for('desarrollo.ver', desarrollo_id=d.id) }}">Cancelar</a>
+    {% else %}
+    {% for rol in firmables %}<button type="submit" form="dcFirmar_{{ rol }}" class="btn btn-success btn-sm"><i class="bi bi-pen me-1"></i>Firmar como {{ dd_firmantes_cambio[rol] }}</button>{% endfor %}
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('desarrollo.cambio_ver', cambio_id=c.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('desarrollo.ver', desarrollo_id=d.id) }}">Desarrollo N° {{ d.numero }}</a>
+  </div>
+</div>
+
+<form id="dcForm" method="post">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="dd-scroll"><div class="dd-print">
+<div class="dd-sheet app-card">
+  {{ hj.encabezado('04', dd_registros['04']) }}
+  <table class="dd-t">
+    <colgroup><col style="width:25%"><col style="width:25%"><col style="width:50%"></colgroup>
+    <tr>
+      <td><b>Nº de cambio:</b> {{ c.numero if c else 'se asigna al guardar' }}</td>
+      <td><b>Fecha:</b> {% if editar %}<input type="text" name="fecha" required value="{{ r.get('fecha') or (fecha_dmy(c.fecha) if c else fecha_dmy(hoy)) }}">{% else %}{{ fecha_dmy(c.fecha) }}{% endif %}</td>
+      <td><b>Nº de desarrollo relacionado:</b> {{ d.numero }}</td>
+    </tr>
+    <tr><td colspan="3"><b>Producto / proceso:</b> {% if editar %}<input type="text" name="producto_proceso" required value="{{ r.get('producto_proceso') or h.producto_proceso or d.producto_proceso }}">{% else %}{{ h.producto_proceso }}{% endif %}</td></tr>
+  </table>
+  <table class="dd-t">
+    <tr><th>1. DESCRIPCIÓN DEL CAMBIO</th></tr>
+    <tr><td>{% if editar %}<textarea name="descripcion" required>{{ r.get('descripcion') or h.descripcion or '' }}</textarea>{% else %}<div style="white-space:pre-line">{{ h.descripcion }}</div>{% endif %}</td></tr>
+    <tr><th>2. MOTIVO DEL CAMBIO</th></tr>
+    <tr><td>{% if editar %}<textarea name="motivo" required>{{ r.get('motivo') or h.motivo or '' }}</textarea>{% else %}<div style="white-space:pre-line">{{ h.motivo }}</div>{% endif %}</td></tr>
+  </table>
+  <div class="dd-sec">3. Evaluación de impacto</div>
+  <table class="dd-t">
+    <colgroup><col style="width:30%"><col style="width:11%"><col style="width:11%"><col style="width:48%"></colgroup>
+    <tr><th>Aspecto</th><th>Afecta</th><th>No afecta</th><th>Observaciones</th></tr>
+    {% for a in dd_impacto %}{% set i = loop.index0 %}{% set m = h.impacto[i] if h.impacto else {} %}
+    {% set af = r.get('imp_%d' % i) or m.afecta %}
+    <tr><td>{{ a }}</td>
+      {% if editar %}
+      <td class="c"><input type="radio" name="imp_{{ i }}" value="Afecta" required{% if af == 'Afecta' %} checked{% endif %} aria-label="{{ a }}: afecta"></td>
+      <td class="c"><input type="radio" name="imp_{{ i }}" value="No afecta"{% if af == 'No afecta' %} checked{% endif %} aria-label="{{ a }}: no afecta"></td>
+      <td><input type="text" name="imp_{{ i }}_obs" value="{{ r.get('imp_%d_obs' % i) or m.observaciones or '' }}" placeholder="Obligatorio si afecta"></td>
+      {% else %}
+      <td class="c">{{ hj.marca(m.afecta == 'Afecta') }}</td><td class="c">{{ hj.marca(m.afecta == 'No afecta') }}</td><td>{{ m.observaciones or '—' }}</td>
+      {% endif %}</tr>
+    {% endfor %}
+  </table>
+  <div class="dd-sec">4. Controles requeridos</div>
+  <table class="dd-t">
+    {% for q in dd_controles %}{% set i = loop.index0 %}{% set v = r.get('control_%d' % i) or (h.controles[i] if h.controles else '') %}
+    <tr><td style="width:60%">{{ q }}</td><td>{% if editar %}{% for o in dd_si_no %}<label class="me-3"><input type="radio" name="control_{{ i }}" value="{{ o }}" required{% if v == o %} checked{% endif %}> {{ o }}</label>{% endfor %}
+      {% else %}{% for o in dd_si_no %}{{ hj.marca(v == o) }} {{ o }}&nbsp;&nbsp;{% endfor %}{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+  <div class="dd-sec">5. Resultado</div>
+  <table class="dd-t"><tr><td><b>¿El cambio queda aprobado para su implementación?</b>
+    {% set v = r.get('resultado') or h.resultado %}
+    {% for o in dd_resultados_cambio %}{% if editar %}<label class="ms-3"><input type="radio" name="resultado" value="{{ o }}" required{% if v == o %} checked{% endif %}> {{ o }}</label>{% else %}&nbsp;&nbsp;{{ hj.marca(v == o) }} {{ o }}{% endif %}{% endfor %}
+  </td></tr></table>
+  {% if c %}
+  <table class="dd-firmas"><tr>
+    {% for rol, label in dd_firmantes_cambio.items() %}<td style="width:50%">{{ dd_firma_texto(f[rol]) }}<div class="linea">{{ label }}</div></td>{% endfor %}
+  </tr></table>
+  {% endif %}
+</div>
+</div></div>
+</form>
+{% for rol in firmables %}<form id="dcFirmar_{{ rol }}" method="post" action="{{ url_for('desarrollo.cambio_firmar', cambio_id=c.id, rol=rol) }}">{% include "_csrf.html" %}</form>{% endfor %}
+{% endblock %}

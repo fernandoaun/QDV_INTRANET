@@ -1,0 +1,67 @@
+{# Estilos y encabezado comunes de los registros del PO-03 (mismo formato que las minutas y checklists). #}
+{% macro estilos() %}
+<style>
+  .dd-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .dd-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto 18px; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .8rem; }
+  .dd-head { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+  .dd-head td { border: 2px solid #000; vertical-align: middle; }
+  .dd-head .logo { width: 18%; text-align: center; }
+  .dd-head .logo img { max-height: 64px; }
+  .dd-head .titulo { text-align: center; font-weight: 700; font-size: 1rem; padding: 4px 8px; }
+  .dd-head .meta { width: 22%; text-align: center; font-weight: 700; font-size: .85rem; padding: 1px 6px; }
+  .dd-t { border-collapse: collapse; width: 100%; margin-bottom: 10px; table-layout: fixed; }
+  .dd-t td, .dd-t th { border: 1.5px solid #333; padding: 4px 7px; vertical-align: top; overflow-wrap: anywhere; }
+  .dd-t th { background: #d9d9d9; text-align: center; font-size: .76rem; }
+  .dd-t td.c { text-align: center; }
+  .dd-sec { font-weight: 700; margin: 10px 0 4px; }
+  .dd-auto { color: #1d4f91; }
+  .dd-pend { color: #a15c00; font-style: italic; }
+  .dd-sheet b { white-space: nowrap; }
+  .dd-sheet textarea, .dd-sheet input[type=text], .dd-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 2px 5px; }
+  .dd-sheet textarea { min-height: 46px; resize: vertical; }
+  .dd-firmas { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .dd-firmas td { text-align: center; padding: 4px 8px; vertical-align: bottom; font-size: .76rem; }
+  .dd-firmas .linea { border-top: 1.5px solid #000; padding-top: 3px; }
+  @media print {
+    @page { size: A4 portrait; margin: 9mm; }
+    body * { visibility: hidden; }
+    .dd-sheet, .dd-sheet * { visibility: visible; }
+    .dd-print { position: absolute; left: 0; top: 0; width: 100%; }
+    .dd-sheet { min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8pt; page-break-after: always; }
+    .dd-auto, .dd-pend { color: #000; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endmacro %}
+
+{% macro encabezado(cod, titulo) %}
+<table class="dd-head">
+  <tr>
+    <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+    <td class="titulo" rowspan="3">{{ titulo }}</td>
+    <td class="meta">QDV-RG-PO-03_{{ cod }}</td>
+  </tr>
+  <tr><td class="meta">Rev. {{ dd_revision }}</td></tr>
+  <tr><td class="meta">Página 1 de 1</td></tr>
+</table>
+{% endmacro %}
+
+{# Valor manual o, si está vacío, el del sistema; si tampoco hay, «Pendiente». #}
+{% macro valor(manual, auto='') -%}
+{% if manual %}<span style="white-space:pre-line">{{ manual }}</span>{% elif auto %}<span class="dd-auto" style="white-space:pre-line">{{ auto }}</span>{% else %}<span class="dd-pend">Pendiente</span>{% endif %}
+{%- endmacro %}
+
+{% macro campo(nombre, actual, auto='', largo=False) -%}
+{% if largo %}<textarea name="{{ nombre }}"{% if auto %} placeholder="Del sistema: {{ auto }}"{% endif %}>{{ actual or '' }}</textarea>
+{% else %}<input type="text" name="{{ nombre }}" value="{{ actual or '' }}"{% if auto %} placeholder="Del sistema: {{ auto }}"{% endif %}>{% endif %}
+{%- endmacro %}
+
+{% macro selector(nombre, opciones, actual) -%}
+<select name="{{ nombre }}"><option value=""></option>{% for o in opciones %}<option{% if actual == o %} selected{% endif %}>{{ o }}</option>{% endfor %}</select>
+{%- endmacro %}
+
+{% macro check(nombre, marcado) -%}
+<input type="checkbox" name="{{ nombre }}" value="1"{% if marcado %} checked{% endif %}>
+{%- endmacro %}
+
+{% macro marca(v) -%}{% if v %}☑{% else %}☐{% endif %}{%- endmacro %}

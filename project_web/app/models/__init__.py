@@ -35,6 +35,8 @@ from app.models.perfiles_puesto import PerfilPuesto, PerfilPuestoCambio
 from app.models.plan_accion import PlanAccion, PlanAccionCambio
 from app.models.solicitud_cambio import SolicitudCambio, SolicitudCambioCambio
 from app.models.minuta_reunion import MinutaReunion, MinutaReunionCambio
+from app.models.mant_checklist import MantChecklist, MantChecklistRegistro
+from app.models.desarrollo import DesarrolloCambio, DesarrolloHistorial, DesarrolloProduccion
 from app.models.evaluacion_desempeno import EvaluacionDesempeno, EvaluacionDesempenoCambio
 from app.models.capacitacion import Capacitacion, CapacitacionCambio
 from app.models.desvios import Desvio, DesvioCambio
@@ -144,6 +146,11 @@ __all__ = [
     "SolicitudCambioCambio",
     "MinutaReunion",
     "MinutaReunionCambio",
+    "MantChecklist",
+    "MantChecklistRegistro",
+    "DesarrolloProduccion",
+    "DesarrolloCambio",
+    "DesarrolloHistorial",
     "EvaluacionDesempeno",
     "EvaluacionDesempenoCambio",
     "Capacitacion",

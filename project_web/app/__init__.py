@@ -249,6 +249,7 @@ def create_app() -> Flask:
     from app.web.modules.plan_accion import bp as plan_accion_bp
     from app.web.modules.solicitud_cambio import bp as solicitud_cambio_bp
     from app.web.modules.minuta_reunion import bp as minuta_reunion_bp
+    from app.web.modules.desarrollo import bp as desarrollo_bp
     from app.web.modules.evaluacion_desempeno import bp as evaluacion_desempeno_bp
     from app.web.modules.capacitacion import bp as capacitacion_bp
     from app.web.modules.desvios import bp as desvios_bp
@@ -279,6 +280,7 @@ def create_app() -> Flask:
     app.register_blueprint(plan_accion_bp)
     app.register_blueprint(solicitud_cambio_bp)
     app.register_blueprint(minuta_reunion_bp)
+    app.register_blueprint(desarrollo_bp)
     app.register_blueprint(evaluacion_desempeno_bp)
     app.register_blueprint(capacitacion_bp)
     app.register_blueprint(desvios_bp)

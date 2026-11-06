@@ -150,8 +150,22 @@ def equipo_detalle(equipo_id: int):
         failures=ms.list_failures(filtros, limit=100),
         orders=ms.list_orders(ms.OrdenFiltros(equipo_id=equipo_id), limit=100),
         predictions=[p for p in ms.list_predictions() if int(p.equipo_id) == int(equipo_id)],
+        **_checklist_equipo(u, equipo_id),
         **ms.labels_context(),
     )
+
+
+def _checklist_equipo(u, equipo_id: int) -> dict:
+    from app.services import mant_checklist_service as ck
+
+    c = ck.get_de_equipo(equipo_id)
+    return {
+        "checklist": c if c is not None and c.activo else None,
+        "checklist_registros": ck.registros(c) if c is not None else [],
+        "puede_cargar_checklist": _puede_cargar_checklist(u),
+        "ck_mal_estado": ck.mal_estado,
+        "fecha_dmy": ck.fecha_dmy,
+    }
 
 
 @bp.route("/reportar-falla", methods=["GET", "POST"])
@@ -506,3 +520,115 @@ def download_attachment(attachment_id: int):
         flash("El archivo adjunto no está disponible en disco.", "warning")
         return redirect(request.referrer or url_for("mantenimiento.hub"))
     return send_file(path, as_attachment=True, download_name=attachment.original_filename)
+
+
+# --------------------------------------------------------------------------- checklists (PO-01)
+
+
+def _puede_cargar_checklist(u) -> bool:
+    return any(user_can_edit(u, p) for p in ("mantenimiento", "mantenimiento_equipos", "mantenimiento_preventivos"))
+
+
+def _ck_ctx(**kw):
+    from app.services import mant_checklist_service as ck
+
+    return {**kw, **ck.labels_context()}
+
+
+@bp.get("/checklists")
+@login_required
+def checklists():
+    """Registros de checklists (QDV-RG-PO-01_07 y siguientes): uno por equipo, con sus inspecciones."""
+    from app.services import mant_checklist_service as ck
+
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    return render_template(
+        "mantenimiento/checklists.html",
+        **_ck_ctx(checklists=ck.listar_checklists(), registros=ck.registros(), puede_cargar=_puede_cargar_checklist(u)),
+    )
+
+
+@bp.route("/equipos/<int:equipo_id>/checklist", methods=["GET", "POST"])
+@login_required
+def checklist_configurar(equipo_id: int):
+    from app.services import mant_checklist_service as ck
+
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    equipo = db.session.get(Equipo, equipo_id)
+    if equipo is None:
+        flash("Equipo no encontrado.", "danger")
+        return redirect(url_for("mantenimiento.equipos"))
+    edit_redir = _require_edit(u, "mantenimiento_equipos")
+    if edit_redir is not None:
+        return edit_redir
+    c = ck.get_de_equipo(equipo_id)
+    if request.method == "POST":
+        c, errs = ck.guardar_checklist(equipo, request.form)
+        if errs:
+            db.session.rollback()
+            for e in errs:
+                flash(e, "danger")
+        else:
+            db.session.commit()
+            flash("Checklist del equipo guardado.", "success")
+            return redirect(url_for("mantenimiento.equipo_detalle", equipo_id=equipo_id))
+    return render_template("mantenimiento/checklist_configurar.html", **_ck_ctx(equipo=equipo, checklist=c))
+
+
+@bp.route("/equipos/<int:equipo_id>/checklist/nuevo", methods=["GET", "POST"])
+@login_required
+def checklist_nuevo(equipo_id: int):
+    from app.services import mant_checklist_service as ck
+
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    c = ck.get_de_equipo(equipo_id)
+    if c is None or not c.activo:
+        flash("Este equipo no tiene checklist.", "warning")
+        return redirect(url_for("mantenimiento.equipo_detalle", equipo_id=equipo_id))
+    if not _puede_cargar_checklist(u):
+        return _no_edit()
+    if request.method == "POST":
+        r, errs = ck.registrar(c, request.form, u)
+        if errs:
+            db.session.rollback()
+            for e in errs:
+                flash(e, "danger")
+        else:
+            db.session.commit()
+            flash(f"Checklist N° {r.numero} registrado y firmado por vos. Falta la firma del Responsable de Planta.", "success")
+            return redirect(url_for("mantenimiento.checklist_ver", registro_id=r.id))
+    return render_template("mantenimiento/checklist.html", **_ck_ctx(checklist=c, registro=None, editar=True))
+
+
+@bp.route("/checklists/<int:registro_id>", methods=["GET", "POST"])
+@login_required
+def checklist_ver(registro_id: int):
+    from app.services import mant_checklist_service as ck
+
+    u, redir = _require_view()
+    if redir is not None:
+        return redir
+    r = ck.get_registro(registro_id)
+    if r is None:
+        flash("Checklist no encontrado.", "danger")
+        return redirect(url_for("mantenimiento.checklists"))
+    if request.method == "POST":
+        try:
+            ck.firmar_planta(r, u)
+        except ValueError as e:
+            db.session.rollback()
+            flash(str(e), "warning")
+        else:
+            db.session.commit()
+            flash("Checklist firmado como Responsable de Planta.", "success")
+        return redirect(url_for("mantenimiento.checklist_ver", registro_id=r.id))
+    return render_template(
+        "mantenimiento/checklist.html",
+        **_ck_ctx(checklist=r.checklist, registro=r, editar=False, puede_firmar=ck.puede_firmar_planta(r, u)),
+    )

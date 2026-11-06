@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}{{ checklist.titulo }}{% if registro %} N° {{ registro.numero }}{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro del PO-01: misma estructura que el formulario Word (siempre "papel"). */
+  .ck-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .ck-sheet { background: #fff; color: #000; min-width: 640px; max-width: 900px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .85rem; }
+  .ck-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .ck-head td { border: 2px solid #000; vertical-align: middle; }
+  .ck-head .logo { width: 20%; text-align: center; }
+  .ck-head .logo img { max-height: 70px; }
+  .ck-head .titulo { text-align: center; font-weight: 700; font-size: 1.1rem; }
+  .ck-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .ck-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .ck-tabla td, .ck-tabla th { border: 1.5px solid #333; padding: 5px 8px; vertical-align: top; overflow-wrap: anywhere; }
+  .ck-tabla th { background: #d9d9d9; text-align: center; font-size: .8rem; }
+  .ck-tabla td.c { text-align: center; vertical-align: middle; }
+  .ck-tabla td.mal { background: #fde2e1; }
+  .ck-sheet b { white-space: nowrap; }
+  .ck-sheet textarea, .ck-sheet input[type=text] { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .ck-sheet input[type=radio] { width: 1.3rem; height: 1.3rem; }
+  .ck-firmas { width: 100%; border-collapse: collapse; margin-top: 18px; }
+  .ck-firmas td { width: 50%; text-align: center; padding: 6px 10px; vertical-align: bottom; }
+  .ck-firmas .linea { border-top: 1.5px solid #000; padding-top: 4px; font-size: .78rem; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .ck-sheet, .ck-sheet * { visibility: visible; }
+    .ck-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 9pt; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+{% set equipo = checklist.equipo %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">{{ checklist.titulo }}{% if registro %} N° {{ registro.numero }}{% else %} — nuevo{% endif %}</h1>
+    <div class="text-muted small">Registro {{ checklist.codigo }} · {{ equipo.nombre_equipo }} · procedimiento PO-01{% if editar %} · Todos los campos son obligatorios. Al guardar queda firmado a tu nombre.{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="ckForm" class="btn btn-primary btn-sm">Guardar y firmar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=equipo.id) }}">Cancelar</a>
+    {% else %}
+    {% if puede_firmar %}<button type="submit" form="ckFirmar" class="btn btn-success btn-sm"><i class="bi bi-pen me-1"></i>Firmar como Responsable de Planta</button>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('mantenimiento.equipo_detalle', equipo_id=equipo.id) }}">Equipo</a>
+    {% endif %}
+  </div>
+</div>
+
+<form id="ckForm" method="post">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="ck-scroll app-card p-0 mb-3">
+  <div class="ck-sheet">
+    <table class="ck-head">
+      <tr>
+        <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="3">{{ checklist.titulo | upper }}</td>
+        <td class="meta">{{ checklist.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Rev. {{ ck_revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="ck-tabla">
+      <colgroup><col style="width:62%"><col style="width:38%"></colgroup>
+      <tr>
+        <td><b>Área:</b> {% if editar %}<input type="text" name="area" maxlength="255" required value="{{ request.form.get('area', equipo.area_sector or '') }}">{% else %}{{ registro.area }}{% endif %}</td>
+        <td><b>Fecha:</b> {% if editar %}<input type="text" name="fecha" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" required value="{{ request.form.get('fecha', fecha_dmy(hoy)) }}">{% else %}{{ fecha_dmy(registro.fecha) }}{% endif %}</td>
+      </tr>
+      <tr><td colspan="2"><b>Descripción de la actividad:</b> {% if editar %}<textarea name="actividad" rows="2" required>{{ request.form.get('actividad', '') }}</textarea>{% else %}<div style="white-space:pre-line">{{ registro.actividad }}</div>{% endif %}</td></tr>
+      <tr><td colspan="2"><b>Equipo:</b> {{ equipo.nombre_equipo }}{% if equipo.codigo_interno %} ({{ equipo.codigo_interno }}){% endif %}</td></tr>
+    </table>
+
+    <table class="ck-tabla">
+      <colgroup><col style="width:56%"><col style="width:22%"><col style="width:22%"></colgroup>
+      <tr><th>ACCESORIOS DEL EQUIPO</th><th>BUEN ESTADO</th><th>MAL ESTADO</th></tr>
+      {% if editar %}
+      {% for item in ck_items(checklist) %}
+      <tr>
+        <td>{{ item }}</td>
+        {% set idx = loop.index0 %}
+        {% for est in ck_estados %}
+        <td class="c"><input type="radio" name="item_{{ idx }}" value="{{ est }}" required aria-label="{{ item }}: {{ est }}"{% if request.form.get('item_' ~ idx) == est %} checked{% endif %}></td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      {% else %}
+      {% for x in ck_respuestas(registro) %}
+      <tr>
+        <td>{{ x.item }}</td>
+        <td class="c">{% if x.estado == 'Buen estado' %}✔{% endif %}</td>
+        <td class="c {{ 'mal' if x.estado == 'Mal estado' }}">{% if x.estado == 'Mal estado' %}✘{% endif %}</td>
+      </tr>
+      {% endfor %}
+      {% endif %}
+    </table>
+
+    <table class="ck-tabla">
+      <tr><th>OBSERVACIONES</th></tr>
+      <tr><td>{% if editar %}<textarea name="observaciones" rows="3" placeholder="Obligatorio si hay ítems en mal estado">{{ request.form.get('observaciones', '') }}</textarea>{% else %}<div style="white-space:pre-line">{{ registro.observaciones }}</div>{% endif %}</td></tr>
+    </table>
+
+    {% if registro %}
+    <table class="ck-firmas">
+      <tr>
+        <td>{{ ck_firma_texto(registro.inspector_nombre, registro.inspector_firma_at) }}<div class="linea">Firma y aclaración Responsable de Inspección</div></td>
+        <td>{{ ck_firma_texto(registro.planta_nombre, registro.planta_firma_at) }}<div class="linea">Firma y aclaración Responsable de Planta</div></td>
+      </tr>
+    </table>
+    {% endif %}
+  </div>
+</div>
+</form>
+{% if puede_firmar %}
+<form id="ckFirmar" method="post">{% include "_csrf.html" %}</form>
+{% endif %}
+{% endblock %}

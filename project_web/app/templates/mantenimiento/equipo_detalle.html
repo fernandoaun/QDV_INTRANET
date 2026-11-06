@@ -224,4 +224,33 @@
     </div>
   </div>
 </div>
+
+<div class="app-card mt-4" id="checklist">
+  <div class="app-card-header app-card-header--split">
+    <span>Checklist{% if checklist %} · {{ checklist.codigo }} {{ checklist.titulo }}{% endif %}</span>
+    <span class="d-flex gap-2">
+      {% if checklist and puede_cargar_checklist %}<a class="btn btn-sm btn-primary" href="{{ url_for('mantenimiento.checklist_nuevo', equipo_id=equipo.id) }}">Nuevo checklist</a>{% endif %}
+      {% if user_can_edit('mantenimiento_equipos') %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('mantenimiento.checklist_configurar', equipo_id=equipo.id) }}">{{ 'Editar ítems' if checklist else 'Armar checklist' }}</a>{% endif %}
+    </span>
+  </div>
+  <div class="app-card-body--flush table-responsive">
+    <table class="table table-app table-compact mb-0">
+      <thead><tr><th>Fecha</th><th>N°</th><th>Actividad</th><th>Resultado</th><th>Firmas</th></tr></thead>
+      <tbody>
+        {% for r in checklist_registros %}
+        {% set malos = ck_mal_estado(r) %}
+        <tr>
+          <td class="text-nowrap"><a href="{{ url_for('mantenimiento.checklist_ver', registro_id=r.id) }}">{{ fecha_dmy(r.fecha) }}</a></td>
+          <td>{{ r.numero }}</td>
+          <td>{{ r.actividad }}</td>
+          <td>{% if malos %}<span class="text-danger">{{ malos | join(', ') }} en mal estado</span>{% else %}Todo en buen estado{% endif %}</td>
+          <td>{% if r.planta_firma_at %}Completas{% else %}Falta Responsable de Planta{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">{% if checklist %}Todavía no se hizo ningún checklist de este equipo.{% else %}Este equipo no tiene checklist.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
 {% endblock %}
