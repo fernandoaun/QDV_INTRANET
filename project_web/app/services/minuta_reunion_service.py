@@ -194,7 +194,8 @@ def sincronizar_plan(m: MinutaReunion, user_id: int | None) -> int:
     Los renglones sin responsable son conclusiones y no pasan al plan. Devuelve cuántas acciones creó.
     """
     filas_ = filas(m, "acciones")
-    base = {"origen": "Minuta de reunión", "fecha_deteccion": m.fecha, "requisito": f"{REGISTRO['codigo']} Minuta N° {m.numero}"}
+    base = {"origen": "Minuta de reunión", "fecha_deteccion": m.fecha, "requisito": f"{REGISTRO['codigo']} Minuta N° {m.numero}",
+            "tipo_hallazgo": "Otros", "tipo_accion": "Acción de control", "causa_raiz": "No aplica"}
     creadas = plan.sincronizar_filas(filas_, base, user_id)
     m.acciones = json.dumps(filas_, ensure_ascii=False)
     return creadas

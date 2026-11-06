@@ -133,6 +133,7 @@ def test_acciones_con_responsable_pasan_al_plan(app, client, minuta_id):
         assert pa.origen == "Minuta de reunión" and pa.requisito == "QDV-RG-PG-04_01 Minuta N° 1"
         assert pa.fecha_deteccion == date(2026, 10, 21) and pa.fecha_cumplimiento == date(2026, 11, 15)
         assert pa.estado == "En curso" and pa.responsable == "Participante A"
+        assert (pa.tipo_hallazgo, pa.tipo_accion, pa.causa_raiz) == ("Otros", "Acción de control", "No aplica")
     form = {"motivo": "Revisión por la dirección", "fecha": "21/10/2026", "horario": "10:00", "lugar": "Oficina",
             "desarrollo": "Se revisan las acciones.", "participantes_filas": "1", "participantes_participante_0": "Participante A",
             "participantes_sector_0": "SGC", "participantes_asistencia_0": "Presente", "acciones_filas": "3",
