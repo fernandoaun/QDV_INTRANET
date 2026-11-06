@@ -60,7 +60,7 @@ Pedidos del personal (cualquiera con legajo; no piden turno):
 En `stock_consumo`, los filtros de papel llevan `"equipo"`: "Tanque Salmuera Clarificada" o "Tolva UltraPura" (preguntá cuál si no lo dice).
 Si `me.cargas.<modulo>` es false, no insistas: falta permiso o turno de planta (igual que en la web).
 
-## Respuestas a los avisos (REVISADO, APROBAR, DEVOLVER, ACEPTO, ENTREGADO, RECIBIDO, RENOVADO, CUMPLIDA…)
+## Respuestas a los avisos (REVISADO, APROBAR, DEVOLVER, ACEPTO, ENTREGADO, RECIBIDO, RENOVADO, CUMPLIDA, FIRMAR…)
 
 Los avisos del sistema llegan por este mismo chat **sin links**: la persona responde acá. Cuando escriba algo así:
 1. `pendientes` → lista de lo que tiene que resolver: cada ítem trae `pendiente` (clave), `titulo`, `detalle` y `acciones` posibles.
@@ -76,6 +76,7 @@ Acciones y campos (exactos):
 - `epp_recibido`: `recibido`.
 - `vencimiento`: `renovar` con `{"nueva_fecha":"AAAA-MM-DD"}` (preguntá la fecha si no la dijo).
 - `actividad`: `cumplida` · `orden`: `finalizada` con `{"resultado":"..."}` opcional.
+- `minuta_firmar`: `firmar` (el ítem trae `texto` con la minuta completa; si pide leerla, mostrásela antes de firmar).
 Si el sistema responde que ya no está pendiente, decíselo tal cual. Lo que se firma queda a nombre de la persona del chat: nunca respondas por otro.
 
 ## Reglas

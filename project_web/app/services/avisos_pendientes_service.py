@@ -2,7 +2,7 @@
 
 Son los mismos que llegan con link de acción por mail (`accion_link_service`): revisar o aprobar un
 procedimiento, gestionar o aceptar vacaciones, entregar un pedido de EPP, renovar un vencimiento y cerrar
-tareas de planificación/mantenimiento. El bot lista `pendientes(user)` y, con la respuesta de la persona,
+tareas de planificación/mantenimiento y firmar minutas de reunión. El bot lista `pendientes(user)` y, con la respuesta de la persona,
 arma `responder` (preview → confirmación → ejecutar), que corre la misma lógica que la pantalla del link.
 """
 from __future__ import annotations
@@ -38,6 +38,7 @@ ACCIONES: dict[str, dict[str, str]] = {
     "epp_recibido": {"recibido": "Confirmar que recibió la ropa/EPP"},
     "actividad": {"cumplida": "Marcar cumplida"},
     "orden": {"finalizada": "Marcar finalizada (campo resultado opcional)"},
+    accion_svc.MINUTA_FIRMAR: {"firmar": "Firmar la minuta"},
 }
 
 
@@ -66,6 +67,7 @@ def pendientes(user: User) -> list[dict[str, Any]]:
     out += _sgi(app, user, mails)
     out += _vacaciones(user)
     out += _epp_recibido(user)
+    out += _minutas(user)
     out += _epp(app, user, mails)
     generales = bool(mails & _avisos_generales(app))
     out += _vencimientos(user, mails, generales)
@@ -179,6 +181,17 @@ def _epp_recibido(user: User) -> list[dict[str, Any]]:
     return [_item(f"epp_recibido:{emp.id}", "Confirmar entrega de ropa/EPP", detalle)]
 
 
+def _minutas(user: User) -> list[dict[str, Any]]:
+    from app.services import minuta_reunion_service as mr
+
+    out = []
+    for m in mr.listar():
+        if mr.puede_firmar(m, user):
+            out.append(_item(f"{accion_svc.MINUTA_FIRMAR}:{m.id}", f"Firmar la Minuta de reunión N° {m.numero}",
+                             f"{m.motivo} ({mr.fecha_dmy(m.fecha) if m.fecha else ''})", texto=mr.texto_minuta(m)))
+    return out[:MAX_POR_TIPO]
+
+
 def _vencimientos(user: User, mails: set[str], generales: bool) -> list[dict[str, Any]]:
     from app.models import Vencimiento
 
@@ -262,6 +275,8 @@ def _form_y_datos(user: User, clave: str, accion: str, campos: dict[str, Any]) -
     elif tipo == "actividad":
         data.update({"t": accion_svc.TAREAS, "p": [oid], "o": []})
         form = {"accion": f"act:{oid}"}
+    elif tipo == accion_svc.MINUTA_FIRMAR:
+        data["via"] = "WhatsApp"
     elif tipo == "orden":
         data.update({"t": accion_svc.TAREAS, "p": [], "o": [oid]})
         form = {"accion": f"ord:{oid}", f"resultado_{oid}": c.get("resultado", "")}

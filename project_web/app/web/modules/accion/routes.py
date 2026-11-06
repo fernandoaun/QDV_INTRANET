@@ -375,6 +375,38 @@ class _Tareas:
 # --------------------------------------------------------------------------- avisos de prueba
 
 
+# --------------------------------------------------------------------------- minuta de reunión
+
+
+class _MinutaFirmar:
+    @staticmethod
+    def contexto(data: dict[str, Any]) -> dict[str, Any]:
+        from app.services import minuta_reunion_service as mr
+
+        m = mr.get(int(data["id"]))
+        if m is None:
+            return {"error": "La minuta ya no existe."}
+        user = data["user"]
+        return {"minuta": m, "texto": mr.texto_minuta(m), "puede": mr.puede_firmar(m, user), "sin_usuario": user is None}
+
+    @staticmethod
+    def ejecutar(data: dict[str, Any], req: Any) -> tuple[bool, str]:
+        from app.services import minuta_reunion_service as mr
+
+        m = mr.get(int(data["id"]))
+        user = data["user"]
+        if m is None or user is None:
+            return False, "No se pudo identificar tu usuario del sistema."
+        try:
+            msg = mr.firmar(m, user, data.get("via") or "link del aviso")
+        except ValueError as e:
+            db.session.rollback()
+            return False, str(e)
+        db.session.commit()
+        accion_svc.registrar(data, "minuta_firmar", "minuta_reunion", m.id, f"Minuta N° {m.numero}")
+        return True, msg
+
+
 def _demo_contexto(data: dict[str, Any], handler: Any) -> dict[str, Any]:
     """Pantalla de un aviso de prueba: datos reales cuando se pueden leer, si no, un ejemplo. Siempre «pendiente»."""
     from datetime import timedelta
@@ -414,4 +446,5 @@ _HANDLERS: dict[str, Any] = {
     accion_svc.EPP_PEDIDO: _EppPedido,
     accion_svc.VENCIMIENTO: _Vencimiento,
     accion_svc.TAREAS: _Tareas,
+    accion_svc.MINUTA_FIRMAR: _MinutaFirmar,
 }

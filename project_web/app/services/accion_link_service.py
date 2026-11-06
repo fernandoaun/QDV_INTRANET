@@ -1,7 +1,7 @@
 """Links de acción de los avisos (mail y WhatsApp): la persona resuelve desde el celular sin entrar al sistema.
 
 Cada aviso que pide algo (revisar o aprobar un procedimiento, gestionar vacaciones, entregar un pedido de EPP,
-renovar un vencimiento, cerrar tareas) lleva un link firmado con el trámite y el destinatario. El link solo
+renovar un vencimiento, cerrar tareas, firmar una minuta) lleva un link firmado con el trámite y el destinatario. El link solo
 sirve para ese trámite, vence, y lo que se hace queda registrado a nombre de quien lo recibió, igual que
 desde la PC. Mismo esquema que la confirmación de entregas de EPP (`epp_confirmacion_link_service`).
 """
@@ -27,7 +27,8 @@ VAC_EMPLEADO = "vac_empleado"
 EPP_PEDIDO = "epp_pedido"
 VENCIMIENTO = "vencimiento"
 TAREAS = "tareas"
-TIPOS = frozenset({SGI_REVISAR, SGI_APROBAR, VAC_RESPONSABLE, VAC_EMPLEADO, EPP_PEDIDO, VENCIMIENTO, TAREAS})
+MINUTA_FIRMAR = "minuta_firmar"
+TIPOS = frozenset({SGI_REVISAR, SGI_APROBAR, VAC_RESPONSABLE, VAC_EMPLEADO, EPP_PEDIDO, VENCIMIENTO, TAREAS, MINUTA_FIRMAR})
 
 
 def _serializer(app: Any = None) -> URLSafeTimedSerializer:

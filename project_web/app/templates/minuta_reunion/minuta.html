@@ -47,13 +47,14 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Minuta de reunión{% if minuta %} N° {{ minuta.numero }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
-    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-04{% if editar %} · Las acciones con responsable pasan al Plan de acción.{% endif %}</div>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-04{% if editar %} · Todos los campos son obligatorios. Las acciones pasan al Plan de acción. Si la minuta ya tenía firmas, al guardar cambios se anulan y se vuelve a pedir la firma.{% elif minuta and firmas[1] %} · Firmas: {{ firmas[0] }} de {{ firmas[1] }}{% endif %}</div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     {% if editar %}
     <button type="submit" form="mrForm" class="btn btn-primary btn-sm">Guardar</button>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id) if minuta else url_for('minuta_reunion.hub') }}">Cancelar</a>
     {% else %}
+    {% if puede_firmar %}<button type="submit" form="mrFirmar" class="btn btn-success btn-sm"><i class="bi bi-pen me-1"></i>Firmar</button>{% endif %}
     {% if minuta and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
     {% if minuta %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('minuta_reunion.ver', minuta_id=minuta.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
@@ -87,19 +88,25 @@
     </table>
 
     {% set ps = filas(minuta, 'participantes') %}
-    {% set np = [ps|length + (3 if editar else 0), filas_min.participantes]|max %}
+    {% set np = [ps|length + (3 if editar else 0), filas_min.participantes]|max if (editar or blanco) else ps|length %}
+    {% if editar %}<datalist id="mrUsuarios">{% for n in nombres_usuarios %}<option value="{{ n }}">{% endfor %}</datalist>{% endif %}
     <table class="mr-tabla">
+      {% if editar %}
       <colgroup><col style="width:42%"><col style="width:33%"><col style="width:25%"></colgroup>
       <tr><th>PARTICIPANTE</th><th>SECTOR / EMPRESA</th><th>ASISTENCIA<br>(Presente / Ausente)</th></tr>
+      {% else %}
+      <colgroup><col style="width:28%"><col style="width:24%"><col style="width:16%"><col style="width:32%"></colgroup>
+      <tr><th>PARTICIPANTE</th><th>SECTOR / EMPRESA</th><th>ASISTENCIA<br>(Presente / Ausente)</th><th>FIRMA</th></tr>
+      {% endif %}
       {% for i in range(np) %}
       {% set p = ps[i] if i < ps|length else {} %}
       <tr>
         {% if editar %}
-        <td><input type="text" name="participantes_participante_{{ i }}" maxlength="255" value="{{ p.participante or '' }}" aria-label="Participante {{ i + 1 }}"></td>
+        <td><input type="text" name="participantes_participante_{{ i }}" maxlength="255" list="mrUsuarios" value="{{ p.participante or '' }}" aria-label="Participante {{ i + 1 }}"></td>
         <td><input type="text" name="participantes_sector_{{ i }}" maxlength="255" value="{{ p.sector or '' }}" aria-label="Sector o empresa {{ i + 1 }}"></td>
         <td><select name="participantes_asistencia_{{ i }}" aria-label="Asistencia {{ i + 1 }}"><option value=""></option>{% for a in asistencia_op %}<option{% if p.asistencia == a %} selected{% endif %}>{{ a }}</option>{% endfor %}</select></td>
         {% else %}
-        <td class="vacia">{{ p.participante }}</td><td>{{ p.sector }}</td><td class="c">{{ p.asistencia }}</td>
+        <td class="vacia">{{ p.participante }}</td><td>{{ p.sector }}</td><td class="c">{{ p.asistencia }}</td><td class="c">{{ firma_texto(p) if p }}</td>
         {% endif %}
       </tr>
       {% endfor %}
@@ -113,7 +120,7 @@
 
     {% set acs = filas(minuta, 'acciones') %}
     {% set en_plan = plan_numeros(minuta) %}
-    {% set na = [acs|length + (2 if editar else 0), filas_min.acciones]|max %}
+    {% set na = [acs|length + (2 if editar else 0), filas_min.acciones]|max if (editar or blanco) else acs|length %}
     <table class="mr-tabla">
       <colgroup><col style="width:56%"><col style="width:26%"><col style="width:18%"></colgroup>
       <tr><th>ACCIONES / CONCLUSIONES</th><th>RESPONSABLE</th><th>FECHA</th></tr>
@@ -135,11 +142,15 @@
     <table class="mr-tabla mr-control">
       <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
       <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
-      <tr><td class="c">00</td><td>Confección del documento</td><td class="c">08/09/2026</td></tr>
+      {% for rv, desc, fa in control_cambios %}<tr><td class="c">{{ rv }}</td><td>{{ desc }}</td><td class="c">{{ fa }}</td></tr>{% endfor %}
     </table>
   </div>
 </div>
 </form>
+
+{% if puede_firmar %}
+<form id="mrFirmar" method="post" action="{{ url_for('minuta_reunion.firmar', minuta_id=minuta.id) }}">{% include "_csrf.html" %}</form>
+{% endif %}
 
 {% if minuta and editar and es_admin %}
 <form method="post" action="{{ url_for('minuta_reunion.baja', minuta_id=minuta.id) }}" onsubmit="return confirm('¿Dar de baja esta minuta? Deja de listarse pero queda en el historial.');">
