@@ -39,8 +39,7 @@
   {% if editar %}
     {% if largo %}<textarea name="{{ clave }}" aria-label="{{ sc_campo_labels[clave] }}">{{ v or '' }}</textarea>
     {% elif fecha %}<input type="text" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ fecha_dmy(v) if v else '' }}" aria-label="{{ sc_campo_labels[clave] }}">
-    {% elif clave in opciones %}<input type="text" name="{{ clave }}" list="sc-op-{{ clave }}" maxlength="40" value="{{ v or '' }}" aria-label="{{ sc_campo_labels[clave] }}">
-    <datalist id="sc-op-{{ clave }}">{% for op in opciones[clave] %}<option value="{{ op }}">{% endfor %}</datalist>
+    {% elif clave in opciones %}<select name="{{ clave }}" aria-label="{{ sc_campo_labels[clave] }}"><option value=""></option>{% for op in opciones[clave] %}<option{% if v == op %} selected{% endif %}>{{ op }}</option>{% endfor %}</select>
     {% else %}<input type="text" name="{{ clave }}" maxlength="255" value="{{ v or '' }}"{% if clave == 'asunto' %} required{% endif %} aria-label="{{ sc_campo_labels[clave] }}">{% endif %}
   {% elif sol %}
     {% if fecha %}{{ fecha_dmy(v) }}{% else %}<div style="white-space:pre-line">{{ v }}</div>{% endif %}

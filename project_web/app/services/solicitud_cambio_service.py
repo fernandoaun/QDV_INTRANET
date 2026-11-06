@@ -144,6 +144,8 @@ def _limpio(data: Any) -> tuple[dict[str, Any], list[str]]:
             val = re.sub(r"\s+", " ", val)[: _LARGOS[k]]
         if k in OPCIONES and val:
             val = _opcion(val, OPCIONES[k])
+            if val not in OPCIONES[k]:
+                errores.append(f"{CAMPO_LABELS[k]}: elegí una opción de la lista ({', '.join(OPCIONES[k])}).")
         v[k] = val
     if v["resolucion"] not in ("", *RESOLUCIONES):
         v["resolucion"] = _opcion(v["resolucion"], RESOLUCIONES)

@@ -128,6 +128,8 @@ def _limpio(data: Any) -> tuple[dict[str, Any], list[str]]:
             val = re.sub(r"\s+", " ", val)[: _LARGOS[k]]
         if k in OPCIONES and val:
             val = next((o for o in OPCIONES[k] if o.lower() == val.lower()), val)
+            if val not in OPCIONES[k]:
+                errores.append(f"{CAMPO_LABELS[k]}: elegí una opción de la lista ({', '.join(OPCIONES[k])}).")
         v[k] = val
     v["ambito"] = str(data.get("ambito") or "").strip()
     if v["ambito"] not in AMBITOS:

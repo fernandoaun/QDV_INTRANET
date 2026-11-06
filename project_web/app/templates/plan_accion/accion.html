@@ -7,8 +7,10 @@
   {% endif %}
   {% if editar %}
     {% if clave in opciones %}
-    <input class="form-control form-control-sm" name="{{ clave }}" list="pa-op-{{ clave }}" maxlength="80" value="{{ val or '' }}">
-    <datalist id="pa-op-{{ clave }}">{% for op in opciones[clave] %}<option value="{{ op }}">{% endfor %}</datalist>
+    <select class="form-select form-select-sm" name="{{ clave }}">
+      <option value=""></option>
+      {% for op in opciones[clave] %}<option{% if val == op %} selected{% endif %}>{{ op }}</option>{% endfor %}
+    </select>
     {% elif clave in ('fecha_deteccion', 'fecha_cumplimiento') %}
     <input class="form-control form-control-sm" name="{{ clave }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ val or '' }}">
     {% elif largo %}

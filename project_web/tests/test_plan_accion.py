@@ -131,3 +131,13 @@ def test_registro_sgi(app):
     with app.app_context():
         links = proc.registro_modulo_links("plan_accion")
     assert links == {"label": "Plan de acción", "blank_url": "/sgi/plan-accion/en-blanco", "filled_url": "/sgi/plan-accion/"}
+
+
+def test_listas_desplegables_cerradas(app):
+    from app.services import plan_accion_service as svc
+
+    with app.app_context():
+        _, errs = svc.crear({"accion": "X", "estado": "Terminado"}, None)
+        assert errs and "Estado de la acción: elegí una opción de la lista" in errs[0]
+        a, errs = svc.crear({"accion": "X", "estado": "en curso", "tipo_accion": "accion correctiva"}, None)
+        assert not errs and (a.estado, a.tipo_accion) == ("En curso", "Acción correctiva")

@@ -150,7 +150,8 @@ def parse_fecha(raw: Any) -> date | None:
 
 
 def _opcion(campo: str, valor: str) -> str:
-    """Normaliza contra la lista desplegable (sin tildes ni mayúsculas ni espacios de más); si no está, queda como vino."""
+    """Normaliza contra la lista desplegable (sin tildes ni mayúsculas ni espacios de más); si no está, queda como vino
+    y `_limpio` lo rechaza: como en la planilla, solo se aceptan las opciones de la lista."""
     def clave(x: str) -> str:
         import unicodedata
 
@@ -170,6 +171,8 @@ def _limpio(data: Any) -> tuple[dict[str, Any], list[str]]:
         val = re.sub(r"[ \t]+", " ", str(data.get(k) or "")).strip()
         if k in OPCIONES and val:
             val = _opcion(k, val)
+            if val not in OPCIONES[k]:
+                errores.append(f"{CAMPO_LABELS[k]}: elegí una opción de la lista ({', '.join(OPCIONES[k])}).")
         v[k] = val[: _LARGOS[k]] if k in _LARGOS else val
     for k in CAMPOS_FECHA:
         try:

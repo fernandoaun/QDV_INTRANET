@@ -4,7 +4,12 @@
   {% set val = (datos.get(clave, '') if datos else (req[clave] if req else '')) %}
   {% if editar %}
     {% if largo %}<textarea class="form-control form-control-sm" name="{{ clave }}" rows="3">{{ val or '' }}</textarea>
-    {% elif clave in opciones or clave == 'proceso' %}
+    {% elif clave in opciones %}
+    <select class="form-select form-select-sm" name="{{ clave }}">
+      <option value=""></option>
+      {% for op in opciones[clave] %}<option{% if val == op %} selected{% endif %}>{{ op }}</option>{% endfor %}
+    </select>
+    {% elif clave == 'proceso' %}
     <input class="form-control form-control-sm" name="{{ clave }}" list="ml-op-{{ clave }}" maxlength="160" value="{{ val or '' }}">
     <datalist id="ml-op-{{ clave }}">{% for op in (procesos if clave == 'proceso' else opciones[clave]) %}<option value="{{ op }}">{% endfor %}</datalist>
     {% else %}<input class="form-control form-control-sm" name="{{ clave }}" maxlength="255" value="{{ val or '' }}">{% endif %}
