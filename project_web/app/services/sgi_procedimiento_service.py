@@ -1763,6 +1763,14 @@ def aprobar_revision(rev_id: int, user_id: int, actor_label: str) -> tuple[bool,
         current_app.logger.exception("SGI: fallo notificaciones in-app al aprobar rev_id=%s", rev_id)
         n = 0
     db.session.commit()
+    try:
+        from app.services import plan_accion_service as plan_svc
+
+        if plan_svc.cerrar_por_aprobacion(doc.codigo, rev.revision_label, rev.fecha_aprobacion, user_id):
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("SGI: fallo al cerrar acciones del plan al aprobar rev_id=%s", rev_id)
     mailed = 0
     try:
         from app.services import sgi_difusion_mail_service as difusion_svc

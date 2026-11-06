@@ -141,3 +141,19 @@ def test_listas_desplegables_cerradas(app):
         assert errs and "Estado de la acción: elegí una opción de la lista" in errs[0]
         a, errs = svc.crear({"accion": "X", "estado": "en curso", "tipo_accion": "accion correctiva"}, None)
         assert not errs and (a.estado, a.tipo_accion) == ("En curso", "Acción correctiva")
+
+
+
+def test_aprobar_procedimiento_cierra_su_accion(app):
+    from app.services import plan_accion_service as svc
+
+    with app.app_context():
+        textos = ["Realizar y aprobar el procedimiento QDV-PG-12 COMPRAS", "Aprobar el PG-1 Información", "Aprobar el QDV-PO-12",
+                  "Establecer e implementar el procedimiento QDV-PG-12", "Aprobar e implementar QDV-PG-120"]
+        ids = [svc.crear({"accion": t, "estado": "Atrasado"}, None)[0].id for t in textos]
+        numero = svc.get(ids[0]).numero
+        assert svc.cerrar_por_aprobacion("QDV-PG-12", "Rev. 00", date(2026, 11, 6), None) == [numero]
+        a = svc.get(ids[0])
+        assert a.estado == "Cerrado" and "QDV-PG-12 Rev. 00 aprobado en el Software QDV el 06/11/2026" in a.comentarios
+        assert [svc.get(i).estado for i in ids[1:]] == ["Atrasado"] * 4
+        assert svc.cerrar_por_aprobacion("QDV-PG-12", "Rev. 00", None, None) == []

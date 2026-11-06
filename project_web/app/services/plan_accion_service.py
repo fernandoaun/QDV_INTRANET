@@ -259,6 +259,32 @@ def conservar_ids(anteriores: list[dict[str, Any]], nuevas: list[dict[str, Any]]
             usados.add(pid)
 
 
+def _menciona_procedimiento(texto: str, codigo: str) -> bool:
+    """«QDV-PG-12» o «PG-12» en el texto, sin confundir PG con PO ni PG-1 con PG-12."""
+    corto = codigo.upper().removeprefix("QDV-")
+    return re.search(rf"(?<![A-Z0-9])(QDV-)?{re.escape(corto)}(?![0-9])", (texto or "").upper()) is not None
+
+
+def cerrar_por_aprobacion(codigo: str, revision_label: str, fecha: date | None, user_id: int | None) -> list[int]:
+    """Al aprobarse un procedimiento en el Software QDV, cierra las acciones pendientes que piden aprobarlo.
+
+    Solo las que nombran el código y hablan de aprobar («Realizar y aprobar el QDV-PG-12…»); las que piden
+    implementarlo sin aprobarlo siguen abiertas. Devuelve los N° de acción cerrados.
+    """
+    cerradas = []
+    for a in listar():
+        if a.estado == "Cerrado" or "aprob" not in (a.accion or "").lower() or not _menciona_procedimiento(a.accion, codigo):
+            continue
+        datos = {k: getattr(a, k) for k in (*CAMPOS_TEXTO, *CAMPOS_FECHA)}
+        nota = (f"Cerrada automáticamente: {codigo} {revision_label} aprobado en el Software QDV"
+                f"{' el ' + fecha_dmy(fecha) if fecha else ''}.")
+        datos["estado"] = "Cerrado"
+        datos["comentarios"] = f"{a.comentarios}\n{nota}".strip() if a.comentarios else nota
+        if not guardar(a, datos, user_id):
+            cerradas.append(int(a.numero))
+    return cerradas
+
+
 def numeros(ids: list[int]) -> dict[int, int]:
     """id de acción → N° del plan, solo de las acciones activas."""
     return {a.id: a.numero for a in (get(i) for i in ids) if a is not None}
