@@ -205,6 +205,28 @@ def register_cli(app: Flask) -> None:
             click.echo("--- Planificación/Mantenimiento: cuerpo ---")
             click.echo(out.get("preview_body"))
 
+    @app.cli.command("send-informe-analisis")
+    @click.option("--dry-run", is_flag=True, help="Mostrar el informe sin enviar ni registrar.")
+    @click.option("--dia", default="", help="Día operativo AAAA-MM-DD (por defecto, ayer).")
+    @click.option("--forzar", is_flag=True, help="Reenviar aunque ya se haya mandado el de ese día.")
+    def send_informe_analisis(dry_run: bool, dia: str, forzar: bool) -> None:
+        """Informe diario de análisis por turno y por persona (Gerencia, cada mañana)."""
+        from datetime import date
+
+        from app.services.informe_analisis_service import run_informe_analisis
+
+        with app.app_context():
+            out = run_informe_analisis(
+                app, dia=date.fromisoformat(dia) if dia else None, dry_run=dry_run, forzar=forzar
+            )
+        click.echo(out.get("message") or "")
+        click.echo(
+            f"Informe análisis · día: {out.get('dia')} · faltaron: {out.get('faltan')} · "
+            f"destinatarios: {out.get('destinatarios')} · enviado: {out.get('enviado')}"
+        )
+        if dry_run:
+            click.echo(out.get("texto") or "")
+
     @app.cli.command("sgi-reenviar-avisos")
     @click.option(
         "--dry-run",
