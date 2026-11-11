@@ -189,7 +189,10 @@ def armar(dia: date) -> dict[str, Any]:
     for p in personas:
         p["faltan"] = max(0, p["esperados"] - p["hechos"])
         p["cumplimiento"] = round(100 * min(p["hechos"], p["esperados"]) / p["esperados"]) if p["esperados"] else None
-    return {"dia": dia, "turnos": turnos, "filtro": filtro, "personas": personas,
+    from app.services.datos_sospechosos_service import analizar
+
+    sospechosos = analizar(d0, d1, [(t["desde"], t["hasta"]) for t in turnos])
+    return {"dia": dia, "turnos": turnos, "filtro": filtro, "personas": personas, "sospechosos": sospechosos,
             "faltan": sum(t["faltan"] for t in turnos) + max(0, filtro_esp - len(filtro_rows))}
 
 
@@ -223,6 +226,10 @@ def cuerpos(data: dict[str, Any]) -> tuple[str, str, str]:
     dia = fecha_ar(data["dia"].isoformat())
     asunto = (f"Análisis por turno del {dia}: " +
               (f"faltaron {data['faltan']}" if data["faltan"] else "se hicieron todos"))
+    sos = data.get("sospechosos") or {"indicios": [], "personas": [], "aprendido": [], "resumen": {}}
+    alertas = [p for p in sos["personas"] if p["alerta"]]
+    if sos["indicios"] or alertas:
+        asunto += f" · {len(sos['indicios'])} posible(s) dato(s) falso(s)"
     td = 'style="border:1px solid #ccc;padding:4px 8px"'
     partes = [f"<h2 style='margin:0 0 4px'>Análisis por turno · {dia}</h2>",
               "<p style='margin:0 0 12px;color:#555'>Turnos M y T del día y N de la madrugada siguiente. "
@@ -268,7 +275,44 @@ def cuerpos(data: dict[str, Any]) -> tuple[str, str, str]:
     partes.append(f"<h3 style='margin-top:18px'>Lavado de filtro (uno por día)</h3><p>"
                   f"{fl['hechos']} de {fl['esperados']}: {_h('; '.join(fl['detalle']) or 'no se registró')}</p>")
     texto += ["", f"Lavado de filtro: {fl['hechos']} de {fl['esperados']}"]
+    _seccion_sospechosos(sos, alertas, partes, texto, td)
     return asunto, "".join(partes), "\n".join(texto)
+
+
+def _seccion_sospechosos(sos: dict[str, Any], alertas: list[dict[str, Any]], partes: list[str], texto: list[str], td: str) -> None:
+    partes.append("<h3 style='margin-top:22px'>Posibles datos falsos</h3><p style='margin:0 0 6px;color:#555'>"
+                  "El sistema aprende de los últimos 60 días cómo varían los valores y cuáles se mueven juntos, y marca "
+                  "lo que no encaja. Son indicios para revisar con el personal, no pruebas.</p>")
+    texto += ["", "POSIBLES DATOS FALSOS"]
+    if not sos["indicios"] and not alertas:
+        partes.append("<p>Sin indicios en el día.</p>")
+        texto.append("Sin indicios en el día.")
+    if sos["resumen"]:
+        partes.append(f"<table style='border-collapse:collapse'><tr><th {td}>Persona</th><th {td}>Copias del anterior</th>"
+                      f"<th {td}>Sin variación</th><th {td}>No cierran</th><th {td}>Fuera de lo habitual</th></tr>")
+        for p, v in sorted(sos["resumen"].items(), key=lambda kv: -kv[1].get("_puntos", 0)):
+            partes.append(f"<tr><td {td}>{_h(p)}</td>" + "".join(
+                f"<td {td}>{v.get(k, 0)}</td>" for k in ("Copia del anterior", "Sin variación en el turno", "No cierra",
+                                                        "Fuera de lo habitual")) + "</tr>")
+        partes.append("</table><ul style='margin-top:8px'>")
+        for i in sos["indicios"]:
+            linea = f"{i['momento'].strftime('%d/%m %H:%M')} · {i['persona']} · {i['analisis']} · {i['tipo']}: {i['texto']}"
+            color = "#dc3545" if i["peso"] >= 2 else "#555"
+            partes.append(f"<li style='color:{color}'>{_h(linea)}</li>")
+            texto.append(f"· {linea}")
+        partes.append("</ul>")
+    if alertas:
+        partes.append("<p style='margin:10px 0 4px'><b>Repiten valores mucho más que el resto (últimos 30 días)</b></p><ul>")
+        for p in alertas:
+            resto = f"{round(100 * p['resto'])} %" if p["resto"] is not None else "—"
+            linea = (f"{p['persona']} · {p['analisis']}: {p['copias']} de {p['n']} análisis iguales al anterior "
+                     f"({round(100 * p['tasa'])} %); el resto del equipo, {resto}")
+            partes.append(f"<li style='color:#dc3545'>{_h(linea)}</li>")
+            texto.append(f"· {linea}")
+        partes.append("</ul>")
+    if sos["aprendido"]:
+        rel = "; ".join(f"{a['analisis']}: {a['y']} con {a['x']} (r = {a['r']:.2f})".replace(".", ",") for a in sos["aprendido"])
+        partes.append(f"<p style='color:#777;font-size:12px;margin-top:10px'>Relaciones aprendidas: {_h(rel)}.</p>")
 
 
 def ayer() -> date:
