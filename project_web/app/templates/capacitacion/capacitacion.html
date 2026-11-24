@@ -17,7 +17,7 @@
   .cp-tabla td.c { text-align: center; }
   .cp-tabla td.vacia { height: 1.8rem; }
   .cp-tabla td.alto { height: 3.6rem; vertical-align: top; }
-  .cp-sheet textarea, .cp-sheet input[type=text], .cp-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .cp-sheet textarea, .cp-sheet input[type=text], .cp-sheet input[type=email], .cp-sheet select { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
   .cp-sheet textarea { min-height: 54px; resize: vertical; }
   .cp-sheet input[type=checkbox], .cp-sheet input[type=radio] { width: 1.05rem; height: 1.05rem; cursor: pointer; }
   .cp-caja { font-weight: 700; }
@@ -51,14 +51,17 @@
 <div class="app-page-head">
   <div>
     <h1 class="app-page-title">Registro de capacitación{% if cap %} N° {{ cap.numero }}{% elif blanco %} — en blanco{% else %} — nuevo{% endif %}</h1>
-    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-05{% if editar %} · La cantidad de asistentes se cuenta sola.{% endif %}</div>
+    {% set fs = firmas(cap) %}
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-05{% if editar %} · La cantidad de asistentes se cuenta sola. Firman en el sistema los asistentes con usuario y el disertante (por el correo); si se cambian los datos de la capacitación o los asistentes, las firmas se anulan y se vuelven a pedir.{% elif cap and fs[1] %} · Firmas: {{ fs[0] }} de {{ fs[1] }}{% endif %}</div>
   </div>
   <div class="app-page-actions d-flex flex-wrap gap-2">
     {% if editar %}
     <button type="submit" form="cpForm" class="btn btn-primary btn-sm">Guardar</button>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id) if cap else url_for('capacitacion.hub') }}">Cancelar</a>
     {% else %}
-    {% if cap and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    {% if puede_firmar %}<button type="submit" form="cpFirmar" class="btn btn-success btn-sm"><i class="bi bi-pen me-1"></i>Firmar</button>{% endif %}
+    {% if cap and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>
+    {% if fs[0] < fs[1] %}<button type="submit" form="cpPedir" class="btn btn-outline-secondary btn-sm"><i class="bi bi-send me-1"></i>Pedir firmas</button>{% endif %}{% endif %}
     <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
     {% if cap %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('capacitacion.ver', capacitacion_id=cap.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
     {% endif %}
@@ -88,7 +91,9 @@
       <colgroup><col style="width:34%"><col style="width:33%"><col style="width:33%"></colgroup>
       <tr><td><b>Fecha:</b> {{ txt('fecha', fecha=True) }}</td><td colspan="2"><b>Lugar:</b> {{ txt('lugar') }}</td></tr>
       <tr><td colspan="2"><b>Cantidad de Asistentes:</b> <span id="cp-cantidad">{{ asis|length if cap else '' }}</span></td><td><b>Duración:</b> {{ txt('duracion', maxlen=60) }}</td></tr>
-      <tr><td colspan="2" class="alto"><b>Disertante/es:</b> {{ txt('disertantes') }}</td><td class="alto"><b>Firma:</b></td></tr>
+      <tr><td colspan="2" class="alto"><b>Disertante/es:</b> {{ txt('disertantes') }}</td><td class="alto"><b>Firma:</b>
+        {% if editar %}<input type="email" name="disertante_correo" maxlength="254" value="{{ disertante(cap).correo or '' }}" placeholder="Correo del disertante" aria-label="Correo del disertante" class="mt-1">
+        {% elif cap %}<div>{{ firma_disertante_texto(cap) }}</div>{% endif %}</td></tr>
       <tr><td colspan="3" class="alto"><b>Tema:</b> {{ txt('tema', largo=True) }}</td></tr>
       <tr><td colspan="3"><b>Material que se entrega:</b> {{ txt('material', largo=True) }}</td></tr>
     </table>
@@ -123,7 +128,7 @@
         <td><input type="text" name="as_sector_{{ i }}" maxlength="255" value="{{ a.sector or '' }}" aria-label="Sector del asistente {{ i + 1 }}"></td>
         <td></td>
         {% else %}
-        <td class="vacia">{{ a.nombre }}</td><td>{{ a.sector }}</td><td></td>
+        <td class="vacia">{{ a.nombre }}</td><td>{{ a.sector }}</td><td class="c small">{{ firma_texto(a) if a }}</td>
         {% endif %}
       </tr>
       {% endfor %}
@@ -141,11 +146,18 @@
     <table class="cp-tabla cp-control">
       <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
       <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
-      <tr><td class="c">00</td><td>Confección del registro</td><td class="c">{{ fecha_dmy(reg.fecha_vigencia) }}</td></tr>
+      {% for rv, desc, fa in control_cambios %}<tr><td class="c">{{ rv }}</td><td>{{ desc }}</td><td class="c">{{ fa }}</td></tr>{% endfor %}
     </table>
   </div>
 </div>
 </form>
+
+{% if puede_firmar %}
+<form id="cpFirmar" method="post" action="{{ url_for('capacitacion.firmar', capacitacion_id=cap.id) }}">{% include "_csrf.html" %}</form>
+{% endif %}
+{% if cap and puede_editar and not editar %}
+<form id="cpPedir" method="post" action="{{ url_for('capacitacion.pedir_firmas', capacitacion_id=cap.id) }}">{% include "_csrf.html" %}</form>
+{% endif %}
 
 {% if cap and editar and es_admin %}
 <form method="post" action="{{ url_for('capacitacion.baja', capacitacion_id=cap.id) }}" onsubmit="return confirm('¿Dar de baja esta capacitación? Deja de listarse pero queda en el historial.');">

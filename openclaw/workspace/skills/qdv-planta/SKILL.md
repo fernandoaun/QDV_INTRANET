@@ -77,6 +77,8 @@ Acciones y campos (exactos):
 - `vencimiento`: `renovar` con `{"nueva_fecha":"AAAA-MM-DD"}` (preguntá la fecha si no la dijo).
 - `actividad`: `cumplida` · `orden`: `finalizada` con `{"resultado":"..."}` opcional.
 - `minuta_firmar`: `firmar` (el ítem trae `texto` con la minuta completa; si pide leerla, mostrásela antes de firmar).
+- `cap_firmar`: `firmar` (registro de capacitación: asistencia o disertante; el ítem trae `texto`, igual que la minuta).
+- `revdir_firmar`: `firmar` (minuta de revisión por la dirección; el ítem trae `texto`, igual que la minuta).
 Si el sistema responde que ya no está pendiente, decíselo tal cual. Lo que se firma queda a nombre de la persona del chat: nunca respondas por otro.
 
 ## Reglas

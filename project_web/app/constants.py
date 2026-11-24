@@ -187,6 +187,11 @@ SGI_REGISTRO_MODULOS: dict[str, dict[str, str]] = {
         "blank_endpoint": "minuta_reunion.en_blanco",
         "filled_endpoint": "minuta_reunion.hub",
     },
+    "revision_direccion": {
+        "label": "Minutas de revisión por la dirección",
+        "blank_endpoint": "revision_direccion.en_blanco",
+        "filled_endpoint": "revision_direccion.hub",
+    },
     "evaluacion_desempeno": {
         "label": "Evaluaciones de desempeño",
         "blank_endpoint": "evaluacion_desempeno.en_blanco",

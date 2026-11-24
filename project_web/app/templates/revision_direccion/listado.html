@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Revisión por la dirección · QDV{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Minutas de revisión por la dirección</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-07 · {{ revisiones|length }} minuta(s)</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('revision_direccion.nueva') }}"><i class="bi bi-plus-lg me-1"></i>Nueva minuta</a>{% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('revision_direccion.en_blanco') }}">Formulario en blanco</a>
+  </div>
+</div>
+
+<div class="app-card">
+  <div class="table-responsive">
+    <table class="table table-app align-middle mb-0">
+      <thead><tr><th class="text-center">N°</th><th>Fecha</th><th class="text-center">Participantes</th><th class="text-center">Firmas</th><th class="text-center">Acciones</th><th class="text-end"></th></tr></thead>
+      <tbody>
+        {% for r in revisiones %}
+        {% set f = firmas(r) %}
+        <tr>
+          <td class="text-center fw-semibold"><a class="text-decoration-none" href="{{ url_for('revision_direccion.ver', revision_id=r.id) }}">{{ r.numero }}</a></td>
+          <td class="small text-nowrap">{{ fecha_dmy(r.fecha) or '—' }}</td>
+          <td class="text-center small">{{ filas(r, 'participantes')|length }}</td>
+          <td class="text-center small">{{ f[0] }} de {{ f[1] }}</td>
+          <td class="text-center small">{{ filas(r, 'acciones')|length }}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('revision_direccion.ver', revision_id=r.id) }}">Ver</a>
+            {% if puede_editar %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('revision_direccion.ver', revision_id=r.id, editar=1) }}">Editar</a>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-center text-muted py-4">Todavía no hay minutas de revisión por la dirección cargadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

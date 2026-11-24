@@ -26,6 +26,8 @@ class Capacitacion(db.Model):
     metodos = db.Column(db.Text, nullable=False, default="{}", server_default="{}")
     # JSON [{"nombre", "sector", "empleado_id"}]; empleado_id si el nombre coincide con un legajo de Personal.
     asistentes = db.Column(db.Text, nullable=False, default="[]", server_default="[]")
+    # JSON {correo, user_id, firma_at, firma_via}: firma del disertante (los asistentes firman en su renglón).
+    disertante_firma = db.Column(db.Text, nullable=False, default="{}", server_default="{}")
     eficaz = db.Column(db.String(2), nullable=False, default="", server_default="")  # SI / NO / ""
     nuevas_acciones = db.Column(db.String(2), nullable=False, default="", server_default="")  # SI / NO / ""
     nuevas_acciones_detalle = db.Column(db.Text, nullable=False, default="", server_default="")

@@ -650,7 +650,7 @@ def user_can_edit_endpoint(user: User | None, endpoint: str | None) -> bool:
         from app.user_roles import user_is_responsable_laboratorio
 
         return user_can_edit_sgi_documentos(user) or user_is_responsable_laboratorio(user)
-    if ep.startswith(("objetivos.", "fichas.", "perfiles_puesto.", "plan_accion.", "solicitud_cambio.", "minuta_reunion.", "evaluacion_desempeno.", "capacitacion.", "desvios.", "foda.", "matriz_legal.", "matriz_riesgos.")):
+    if ep.startswith(("objetivos.", "fichas.", "perfiles_puesto.", "plan_accion.", "solicitud_cambio.", "minuta_reunion.", "revision_direccion.", "evaluacion_desempeno.", "capacitacion.", "desvios.", "foda.", "matriz_legal.", "matriz_riesgos.")):
         return user_can_edit_sgi_documentos(user)
     if ep.startswith("mantenimiento.checklist") and ep != "mantenimiento.checklist_configurar":
         return any(user_can_edit(user, p) for p in ("mantenimiento", "mantenimiento_equipos", "mantenimiento_preventivos"))

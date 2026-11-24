@@ -2,7 +2,7 @@
 
 Son los mismos que llegan con link de acción por mail (`accion_link_service`): revisar o aprobar un
 procedimiento, gestionar o aceptar vacaciones, entregar un pedido de EPP, renovar un vencimiento y cerrar
-tareas de planificación/mantenimiento y firmar minutas de reunión. El bot lista `pendientes(user)` y, con la respuesta de la persona,
+tareas de planificación/mantenimiento y firmar minutas de reunión, registros de capacitación y minutas de revisión por la dirección. El bot lista `pendientes(user)` y, con la respuesta de la persona,
 arma `responder` (preview → confirmación → ejecutar), que corre la misma lógica que la pantalla del link.
 """
 from __future__ import annotations
@@ -39,6 +39,8 @@ ACCIONES: dict[str, dict[str, str]] = {
     "actividad": {"cumplida": "Marcar cumplida"},
     "orden": {"finalizada": "Marcar finalizada (campo resultado opcional)"},
     accion_svc.MINUTA_FIRMAR: {"firmar": "Firmar la minuta"},
+    accion_svc.CAP_FIRMAR: {"firmar": "Firmar el registro de capacitación"},
+    accion_svc.REVDIR_FIRMAR: {"firmar": "Firmar la minuta de revisión por la dirección"},
 }
 
 
@@ -68,6 +70,8 @@ def pendientes(user: User) -> list[dict[str, Any]]:
     out += _vacaciones(user)
     out += _epp_recibido(user)
     out += _minutas(user)
+    out += _capacitaciones(user)
+    out += _revisiones_direccion(user)
     out += _epp(app, user, mails)
     generales = bool(mails & _avisos_generales(app))
     out += _vencimientos(user, mails, generales)
@@ -192,6 +196,29 @@ def _minutas(user: User) -> list[dict[str, Any]]:
     return out[:MAX_POR_TIPO]
 
 
+def _capacitaciones(user: User) -> list[dict[str, Any]]:
+    from app.services import capacitacion_service as cp
+
+    out = []
+    for c in cp.listar():
+        if cp.puede_firmar(c, user):
+            rol = "como disertante" if cp.es_disertante(c, user) else "tu asistencia"
+            out.append(_item(f"{accion_svc.CAP_FIRMAR}:{c.id}", f"Firmar el Registro de capacitación N° {c.numero} ({rol})",
+                             f"{c.tema[:120]} ({cp.fecha_dmy(c.fecha) if c.fecha else ''})", texto=cp.texto_capacitacion(c)))
+    return out[:MAX_POR_TIPO]
+
+
+def _revisiones_direccion(user: User) -> list[dict[str, Any]]:
+    from app.services import revision_direccion_service as rd
+
+    out = []
+    for r in rd.listar():
+        if rd.puede_firmar(r, user):
+            out.append(_item(f"{accion_svc.REVDIR_FIRMAR}:{r.id}", f"Firmar la Minuta de revisión por la dirección N° {r.numero}",
+                             rd.fecha_dmy(r.fecha) if r.fecha else "", texto=rd.texto_revision(r)))
+    return out[:MAX_POR_TIPO]
+
+
 def _vencimientos(user: User, mails: set[str], generales: bool) -> list[dict[str, Any]]:
     from app.models import Vencimiento
 
@@ -275,7 +302,7 @@ def _form_y_datos(user: User, clave: str, accion: str, campos: dict[str, Any]) -
     elif tipo == "actividad":
         data.update({"t": accion_svc.TAREAS, "p": [oid], "o": []})
         form = {"accion": f"act:{oid}"}
-    elif tipo == accion_svc.MINUTA_FIRMAR:
+    elif tipo in (accion_svc.MINUTA_FIRMAR, accion_svc.CAP_FIRMAR, accion_svc.REVDIR_FIRMAR):
         data["via"] = "WhatsApp"
     elif tipo == "orden":
         data.update({"t": accion_svc.TAREAS, "p": [], "o": [oid]})

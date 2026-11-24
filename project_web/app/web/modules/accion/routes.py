@@ -407,6 +407,81 @@ class _MinutaFirmar:
         return True, msg
 
 
+# --------------------------------------------------------------------------- registro de capacitación
+
+
+class _CapFirmar:
+    @staticmethod
+    def contexto(data: dict[str, Any]) -> dict[str, Any]:
+        from app.services import capacitacion_service as cp
+
+        c = cp.get(int(data["id"]))
+        if c is None:
+            return {"error": "La capacitación ya no existe."}
+        user = data["user"]
+        disertante = data.get("r") == "d"
+        puede = cp.disertante_puede_firmar_link(c, data.get("e") or "") if disertante else cp.puede_firmar(c, user)
+        if disertante and not puede and user is not None:
+            puede = cp.puede_firmar(c, user)
+        return {"cap": c, "texto": cp.texto_capacitacion(c), "puede": puede, "disertante": disertante,
+                "sin_usuario": user is None and not disertante}
+
+    @staticmethod
+    def ejecutar(data: dict[str, Any], req: Any) -> tuple[bool, str]:
+        from app.services import capacitacion_service as cp
+
+        c = cp.get(int(data["id"]))
+        if c is None:
+            return False, "La capacitación ya no existe."
+        user = data["user"]
+        via = data.get("via") or "link del aviso"
+        try:
+            if data.get("r") == "d" and cp.disertante_puede_firmar_link(c, data.get("e") or ""):
+                msg = cp.firmar_disertante(c, data.get("e") or "", via, user=user)
+            elif user is not None:
+                msg = cp.firmar(c, user, via)
+            else:
+                return False, "No se pudo identificar tu usuario del sistema."
+        except ValueError as e:
+            db.session.rollback()
+            return False, str(e)
+        db.session.commit()
+        accion_svc.registrar(data, "cap_firmar", "capacitacion", c.id, f"Capacitación N° {c.numero}")
+        return True, msg
+
+
+# --------------------------------------------------------------------------- revisión por la dirección
+
+
+class _RevDirFirmar:
+    @staticmethod
+    def contexto(data: dict[str, Any]) -> dict[str, Any]:
+        from app.services import revision_direccion_service as rd
+
+        r = rd.get(int(data["id"]))
+        if r is None:
+            return {"error": "La minuta ya no existe."}
+        user = data["user"]
+        return {"rev": r, "texto": rd.texto_revision(r), "puede": rd.puede_firmar(r, user), "sin_usuario": user is None}
+
+    @staticmethod
+    def ejecutar(data: dict[str, Any], req: Any) -> tuple[bool, str]:
+        from app.services import revision_direccion_service as rd
+
+        r = rd.get(int(data["id"]))
+        user = data["user"]
+        if r is None or user is None:
+            return False, "No se pudo identificar tu usuario del sistema."
+        try:
+            msg = rd.firmar(r, user, data.get("via") or "link del aviso")
+        except ValueError as e:
+            db.session.rollback()
+            return False, str(e)
+        db.session.commit()
+        accion_svc.registrar(data, "revdir_firmar", "revision_direccion", r.id, f"Revisión por la dirección N° {r.numero}")
+        return True, msg
+
+
 def _demo_contexto(data: dict[str, Any], handler: Any) -> dict[str, Any]:
     """Pantalla de un aviso de prueba: datos reales cuando se pueden leer, si no, un ejemplo. Siempre «pendiente»."""
     from datetime import timedelta
@@ -447,4 +522,6 @@ _HANDLERS: dict[str, Any] = {
     accion_svc.VENCIMIENTO: _Vencimiento,
     accion_svc.TAREAS: _Tareas,
     accion_svc.MINUTA_FIRMAR: _MinutaFirmar,
+    accion_svc.CAP_FIRMAR: _CapFirmar,
+    accion_svc.REVDIR_FIRMAR: _RevDirFirmar,
 }

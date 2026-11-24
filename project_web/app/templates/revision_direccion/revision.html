@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+{% block title %}Revisión por la dirección{% if rev %} N° {{ rev.numero }}{% elif blanco %} (en blanco){% else %} nueva{% endif %} · QDV{% endblock %}
+{% block extra_head %}
+<style>
+  /* Registro QDV-RG-PG-07_01: misma estructura que el formulario Word (siempre "papel"). */
+  .rd-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; }
+  .rd-sheet { background: #fff; color: #000; min-width: 760px; max-width: 1000px; margin: 0 auto; padding: 14px 18px; font-family: Arial, Helvetica, sans-serif; font-size: .82rem; }
+  .rd-head { border-collapse: collapse; width: 100%; margin-bottom: 14px; }
+  .rd-head td { border: 2px solid #000; vertical-align: middle; }
+  .rd-head .logo { width: 20%; text-align: center; }
+  .rd-head .logo img { max-height: 70px; }
+  .rd-head .titulo { text-align: center; font-weight: 700; font-size: 1.15rem; }
+  .rd-head .meta { width: 24%; text-align: center; font-weight: 700; font-size: .9rem; padding: 1px 6px; }
+  .rd-tabla { border-collapse: collapse; width: 100%; margin-bottom: 12px; table-layout: fixed; }
+  .rd-tabla td, .rd-tabla th { border: 1.5px solid #333; padding: 5px 8px; vertical-align: top; overflow-wrap: anywhere; }
+  .rd-tabla th { background: #d9d9d9; text-align: center; font-size: .8rem; }
+  .rd-tabla td.c { text-align: center; }
+  .rd-tabla td.vacia { height: 1.9rem; }
+  .rd-agenda { margin: 0; padding-left: 1.2rem; }
+  .rd-agenda .sub { margin-left: 1.4rem; list-style: circle; }
+  .rd-tema { font-weight: 700; margin-top: 10px; }
+  .rd-tema.sub { margin-left: 1.4rem; }
+  .rd-grupo { font-weight: 700; margin-top: 12px; text-decoration: underline; }
+  .rd-texto { margin: 2px 0 6px; white-space: pre-line; }
+  .rd-texto.sub { margin-left: 1.4rem; }
+  .rd-blanco { border-bottom: 1px solid #999; height: 3.2rem; margin: 2px 0 6px; }
+  .rd-sheet b { white-space: nowrap; }
+  .rd-sheet textarea, .rd-sheet input[type=text] { font: inherit; width: 100%; border: 1px dashed #999; background: #fffbe6; padding: 3px 6px; }
+  .rd-sheet textarea { min-height: 54px; resize: vertical; }
+  .rd-plan { white-space: nowrap; }
+  @media print {
+    @page { size: A4 portrait; margin: 10mm; }
+    body * { visibility: hidden; }
+    .rd-sheet, .rd-sheet * { visibility: visible; }
+    .rd-sheet { position: absolute; left: 0; top: 0; min-width: 0; max-width: none; width: 100%; padding: 0; font-size: 8.5pt; }
+    .rd-plan { display: none; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+{% endblock %}
+{% block content %}
+{% set ts = temas(rev) %}
+{% set pv = previo if previo is defined and previo else none %}
+<div class="app-page-head">
+  <div>
+    <h1 class="app-page-title">Minuta de revisión por la dirección{% if rev %} N° {{ rev.numero }}{% elif blanco %} — en blanco{% else %} — nueva{% endif %}</h1>
+    <div class="text-muted small">Registro SGI {{ reg.codigo }} · procedimiento PG-07{% if editar %} · Todos los campos son obligatorios: si un tema no tuvo novedades, escribilo. Las acciones pasan al Plan de acción. Si la minuta ya tenía firmas, al guardar cambios se anulan y se vuelve a pedir la firma.{% elif rev and firmas[1] %} · Firmas: {{ firmas[0] }} de {{ firmas[1] }}{% endif %}</div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if editar %}
+    <button type="submit" form="rdForm" class="btn btn-primary btn-sm">Guardar</button>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('revision_direccion.ver', revision_id=rev.id) if rev else url_for('revision_direccion.hub') }}">Cancelar</a>
+    {% else %}
+    {% if puede_firmar %}<button type="submit" form="rdFirmar" class="btn btn-success btn-sm"><i class="bi bi-pen me-1"></i>Firmar</button>{% endif %}
+    {% if rev and puede_editar %}<a class="btn btn-primary btn-sm" href="{{ url_for('revision_direccion.ver', revision_id=rev.id, editar=1) }}"><i class="bi bi-pencil me-1"></i>Editar</a>{% endif %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    {% if rev %}<a class="btn btn-outline-secondary btn-sm" href="{{ url_for('revision_direccion.ver', revision_id=rev.id, historial=1) }}#historial"><i class="bi bi-clock-history me-1"></i>Historial</a>{% endif %}
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('revision_direccion.hub') }}">Todas las minutas</a>
+  </div>
+</div>
+
+<form id="rdForm" method="post" action="{{ url_for('revision_direccion.ver', revision_id=rev.id) if rev else url_for('revision_direccion.nueva') }}">
+{% if editar %}{% include "_csrf.html" %}{% endif %}
+<div class="rd-scroll app-card p-0 mb-3">
+  <div class="rd-sheet">
+    <table class="rd-head">
+      <tr>
+        <td class="logo" rowspan="3"><img src="{{ url_for('static', filename='img/qdv-logo.png') }}" alt="Química del Valle"></td>
+        <td class="titulo" rowspan="3">{{ reg.titulo }}</td>
+        <td class="meta">{{ reg.codigo }}</td>
+      </tr>
+      <tr><td class="meta">Rev. {{ reg.revision }}</td></tr>
+      <tr><td class="meta">Página 1 de 1</td></tr>
+    </table>
+
+    <table class="rd-tabla">
+      <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+      <tr>
+        <td><b>Minuta Nº:</b> {{ rev.numero if rev else ('(se asigna al guardar)' if editar else '') }}</td>
+        <td><b>Fecha:</b>
+          {% if editar %}<input type="text" name="fecha" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ pv.fecha if pv else (fecha_dmy(rev.fecha) if rev and rev.fecha else '') }}" aria-label="Fecha">
+          {% elif rev %}{{ fecha_dmy(rev.fecha) }}{% endif %}</td>
+      </tr>
+      <tr><td colspan="2">
+        <ul class="rd-agenda">
+          {% for k, t, nivel in temas_op %}<li class="{{ 'sub' if nivel }}">{{ t }}</li>{% endfor %}
+        </ul>
+      </td></tr>
+    </table>
+
+    {% set ps = filas(rev, 'participantes') %}
+    {% set np = [ps|length + (2 if editar else 0), filas_min.participantes]|max if (editar or blanco) else ps|length %}
+    {% if editar %}<datalist id="rdUsuarios">{% for n in nombres_usuarios %}<option value="{{ n }}">{% endfor %}</datalist>{% endif %}
+    <table class="rd-tabla">
+      {% if editar or blanco %}
+      <colgroup><col style="width:8%"><col style="width:50%"><col style="width:42%"></colgroup>
+      <tr><th colspan="3">PARTICIPANTES DE LA REUNIÓN</th></tr>
+      <tr><th></th><th>PARTICIPANTE</th><th>CARGO</th></tr>
+      {% else %}
+      <colgroup><col style="width:6%"><col style="width:32%"><col style="width:28%"><col style="width:34%"></colgroup>
+      <tr><th colspan="4">PARTICIPANTES DE LA REUNIÓN</th></tr>
+      <tr><th></th><th>PARTICIPANTE</th><th>CARGO</th><th>FIRMA</th></tr>
+      {% endif %}
+      {% for i in range(np) %}
+      {% set p = ps[i] if i < ps|length else {} %}
+      <tr>
+        <td class="c">{{ '%02d'|format(i + 1) }}</td>
+        {% if editar %}
+        <td><input type="text" name="participantes_participante_{{ i }}" maxlength="255" list="rdUsuarios" value="{{ pv.get('participantes_participante_%d'|format(i), '') if pv else (p.participante or '') }}" aria-label="Participante {{ i + 1 }}"></td>
+        <td><input type="text" name="participantes_cargo_{{ i }}" maxlength="255" value="{{ pv.get('participantes_cargo_%d'|format(i), '') if pv else (p.cargo or '') }}" aria-label="Cargo {{ i + 1 }}"></td>
+        {% elif blanco %}
+        <td class="vacia"></td><td></td>
+        {% else %}
+        <td class="vacia">{{ p.participante }}</td><td>{{ p.cargo }}</td><td class="c small">{{ firma_texto(p) }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="participantes_filas" value="{{ np }}">{% endif %}
+
+    <table class="rd-tabla">
+      <tr><th>TEMAS TRATADOS</th></tr>
+      <tr><td>
+        {% for k, t, nivel in temas_op %}
+          {% if k is none %}
+          <div class="rd-grupo">{{ t }}</div>
+          {% else %}
+          <div class="rd-tema{{ ' sub' if nivel }}">{{ t }}</div>
+          {% if editar %}
+          <div class="rd-texto{{ ' sub' if nivel }}"><textarea name="tema_{{ k }}" aria-label="{{ t }}">{{ pv.get('tema_' ~ k, '') if pv else ts.get(k, '') }}</textarea></div>
+          {% elif blanco %}
+          <div class="rd-blanco{{ ' sub' if nivel }}"></div>
+          {% else %}
+          <div class="rd-texto{{ ' sub' if nivel }}">{{ ts.get(k, '') }}</div>
+          {% endif %}
+          {% endif %}
+        {% endfor %}
+      </td></tr>
+    </table>
+
+    {% set acs = filas(rev, 'acciones') %}
+    {% set en_plan = plan_numeros(rev) %}
+    {% set na = [acs|length + (2 if editar else 0), filas_min.acciones]|max if (editar or blanco) else acs|length %}
+    <table class="rd-tabla">
+      <colgroup><col style="width:56%"><col style="width:26%"><col style="width:18%"></colgroup>
+      <tr><th>DECISIONES Y ACCIONES</th><th>RESPONSABLE</th><th>FECHA</th></tr>
+      {% for i in range(na) %}
+      {% set a = acs[i] if i < acs|length else {} %}
+      <tr>
+        {% if editar %}
+        <td><input type="text" name="acciones_accion_{{ i }}" maxlength="255" value="{{ pv.get('acciones_accion_%d'|format(i), '') if pv else (a.accion or '') }}" aria-label="Decisión o acción {{ i + 1 }}">{% if a.plan_accion_id %}<input type="hidden" name="acciones_plan_{{ i }}" value="{{ a.plan_accion_id }}">{% endif %}</td>
+        <td><input type="text" name="acciones_responsable_{{ i }}" maxlength="255" value="{{ pv.get('acciones_responsable_%d'|format(i), '') if pv else (a.responsable or '') }}" aria-label="Responsable {{ i + 1 }}"></td>
+        <td><input type="text" name="acciones_fecha_{{ i }}" placeholder="dd/mm/aaaa" inputmode="numeric" maxlength="10" value="{{ pv.get('acciones_fecha_%d'|format(i), '') if pv else (a.fecha or '') }}" aria-label="Fecha {{ i + 1 }}"></td>
+        {% else %}
+        <td class="vacia">{{ a.accion }}{% if a.plan_accion_id in en_plan %} <a class="rd-plan small" href="{{ url_for('plan_accion.ver', accion_id=a.plan_accion_id) }}">Plan de acción N° {{ en_plan[a.plan_accion_id] }}</a>{% endif %}</td><td>{{ a.responsable }}</td><td class="c">{{ a.fecha }}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% if editar %}<input type="hidden" name="acciones_filas" value="{{ na }}">{% endif %}
+
+    <table class="rd-tabla">
+      <colgroup><col style="width:16%"><col style="width:56%"><col style="width:28%"></colgroup>
+      <tr><th>REVISIÓN</th><th>DESCRIPCIÓN DE CAMBIOS</th><th>FECHA DE APROBACIÓN</th></tr>
+      {% for rv, desc, fa in control_cambios %}<tr><td class="c">{{ rv }}</td><td>{{ desc }}</td><td class="c">{{ fa }}</td></tr>{% endfor %}
+    </table>
+  </div>
+</div>
+</form>
+
+{% if puede_firmar %}
+<form id="rdFirmar" method="post" action="{{ url_for('revision_direccion.firmar', revision_id=rev.id) }}">{% include "_csrf.html" %}</form>
+{% endif %}
+
+{% if rev and editar and es_admin %}
+<form method="post" action="{{ url_for('revision_direccion.baja', revision_id=rev.id) }}" onsubmit="return confirm('¿Dar de baja esta minuta? Deja de listarse pero queda en el historial.');">
+  {% include "_csrf.html" %}
+  <button class="btn btn-outline-danger btn-sm">Dar de baja la minuta</button>
+</form>
+{% endif %}
+
+{% if historial is not none %}
+<div class="app-card mt-3" id="historial">
+  <div class="app-card-header">Historial de cambios</div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Fecha</th><th>Usuario</th><th>Campo</th><th>Antes</th><th>Después</th></tr></thead>
+      <tbody>
+        {% for c in historial %}
+        <tr>
+          <td class="small text-nowrap">{{ fecha_local(c.created_at) }}</td>
+          <td class="small">{{ c.user.username if c.user else '—' }}</td>
+          <td class="small">{{ rd_campo_labels.get(c.campo, c.campo) }}</td>
+          <td class="small text-muted" style="max-width:24rem;white-space:pre-line">{{ c.antes or '' }}</td>
+          <td class="small" style="max-width:24rem;white-space:pre-line">{{ c.despues or '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-center text-muted py-3">Sin cambios registrados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
